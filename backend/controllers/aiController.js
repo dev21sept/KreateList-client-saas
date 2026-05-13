@@ -1,0 +1,321 @@
+const OpenAI = require('openai');
+const ebayService = require('../services/ebayService');
+const Listing = require('../models/Listing');
+const { wrapInTemplate } = require('../services/descriptionService');
+const { normalizeProductImages } = require('../utils/imageProcessor');
+const { logActivity } = require('../utils/activityUtils');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
+
+const normalizeStringList = (value) => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => String(item || '').trim())
+        .filter(Boolean);
+};
+
+const dedupeOrdered = (items) => [...new Set(items)];
+
+const shouldApplyConditionNote = (conditionName = '') => {
+    const normalized = String(conditionName || '').trim().toLowerCase();
+    if (!normalized) return true;
+    return !normalized.includes('new');
+};
+
+exports.analyzeListing = async (req, res) => {
+    console.log(`\n--- [AI] New Analysis Request Received ---`);
+    try {
+        const {
+            images,
+            platform = 'ebay',
+            title_sequence = DEFAULT_TITLE_SEQUENCE,
+            description_prompt = '',
+            condition_name = 'Pre-owned',
+            gender = 'Unisex',
+            condition_note = ''
+        } = req.body;
+
+        const effectiveStructure = dedupeOrdered(
+            normalizeStringList(title_sequence).length > 0
+                ? normalizeStringList(title_sequence)
+                : DEFAULT_TITLE_SEQUENCE
+        );
+
+        const appliedConditionNote = shouldApplyConditionNote(condition_name) ? condition_note : '';
+
+        if (!images || images.length === 0) {
+            return res.status(400).json({ error: "No images provided for analysis." });
+        }
+
+        const imageContent = images.map(url => ({
+            type: "image_url",
+            image_url: { url: url.startsWith('data:') ? url : url }
+        }));
+
+        // --- PHASE 1: CATEGORY IDENTIFICATION ---
+        console.log(`--- Phase 1: Identifying ${platform} Category ---`);
+        const categoryResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            temperature: 0,
+            messages: [
+                {
+                    role: "system",
+                    content: `You are an expert in marketplace categorization for ${platform}. Your goal is to identify the deepest, most accurate leaf-category for ANY type of product.`
+                },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: `1. Analyze ALL provided images thoroughly.
+2. Carefully read ALL visible tags, brand logos, model numbers, and text on the product/box.
+3. Use this deep visual and textual evidence to determine the exact product identity.
+4. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level). (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
+5. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206).`
+                        },
+                        ...imageContent
+                    ]
+                }
+            ],
+            response_format: { type: "json_object" }
+        });
+
+        const categoryResult = JSON.parse(categoryResponse.choices[0].message.content);
+
+        let categoryId = '';
+        let categoryPath = 'General';
+
+        if (platform === 'ebay') {
+            const query = categoryResult?.category_query || 'General';
+            try {
+                const suggestions = await ebayService.getCategorySuggestions(query);
+                if (suggestions && suggestions.length > 0) {
+                    const bestSuggest = suggestions[0];
+                    categoryId = bestSuggest.category.categoryId;
+
+                    let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
+                    ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
+                    categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
+                    
+                    console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
+                } else {
+                    categoryPath = query;
+                }
+            } catch (err) {
+                console.error("Failed to fetch official category suggestions:", err.message);
+                categoryPath = query;
+            }
+        }
+
+        console.log(`✅ Phase 1: ${categoryPath} (ID: ${categoryId})`);
+
+        // --- PHASE 2: FETCH OFFICIAL ASPECTS (EBAY ONLY) ---
+        let officialAspects = [];
+        let aspectNamesList = [];
+        if (platform === 'ebay' && categoryId) {
+            try {
+                console.log(`--- Fetching official eBay aspects for Category: ${categoryId} ---`);
+                const aspectsData = await ebayService.getItemAspectsForCategory(categoryId);
+
+                if (aspectsData && aspectsData.aspects) {
+                    officialAspects = aspectsData.aspects.map(aspect => ({
+                        localizedAspectName: aspect.localizedAspectName,
+                        required: aspect.aspectConstraint?.aspectRequired || false,
+                        usage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL',
+                        values: aspect.aspectValues ? aspect.aspectValues.map(v => v.localizedValue) : []
+                    }));
+
+                    officialAspects.sort((a, b) => {
+                        if (a.required && !b.required) return -1;
+                        if (!a.required && b.required) return 1;
+                        if (a.usage === 'RECOMMENDED' && b.usage !== 'RECOMMENDED') return -1;
+                        if (a.usage !== 'RECOMMENDED' && b.usage === 'RECOMMENDED') return 1;
+                        return 0;
+                    });
+
+                    aspectNamesList = officialAspects.map(a => a.localizedAspectName);
+                }
+            } catch (e) {
+                console.error('⚠️ eBay API Error:', e.message);
+            }
+        }
+
+        if (aspectNamesList.length === 0) {
+            aspectNamesList = ['Brand', 'Type', 'Size', 'Color', 'Material', 'Condition', 'Style', 'Department'];
+        }
+
+        // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
+        console.log(`--- Phase 3: Detailed AI Analysis ---`);
+
+        const mainResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            temperature: 0,
+            messages: [
+                {
+                    role: "system",
+                    content: `You are a world-class ${platform} listing expert. You strictly follow instructions.`
+                },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: `Analyze images for a professional ${platform} listing.
+                            
+1. Visual Research & Title Construction:
+   - Identify the EXACT retail name of this product.
+   - Look for keywords like "Vintage", "Rare", "Authentic".
+   - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
+   
+   CRITICAL RULES:
+   - GOAL: A professional, keyword-rich title between 70-80 characters.
+   - NO BLANKS: Fill every requested attribute.
+   - Output as a JSON object inside 'title_parts'.
+   
+2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
+   - Analyze the item to write a professional summary.
+   - Use HTML <b> for section headers and <br><br> for spacing.
+   - Include these sections:
+     - <b>The Ultimate Look / Perfect Upgrade:</b> {Engaging hook about the item}.<br><br>
+     - <b>About the Brand:</b> {Quality/Heritage info about the brand}.<br><br>
+     - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
+     - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
+     - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>
+   - Custom Instruction: "${description_prompt || 'Generate a professional eBay listing description.'}"
+   
+3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}. 
+    
+4. Pricing: Estimate a realistic 'selling_price' in USD.
+
+Context: Gender: ${gender}, Category: ${categoryPath}.
+
+Response ONLY as JSON: {
+  "brand": "Company Name",
+  "title": "A long, descriptive, 80-character marketplace title",
+  "title_parts": { "AttributeName": "Value", ... },
+  "description": "HTML content",
+  "item_specifics": { "FieldName": "Value", ... },
+  "selling_price": 0.00
+}`
+                        },
+                        ...imageContent
+                    ]
+                }
+            ],
+            response_format: { type: "json_object" }
+        });
+
+        const finalData = JSON.parse(mainResponse.choices[0].message.content);
+
+        // --- DYNAMIC SKU GENERATION ---
+        const productCount = await Listing.countDocuments();
+        finalData.sku = `KL${productCount + 1}A`;
+
+        const aiResponseParts = finalData.title_parts || {};
+        const standardizedParts = {};
+
+        effectiveStructure.forEach(key => {
+            const foundKey = Object.keys(aiResponseParts).find(k => k.toLowerCase() === key.toLowerCase());
+            standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
+        });
+
+        const titleString = effectiveStructure
+            .map(key => {
+                let val = standardizedParts[key] || '';
+                val = String(val).replace(/,/g, '');
+                if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
+                    return `Size ${val}`;
+                }
+                return val;
+            })
+            .filter(val => val && val.toString().trim() !== '')
+            .join(' ')
+            .substring(0, 80)
+            .trim();
+
+        const finalTitle = titleString || finalData.title || 'New Listing';
+        const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
+
+        if (req.user) {
+            await logActivity({
+                action: 'ai_fetch',
+                userId: req.user.id,
+                status: 'success'
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                ...finalData,
+                title: finalTitle,
+                description: templatedDescription,
+                title_parts: standardizedParts,
+                category: categoryPath.split(' > ').pop(),
+                category_id: categoryId,
+                category_name: categoryPath,
+                aspects: officialAspects,
+                price: finalData.selling_price || finalData.price
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Final Analysis Error:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+exports.saveAiListing = async (req, res) => {
+    try {
+        const data = req.body;
+        const normalizedImages = await normalizeProductImages(data.images || []);
+
+        if (normalizedImages.length > 0) {
+            const existingListing = await Listing.findOne({
+                images: { $in: normalizedImages }
+            });
+
+            if (existingListing) {
+                return res.status(400).json({ success: false, message: 'DUPLICATE: A listing with these images already exists.' });
+            }
+        }
+
+        const newListing = new Listing({
+            ...data,
+            user: req.user.id,
+            images: normalizedImages
+        });
+
+        await newListing.save();
+        res.json({ success: true, listingId: newListing._id });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+exports.searchCategories = async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query) return res.json([]);
+
+        const suggestions = await ebayService.getCategorySuggestions(query);
+
+        const formatted = suggestions.map(s => {
+            let ancestors = s.categoryTreeNodeAncestors || [];
+            ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
+            const path = ancestors.map(a => a.categoryName).join(' > ');
+            const name = s.category.categoryName;
+            return {
+                id: s.category.categoryId,
+                name: name,
+                path: path,
+                fullName: path ? `${path} > ${name}` : name
+            };
+        });
+
+        res.json(formatted);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
