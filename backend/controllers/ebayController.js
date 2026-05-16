@@ -20,31 +20,44 @@ exports.ebayCallback = async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) {
+      console.error('eBay Callback Error: No code provided in request body');
       return res.status(400).json({ success: false, message: 'No code provided' });
     }
 
+    console.log('Exchanging eBay code for token...');
     const tokenData = await ebayService.exchangeCodeForToken(code);
     
+    if (!tokenData || !tokenData.access_token) {
+      throw new Error('Failed to obtain access token from eBay');
+    }
+
     // Update user with eBay tokens
     const user = await User.findById(req.user.id);
+    if (!user) {
+      throw new Error('User not found during eBay callback');
+    }
+
     user.ebayAccount.connected = true;
     user.ebayAccount.accessToken = tokenData.access_token;
     user.ebayAccount.refreshToken = tokenData.refresh_token;
     user.ebayAccount.tokenExpires = new Date(Date.now() + tokenData.expires_in * 1000);
     
+    console.log('Fetching eBay user details...');
     // Fetch eBay username/details
     const ebayUser = await ebayService.getEbayUserDetails(tokenData.access_token);
     if (ebayUser) {
+      console.log('eBay user details fetched for:', ebayUser.username);
       user.ebayAccount.username = ebayUser.username;
       const account = ebayUser.individualAccount || ebayUser.businessAccount;
       if (account) {
         user.ebayAccount.email = account.email;
-        user.ebayAccount.name = account.registrationAddress?.fullName;
-        user.ebayAccount.phone = account.primaryPhone?.phoneNumber;
+        user.ebayAccount.name = account.registrationAddress?.fullName || ebayUser.username;
+        user.ebayAccount.phone = account.primaryPhone?.phoneNumber || '';
       }
     }
 
     await user.save();
+    console.log('eBay account successfully linked to user:', user.email);
 
     res.status(200).json({
       success: true,
@@ -52,7 +65,15 @@ exports.ebayCallback = async (req, res) => {
       data: user.ebayAccount
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('eBay Callback Process Error:', err.message);
+    if (err.response?.data) {
+      console.error('eBay API Error Details:', JSON.stringify(err.response.data));
+    }
+    res.status(500).json({ 
+      success: false, 
+      message: err.message,
+      details: err.response?.data || null
+    });
   }
 };
 
