@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -15,6 +16,7 @@ import {
 import { listingService } from '../services/api';
 
 const Listings = () => {
+  const navigate = useNavigate();
   const [selectedListings, setSelectedListings] = useState([]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,10 +64,12 @@ const Listings = () => {
           <p className="text-slate-500">Manage and track your eBay inventory.</p>
         </div>
         <div className="flex space-x-3">
-          <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center">
-            <Download size={18} className="mr-2" /> Export CSV
+          <button 
+            onClick={() => navigate('/create-listing')}
+            className="btn-primary"
+          >
+            Create Listing
           </button>
-          <button className="btn-primary">Create Listing</button>
         </div>
       </div>
 

@@ -1,156 +1,229 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Zap, Rocket, Building2, HelpCircle } from 'lucide-react';
+import { Check, Zap, Rocket, Building2, Package, Plus, Users, Sparkles } from 'lucide-react';
 
 const Subscription = () => {
   const [billingCycle, setBillingCycle] = useState('monthly');
 
   const plans = [
     {
-      name: 'Basic',
-      price: billingCycle === 'monthly' ? 29 : 24,
-      icon: <Zap className="text-indigo-600" />,
+      name: 'BASIC',
+      monthlyPrice: 79,
+      icon: <Zap className="w-5 h-5 text-blue-500" />,
+      perfectFor: ['New resellers', 'Small eBay sellers', 'Side hustlers'],
       features: [
-        '500 Listings per month',
+        '500 AI Listings / month',
         '1 eBay Account',
-        'Standard Rule Engine',
-        'Email Support',
-        'Basic Analytics'
-      ],
-      current: false
+        'AI Titles & Descriptions',
+        'Smart Listing Templates',
+        'Basic Analytics',
+        'Image Upload Support',
+        'Email Support'
+      ]
     },
     {
-      name: 'Pro',
-      price: billingCycle === 'monthly' ? 79 : 69,
-      icon: <Rocket className="text-indigo-600" />,
+      name: 'PRO',
+      monthlyPrice: 149,
+      popular: true,
+      icon: <Rocket className="w-5 h-5 text-indigo-600" />,
+      perfectFor: ['Growing resellers', 'Full-time sellers', 'Multi-account stores'],
       features: [
-        '5,000 Listings per month',
+        '3,000 AI Listings / month',
         '5 eBay Accounts',
-        'Advanced Rule Engine',
-        'Priority Support',
-        'AI Descriptions (100/mo)',
-        'Inventory Sync'
-      ],
-      current: true,
-      popular: true
+        'AI SEO Optimization',
+        'Bulk Listing Tools',
+        'Inventory Sync',
+        'Team Collaboration',
+        'AI Pricing Suggestions',
+        'Priority Support'
+      ]
     },
     {
-      name: 'Enterprise',
-      price: 199,
-      icon: <Building2 className="text-indigo-600" />,
+      name: 'ENTERPRISE',
+      monthlyPrice: 299,
+      icon: <Building2 className="w-5 h-5 text-purple-600" />,
+      perfectFor: ['Large reseller teams', 'Agencies & enterprises', 'High-volume sellers'],
       features: [
-        'Unlimited Listings',
+        '10,000 AI Listings / month',
         'Unlimited eBay Accounts',
-        'Full API Access',
+        'API Access',
+        'Advanced Automation',
+        'Team Roles & Permissions',
         'Dedicated Account Manager',
-        'Bulk Import/Export',
-        'Custom Team Roles'
-      ],
-      current: false
+        'White Label Support',
+        '24/7 Premium Support'
+      ]
     }
   ];
 
+  const getPrice = (price) => {
+    return billingCycle === 'yearly' ? Math.floor(price * 0.95) : price;
+  };
+
   return (
-    <div className="space-y-12 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Simple, Transparent Pricing</h1>
-        <p className="text-xl text-slate-500 max-w-2xl mx-auto">Choose the plan that fits your business scale. No hidden fees.</p>
+    <div className="max-w-6xl mx-auto px-6 py-10 space-y-16 antialiased">
+      {/* Header Section */}
+      <div className="text-center space-y-6">
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-xs font-bold uppercase tracking-wider"
+        >
+          <Sparkles className="w-3 h-3" />
+          Pricing Plans
+        </motion.div>
         
-        {/* Toggle */}
-        <div className="flex items-center justify-center pt-4">
-          <div className="bg-slate-100 p-1 rounded-2xl flex items-center">
+        <div className="space-y-2">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Simple, Powerful Pricing</h1>
+          <p className="text-slate-500 max-w-xl mx-auto text-sm font-medium leading-relaxed">
+            Choose the perfect plan for your business. Whether you're just starting or scaling to thousands of listings.
+          </p>
+        </div>
+
+        {/* Improved Toggle */}
+        <div className="flex items-center justify-center pt-2">
+          <div className="relative bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200 w-fit">
             <button 
               onClick={() => setBillingCycle('monthly')}
-              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${billingCycle === 'monthly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`relative z-10 px-8 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${billingCycle === 'monthly' ? 'text-slate-900' : 'text-slate-500'}`}
             >
               Monthly
             </button>
             <button 
               onClick={() => setBillingCycle('yearly')}
-              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${billingCycle === 'yearly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`relative z-10 px-8 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${billingCycle === 'yearly' ? 'text-slate-900' : 'text-slate-500'}`}
             >
-              Yearly <span className="text-[10px] text-emerald-600 ml-1">Save 15%</span>
+              Yearly <span className="text-[10px] text-emerald-600 ml-1 font-black">SAVE 5%</span>
             </button>
+            <div 
+              className={`absolute top-1 bottom-1 left-1 bg-white rounded-xl shadow-sm transition-all duration-300 border border-slate-200/50 ${billingCycle === 'monthly' ? 'w-[calc(50%-4px)]' : 'w-[calc(50%-4px)] translate-x-full'}`}
+            />
           </div>
         </div>
       </div>
 
-      {/* Pricing Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {plans.map((plan, index) => (
+      {/* Plans Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+        {plans.map((plan, idx) => (
           <motion.div
             key={plan.name}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={`relative p-8 rounded-3xl border transition-all ${
+            transition={{ delay: idx * 0.1 }}
+            className={`flex flex-col p-8 rounded-[2rem] border bg-white transition-all duration-500 relative group ${
               plan.popular 
-                ? 'bg-white border-indigo-200 shadow-2xl shadow-indigo-100 scale-105 z-10' 
-                : 'bg-white/60 border-slate-100 shadow-sm'
+                ? 'border-indigo-200 shadow-[0_20px_50px_rgba(99,102,241,0.08)] ring-1 ring-indigo-500/10' 
+                : 'border-slate-100 shadow-sm hover:shadow-md'
             }`}
           >
             {plan.popular && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                Most Popular
-              </span>
+              <div className="absolute top-0 right-8 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100">
+                Recommended
+              </div>
             )}
 
             <div className="flex justify-between items-start mb-6">
-              <div className="p-3 bg-slate-50 rounded-2xl">
+              <div className={`p-3 rounded-xl ${plan.popular ? 'bg-indigo-50' : 'bg-slate-50'}`}>
                 {plan.icon}
               </div>
-              {plan.current && (
-                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Current Plan</span>
-              )}
             </div>
 
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">{plan.name}</h3>
             <div className="mb-8">
-              <span className="text-4xl font-black text-slate-900">${plan.price}</span>
-              <span className="text-slate-400 font-medium">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black text-slate-900">${getPrice(plan.monthlyPrice)}</span>
+                <span className="text-slate-400 text-sm font-semibold">/mo</span>
+              </div>
             </div>
 
-            <ul className="space-y-4 mb-10">
-              {plan.features.map((feature) => (
-                <li key={feature} className="flex items-center text-sm text-slate-600">
-                  <Check className="w-5 h-5 text-emerald-500 mr-3 shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
+            <div className="mb-8 space-y-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ideal For</p>
+              <div className="flex flex-wrap gap-1.5">
+                {plan.perfectFor.map(p => (
+                  <span key={p} className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-600">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-            <button className={`w-full py-4 rounded-2xl font-bold transition-all ${
-              plan.current 
-                ? 'bg-slate-100 text-slate-400 cursor-default' 
-                : plan.popular 
-                  ? 'btn-primary' 
-                  : 'bg-white border-2 border-slate-100 text-slate-900 hover:bg-slate-50'
+            <div className="flex-grow space-y-4 mb-10">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Features</p>
+              <ul className="space-y-3">
+                {plan.features.map(f => (
+                  <li key={f} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
+                    <div className="mt-0.5 p-0.5 rounded-full bg-emerald-50 text-emerald-600 shrink-0">
+                      <Check className="w-3 h-3 stroke-[4]" />
+                    </div>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <button className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
+              plan.popular 
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200 hover:scale-[1.02]' 
+                : 'bg-slate-900 text-white hover:bg-slate-800'
             }`}>
-              {plan.current ? 'Your Active Plan' : `Upgrade to ${plan.name}`}
+              {plan.popular ? 'Get Started Now' : `Select ${plan.name}`}
             </button>
           </motion.div>
         ))}
       </div>
 
-      {/* FAQ / Info */}
-      <div className="bg-indigo-50 p-10 rounded-[40px] flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2 text-indigo-600">
-            <HelpCircle size={24} />
-            <span className="font-bold uppercase tracking-wider text-sm">Need help?</span>
+      {/* Add-ons & Benefits */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8 border-t border-slate-100">
+        {/* Add-ons List */}
+        <div className="space-y-6">
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Plus className="w-5 h-5 text-indigo-500" />
+            Add-on Options
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <AddOnCard name="Extra Listings" price="$39" icon={<Package className="w-4 h-4" />} />
+            <AddOnCard name="Extra Account" price="$19" icon={<Plus className="w-4 h-4" />} />
+            <AddOnCard name="Team Pack" price="$49" icon={<Users className="w-4 h-4" />} />
           </div>
-          <h3 className="text-2xl font-bold text-slate-900">Custom enterprise solutions</h3>
-          <p className="text-slate-600 max-w-md leading-relaxed">
-            Managing more than 50,000 listings or have complex multi-channel needs? Our team can build a custom plan for your scale.
-          </p>
         </div>
-        <button className="px-8 py-4 bg-white text-indigo-600 font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:scale-105 transition-all">
-          Contact Sales Team
-        </button>
+
+        {/* Benefits List */}
+        <div className="space-y-6">
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-500" />
+            Why Choose KreateList?
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <BenefitItem text="AI listings in seconds" />
+            <p className="text-xs text-slate-500 font-medium border-l-2 border-slate-100 pl-4 py-1">Save hours of manual work every day</p>
+            <BenefitItem text="Scale business faster" />
+            <p className="text-xs text-slate-500 font-medium border-l-2 border-slate-100 pl-4 py-1">Built specifically for resellers</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
+const AddOnCard = ({ name, price, icon }) => (
+  <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow text-center">
+    <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center mx-auto mb-3 text-slate-400 group-hover:text-indigo-500">
+      {icon}
+    </div>
+    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{name}</p>
+    <p className="text-lg font-black text-slate-900">{price}<span className="text-[10px] text-slate-400">/mo</span></p>
+  </div>
+);
+
+const BenefitItem = ({ text }) => (
+  <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
+    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+    <span className="text-xs font-bold text-slate-700">{text}</span>
+  </div>
+);
+
 export default Subscription;
+
+
+
+
