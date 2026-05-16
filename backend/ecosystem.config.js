@@ -3,7 +3,7 @@ module.exports = {
   apps: [
     {
       name: 'kreatelist-backend',
-      script: 'index.js', // Updated to match your entry point
+      script: 'server.js', // Updated to match your entry point
       instances: 1,
       autorestart: true,
       watch: false,
@@ -15,7 +15,7 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         PORT: 5000,
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/ebay_db'
+        MONGODB_URI: 'mongodb://127.0.0.1:27017/kreatelist'
       },
       error_file: './logs/err.log',
       out_file: './logs/out.log',
