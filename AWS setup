@@ -87,7 +87,7 @@ sudo nano /etc/nginx/sites-available/default
 
 **Replace the `location /` block with:**
 ```nginx
-server_name valisting.ajxlubricant.co.in;
+server_name apikreatelist.ajxlubricant.co.in;
 
 location / {
     proxy_pass http://localhost:5000;
@@ -108,7 +108,7 @@ location / {
 sudo apt install certbot python3-certbot-nginx -y
 
 # Run SSL Setup
-sudo certbot --nginx -d valisting.ajxlubricant.co.in
+sudo certbot --nginx -d apikreatelist.ajxlubricant.co.in
 ```
 
 ---
