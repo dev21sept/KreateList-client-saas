@@ -6,7 +6,7 @@ const User = require('../models/User');
 // @access  Private
 exports.getEbayAuthUrl = async (req, res) => {
   try {
-    const url = ebayService.getAuthUrl();
+    const url = ebayService.getUserConsentUrl(process.env.EBAY_RU_NAME, 'dashboard');
     res.status(200).json({ success: true, url });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -25,7 +25,7 @@ exports.ebayCallback = async (req, res) => {
     }
 
     console.log('Exchanging eBay code for token...');
-    const tokenData = await ebayService.exchangeCodeForToken(code);
+    const tokenData = await ebayService.getUserToken(code, process.env.EBAY_RU_NAME);
     
     if (!tokenData || !tokenData.access_token) {
       throw new Error('Failed to obtain access token from eBay');
@@ -44,7 +44,7 @@ exports.ebayCallback = async (req, res) => {
     
     console.log('Fetching eBay user details...');
     // Fetch eBay username/details
-    const ebayUser = await ebayService.getEbayUserDetails(tokenData.access_token);
+    const ebayUser = await ebayService.getUserProfile(tokenData.access_token);
     if (ebayUser) {
       console.log('eBay user details fetched for:', ebayUser.username);
       user.ebayAccount.username = ebayUser.username;
@@ -128,13 +128,10 @@ exports.getEbayPolicies = async (req, res) => {
     // Check if token is expired and refresh if necessary
     let token = user.ebayAccount.accessToken;
     if (new Date() > user.ebayAccount.tokenExpires) {
-      const tokenData = await ebayService.refreshToken(user.ebayAccount.refreshToken);
-      token = tokenData.access_token;
+      const newAccessToken = await ebayService.refreshUserToken(user.ebayAccount.refreshToken);
+      token = newAccessToken;
       user.ebayAccount.accessToken = token;
-      user.ebayAccount.tokenExpires = new Date(Date.now() + tokenData.expires_in * 1000);
-      if (tokenData.refresh_token) {
-        user.ebayAccount.refreshToken = tokenData.refresh_token;
-      }
+      user.ebayAccount.tokenExpires = new Date(Date.now() + 7200 * 1000); // 2 hours
       await user.save();
     }
 
