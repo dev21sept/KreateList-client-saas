@@ -119,6 +119,7 @@ exports.getEbayAuthUrl = async (req, res) => {
     if (!ruName) return res.status(400).json({ error: 'RuName is required' });
     
     const url = ebayService.getUserConsentUrl(ruName, state);
+    console.log('Generated eBay Auth URL:', url);
     res.status(200).json({ success: true, url });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
