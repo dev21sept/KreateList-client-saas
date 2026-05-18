@@ -220,7 +220,7 @@ exports.ebayCallback = async (req, res) => {
 
     // Direct redirect back to frontend
     const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(/\/$/, '');
-    res.redirect(`${frontendUrl}/ebay-accounts?ebay_auth=success`);
+    res.redirect(`${frontendUrl}/ebay-accounts?success=true`);
 
   } catch (error) {
     console.error('Callback Error:', error.response?.data || error.message);
