@@ -39,8 +39,12 @@ const EbayAccounts = () => {
   useEffect(() => {
     const error = searchParams.get('error');
     const success = searchParams.get('success');
+    const code = searchParams.get('code');
     
-    if (error && !called.current) {
+    if (code && !called.current) {
+      called.current = true;
+      handleCallback(code);
+    } else if (error && !called.current) {
       called.current = true;
       alert(`eBay Connection Error: ${error}`);
       navigate('/ebay-accounts', { replace: true });
@@ -51,15 +55,54 @@ const EbayAccounts = () => {
     }
   }, [searchParams, navigate, loadUser]);
 
+  const handleCallback = async (code) => {
+    try {
+      setLoading(true);
+      setStatusMsg('Connecting your eBay account...');
+      console.log('Sending eBay code to backend for token exchange...');
+      
+      const response = await ebayService.callback(code);
+      console.log('eBay Callback Success:', response.data);
+      
+      await loadUser();
+      alert('eBay Account Connected Successfully!');
+      
+      // Clean up the URL
+      navigate('/ebay-accounts', { replace: true });
+    } catch (error) {
+      console.error('================ EBAY CALLBACK ERROR ================');
+      console.error('Error Object:', error);
+      if (error.response) {
+        console.error('Error Status:', error.response.status);
+        console.error('Error Response Data:', JSON.stringify(error.response.data, null, 2));
+      } else if (error.request) {
+        console.error('No Response Received. Request:', error.request);
+      } else {
+        console.error('Error Message:', error.message);
+      }
+      console.error('=====================================================');
+      alert('eBay Connection Failed! Check the console for detailed error logs.');
+    } finally {
+      setLoading(false);
+      setStatusMsg('');
+    }
+  };
+
   const handleConnect = async () => {
     try {
       setLoading(true);
+      console.log('Fetching eBay Auth URL from backend...');
       const response = await ebayService.connect();
+      console.log('Auth URL Response:', response.data);
       if (response.data.url) {
+        console.log('Redirecting to:', response.data.url);
         window.location.href = response.data.url;
+      } else {
+        alert('Error: Backend did not return a valid URL.');
       }
     } catch (error) {
-      console.error('Error connecting eBay:', error);
+      console.error('Error connecting eBay (Fetching Auth URL):', error);
+      alert('Failed to connect to backend to get eBay URL! Check console for details. Error: ' + error.message);
       setLoading(false);
     }
   };
