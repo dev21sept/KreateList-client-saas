@@ -470,7 +470,7 @@ async function uploadPictureFromUrl(userToken, externalPictureUrl) {
 
         if (response.data.includes('<Ack>Failure</Ack>') || response.data.includes('<Ack>Error</Ack>')) {
             const { code, message } = parseEpsError(response.data);
-            throw new Error(`eBay EPS Error${code ? \` (\${code})\` : ''}: ${message}`);
+            throw new Error("eBay EPS Error" + (code ? " (" + code + ")" : "") + ": " + message);
         }
 
         const match = response.data.match(/<SiteHostedPictureDetails>[\s\S]*?<FullURL>(.*?)<\/FullURL>/);
@@ -643,7 +643,7 @@ async function uploadPicture(userToken, base64Data) {
 
             if (response.data.includes('<Ack>Failure</Ack>') || response.data.includes('<Ack>Error</Ack>')) {
                 const { code, message } = parseEpsError(response.data);
-                lastError = new Error(`eBay EPS Error${code ? \` (\${code})\` : ''}: ${message}`);
+                lastError = new Error("eBay EPS Error" + (code ? " (" + code + ")" : "") + ": " + message);
                 continue;
             }
 
