@@ -192,7 +192,7 @@ const EbayAccounts = () => {
                 disabled={loading}
                 className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center gap-2 mx-auto disabled:opacity-50"
               >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <>Start Production Bridge <ChevronRight size={18} /></>}
+                {loading ? <Loader2 className="animate-spin" size={18} /> : <>Connect eBay <ChevronRight size={18} /></>}
               </button>
               {statusMsg && (
                 <p className="text-indigo-600 font-bold text-sm animate-pulse mt-4">{statusMsg}</p>
