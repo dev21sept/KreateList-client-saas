@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, Zap, Shield, BarChart3, Rocket } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 
 const Home = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const error = searchParams.get('error');
+    if (code || error) {
+      console.log('Detected eBay callback params on Home page, forwarding to /ebay-callback...');
+      navigate(`/ebay-callback${window.location.search}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
   return (
     <div className="pt-20">
       {/* Hero Section */}
