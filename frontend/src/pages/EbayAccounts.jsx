@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Link as LinkIcon, 
   Unlink, 
@@ -29,6 +30,26 @@ const EbayAccounts = () => {
   const { user, loadUser } = useAuth();
   const ebay = user?.ebayAccount;
   const [loading, setLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const called = useRef(false);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const success = searchParams.get('success');
+    
+    if (error && !called.current) {
+      called.current = true;
+      alert(`eBay Connection Error: ${error}`);
+      navigate('/ebay-accounts', { replace: true });
+    } else if (success && !called.current) {
+      called.current = true;
+      loadUser();
+      navigate('/ebay-accounts', { replace: true });
+    }
+  }, [searchParams, navigate, loadUser]);
 
   const handleConnect = async () => {
     try {
@@ -173,6 +194,9 @@ const EbayAccounts = () => {
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <>Start Production Bridge <ChevronRight size={18} /></>}
               </button>
+              {statusMsg && (
+                <p className="text-indigo-600 font-bold text-sm animate-pulse mt-4">{statusMsg}</p>
+              )}
             </div>
           )}
 

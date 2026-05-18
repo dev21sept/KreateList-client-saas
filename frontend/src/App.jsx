@@ -18,7 +18,6 @@ import Rules from './pages/Rules';
 import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
-import EbayCallback from './pages/EbayCallback';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -42,7 +41,6 @@ const App = () => {
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/ebay-callback" element={<EbayCallback />} />
           </Route>
 
           {/* User Protected Routes */}
@@ -53,6 +51,8 @@ const App = () => {
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/ebay-accounts" element={<EbayAccounts />} />
+              {/* Alias for ebay callback to handle it on the same page */}
+              <Route path="/ebay-callback" element={<EbayAccounts />} />
               <Route path="/subscription" element={<Subscription />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

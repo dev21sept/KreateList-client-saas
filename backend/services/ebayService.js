@@ -92,13 +92,14 @@ exports.getLocations = async (token) => {
   return response.data.locations || [];
 };
 
-exports.getAuthUrl = () => {
+exports.getAuthUrl = (userId) => {
   const params = new URLSearchParams({
     client_id: process.env.EBAY_CLIENT_ID,
     response_type: 'code',
     redirect_uri: process.env.EBAY_RU_NAME,
     scope: 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account',
-    prompt: 'login'
+    prompt: 'login',
+    state: userId
   });
   const url = `${EBAY_AUTH_HOST}?${params.toString()}`;
   console.log('Generated eBay Auth URL:', url);

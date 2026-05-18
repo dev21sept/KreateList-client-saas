@@ -11,7 +11,7 @@ const { protect } = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/auth', protect, getEbayAuthUrl);
-router.post('/callback', protect, ebayCallback);
+router.get('/callback', ebayCallback);
 router.get('/status', protect, getEbayStatus);
 router.get('/policies', protect, getEbayPolicies);
 router.delete('/disconnect', protect, disconnectEbay);
