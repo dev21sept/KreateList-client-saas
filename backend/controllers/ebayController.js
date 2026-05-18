@@ -6,45 +6,33 @@ const User = require('../models/User');
 // @access  Private
 exports.getEbayAuthUrl = async (req, res) => {
   try {
-    const url = ebayService.getAuthUrl(req.user.id);
+    const url = ebayService.getAuthUrl();
     res.status(200).json({ success: true, url });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// @desc    Callback from eBay OAuth (Direct redirect from eBay)
-// @route   GET /api/ebay/callback
-// @access  Public (eBay hits this directly)
+// @desc    Callback from eBay OAuth
+// @route   POST /api/ebay/callback
+// @access  Private
 exports.ebayCallback = async (req, res) => {
-  const { code, state, error, error_description } = req.query;
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://kreate-list-client-saas.vercel.app').trim().replace(/\/$/, '');
-  
-  if (error) {
-    console.error('eBay Auth Error:', error, error_description);
-    return res.redirect(`${frontendUrl}/ebay-accounts?error=${encodeURIComponent(error_description || error)}`);
-  }
-
-  if (!code) {
-    console.error('No code provided in request query');
-    return res.redirect(`${frontendUrl}/ebay-accounts?error=No+authentication+code+provided`);
-  }
-
-  if (!state) {
-    console.error('No state (userId) provided in request query');
-    return res.redirect(`${frontendUrl}/ebay-accounts?error=Missing+user+identifier`);
-  }
-
   try {
-    console.log('Exchanging eBay code for token for user:', state);
+    const { code } = req.body;
+    if (!code) {
+      console.error('eBay Callback Error: No code provided in request body');
+      return res.status(400).json({ success: false, message: 'No code provided' });
+    }
+
+    console.log('Exchanging eBay code for token...');
     const tokenData = await ebayService.exchangeCodeForToken(code);
     
     if (!tokenData || !tokenData.access_token) {
       throw new Error('Failed to obtain access token from eBay');
     }
 
-    // state contains the userId
-    const user = await User.findById(state);
+    // Update user with eBay tokens
+    const user = await User.findById(req.user.id);
     if (!user) {
       throw new Error('User not found during eBay callback');
     }
@@ -55,6 +43,7 @@ exports.ebayCallback = async (req, res) => {
     user.ebayAccount.tokenExpires = new Date(Date.now() + tokenData.expires_in * 1000);
     
     console.log('Fetching eBay user details...');
+    // Fetch eBay username/details
     const ebayUser = await ebayService.getEbayUserDetails(tokenData.access_token);
     if (ebayUser) {
       console.log('eBay user details fetched for:', ebayUser.username);
@@ -70,15 +59,21 @@ exports.ebayCallback = async (req, res) => {
     await user.save();
     console.log('eBay account successfully linked to user:', user.email);
 
-    // Redirect back to frontend on success
-    res.redirect(`${frontendUrl}/ebay-accounts?success=true`);
+    res.status(200).json({
+      success: true,
+      message: 'eBay account connected successfully',
+      data: user.ebayAccount
+    });
   } catch (err) {
     console.error('eBay Callback Process Error:', err.message);
     if (err.response?.data) {
       console.error('eBay API Error Details:', JSON.stringify(err.response.data));
     }
-    const errorMsg = err.response?.data?.error_description || err.response?.data?.error || err.message;
-    res.redirect(`${frontendUrl}/ebay-accounts?error=${encodeURIComponent('Authentication failed: ' + errorMsg)}`);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message,
+      details: err.response?.data || null
+    });
   }
 };
 
