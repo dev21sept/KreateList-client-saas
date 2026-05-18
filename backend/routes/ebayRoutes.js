@@ -21,7 +21,8 @@ router.post('/deletion', handleDeletionNotification);
 
 // Protected eBay Connection Routes
 router.get('/auth', protect, getEbayAuthUrl);
-router.post('/callback', protect, ebayCallback);
+router.get('/callback', ebayCallback); // Public GET for direct eBay redirects
+router.post('/callback', protect, ebayCallback); // Protected POST for React callbacks
 router.get('/status', protect, getEbayStatus);
 router.get('/policies', protect, getEbayPolicies);
 router.delete('/disconnect', protect, disconnectEbay);
