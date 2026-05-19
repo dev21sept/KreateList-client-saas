@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const sharp = require('sharp');
 const ebayService = require('../services/ebayService');
 const Listing = require('../models/Listing');
 const { wrapInTemplate } = require('../services/descriptionService');
@@ -22,6 +23,37 @@ const shouldApplyConditionNote = (conditionName = '') => {
     if (!normalized) return true;
     return !normalized.includes('new');
 };
+
+// Helper to compress and resize base64 images to improve network latency and prevent 413 errors
+async function compressImageIfBase64(base64Str) {
+    if (!base64Str || !base64Str.startsWith('data:')) {
+        return base64Str; // Keep URLs as they are
+    }
+
+    try {
+        const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            return base64Str;
+        }
+
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        // Resize to maximum 800px on the longest side and compress to JPEG (quality 80)
+        const compressedBuffer = await sharp(buffer)
+            .resize(800, 800, {
+                fit: 'inside',
+                withoutEnlargement: true
+            })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+
+        return `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`;
+    } catch (error) {
+        console.error('Image compression error:', error.message);
+        return base64Str; // Fallback to original image if compression fails
+    }
+}
 
 exports.analyzeListing = async (req, res) => {
     console.log(`\n--- [AI] New Analysis Request Received ---`);
@@ -48,9 +80,16 @@ exports.analyzeListing = async (req, res) => {
             return res.status(400).json({ error: "No images provided for analysis." });
         }
 
-        const imageContent = images.map(url => ({
+        // Compress and resize base64 images before sending to OpenAI
+        console.log(`[AI] Resizing and compressing ${images.length} images...`);
+        const compressedImages = await Promise.all(
+            images.map(img => compressImageIfBase64(img))
+        );
+        console.log(`[AI] Image compression complete.`);
+
+        const imageContent = compressedImages.map(url => ({
             type: "image_url",
-            image_url: { url: url.startsWith('data:') ? url : url }
+            image_url: { url: url }
         }));
 
         // --- PHASE 1: CATEGORY IDENTIFICATION ---
@@ -89,7 +128,8 @@ exports.analyzeListing = async (req, res) => {
         if (platform === 'ebay') {
             const query = categoryResult?.category_query || 'General';
             try {
-                const suggestions = await ebayService.getCategorySuggestions(query);
+                const appToken = await ebayService.getAppToken();
+                const suggestions = await ebayService.getCategorySuggestions(appToken, query);
                 if (suggestions && suggestions.length > 0) {
                     const bestSuggest = suggestions[0];
                     categoryId = bestSuggest.category.categoryId;
@@ -116,7 +156,8 @@ exports.analyzeListing = async (req, res) => {
         if (platform === 'ebay' && categoryId) {
             try {
                 console.log(`--- Fetching official eBay aspects for Category: ${categoryId} ---`);
-                const aspectsData = await ebayService.getItemAspectsForCategory(categoryId);
+                const appToken = await ebayService.getAppToken();
+                const aspectsData = await ebayService.getItemAspectsForCategory(appToken, categoryId);
 
                 if (aspectsData && aspectsData.aspects) {
                     officialAspects = aspectsData.aspects.map(aspect => ({
@@ -135,13 +176,17 @@ exports.analyzeListing = async (req, res) => {
                     });
 
                     aspectNamesList = officialAspects.map(a => a.localizedAspectName);
+                    console.log(`✅ Phase 2: Successfully fetched ${officialAspects.length} official eBay aspects.`);
+                } else {
+                    console.log(`⚠️ Phase 2: No aspects returned in response for Category ${categoryId}.`);
                 }
             } catch (e) {
-                console.error('⚠️ eBay API Error:', e.message);
+                console.error('⚠️ eBay API Error in Phase 2:', e.message);
             }
         }
 
         if (aspectNamesList.length === 0) {
+            console.log(`ℹ️ Phase 2: Using fallback default aspects list (length: 8).`);
             aspectNamesList = ['Brand', 'Type', 'Size', 'Color', 'Material', 'Condition', 'Style', 'Department'];
         }
 
@@ -299,7 +344,8 @@ exports.searchCategories = async (req, res) => {
         const { query } = req.query;
         if (!query) return res.json([]);
 
-        const suggestions = await ebayService.getCategorySuggestions(query);
+        const appToken = await ebayService.getAppToken();
+        const suggestions = await ebayService.getCategorySuggestions(appToken, query);
 
         const formatted = suggestions.map(s => {
             let ancestors = s.categoryTreeNodeAncestors || [];
