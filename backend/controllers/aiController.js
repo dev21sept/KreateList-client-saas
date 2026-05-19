@@ -253,6 +253,10 @@ Response ONLY as JSON: {
 
         const finalData = JSON.parse(mainResponse.choices[0].message.content);
 
+        if (!finalData) {
+            throw new Error("OpenAI returned an empty or invalid JSON response.");
+        }
+
         // --- DYNAMIC SKU GENERATION ---
         const productCount = await Listing.countDocuments();
         finalData.sku = `KL${productCount + 1}A`;

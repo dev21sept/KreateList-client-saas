@@ -100,3 +100,59 @@ sudo systemctl status mongod
 # Check if Nginx is running
 sudo systemctl status nginx
 ```
+
+
+Nginx config file open karein:
+
+bash
+`sudo nano /etc/nginx/sites-available/default`
+Pura file content delete karke, ye complete secure block paste karein: (Isme humne SSL, Redirect aur client_max_body_size 500M; dono set kar diye hain):
+
+nginx
+server {
+    server_name apikreatelist.ajxlubricant.co.in;
+    # Request size limit badhane ke liye (413 Payload Too Large error fix)
+    client_max_body_size 500M;
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+    # SSL settings (Certbot ke certificates)
+    listen [::]:443 ssl ipv6only=on;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/apikreatelist.ajxlubricant.co.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/apikreatelist.ajxlubricant.co.in/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+# HTTP to HTTPS automatic redirection
+server {
+    if ($host = apikreatelist.ajxlubricant.co.in) {
+        return 301 https://$host$request_uri;
+    }
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name apikreatelist.ajxlubricant.co.in;
+    return 404;
+}
+Save and Close:
+
+Press Ctrl + O then Enter to save.
+Press Ctrl + X to exit.
+Nginx config test aur restart karein:
+
+bash
+`sudo nginx -t`
+`sudo systemctl restart nginx`
+💡 Tip: Agar sudo nginx -t me SSL certificate error dikhaye:
+Agar aapke certificates ka path alag hai, to aap bas niche di gayi command run kar dein. Certbot khud saari SSL lines configuration file me automatic inject kar dega:
+
+bash
+`sudo certbot --nginx -d apikreatelist.ajxlubricant.co.in --reinstall`
+Is command ko run karne ke baad aapka HTTPS redirect aur SSL setup perfectly restore ho jayega!
