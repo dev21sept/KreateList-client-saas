@@ -306,7 +306,13 @@ Response ONLY as JSON: {
         });
 
     } catch (error) {
-        console.error('❌ Final Analysis Error:', error.message);
+        console.error('❌ Final Analysis Error:', error);
+        try {
+            const fs = require('fs');
+            fs.writeFileSync('error_log.txt', `${new Date().toISOString()}\nError Message: ${error.message}\nStack Trace:\n${error.stack}\n\n`, { flag: 'a' });
+        } catch (fsErr) {
+            console.error('Failed to write error to error_log.txt:', fsErr.message);
+        }
         res.status(500).json({ success: false, error: error.message });
     }
 };
