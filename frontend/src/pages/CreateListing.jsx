@@ -255,7 +255,7 @@ const CreateListing = () => {
           if (response.data.success) {
             const listing = response.data.data;
             setFormData({
-              images: listing.images || [],
+              images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
               selectedRule: listing.selectedRule || '',
               selectedCondition: listing.selectedCondition || '',
               conditionId: listing.conditionId || '',

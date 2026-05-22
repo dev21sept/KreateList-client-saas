@@ -17,6 +17,14 @@ import {
 } from 'lucide-react';
 import { listingService } from '../services/api';
 
+const getImageSrc = (src) => {
+  if (!src) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
+  if (typeof src === 'string' && src.startsWith('blob:')) {
+    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
+  }
+  return src;
+};
+
 const Listings = () => {
   const navigate = useNavigate();
   const [selectedListings, setSelectedListings] = useState([]);
@@ -165,9 +173,7 @@ const Listings = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 overflow-hidden">
-                          {listing.images && listing.images[0] && (
-                            <img src={listing.images[0]} alt="" className="w-full h-full object-cover" />
-                          )}
+                          <img src={getImageSrc(listing.images && listing.images[0])} alt="" className="w-full h-full object-cover" />
                         </div>
                         <span className="font-bold text-slate-900 text-sm line-clamp-1">{listing.title}</span>
                       </div>
@@ -254,7 +260,7 @@ const Listings = () => {
                   <div className="space-y-4">
                     <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
                       <img 
-                        src={activeImage || previewListing.images[0]} 
+                        src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
                         alt="Main Preview" 
                         className="max-w-full max-h-full object-contain"
                       />
@@ -269,7 +275,7 @@ const Listings = () => {
                               (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
                             }`}
                           >
-                            <img src={img} className="w-full h-full object-cover" alt="" />
+                            <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
                           </button>
                         ))}
                       </div>
