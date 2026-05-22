@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { 
   Upload, 
@@ -199,6 +199,8 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search categor
 
 const CreateListing = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
@@ -229,7 +231,7 @@ const CreateListing = () => {
           const rulesData = response.data.data;
           setRules(rulesData);
           const defaultRule = rulesData.find(r => r.isDefault) || rulesData[0];
-          if (defaultRule) {
+          if (defaultRule && !editId) {
             setFormData(prev => ({
               ...prev,
               selectedRule: defaultRule._id || defaultRule.id
@@ -241,7 +243,57 @@ const CreateListing = () => {
       }
     };
     fetchRules();
-  }, []);
+  }, [editId]);
+
+  // Fetch listing if editing
+  useEffect(() => {
+    if (editId) {
+      const fetchListing = async () => {
+        try {
+          setLoading(true);
+          const response = await listingService.getOne(editId);
+          if (response.data.success) {
+            const listing = response.data.data;
+            setFormData({
+              images: listing.images || [],
+              selectedRule: listing.selectedRule || '',
+              selectedCondition: listing.selectedCondition || '',
+              conditionId: listing.conditionId || '',
+              title: listing.title || '',
+              category: listing.category || '',
+              categoryId: listing.categoryId || '',
+              price: listing.price || '',
+              description: listing.description || '',
+              conditionNote: listing.conditionNote || '',
+              selectedAspects: listing.itemSpecifics || {},
+              sku: listing.sku || '',
+            });
+
+            // Fetch aspects for this category if it exists
+            if (listing.categoryId) {
+              try {
+                const aspectsRes = await ebayService.getCategoryAspects(listing.categoryId);
+                if (aspectsRes.data.success) {
+                  setAspects(aspectsRes.data.data);
+                }
+              } catch (err) {
+                console.error("Error fetching aspects in edit mode:", err);
+              }
+            }
+            
+            // Go to step 3 directly in edit mode
+            setStep(3);
+          }
+        } catch (error) {
+          console.error("Error fetching listing for edit:", error);
+          alert("Failed to load listing for editing.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchListing();
+    }
+  }, [editId]);
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -252,11 +304,15 @@ const CreateListing = () => {
     });
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
     setFiles([...files, ...uploadedFiles]);
-    const newImagePreviews = uploadedFiles.map(file => URL.createObjectURL(file));
-    setFormData({ ...formData, images: [...formData.images, ...newImagePreviews] });
+    try {
+      const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
+      setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
+    } catch (err) {
+      console.error("Error converting images to base64:", err);
+    }
   };
 
   const startAIFetch = async () => {
@@ -278,11 +334,8 @@ const CreateListing = () => {
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
     try {
-      // Convert all files to base64
-      const base64Images = await Promise.all(files.map(file => fileToBase64(file)));
-      
       const response = await aiService.analyze({
-        images: base64Images, 
+        images: formData.images, 
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         condition_note: selectedRuleObj?.condition_note || '',
@@ -417,9 +470,11 @@ const CreateListing = () => {
     };
 
     try {
-      const response = await listingService.create(listingData);
+      const response = editId
+        ? await listingService.update(editId, listingData)
+        : await listingService.create(listingData);
       if (response.data.success) {
-        alert('Listing saved as Draft successfully!');
+        alert(editId ? 'Listing updated successfully!' : 'Listing saved as Draft successfully!');
         navigate('/listings');
       }
     } catch (error) {
@@ -451,9 +506,11 @@ const CreateListing = () => {
     };
 
     try {
-      const createResponse = await listingService.create(listingData);
+      const createResponse = editId
+        ? await listingService.update(editId, listingData)
+        : await listingService.create(listingData);
       if (createResponse.data.success) {
-        const listingId = createResponse.data.data._id || createResponse.data.data.id;
+        const listingId = editId || createResponse.data.data._id || createResponse.data.data.id;
         const publishResponse = await listingService.publish(listingId);
         if (publishResponse.data.success) {
           alert('Listing published to eBay successfully!');
@@ -489,7 +546,7 @@ const CreateListing = () => {
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Create New Listing</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{editId ? 'Edit Listing' : 'Create New Listing'}</h1>
           <p className="text-slate-500">
             {step === 1 && "Step 1: Input Requirements"}
             {step === 2 && "Step 2: AI Generated Content"}

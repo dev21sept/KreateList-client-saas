@@ -19,8 +19,7 @@ const Navbar = () => {
   const navLinks = [
     { name: 'Features', href: '/features', isHash: false },
     { name: 'Pricing', href: '/pricing', isHash: false },
-    { name: 'Testimonials', href: '/#testimonials', isHash: true },
-    { name: 'FAQ', href: '/#faq', isHash: true },
+    { name: 'Testimonials', href: '/testimonials', isHash: false },
   ];
 
   return (

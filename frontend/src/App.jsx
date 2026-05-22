@@ -25,6 +25,7 @@ import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
 import Checkout from './pages/Checkout';
+import Testimonials from './pages/Testimonials';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -44,6 +45,7 @@ const App = () => {
             <Route path="/" element={<Home />} />
             <Route path="/features" element={<Features />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/testimonials" element={<Testimonials />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-conditions" element={<TermsConditions />} />
             <Route path="/refund-policy" element={<RefundPolicy />} />

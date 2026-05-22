@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Download,
   Trash2,
-  Edit
+  Edit,
+  Eye,
+  X
 } from 'lucide-react';
 import { listingService } from '../services/api';
 
@@ -21,6 +23,17 @@ const Listings = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [previewListing, setPreviewListing] = useState(null);
+  const [activeImage, setActiveImage] = useState(null);
+  const [publishingId, setPublishingId] = useState(null);
+
+  useEffect(() => {
+    if (previewListing && previewListing.images && previewListing.images.length > 0) {
+      setActiveImage(previewListing.images[0]);
+    } else {
+      setActiveImage(null);
+    }
+  }, [previewListing]);
 
   useEffect(() => {
     fetchListings();
@@ -38,6 +51,34 @@ const Listings = () => {
       console.error("Error fetching listings:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this listing?")) {
+      try {
+        await listingService.delete(id);
+        alert("Listing deleted successfully!");
+        fetchListings();
+      } catch (error) {
+        console.error("Error deleting listing:", error);
+        alert("Failed to delete listing.");
+      }
+    }
+  };
+
+  const handlePublish = async (id) => {
+    setPublishingId(id);
+    try {
+      await listingService.publish(id);
+      alert("Listing published to eBay successfully!");
+      setPreviewListing(null);
+      fetchListings();
+    } catch (error) {
+      console.error("Error publishing listing:", error);
+      alert(error.response?.data?.message || "Failed to publish listing to eBay.");
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -139,13 +180,32 @@ const Listings = () => {
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(listing.createdAt).toLocaleDateString()}</td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
-                        <button className="p-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-400 transition-all"><Edit size={16} /></button>
+                        <button 
+                          onClick={() => setPreviewListing(listing)}
+                          className="p-2 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 transition-all"
+                          title="Preview Listing"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/create-listing?edit=${listing._id}`)}
+                          className="p-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-400 transition-all"
+                          title="Edit Listing"
+                        >
+                          <Edit size={16} />
+                        </button>
                         {listing.ebayUrl && (
-                          <a href={listing.ebayUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all">
+                          <a href={listing.ebayUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on eBay">
                             <ExternalLink size={16} />
                           </a>
                         )}
-                        <button className="p-2 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-400 transition-all"><Trash2 size={16} /></button>
+                        <button 
+                          onClick={() => handleDelete(listing._id)}
+                          className="p-2 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-400 transition-all"
+                          title="Delete Listing"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -166,6 +226,178 @@ const Listings = () => {
           </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {previewListing && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview</span>
+                <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
+              </div>
+              <button 
+                onClick={() => setPreviewListing(null)}
+                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
+              {/* Left Column - Gallery & Basic Details */}
+              <div className="md:col-span-5 space-y-6">
+                {/* Image Gallery */}
+                {previewListing.images && previewListing.images.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                      <img 
+                        src={activeImage || previewListing.images[0]} 
+                        alt="Main Preview" 
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    {previewListing.images.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
+                        {previewListing.images.map((img, i) => (
+                          <button 
+                            key={i}
+                            onClick={() => setActiveImage(img)}
+                            className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
+                              (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
+                            }`}
+                          >
+                            <img src={img} className="w-full h-full object-cover" alt="" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
+                    No Images Uploaded
+                  </div>
+                )}
+
+                {/* Logistics */}
+                {(previewListing.packageWeight || previewListing.packageDimensions) && (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {previewListing.packageWeight && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
+                          <p className="text-sm font-bold text-slate-800">
+                            {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
+                          </p>
+                        </div>
+                      )}
+                      {previewListing.packageDimensions && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
+                          <p className="text-sm font-bold text-slate-800">
+                            {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column - Specifics, Pricing & HTML Description */}
+              <div className="md:col-span-7 space-y-6 font-sans">
+                {/* Meta details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</p>
+                    <div className="mt-1">{getStatusBadge(previewListing.status)}</div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Price</p>
+                    <p className="text-base font-black text-slate-900 mt-1">
+                      ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.sku || '-'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.category || '-'}</p>
+                  </div>
+                </div>
+
+                {/* Condition note */}
+                {previewListing.conditionNote && (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition Note</p>
+                    <p className="text-sm text-slate-700 mt-1 leading-relaxed">{previewListing.conditionNote}</p>
+                  </div>
+                )}
+
+                {/* Item Specifics */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
+                  {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(previewListing.itemSpecifics).map(([key, val]) => {
+                        const displayVal = Array.isArray(val) ? val.join(', ') : val;
+                        return (
+                          <div key={key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-500">{key}</span>
+                            <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[150px]">{displayVal || '-'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No specifics configured.</p>
+                  )}
+                </div>
+
+                {/* Description Template */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">HTML Description</h4>
+                  <div 
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[300px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
+                    dangerouslySetInnerHTML={{ __html: previewListing.description }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-3 font-sans">
+              <button 
+                onClick={() => setPreviewListing(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
+              >
+                Close
+              </button>
+              {previewListing.status !== 'published' && (
+                <button 
+                  onClick={() => handlePublish(previewListing._id)}
+                  disabled={publishingId === previewListing._id}
+                  className="btn-primary py-2 px-6 flex items-center justify-center gap-2 min-w-[120px] disabled:opacity-50"
+                >
+                  {publishingId === previewListing._id ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List by API'
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

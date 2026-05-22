@@ -37,6 +37,8 @@ export const listingService = {
   getAll: () => API.get('/listings'),
   getOne: (id) => API.get(`/listings/${id}`),
   create: (data) => API.post('/listings', data),
+  update: (id, data) => API.put(`/listings/${id}`, data),
+  delete: (id) => API.delete(`/listings/${id}`),
   publish: (id) => API.post(`/listings/${id}/publish`),
   getStats: () => API.get('/listings/stats'),
 };

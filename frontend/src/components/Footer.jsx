@@ -33,8 +33,8 @@ const Footer = () => {
           <div>
             <h4 className="font-bold text-slate-900 mb-6">Product</h4>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><Link to="#features" className="hover:text-indigo-600 transition-colors">Features</Link></li>
-              <li><Link to="#pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link></li>
+              <li><Link to="/features" className="hover:text-indigo-600 transition-colors">Features</Link></li>
+              <li><Link to="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link></li>
               <li><Link to="/listings" className="hover:text-indigo-600 transition-colors">Rule Engine</Link></li>
               <li><Link to="/signup" className="hover:text-indigo-600 transition-colors">Free Trial</Link></li>
             </ul>
@@ -43,8 +43,6 @@ const Footer = () => {
           <div>
             <h4 className="font-bold text-slate-900 mb-6">Company</h4>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><a href="#" className="hover:text-indigo-600 transition-colors">About Us</a></li>
-              <li><a href="#" className="hover:text-indigo-600 transition-colors">Careers</a></li>
               <li><Link to="/privacy-policy" className="hover:text-indigo-600 transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms-conditions" className="hover:text-indigo-600 transition-colors">Terms of Service</Link></li>
               <li><Link to="/refund-policy" className="hover:text-indigo-600 transition-colors">Refund Policy</Link></li>
