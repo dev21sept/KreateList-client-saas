@@ -218,7 +218,7 @@ const Signup = () => {
                 className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
               />
               <label htmlFor="terms" className="ml-3 block text-sm text-slate-600">
-                I agree to the <Link to="/terms" className="text-indigo-600 font-medium hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-indigo-600 font-medium hover:underline">Privacy Policy</Link>
+                I agree to the <Link to="/terms-conditions" className="text-indigo-600 font-medium hover:underline">Terms of Service</Link>, <Link to="/privacy-policy" className="text-indigo-600 font-medium hover:underline">Privacy Policy</Link>, <Link to="/refund-policy" className="text-indigo-600 font-medium hover:underline">Refund Policy</Link>, and <Link to="/shipping-policy" className="text-indigo-600 font-medium hover:underline">Shipping & Delivery Policy</Link>
               </label>
             </div>
 

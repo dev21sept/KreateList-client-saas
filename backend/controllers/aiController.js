@@ -196,10 +196,13 @@ exports.analyzeListing = async (req, res) => {
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
 
         const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-            ? `2. Description Construction (STRICTLY follow this custom instruction):
-   - You MUST construct the description strictly according to this custom instruction: "${description_prompt.trim()}"
-   - Do not include the default sections (The Ultimate Look, About the Brand, Key Features, Versatility, Condition Report) unless they match the user's custom instruction.
-   - Use HTML formatting (such as <b> and <br>) where appropriate.`
+            ? `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
+   "${description_prompt.trim()}"
+   
+   - STRICT: If the instruction contains placeholders like {Brand}, {Size}, {Material}, {Type}, etc., replace them with data from the images. 
+   - SMART ADAPTATION: If the user provides a fixed template but the image clearly shows something else, adapt the template intelligently to match the physical product while maintaining the user's requested tone and structure. 
+   - If it is a general prompt like "Summarize in 2 sentences" or "only two line", follow it EXACTLY. 
+   - Do NOT use any other default structures. Format with HTML tags like <b> and <br> for spacing.`
             : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
    - Analyze the item to write a professional summary.
    - Use HTML <b> for section headers and <br><br> for spacing.
@@ -304,9 +307,7 @@ Response ONLY as JSON: {
             .trim();
 
         const finalTitle = titleString || finalData.title || 'New Listing';
-        const templatedDescription = (description_prompt && description_prompt.trim() !== '')
-            ? finalData.description
-            : wrapInTemplate(finalData.description, finalTitle);
+        const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
 
         if (req.user) {
             await logActivity({

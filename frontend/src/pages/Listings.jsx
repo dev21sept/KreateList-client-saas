@@ -133,7 +133,9 @@ const Listings = () => {
                     </td>
                     <td className="px-6 py-4">{getStatusBadge(listing.status)}</td>
                     <td className="px-6 py-4 font-mono text-xs text-slate-500">{listing.ebayListingId || '-'}</td>
-                    <td className="px-6 py-4 font-bold text-slate-900 text-sm">${listing.price?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 font-bold text-slate-900 text-sm">
+                      ${(typeof listing.price === 'number' ? listing.price : parseFloat(listing.price) || 0).toFixed(2)}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(listing.createdAt).toLocaleDateString()}</td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
