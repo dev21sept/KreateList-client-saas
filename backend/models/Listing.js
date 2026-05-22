@@ -18,7 +18,12 @@ const listingSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  sku: String,
+  sku: {
+    type: String,
+    required: [true, 'Please add an SKU'],
+    unique: true,
+    trim: true
+  },
   category: {
     type: String,
     required: true

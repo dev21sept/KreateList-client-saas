@@ -226,7 +226,15 @@ const CreateListing = () => {
       try {
         const response = await ruleService.getAll();
         if (response.data.success) {
-          setRules(response.data.data);
+          const rulesData = response.data.data;
+          setRules(rulesData);
+          const defaultRule = rulesData.find(r => r.isDefault) || rulesData[0];
+          if (defaultRule) {
+            setFormData(prev => ({
+              ...prev,
+              selectedRule: defaultRule._id || defaultRule.id
+            }));
+          }
         }
       } catch (error) {
         console.error("Error fetching rules:", error);
@@ -257,10 +265,12 @@ const CreateListing = () => {
       return;
     }
     
+    /*
     if (files.length === 0) {
       alert("Please upload at least one image");
       return;
     }
+    */
 
     setLoading(true);
     setStep(2);
@@ -414,7 +424,8 @@ const CreateListing = () => {
       }
     } catch (error) {
       console.error("Error saving draft:", error);
-      alert("Failed to save draft. Check console for details.");
+      const errMsg = error.response?.data?.message || "Failed to save draft. Check console for details.";
+      alert(errMsg);
     } finally {
       setLoading(false);
     }
@@ -454,7 +465,8 @@ const CreateListing = () => {
       }
     } catch (error) {
       console.error("Error publishing listing:", error);
-      alert("Failed to publish listing. Check console for details.");
+      const errMsg = error.response?.data?.message || "Failed to publish listing. Check console for details.";
+      alert(errMsg);
     } finally {
       setLoading(false);
     }

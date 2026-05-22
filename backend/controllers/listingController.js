@@ -54,6 +54,22 @@ exports.getDashboardStats = async (req, res) => {
 exports.createListing = async (req, res) => {
   try {
     req.body.user = req.user.id;
+
+    if (req.body.sku) {
+      const existingListing = await Listing.findOne({ sku: req.body.sku.trim() });
+      if (existingListing) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `SKU '${req.body.sku}' already exists. Please choose a unique SKU.` 
+        });
+      }
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'SKU is required.' 
+      });
+    }
+
     const listing = await Listing.create(req.body);
     res.status(201).json({ success: true, data: listing });
   } catch (err) {
@@ -91,6 +107,17 @@ exports.updateListing = async (req, res) => {
     if (listing.user.toString() !== req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
+
+    if (req.body.sku && req.body.sku.trim() !== listing.sku) {
+      const existingListing = await Listing.findOne({ sku: req.body.sku.trim() });
+      if (existingListing) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `SKU '${req.body.sku}' already exists. Please choose a unique SKU.` 
+        });
+      }
+    }
+
     listing = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.status(200).json({ success: true, data: listing });
   } catch (err) {

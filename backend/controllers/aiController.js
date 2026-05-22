@@ -68,6 +68,8 @@ exports.analyzeListing = async (req, res) => {
             condition_note = ''
         } = req.body;
 
+        console.log(`[AI] Analyzing product. description_prompt: "${description_prompt}", title_sequence: [${title_sequence.join(', ')}]`);
+
         const effectiveStructure = dedupeOrdered(
             normalizeStringList(title_sequence).length > 0
                 ? normalizeStringList(title_sequence)
@@ -193,6 +195,21 @@ exports.analyzeListing = async (req, res) => {
         // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
 
+        const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
+            ? `2. Description Construction (STRICTLY follow this custom instruction):
+   - You MUST construct the description strictly according to this custom instruction: "${description_prompt.trim()}"
+   - Do not include the default sections (The Ultimate Look, About the Brand, Key Features, Versatility, Condition Report) unless they match the user's custom instruction.
+   - Use HTML formatting (such as <b> and <br>) where appropriate.`
+            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
+   - Analyze the item to write a professional summary.
+   - Use HTML <b> for section headers and <br><br> for spacing.
+   - Include these sections:
+     - <b>The Ultimate Look / Perfect Upgrade:</b> {Engaging hook about the item}.<br><br>
+     - <b>About the Brand:</b> {Quality/Heritage info about the brand}.<br><br>
+     - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
+     - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
+     - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>`;
+
         const mainResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             temperature: 0,
@@ -218,18 +235,9 @@ exports.analyzeListing = async (req, res) => {
    - NO BLANKS: Fill every requested attribute.
    - Output as a JSON object inside 'title_parts'.
    
-2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
-   - Analyze the item to write a professional summary.
-   - Use HTML <b> for section headers and <br><br> for spacing.
-   - Include these sections:
-     - <b>The Ultimate Look / Perfect Upgrade:</b> {Engaging hook about the item}.<br><br>
-     - <b>About the Brand:</b> {Quality/Heritage info about the brand}.<br><br>
-     - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
-     - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
-     - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>
-   - Custom Instruction: "${description_prompt || 'Generate a professional eBay listing description.'}"
+${descriptionInstruction}
    
-3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}. 
+3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}.
     
 4. Pricing: Estimate a realistic 'selling_price' in USD.
 
@@ -258,8 +266,20 @@ Response ONLY as JSON: {
         }
 
         // --- DYNAMIC SKU GENERATION ---
+        let skuCode = '';
+        let isUnique = false;
         const productCount = await Listing.countDocuments();
-        finalData.sku = `KL${productCount + 1}A`;
+        let currentNum = productCount + 1;
+        while (!isUnique) {
+            skuCode = `KL${currentNum}A`;
+            const existingListing = await Listing.findOne({ sku: skuCode });
+            if (!existingListing) {
+                isUnique = true;
+            } else {
+                currentNum++;
+            }
+        }
+        finalData.sku = skuCode;
 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};
@@ -284,7 +304,9 @@ Response ONLY as JSON: {
             .trim();
 
         const finalTitle = titleString || finalData.title || 'New Listing';
-        const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
+        const templatedDescription = (description_prompt && description_prompt.trim() !== '')
+            ? finalData.description
+            : wrapInTemplate(finalData.description, finalTitle);
 
         if (req.user) {
             await logActivity({
