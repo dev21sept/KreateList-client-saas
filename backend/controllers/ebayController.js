@@ -540,3 +540,58 @@ exports.disconnectEbay = async (req, res) => {
     res.status(500).json({ error: 'Failed to disconnect' });
   }
 };
+
+// @desc    Get Category Suggestions from eBay
+// @route   GET /api/ebay/categories/suggest
+// @access  Private
+exports.suggestCategories = async (req, res) => {
+  try {
+    const query = req.query.q || '';
+    if (!query) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+    const appToken = await ebayService.getAppToken();
+    const suggestions = await ebayService.getCategorySuggestions(appToken, query);
+    
+    const formatted = (suggestions || []).map(s => {
+      let ancestors = s.categoryTreeNodeAncestors || [];
+      ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
+      const path = ancestors.map(a => a.categoryName).concat(s.category.categoryName).join(' > ');
+      return {
+        id: s.category.categoryId,
+        label: path
+      };
+    });
+
+    res.status(200).json({ success: true, data: formatted });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get Item Aspects for a category
+// @route   GET /api/ebay/categories/:id/aspects
+// @access  Private
+exports.getCategoryAspects = async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const appToken = await ebayService.getAppToken();
+    const aspectsData = await ebayService.getItemAspectsForCategory(appToken, categoryId);
+
+    let officialAspects = [];
+    if (aspectsData && aspectsData.aspects) {
+      officialAspects = aspectsData.aspects.map(aspect => ({
+        localizedAspectName: aspect.localizedAspectName,
+        aspectConstraint: {
+          aspectRequired: aspect.aspectConstraint?.aspectRequired || false,
+          aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL'
+        },
+        aspectValues: aspect.aspectValues ? aspect.aspectValues.map(v => ({ localizedValue: v.localizedValue })) : []
+      }));
+    }
+
+    res.status(200).json({ success: true, data: officialAspects });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

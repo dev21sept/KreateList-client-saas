@@ -108,6 +108,7 @@ const Rules = () => {
   const [showRuleList, setShowRuleList] = useState(false);
   const [ruleName, setRuleName] = useState('');
   const [titleSequence, setTitleSequence] = useState([]);
+  const [customFieldText, setCustomFieldText] = useState('');
   const [descriptionPrompt, setDescriptionPrompt] = useState('');
   const [conditionNote, setConditionNote] = useState('');
   
@@ -200,6 +201,13 @@ const Rules = () => {
 
   const removeFieldFromSequence = (field) => {
     setTitleSequence(titleSequence.filter(f => f !== field));
+  };
+
+  const handleAddCustomField = () => {
+    if (customFieldText.trim()) {
+      addFieldToSequence(customFieldText.trim());
+      setCustomFieldText('');
+    }
   };
 
   const resetFields = () => {
@@ -386,6 +394,26 @@ const Rules = () => {
                     <Plus size={14} /> {field}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-100/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Add Custom Text / Static Field</p>
+              <div className="flex items-center gap-3 max-w-md">
+                <input 
+                  type="text"
+                  placeholder="e.g. Free Shipping, Vintage, Custom attribute name..."
+                  value={customFieldText}
+                  onChange={(e) => setCustomFieldText(e.target.value)}
+                  className="flex-1 h-10 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                />
+                <button 
+                  type="button"
+                  onClick={handleAddCustomField}
+                  className="h-10 px-6 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-md"
+                >
+                  <Plus size={14} /> Add
+                </button>
               </div>
             </div>
           </div>

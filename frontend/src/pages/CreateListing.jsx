@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { 
   Upload, 
@@ -25,7 +26,7 @@ import {
   ArrowRight,
   Trash2
 } from 'lucide-react';
-import { ruleService, aiService } from '../services/api';
+import { ruleService, aiService, ebayService, listingService } from '../services/api';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false }) => {
@@ -104,7 +105,100 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
   );
 };
 
+const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search category...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await ebayService.suggestCategories(searchTerm);
+        if (response.data.success) {
+          setSuggestions(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching category suggestions:", err);
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <Tag size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 z-10" />
+        <input 
+          className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all shadow-sm"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => setIsOpen(!isOpen)}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          {loading && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Searching eBay Categories...</div>
+          )}
+          {!loading && suggestions.length === 0 && searchTerm.trim() && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">No categories found</div>
+          )}
+          {!loading && suggestions.length === 0 && !searchTerm.trim() && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Type to search eBay categories...</div>
+          )}
+          {suggestions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                onSelect(opt);
+                setIsOpen(false);
+                setSearchTerm('');
+              }}
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-bold text-slate-700 hover:text-inherit">{opt.label}</span>
+                <span className="text-[9px] opacity-75">ID: {opt.id}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CreateListing = () => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
@@ -123,6 +217,7 @@ const CreateListing = () => {
     description: '',
     conditionNote: '',
     selectedAspects: {},
+    sku: '',
   });
 
   // Fetch rules from API
@@ -212,7 +307,8 @@ const CreateListing = () => {
           conditionNote: selectedRuleObj?.condition_note || '',
           category: result.category_name || result.category,
           categoryId: result.category_id,
-          selectedAspects: initialAspects
+          selectedAspects: initialAspects,
+          sku: result.sku || ''
         }));
       }
     } catch (error) {
@@ -270,9 +366,105 @@ const CreateListing = () => {
     }));
   };
 
+  const handleCategoryChange = async (categoryOption) => {
+    setFormData(prev => ({
+      ...prev,
+      category: categoryOption.label,
+      categoryId: categoryOption.id,
+      selectedAspects: {} // Reset aspects as category changed
+    }));
+
+    setLoading(true);
+    try {
+      const response = await ebayService.getCategoryAspects(categoryOption.id);
+      if (response.data.success) {
+        setAspects(response.data.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching aspects for new category:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    setLoading(true);
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    
+    const listingData = {
+      title: formData.title,
+      description: formData.description,
+      price: formData.price,
+      sku: formData.sku,
+      category: formData.category,
+      categoryId: formData.categoryId,
+      images: formData.images,
+      itemSpecifics: formData.selectedAspects,
+      conditionNote: formData.conditionNote,
+      packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
+      packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
+      status: 'draft'
+    };
+
+    try {
+      const response = await listingService.create(listingData);
+      if (response.data.success) {
+        alert('Listing saved as Draft successfully!');
+        navigate('/listings');
+      }
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      alert("Failed to save draft. Check console for details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublishListing = async () => {
+    setLoading(true);
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    
+    const listingData = {
+      title: formData.title,
+      description: formData.description,
+      price: formData.price,
+      sku: formData.sku,
+      category: formData.category,
+      categoryId: formData.categoryId,
+      images: formData.images,
+      itemSpecifics: formData.selectedAspects,
+      conditionNote: formData.conditionNote,
+      packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
+      packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
+      status: 'draft'
+    };
+
+    try {
+      const createResponse = await listingService.create(listingData);
+      if (createResponse.data.success) {
+        const listingId = createResponse.data.data._id || createResponse.data.data.id;
+        const publishResponse = await listingService.publish(listingId);
+        if (publishResponse.data.success) {
+          alert('Listing published to eBay successfully!');
+          navigate('/listings');
+        } else {
+          alert('Listing saved, but failed to publish to eBay: ' + (publishResponse.data.message || 'Unknown error'));
+          navigate('/listings');
+        }
+      }
+    } catch (error) {
+      console.error("Error publishing listing:", error);
+      alert("Failed to publish listing. Check console for details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const nextStep = () => {
     if (step === 1) {
       startAIFetch();
+    } else if (step === 4) {
+      handlePublishListing();
     } else {
       setStep(step + 1);
     }
@@ -460,17 +652,14 @@ const CreateListing = () => {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Category</label>
-                        <div className="relative">
-                          <Tag size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none"
-                            value={formData.category}
-                            readOnly
-                          />
-                        </div>
+                        <CategorySearchDropdown 
+                          value={formData.category}
+                          onSelect={handleCategoryChange}
+                          placeholder="Search and edit category..."
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Suggested Price</label>
@@ -482,6 +671,15 @@ const CreateListing = () => {
                             onChange={(e) => setFormData({...formData, price: e.target.value})}
                           />
                         </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
+                        <input 
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
+                          value={formData.sku}
+                          onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                          placeholder="Enter SKU..."
+                        />
                       </div>
                     </div>
 
@@ -583,21 +781,32 @@ const CreateListing = () => {
                         </label>
                       </div>
                       
-                      {aspect.aspectValues && aspect.aspectValues.length > 0 ? (
-                        <SearchableDropdown 
-                          value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
-                          onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
-                          options={aspect.aspectValues.map(v => ({ label: v.localizedValue }))}
-                          placeholder={`Select ${aspect.localizedAspectName}...`}
-                        />
-                      ) : (
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm"
-                          value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
-                          onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
-                          placeholder={`Enter ${aspect.localizedAspectName}...`}
-                        />
-                      )}
+                      {(() => {
+                        const vals = aspect.aspectValues || aspect.values || [];
+                        if (vals.length > 0) {
+                          const options = vals.map(v => {
+                            const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
+                            return { id: valText, label: valText };
+                          });
+                          return (
+                            <SearchableDropdown 
+                              value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
+                              onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
+                              options={options}
+                              placeholder={`Select ${aspect.localizedAspectName}...`}
+                            />
+                          );
+                        } else {
+                          return (
+                            <input 
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm"
+                              value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
+                              onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
+                              placeholder={`Enter ${aspect.localizedAspectName}...`}
+                            />
+                          );
+                        }
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -802,7 +1011,7 @@ const CreateListing = () => {
           <div className="flex items-center gap-4">
             {step === 4 && (
               <button 
-                onClick={() => {/* handleSaveDraft */}}
+                onClick={handleSaveDraft}
                 className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm"
               >
                 Save as Draft

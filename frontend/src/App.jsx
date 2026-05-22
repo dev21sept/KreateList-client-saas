@@ -9,6 +9,8 @@ import DashboardLayout from './layouts/DashboardLayout';
 
 // Pages
 import Home from './pages/Home';
+import Features from './pages/Features';
+import PricingPage from './pages/PricingPage';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -18,6 +20,7 @@ import Rules from './pages/Rules';
 import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
+import Checkout from './pages/Checkout';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -35,6 +38,8 @@ const App = () => {
           {/* Public Routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/pricing" element={<PricingPage />} />
           </Route>
 
           {/* Auth Routes */}
@@ -55,6 +60,7 @@ const App = () => {
               <Route path="/ebay-callback" element={<EbayAccounts />} />
               <Route path="/subscription" element={<Subscription />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/checkout" element={<Checkout />} />
             </Route>
           </Route>
 

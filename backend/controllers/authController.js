@@ -92,6 +92,39 @@ exports.getMe = async (req, res) => {
   });
 };
 
+// @desc    Update user subscription
+// @route   PUT /api/auth/subscription
+// @access  Private
+exports.updateSubscription = async (req, res) => {
+  try {
+    const { plan, status, expiresAt } = req.body;
+
+    if (!plan || !status) {
+      return res.status(400).json({ success: false, message: 'Plan and status are required' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.subscription = {
+      plan: plan.toLowerCase(),
+      status: status,
+      expiresAt: expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // Get token from model, create cookie and send response
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token

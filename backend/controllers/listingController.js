@@ -22,7 +22,8 @@ exports.getDashboardStats = async (req, res) => {
 
     const totalListings = await Listing.countDocuments({ user: userId });
     const publishedListings = await Listing.countDocuments({ user: userId, status: 'published' });
-    const pendingListings = await Listing.countDocuments({ user: userId, status: { $in: ['draft', 'scheduled'] } });
+    const draftListings = await Listing.countDocuments({ user: userId, status: 'draft' });
+    const scheduledListings = await Listing.countDocuments({ user: userId, status: 'scheduled' });
     const failedListings = await Listing.countDocuments({ user: userId, status: 'failed' });
 
     const recentActivity = await Listing.find({ user: userId })
@@ -35,7 +36,8 @@ exports.getDashboardStats = async (req, res) => {
         stats: {
           total: totalListings,
           published: publishedListings,
-          pending: pendingListings,
+          draft: draftListings,
+          scheduled: scheduledListings,
           failed: failedListings
         },
         recentActivity

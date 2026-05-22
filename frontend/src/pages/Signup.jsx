@@ -48,7 +48,16 @@ const Signup = () => {
         phone: formData.phone,
         password: formData.password
       });
-      navigate('/dashboard');
+
+      const queryParams = new URLSearchParams(window.location.search);
+      const plan = queryParams.get('plan');
+      const cycle = queryParams.get('cycle');
+
+      if (plan) {
+        navigate(`/checkout?plan=${plan}&cycle=${cycle || 'monthly'}`);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Signup failed. Please try again.');
     } finally {
@@ -225,7 +234,7 @@ const Signup = () => {
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
             <p className="text-slate-600">
               Already have an account?{' '}
-              <Link to="/login" className="text-indigo-600 font-bold hover:underline">
+              <Link to={`/login${window.location.search}`} className="text-indigo-600 font-bold hover:underline">
                 Sign in
               </Link>
             </p>

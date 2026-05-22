@@ -31,8 +31,14 @@ const Login = () => {
     
     try {
       const data = await login(formData.email, formData.password);
+      const queryParams = new URLSearchParams(window.location.search);
+      const plan = queryParams.get('plan');
+      const cycle = queryParams.get('cycle');
+
       if (data.user.role === 'admin') {
         navigate('/admin');
+      } else if (plan) {
+        navigate(`/checkout?plan=${plan}&cycle=${cycle || 'monthly'}`);
       } else {
         navigate('/dashboard');
       }
@@ -144,7 +150,7 @@ const Login = () => {
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
             <p className="text-slate-600">
               Don't have an account?{' '}
-              <Link to="/signup" className="text-indigo-600 font-bold hover:underline">
+              <Link to={`/signup${window.location.search}`} className="text-indigo-600 font-bold hover:underline">
                 Create account
               </Link>
             </p>

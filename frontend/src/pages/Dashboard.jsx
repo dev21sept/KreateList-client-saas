@@ -6,7 +6,8 @@ import {
   Clock, 
   AlertCircle, 
   TrendingUp, 
-  ArrowUpRight 
+  ArrowUpRight,
+  FileText
 } from 'lucide-react';
 import { listingService, authService, ebayService } from '../services/api';
 
@@ -43,7 +44,8 @@ const Dashboard = () => {
   const stats = [
     { name: 'Total Listings', value: statsData?.total || 0, icon: <ShoppingBag size={24} />, color: 'bg-indigo-500', trend: '+0%' },
     { name: 'Published', value: statsData?.published || 0, icon: <CheckCircle size={24} />, color: 'bg-emerald-500', trend: '+0%' },
-    { name: 'Pending', value: statsData?.pending || 0, icon: <Clock size={24} />, color: 'bg-amber-500', trend: '+0%' },
+    { name: 'Drafts', value: statsData?.draft || 0, icon: <FileText size={24} />, color: 'bg-slate-500', trend: '+0%' },
+    { name: 'Scheduled', value: statsData?.scheduled || 0, icon: <Clock size={24} />, color: 'bg-amber-500', trend: '+0%' },
     { name: 'Failed', value: statsData?.failed || 0, icon: <AlertCircle size={24} />, color: 'bg-rose-500', trend: '+0%' },
   ];
 
@@ -56,7 +58,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
         {stats.map((stat, index) => (
           <motion.div
             key={stat.name}

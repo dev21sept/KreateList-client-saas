@@ -19,6 +19,7 @@ export const authService = {
   login: (data) => API.post('/auth/login', data),
   signup: (data) => API.post('/auth/register', data),
   getMe: () => API.get('/auth/me'),
+  updateSubscription: (data) => API.put('/auth/subscription', data),
 };
 
 export const ebayService = {
@@ -28,6 +29,8 @@ export const ebayService = {
   getStatus: () => API.get('/ebay/status'),
   getPolicies: () => API.get('/ebay/policies'),
   disconnect: () => API.delete('/ebay/disconnect'),
+  suggestCategories: (query) => API.get(`/ebay/categories/suggest?q=${encodeURIComponent(query)}`),
+  getCategoryAspects: (categoryId) => API.get(`/ebay/categories/${categoryId}/aspects`),
 };
 
 export const listingService = {

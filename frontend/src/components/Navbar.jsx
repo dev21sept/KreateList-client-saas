@@ -17,10 +17,10 @@ const Navbar = () => {
   }, []);
 
   const navLinks = [
-    { name: 'Features', href: '#features' },
-    { name: 'Pricing', href: '#pricing' },
-    { name: 'Testimonials', href: '#testimonials' },
-    { name: 'FAQ', href: '#faq' },
+    { name: 'Features', href: '/features', isHash: false },
+    { name: 'Pricing', href: '/pricing', isHash: false },
+    { name: 'Testimonials', href: '/#testimonials', isHash: true },
+    { name: 'FAQ', href: '/#faq', isHash: true },
   ];
 
   return (
@@ -46,13 +46,23 @@ const Navbar = () => {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                className="text-slate-600 hover:text-indigo-600 font-medium transition-colors"
-              >
-                {link.name}
-              </a>
+              link.isHash ? (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className="text-slate-600 hover:text-indigo-600 font-medium transition-colors"
+                >
+                  {link.name}
+                </a>
+              ) : (
+                <Link
+                  key={link.name}
+                  to={link.href}
+                  className="text-slate-600 hover:text-indigo-600 font-medium transition-colors"
+                >
+                  {link.name}
+                </Link>
+              )
             ))}
           </div>
 
@@ -92,14 +102,25 @@ const Navbar = () => {
           className="md:hidden bg-white border-b border-slate-100 py-4 px-4 space-y-4"
         >
           {navLinks.map((link) => (
-            <a
-              key={link.name}
-              href={link.href}
-              className="block text-slate-600 hover:text-indigo-600 font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {link.name}
-            </a>
+            link.isHash ? (
+              <a
+                key={link.name}
+                href={link.href}
+                className="block text-slate-600 hover:text-indigo-600 font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {link.name}
+              </a>
+            ) : (
+              <Link
+                key={link.name}
+                to={link.href}
+                className="block text-slate-600 hover:text-indigo-600 font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {link.name}
+              </Link>
+            )
           ))}
           <div className="pt-4 border-t border-slate-100 flex flex-col space-y-3">
             <Link

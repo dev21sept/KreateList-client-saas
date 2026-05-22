@@ -9,7 +9,9 @@ const {
   syncOrders,
   syncInventory,
   getInventoryLocations,
-  getCategoryConditions
+  getCategoryConditions,
+  suggestCategories,
+  getCategoryAspects
 } = require('../controllers/ebayController');
 const { protect } = require('../middleware/auth');
 
@@ -32,5 +34,7 @@ router.post('/sync/orders', protect, syncOrders);
 router.post('/sync/inventory', protect, syncInventory);
 router.get('/locations', protect, getInventoryLocations);
 router.get('/conditions', protect, getCategoryConditions);
+router.get('/categories/suggest', protect, suggestCategories);
+router.get('/categories/:id/aspects', protect, getCategoryAspects);
 
 module.exports = router;

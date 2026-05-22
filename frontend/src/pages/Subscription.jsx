@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Zap, Rocket, Building2, Package, Plus, Users, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Subscription = () => {
+  const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   const plans = [
     {
@@ -81,7 +84,7 @@ const Subscription = () => {
         </div>
 
         {/* Improved Toggle */}
-        <div className="flex items-center justify-center pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-2">
           <div className="relative bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200 w-fit">
             <button 
               onClick={() => setBillingCycle('monthly')}
@@ -100,76 +103,132 @@ const Subscription = () => {
             />
           </div>
         </div>
+
+        {/* Profile / Ideal For Selector */}
+        <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] max-w-3xl mx-auto space-y-4 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select your profile to find your ideal plan</p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {[
+              { label: 'New Reseller / Side Hustler', plan: 'BASIC' },
+              { label: 'Full-time / Growing Reseller', plan: 'PRO' },
+              { label: 'Agency / Large Team', plan: 'ENTERPRISE' }
+            ].map(profile => (
+              <button
+                key={profile.plan}
+                type="button"
+                onClick={() => setSelectedProfile(profile.plan)}
+                className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
+                  selectedProfile === profile.plan
+                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-[1.03]'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                }`}
+              >
+                {profile.label}
+              </button>
+            ))}
+            {selectedProfile && (
+              <button
+                type="button"
+                onClick={() => setSelectedProfile(null)}
+                className="text-xs font-bold text-rose-500 hover:text-rose-600 underline ml-2 transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-        {plans.map((plan, idx) => (
-          <motion.div
-            key={plan.name}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className={`flex flex-col p-8 rounded-[2rem] border bg-white transition-all duration-500 relative group ${
-              plan.popular 
-                ? 'border-indigo-200 shadow-[0_20px_50px_rgba(99,102,241,0.08)] ring-1 ring-indigo-500/10' 
-                : 'border-slate-100 shadow-sm hover:shadow-md'
-            }`}
-          >
-            {plan.popular && (
-              <div className="absolute top-0 right-8 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100">
-                Recommended
+        {plans.map((plan, idx) => {
+          const isHighlighted = selectedProfile ? selectedProfile === plan.name : plan.popular;
+          return (
+            <motion.div
+              key={plan.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className={`flex flex-col p-8 rounded-[2rem] border bg-white transition-all duration-500 relative group cursor-pointer ${
+                isHighlighted 
+                  ? 'border-indigo-500 shadow-[0_20px_50px_rgba(99,102,241,0.12)] ring-2 ring-indigo-500/20 scale-[1.02]' 
+                  : 'border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200'
+              }`}
+              onClick={() => setSelectedProfile(plan.name)}
+            >
+              {isHighlighted && (
+                <div className="absolute top-0 right-8 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 animate-pulse">
+                  {selectedProfile ? "Your Match" : "Recommended"}
+                </div>
+              )}
+
+              <div className="flex justify-between items-start mb-6">
+                <div className={`p-3 rounded-xl ${isHighlighted ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-600'}`}>
+                  {plan.icon}
+                </div>
               </div>
-            )}
 
-            <div className="flex justify-between items-start mb-6">
-              <div className={`p-3 rounded-xl ${plan.popular ? 'bg-indigo-50' : 'bg-slate-50'}`}>
-                {plan.icon}
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-slate-900">${getPrice(plan.monthlyPrice)}</span>
+                  <span className="text-slate-400 text-sm font-semibold">/mo</span>
+                </div>
               </div>
-            </div>
 
-            <div className="mb-8">
-              <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-slate-900">${getPrice(plan.monthlyPrice)}</span>
-                <span className="text-slate-400 text-sm font-semibold">/mo</span>
+              <div className="mb-8 space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ideal For</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {plan.perfectFor.map(p => (
+                    <span 
+                      key={p} 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProfile(plan.name);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                        isHighlighted 
+                          ? 'bg-indigo-50/80 border-indigo-100 text-indigo-700 hover:bg-indigo-100'
+                          : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                      }`}
+                    >
+                      {p}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="mb-8 space-y-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ideal For</p>
-              <div className="flex flex-wrap gap-1.5">
-                {plan.perfectFor.map(p => (
-                  <span key={p} className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-600">
-                    {p}
-                  </span>
-                ))}
+              <div className="flex-grow space-y-4 mb-10">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Features</p>
+                <ul className="space-y-3">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
+                      <div className="mt-0.5 p-0.5 rounded-full bg-emerald-50 text-emerald-600 shrink-0">
+                        <Check className="w-3 h-3 stroke-[4]" />
+                      </div>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
 
-            <div className="flex-grow space-y-4 mb-10">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Features</p>
-              <ul className="space-y-3">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
-                    <div className="mt-0.5 p-0.5 rounded-full bg-emerald-50 text-emerald-600 shrink-0">
-                      <Check className="w-3 h-3 stroke-[4]" />
-                    </div>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <button className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
-              plan.popular 
-                ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200 hover:scale-[1.02]' 
-                : 'bg-slate-900 text-white hover:bg-slate-800'
-            }`}>
-              {plan.popular ? 'Get Started Now' : `Select ${plan.name}`}
-            </button>
-          </motion.div>
-        ))}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/checkout?plan=${plan.name}&cycle=${billingCycle}`);
+                }}
+                className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
+                  isHighlighted 
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200 hover:scale-[1.01]' 
+                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
+              >
+                {isHighlighted ? 'Get Started Now' : `Select ${plan.name}`}
+              </button>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Add-ons & Benefits */}
