@@ -396,20 +396,25 @@ exports.getUserPolicies = async (req, res) => {
     const token = await getValidToken(userId);
     if (!token) return res.status(401).json({ error: 'eBay not connected' });
 
-    const [fulfillment, payment, returns] = await Promise.allSettled([
+    const [fulfillment, payment, returns, locations] = await Promise.allSettled([
       ebayService.getFulfillmentPolicies(token),
       ebayService.getPaymentPolicies(token),
-      ebayService.getReturnPolicies(token)
+      ebayService.getReturnPolicies(token),
+      ebayService.getLocations(token)
     ]);
 
-    res.json({ 
-      fulfillment: fulfillment.status === 'fulfilled' ? fulfillment.value : [], 
-      payment: payment.status === 'fulfilled' ? payment.value : [], 
-      returns: returns.status === 'fulfilled' ? returns.value : [] 
+    res.status(200).json({
+      success: true,
+      data: {
+        fulfillment: fulfillment.status === 'fulfilled' ? fulfillment.value : [],
+        payment: payment.status === 'fulfilled' ? payment.value : [],
+        returns: returns.status === 'fulfilled' ? returns.value : [],
+        locations: locations.status === 'fulfilled' ? locations.value : []
+      }
     });
   } catch (error) {
     console.error('getUserPolicies crash:', error.message);
-    res.status(500).json({ error: 'Failed to fetch policies', details: error.message });
+    res.status(500).json({ success: false, error: 'Failed to fetch policies', details: error.message });
   }
 };
 exports.getEbayPolicies = exports.getUserPolicies;
@@ -476,19 +481,22 @@ exports.getEbayStatus = async (req, res) => {
     
     const isConnected = !!token;
     
-    res.json({
-      connected: isConnected,
-      username: user.ebayAccount.username || sellerName,
-      name: sellerName || null,
-      email: sellerEmail || null,
-      phone: user.ebayAccount.phone || '',
-      profileDataAvailable: isConnected ? Boolean(sellerName || sellerEmail) : false,
-      profileFetched,
-      environment: 'PRODUCTION'
+    res.status(200).json({
+      success: true,
+      data: {
+        connected: isConnected,
+        username: user.ebayAccount.username || sellerName,
+        name: sellerName || null,
+        email: sellerEmail || null,
+        phone: user.ebayAccount.phone || '',
+        profileDataAvailable: isConnected ? Boolean(sellerName || sellerEmail) : false,
+        profileFetched,
+        environment: 'PRODUCTION'
+      }
     });
   } catch (error) {
     console.error('getConnectionStatus Error:', error.message);
-    res.status(500).json({ error: 'Failed to fetch connection status' });
+    res.status(500).json({ success: false, error: 'Failed to fetch connection status' });
   }
 };
 exports.getConnectionStatus = exports.getEbayStatus;
