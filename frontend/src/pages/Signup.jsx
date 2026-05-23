@@ -79,11 +79,8 @@ const Signup = () => {
         className="max-w-2xl w-full"
       >
         <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-center space-x-2 mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">K</span>
-            </div>
-            <span className="text-2xl font-bold text-slate-900">KreateList</span>
+          <Link to="/" className="inline-flex items-center mb-8">
+            <img src="/logo.png" alt="Elister.ai" className="h-12 w-auto object-contain" />
           </Link>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Create your account</h2>
           <p className="mt-2 text-slate-600">Start your 14-day free trial. No credit card required.</p>

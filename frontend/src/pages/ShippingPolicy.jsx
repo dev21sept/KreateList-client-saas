@@ -13,7 +13,7 @@ const ShippingPolicy = () => {
 
           <div className="space-y-6 text-gray-700 leading-relaxed">
             <p>
-              Here are the Shipping and Delivery Policies to use the KreateList Platform:
+              Here are the Shipping and Delivery Policies to use the Elister By I & B Platform:
             </p>
 
             <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 my-6 rounded-r-lg">

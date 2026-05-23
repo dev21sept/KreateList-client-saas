@@ -25,7 +25,7 @@ app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ message: 'KreateList API is running...' });
+  res.json({ message: 'Elister.ai API is running...' });
 });
 
 // Auth Routes

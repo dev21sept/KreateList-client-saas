@@ -11,7 +11,7 @@ const testimonialsData = [
     storeSize: "15,000+ active listings",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150",
     rating: 5,
-    quote: "KreateList completely changed our eBay workflow. Creating a listing with perfect description and AI aspects now takes under a minute. Our sales have grown by 35% in just three months!",
+    quote: "Elister.ai completely changed our eBay workflow. Creating a listing with perfect description and AI aspects now takes under a minute. Our sales have grown by 35% in just three months!",
     tag: "Efficiency"
   },
   {
@@ -41,7 +41,7 @@ const testimonialsData = [
     storeSize: "Volume Business Seller",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
     rating: 5,
-    quote: "We cross-list hundreds of items daily. The platform's automated templates ensure our conditions policies are aligned correctly. Couldn't recommend KreateList enough.",
+    quote: "We cross-list hundreds of items daily. The platform's automated templates ensure our conditions policies are aligned correctly. Couldn't recommend Elister.ai enough.",
     tag: "Automation"
   },
   {
@@ -51,7 +51,7 @@ const testimonialsData = [
     storeSize: "Multi-channel reseller",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
     rating: 5,
-    quote: "The bulk listing tools and API push are extremely stable. We previously had connection issues with other tools, but KreateList oauth connection has worked flawlessly.",
+    quote: "The bulk listing tools and API push are extremely stable. We previously had connection issues with other tools, but Elister.ai oauth connection has worked flawlessly.",
     tag: "Integration"
   },
   {
@@ -89,7 +89,7 @@ const Testimonials = () => {
             </span>
           </h1>
           <p className="text-base text-slate-500 max-w-xl mx-auto leading-relaxed font-medium">
-            Discover how KreateList is helping sellers automate aspects extraction, draft titles, and list products 10x faster.
+            Discover how Elister.ai is helping sellers automate aspects extraction, draft titles, and list products 10x faster.
           </p>
         </div>
 

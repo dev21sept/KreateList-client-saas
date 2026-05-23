@@ -22,7 +22,7 @@ const Features = () => {
       icon: <Zap className="w-6 h-6 text-indigo-600" />,
       title: 'Smart Rule Engine & Templates',
       tagline: 'Standardize listing schemas to avoid duplicate manual work.',
-      description: 'The Rule Engine is the brain of KreateList. It lets you create reusable templates specifying title syntax, standard condition notes, and logistics parameters.',
+      description: 'The Rule Engine is the brain of Elister.ai. It lets you create reusable templates specifying title syntax, standard condition notes, and logistics parameters.',
       highlights: [
         'Drag-and-drop title syntax structuring.',
         'Quick-add dynamic attributes or static keywords (e.g. Vintage, Free Shipping).',
@@ -66,7 +66,7 @@ const Features = () => {
       tagline: 'Batch process hundreds of product creations.',
       description: 'Create listing drafts first, perform final quality checks, and then batch publish them to eBay via secure OAuth authentication.',
       highlights: [
-        'Save listings as drafts locally in KreateList.',
+        'Save listings as drafts locally in Elister.ai.',
         'Edit SKU, categories, and specifics before sending data live.',
         'Monitor listing status (Draft, Scheduled, Published, Failed) on the Dashboard.',
         'Verify eBay URL links immediately after creation.'
@@ -84,7 +84,7 @@ const Features = () => {
         </span>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Everything You Need to Scale</h1>
         <p className="text-slate-500 text-sm font-medium leading-relaxed">
-          KreateList is built specifically for growing eBay resellers. Discover how our tools automate manual listing chores.
+          Elister.ai is built specifically for growing eBay resellers. Discover how our tools automate manual listing chores.
         </p>
       </div>
 

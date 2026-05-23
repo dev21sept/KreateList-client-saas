@@ -24,7 +24,7 @@ const AdminUsers = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">User Management</h1>
-          <p className="text-slate-500">Monitor and manage all KreateList customers.</p>
+          <p className="text-slate-500">Monitor and manage all Elister.ai customers.</p>
         </div>
         <div className="flex space-x-2">
           <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center">

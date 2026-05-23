@@ -53,7 +53,7 @@ const Home = () => {
               </span>
             </h1>
             <p className="text-base sm:text-lg text-slate-500 max-w-xl mx-auto leading-relaxed font-medium">
-              KreateList streamlines listing creation with smart aspect mapping, rules, and AI descriptions.
+              Elister.ai streamlines listing creation with smart aspect mapping, rules, and AI descriptions.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Link to="/signup" className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 hover:scale-[1.02]">
@@ -76,7 +76,7 @@ const Home = () => {
             <div className="bg-white p-2 border border-slate-100 rounded-[2.5rem] shadow-xl">
               <img
                 src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426"
-                alt="KreateList Dashboard Overview"
+                alt="Elister.ai Dashboard Overview"
                 className="rounded-[2rem] border border-slate-100/50 shadow-sm"
               />
             </div>

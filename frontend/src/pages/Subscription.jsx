@@ -250,7 +250,7 @@ const Subscription = () => {
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-500" />
-            Why Choose KreateList?
+            Why Choose Elister.ai?
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <BenefitItem text="AI listings in seconds" />

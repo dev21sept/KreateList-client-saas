@@ -58,12 +58,15 @@ const DashboardLayout = ({ isAdmin = false }) => {
       >
         <div className="h-full flex flex-col">
           {/* Sidebar Header */}
-          <div className="p-6 flex items-center space-x-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-xl">K</span>
-            </div>
-            {isSidebarOpen && (
-              <span className="text-xl font-bold text-slate-900 truncate">KreateList</span>
+          <div className={`p-6 flex items-center ${isSidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+            {isSidebarOpen ? (
+              <Link to="/" className="flex items-center">
+                <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain" />
+              </Link>
+            ) : (
+              <Link to="/" className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
+                <span className="text-white font-bold text-xl">E</span>
+              </Link>
             )}
           </div>
 

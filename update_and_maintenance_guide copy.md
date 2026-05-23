@@ -18,7 +18,7 @@ git pull origin main
 # 3. Update Backend
 cd backend
 npm install  # agar koi new library install krni ho toh
-pm2 restart kreatelist-backend
+pm2 restart elister-backend
 
 # 4. Update Frontend (If hosted on this server)
 cd ../frontend
@@ -51,8 +51,8 @@ cat .env
 *   **To Exit Editor:** Press `Ctrl + X`.
 
 *Note: You must restart the backend after changing the .env file for changes to take effect:*
-`pm2 restart kreatelist-backend`
-`pm2 log kreatelist-backend`
+`pm2 restart elister-backend`
+`pm2 log elister-backend`
 `sudo systemctl restart nginx`
 
 ---
@@ -63,7 +63,7 @@ Use these commands to check the status of your server and find errors:
 
 ```bash
 # View real-time application logs (Check for crashes or database errors)
-pm2 logs kreatelist-backend
+pm2 logs elister-backend
 
 # View Nginx traffic logs (Check if requests are reaching the server)
 sudo tail -f /var/log/nginx/access.log

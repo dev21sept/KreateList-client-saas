@@ -12,7 +12,7 @@ const PrivacyPolicy = () => {
 
           <div className="space-y-6 text-gray-700 leading-relaxed">
             <p>
-              As a Company we promise the following data privacy and security terms:
+              As Elister By I & B (the "Company"), we promise the following data privacy and security terms:
             </p>
 
             <ul className="list-disc pl-5 space-y-3">
@@ -25,7 +25,7 @@ const PrivacyPolicy = () => {
               <li>We will not deduct any of the amounts after the cancellation of the Subscription.</li>
               <li>User can delete their account and we will delete all the user info on our end.</li>
               <li>On the negligence of Terms & Conditions company can delete the user account and Data.</li>
-              <li>If your account does not have any activity in 3 months, your account will be deactivated from our system and you can reactivate it. For reactivation you have to send an email to "admin@kreatelist.com".</li>
+              <li>If your account does not have any activity in 3 months, your account will be deactivated from our system and you can reactivate it. For reactivation you have to send an email to "admin@elister.ai".</li>
             </ul>
 
             <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">Approval To Use Software & Security Policy</h2>

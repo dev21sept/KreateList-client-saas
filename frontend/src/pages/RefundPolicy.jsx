@@ -13,7 +13,7 @@ const RefundPolicy = () => {
 
           <div className="space-y-6 text-gray-700 leading-relaxed">
             <p>
-              Here are the Refunds and Cancellations Policies to use the KreateList Platform:
+              Here are the Refunds and Cancellations Policies to use the Elister By I & B Platform:
             </p>
 
             {/* Satisfaction Guarantee */}

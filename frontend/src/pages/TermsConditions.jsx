@@ -12,7 +12,7 @@ const TermsConditions = () => {
 
           <div className="space-y-6 text-gray-700 leading-relaxed">
             <p>
-              These terms and conditions are a type of contract between You (As User) and <strong>KreateList Infotech Private Limited</strong> (Service Provider Company) to access the Website or Web Application or Mobile Application (Android and IOS Both) of KreateList.
+              These terms and conditions are a type of contract between You (As User) and <strong>Elister By I & B</strong> (Service Provider Company) to access the Website or Web Application or Mobile Application (Android and IOS Both) of Elister By I & B.
             </p>
 
             <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 my-6">
@@ -23,11 +23,11 @@ const TermsConditions = () => {
 
             <ul className="list-disc pl-5 space-y-6">
               <li>
-                <span className="font-semibold text-gray-900">1. Service Scope:</span> I have chosen KreateList to automate and scale my eBay listing process. I understand the platform provides tools like the Smart Rule Engine, eBay Taxonomy Category Lookup, AI Listing Optimizer, and Bulk Publishing features.
+                <span className="font-semibold text-gray-900">1. Service Scope:</span> I have chosen Elister By I & B to automate and scale my eBay listing process. I understand the platform provides tools like the Smart Rule Engine, eBay Taxonomy Category Lookup, AI Listing Optimizer, and Bulk Publishing features.
               </li>
               
               <li>
-                <span className="font-semibold text-gray-900">2. Pricing & Subscription Plans:</span> I have understood the pricing model and agree to pay the subscription price prior to using the platform. KreateList operates on a monthly or yearly subscription basis (with a 5% discount on annual billing):
+                <span className="font-semibold text-gray-900">2. Pricing & Subscription Plans:</span> I have understood the pricing model and agree to pay the subscription price prior to using the platform. Elister By I & B operates on a monthly or yearly subscription basis (with a 5% discount on annual billing):
                 <ul className="list-circle pl-5 mt-3 space-y-2 text-gray-600">
                   <li><strong>BASIC Plan ($79/mo):</strong> Includes up to 500 AI Listings per month and support for 1 eBay Account.</li>
                   <li><strong>PRO Plan ($149/mo):</strong> Includes up to 3,000 AI Listings per month and support for 5 eBay Accounts.</li>
@@ -44,21 +44,21 @@ const TermsConditions = () => {
               </li>
 
               <li>
-                <span className="font-semibold text-gray-900">4. User Information & Privacy:</span> I am sharing my contact info with KreateList as accurately as my government documents and KreateList can use the info to contact me regarding my account or subscription.
+                <span className="font-semibold text-gray-900">4. User Information & Privacy:</span> I am sharing my contact info with Elister By I & B as accurately as my government documents and Elister By I & B can use the info to contact me regarding my account or subscription.
               </li>
               
               <li>
-                <span className="font-semibold text-gray-900">5. Account Restriction:</span> I am creating an account with KreateList and the company reserves the right to restrict or terminate my account at any point in time in case of negligence, unauthorized use of eBay integrations, or violation of any term or condition.
+                <span className="font-semibold text-gray-900">5. Account Restriction:</span> I am creating an account with Elister By I & B and the company reserves the right to restrict or terminate my account at any point in time in case of negligence, unauthorized use of eBay integrations, or violation of any term or condition.
               </li>
               
               <li>
-                <span className="font-semibold text-gray-900">6. Intellectual Property:</span> I will not use, copy, reverse engineer, or replicate the same business idea, features (like Rule Engine, AI Optimizer, Taxonomy API), or software logic of KreateList at any point.
+                <span className="font-semibold text-gray-900">6. Intellectual Property:</span> I will not use, copy, reverse engineer, or replicate the same business idea, features (like Rule Engine, AI Optimizer, Taxonomy API), or software logic of Elister By I & B at any point.
               </li>
             </ul>
 
             <div className="mt-8 p-4 bg-rose-50 border-l-4 border-rose-500 rounded-r-lg">
               <p className="text-rose-800 font-medium">
-                **If I commit any negligence of Company Norms or Intellectual Property theft, the Company (KreateList Infotech Private Limited) can take legal action against me.
+                **If I commit any negligence of Company Norms or Intellectual Property theft, the Company (Elister By I & B) can take legal action against me.
               </p>
             </div>
           </div>
