@@ -1,0 +1,96 @@
+name: Deploy Elister to AWS EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    name: Build & Deploy Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Create .env File
+        run: |
+          echo "VITE_API_URL=https://api.elister.ai" > frontend/.env
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Deploy Frontend to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Compress dist files
+          tar -czf frontend.tar.gz -C frontend/dist .
+          
+          # Upload to server's temp directory
+          scp -i private_key.pem -o StrictHostKeyChecking=no frontend.tar.gz ${EC2_USERNAME}@${EC2_HOST}:/tmp/
+          
+          # SSH into EC2, clear web root, and extract new build
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
+            sudo rm -rf /var/www/html/*
+            sudo tar -xzf /tmp/frontend.tar.gz -C /var/www/html/
+            rm /tmp/frontend.tar.gz
+          EOF
+          rm private_key.pem
+
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy Backend to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Create backend package (excluding node_modules and env files)
+          tar -czf backend.tar.gz --exclude='backend/node_modules' --exclude='backend/.env' backend/
+          
+          # Upload to server's temp directory
+          scp -i private_key.pem -o StrictHostKeyChecking=no backend.tar.gz ${EC2_USERNAME}@${EC2_HOST}:/tmp/
+          
+          # SSH, extract new backend, npm install, PM2 restart
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
+            cd ~/elister
+            
+            # Extract new backend files
+            tar -xzf /tmp/backend.tar.gz -C ~/elister/
+            rm /tmp/backend.tar.gz
+            
+            # Install production dependencies and restart app
+            cd backend
+            npm install --production
+            pm2 restart elister-backend || pm2 start ecosystem.config.js --env production
+            pm2 save
+          EOF
+          rm private_key.pem
