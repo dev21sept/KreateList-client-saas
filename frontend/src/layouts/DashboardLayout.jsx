@@ -64,8 +64,8 @@ const DashboardLayout = ({ isAdmin = false }) => {
                 <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain" />
               </Link>
             ) : (
-              <Link to="/" className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
-                <span className="text-white font-bold text-xl">E</span>
+              <Link to="/" className="flex items-center justify-center shrink-0">
+                <img src="/icon.png" alt="Elister.ai" className="h-8 w-8 object-contain" />
               </Link>
             )}
           </div>

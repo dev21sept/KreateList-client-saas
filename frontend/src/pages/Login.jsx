@@ -64,7 +64,7 @@ const Login = () => {
       >
         <div className="text-center mb-10">
           <Link to="/" className="inline-flex items-center mb-8">
-            <img src="/logo.png" alt="Elister.ai" className="h-12 w-auto object-contain" />
+            <img src="/logo_vertical.png" alt="Elister.ai" className="h-24 w-auto object-contain" />
           </Link>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome back</h2>
           <p className="mt-2 text-slate-600">Please enter your details to sign in.</p>
