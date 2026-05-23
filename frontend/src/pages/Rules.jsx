@@ -63,7 +63,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
       </button>
 
       {isOpen && !disabled && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="p-3 bg-slate-50 border-b border-slate-100">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
