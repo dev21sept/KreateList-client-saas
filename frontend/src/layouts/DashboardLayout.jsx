@@ -142,13 +142,13 @@ const DashboardLayout = ({ isAdmin = false }) => {
                 )}
               </div>
               <div className="flex flex-col">
-                <span className={`text-[8px] font-black uppercase tracking-[0.15em] ${useAuth().user?.ebayAccount?.connected ? 'text-emerald-500' : 'text-rose-400'}`}>
-                  {useAuth().user?.ebayAccount?.connected ? 'Production Live' : 'Marketplace Offline'}
-                </span>
-                <span className={`text-[10px] font-bold truncate max-w-[120px] ${useAuth().user?.ebayAccount?.connected ? 'text-emerald-900' : 'text-rose-600'}`}>
+                <span className={`text-[10px] font-bold truncate max-w-[120px] ${useAuth().user?.ebayAccount?.connected ? 'text-slate-900' : 'text-slate-400'}`}>
                   {useAuth().user?.ebayAccount?.connected 
                     ? useAuth().user?.ebayAccount?.username || 'Connected'
-                    : 'Disconnected'}
+                    : 'eBay Disconnected'}
+                </span>
+                <span className={`text-[8px] font-black uppercase tracking-[0.15em] ${useAuth().user?.ebayAccount?.connected ? 'text-emerald-500' : 'text-rose-400'}`}>
+                  {useAuth().user?.ebayAccount?.connected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
             </div>
