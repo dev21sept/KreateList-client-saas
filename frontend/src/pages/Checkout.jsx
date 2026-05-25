@@ -45,7 +45,7 @@ const Checkout = () => {
 
   // Plans reference in INR
   const planPrices = {
-    BASIC: { monthly: 999, yearly: 9999 },
+    BASIC: { monthly: 1, yearly: 10 },
     PRO: { monthly: 1999, yearly: 19999 },
     ENTERPRISE: { monthly: 3999, yearly: 39999 }
   };
