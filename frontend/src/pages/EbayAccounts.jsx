@@ -129,12 +129,12 @@ const EbayAccounts = () => {
         
         <div className="relative">
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">eBay Integration</h1>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Integrations</h1>
             <div className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-200">
               Production Live
             </div>
           </div>
-          <p className="text-slate-500 font-medium text-sm">Enterprise-grade multi-channel eBay connectivity and real-time sync.</p>
+          <p className="text-slate-500 font-medium text-sm">Enterprise-grade multi-channel connectivity and real-time sync.</p>
         </div>
       </div>
 

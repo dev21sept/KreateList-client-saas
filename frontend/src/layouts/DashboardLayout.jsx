@@ -36,7 +36,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
     { name: 'Create Listing', icon: <PlusCircle size={20} />, path: '/create-listing' },
     { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },
-    { name: 'eBay Accounts', icon: <LinkIcon size={20} />, path: '/ebay-accounts' },
+    { name: 'Accounts', icon: <LinkIcon size={20} />, path: '/ebay-accounts' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
     { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
   ];

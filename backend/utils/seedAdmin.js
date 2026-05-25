@@ -2,7 +2,7 @@ const User = require('../models/User');
 
 const seedAdminOnStartup = async () => {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || 'valisting@gmail.com';
+    const adminEmail = process.env.ADMIN_EMAIL || 'support@elister.ai';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
     // Check if admin exists
