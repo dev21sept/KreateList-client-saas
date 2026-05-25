@@ -21,7 +21,6 @@ const listingSchema = new mongoose.Schema({
   sku: {
     type: String,
     required: [true, 'Please add an SKU'],
-    unique: true,
     trim: true
   },
   category: {

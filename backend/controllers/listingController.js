@@ -67,15 +67,7 @@ exports.createListing = async (req, res) => {
       req.body.images = await normalizeProductImages(req.body.images, baseUrl);
     }
 
-    if (req.body.sku) {
-      const existingListing = await Listing.findOne({ sku: req.body.sku.trim() });
-      if (existingListing) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `SKU '${req.body.sku}' already exists. Please choose a unique SKU.` 
-        });
-      }
-    } else {
+    if (!req.body.sku) {
       return res.status(400).json({ 
         success: false, 
         message: 'SKU is required.' 
@@ -131,15 +123,6 @@ exports.updateListing = async (req, res) => {
       req.body.images = await normalizeProductImages(req.body.images, baseUrl);
     }
 
-    if (req.body.sku && req.body.sku.trim() !== listing.sku) {
-      const existingListing = await Listing.findOne({ sku: req.body.sku.trim() });
-      if (existingListing) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `SKU '${req.body.sku}' already exists. Please choose a unique SKU.` 
-        });
-      }
-    }
 
     listing = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.status(200).json({ success: true, data: listing });
