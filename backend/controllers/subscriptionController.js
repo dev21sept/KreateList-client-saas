@@ -132,11 +132,11 @@ exports.createRazorpayOrder = async (req, res) => {
   try {
     const { plan, cycle } = req.body;
     
-    // Plan prices in INR
+    // Plan prices in USD
     const planPrices = {
       basic: { monthly: 1, yearly: 10 },
-      pro: { monthly: 1999, yearly: 19999 },
-      enterprise: { monthly: 3999, yearly: 39999 }
+      pro: { monthly: 149, yearly: 1692 },
+      enterprise: { monthly: 299, yearly: 3408 }
     };
 
     const targetPlan = String(plan || 'pro').toLowerCase();
@@ -145,17 +145,16 @@ exports.createRazorpayOrder = async (req, res) => {
     const planCyclePrice = planPrices[targetPlan] || planPrices.pro;
     const amount = planCyclePrice[targetCycle] || planCyclePrice.monthly;
     
-    // Add 18% GST (matching frontend Checkout logic)
-    const gst = Math.round(amount * 0.18);
-    const totalAmount = amount + gst;
+    // For USD payments, we charge the flat plan rate without GST
+    const totalAmount = amount;
 
     const receiptId = `rcpt_${req.user.id.substring(18)}_${Date.now().toString().slice(-6)}`;
-    const order = await razorpayService.createOrder(totalAmount, receiptId);
+    const order = await razorpayService.createOrder(totalAmount, 'USD', receiptId);
 
     res.status(200).json({
       success: true,
       key_id: process.env.RAZORPAY_KEY_ID,
-      amount: order.amount, // in paisa
+      amount: order.amount, // in cents
       currency: order.currency,
       order_id: order.id,
       plan: targetPlan,

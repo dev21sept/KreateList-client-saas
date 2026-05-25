@@ -43,11 +43,11 @@ const Checkout = () => {
   const [error, setError] = useState('');
   const [overrideActivePlan, setOverrideActivePlan] = useState(false);
 
-  // Plans reference in INR
+  // Plans reference in USD
   const planPrices = {
     BASIC: { monthly: 1, yearly: 10 },
-    PRO: { monthly: 1999, yearly: 19999 },
-    ENTERPRISE: { monthly: 3999, yearly: 39999 }
+    PRO: { monthly: 149, yearly: 1692 },
+    ENTERPRISE: { monthly: 299, yearly: 3408 }
   };
 
   const planNames = {
@@ -61,8 +61,8 @@ const Checkout = () => {
   const baseMonthlyPrice = cycleParam === 'yearly' ? Math.round(subtotal / 12) : subtotal;
   const cycleLabel = cycleParam === 'yearly' ? 'yr' : 'mo';
   
-  const gstAmount = Math.round(subtotal * 0.18); // 18% GST
-  const totalAmount = subtotal + gstAmount;
+  const gstAmount = 0; // No GST for international USD checkout
+  const totalAmount = subtotal;
 
   const handlePay = async (e) => {
     e.preventDefault();
@@ -220,15 +220,17 @@ const Checkout = () => {
             </div>
             <div className="border-t border-slate-200/50 pt-2 flex justify-between text-sm font-bold text-slate-700">
               <span>{planNames[planParam] || planParam}</span>
-              <span>₹{subtotal}</span>
+              <span>${subtotal}</span>
             </div>
-            <div className="flex justify-between text-xs text-slate-500 font-medium">
-              <span>GST (18%)</span>
-              <span>₹{gstAmount}</span>
-            </div>
+            {gstAmount > 0 && (
+              <div className="flex justify-between text-xs text-slate-500 font-medium">
+                <span>GST (18%)</span>
+                <span>${gstAmount}</span>
+              </div>
+            )}
             <div className="border-t border-slate-200/50 pt-2 flex justify-between text-sm font-black text-indigo-600">
               <span>Total Charged</span>
-              <span>₹{totalAmount}</span>
+              <span>${totalAmount}</span>
             </div>
           </div>
 
@@ -309,7 +311,7 @@ const Checkout = () => {
                   Processing Checkout...
                 </>
               ) : (
-                `Pay ₹${totalAmount} Now`
+                `Pay $${totalAmount} Now`
               )}
             </button>
           </form>
@@ -330,23 +332,25 @@ const Checkout = () => {
                 <h4 className="font-bold text-slate-800 text-sm mt-1">{planNames[planParam] || planParam}</h4>
                 <p className="text-xs text-slate-400 font-medium">Billed {cycleParam}</p>
               </div>
-              <span className="font-black text-slate-800">₹{baseMonthlyPrice}<span className="text-[10px] text-slate-400">/{cycleLabel}</span></span>
+              <span className="font-black text-slate-800">${baseMonthlyPrice}<span className="text-[10px] text-slate-400">/{cycleLabel}</span></span>
             </div>
           </div>
 
           <div className="space-y-3 border-t border-slate-200/60 pt-4 text-xs font-semibold text-slate-600">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>₹{subtotal}</span>
+              <span>${subtotal}</span>
             </div>
-            <div className="flex justify-between text-slate-400">
-              <span>GST / Tax (18%)</span>
-              <span>₹{gstAmount}</span>
-            </div>
+            {gstAmount > 0 && (
+              <div className="flex justify-between text-slate-400">
+                <span>GST / Tax (18%)</span>
+                <span>${gstAmount}</span>
+              </div>
+            )}
             
             <div className="border-t border-slate-200/60 pt-3 flex justify-between text-sm font-black text-slate-800">
               <span>Total Price</span>
-              <span>₹{totalAmount}</span>
+              <span>${totalAmount}</span>
             </div>
           </div>
         </div>

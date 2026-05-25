@@ -24,15 +24,15 @@ const getRazorpayInstance = () => {
 };
 
 // Create a new payment order
-exports.createOrder = async (amountInINR, receiptId) => {
+exports.createOrder = async (amount, currency = 'USD', receiptId) => {
   const rzp = getRazorpayInstance();
   if (!rzp) {
     throw new Error('Razorpay service is not configured. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.');
   }
 
   const options = {
-    amount: Math.round(amountInINR * 100), // amount in paisa
-    currency: 'INR',
+    amount: Math.round(amount * 100), // amount in smallest unit (cents/paisa)
+    currency: currency,
     receipt: receiptId || `receipt_${Date.now()}`
   };
 
