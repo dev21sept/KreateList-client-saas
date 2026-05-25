@@ -17,7 +17,10 @@ const wrapInTemplate = (content, title = 'Product Details') => {
     </div>
     <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; font-size: 13px; color: #6b7280; font-style: italic; display: flex; align-items: center; gap: 10px;">
         <div style="width: 8px; height: 8px; background-color: #4f46e5; border-radius: 50%;"></div>
-        <span>Thank you for shopping with us! Fast shipping & professional handling guaranteed.</span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+            This Listing is Created By 
+            <img src="https://elister.ai/logo.png" alt="Elister.ai" style="height: 20px; width: auto; vertical-align: middle;" />
+        </span>
     </div>
 </div>`.trim();
 };
