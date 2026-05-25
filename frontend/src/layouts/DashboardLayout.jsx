@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuth } from '../context/AuthContext';
+import { getLandingUrl } from '../utils/urls';
 
 const DashboardLayout = ({ isAdmin = false }) => {
   const { logout } = useAuth();
@@ -27,7 +28,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    window.location.href = getLandingUrl('/');
   };
 
   const userMenuItems = [
@@ -60,13 +61,13 @@ const DashboardLayout = ({ isAdmin = false }) => {
           {/* Sidebar Header */}
           <div className={`p-6 flex items-center ${isSidebarOpen ? 'space-x-3' : 'justify-center'}`}>
             {isSidebarOpen ? (
-              <Link to="/" className="flex items-center">
+              <a href={getLandingUrl('/')} className="flex items-center">
                 <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain" />
-              </Link>
+              </a>
             ) : (
-              <Link to="/" className="flex items-center justify-center shrink-0">
+              <a href={getLandingUrl('/')} className="flex items-center justify-center shrink-0">
                 <img src="/icon.png" alt="Elister.ai" className="h-8 w-8 object-contain" />
-              </Link>
+              </a>
             )}
           </div>
 

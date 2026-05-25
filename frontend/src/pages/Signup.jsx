@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, User, Phone } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getLandingUrl } from '../utils/urls';
 
 const Signup = () => {
   const { signup } = useAuth();
@@ -79,9 +80,9 @@ const Signup = () => {
         className="max-w-2xl w-full"
       >
         <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-center mb-8">
+          <a href={getLandingUrl('/')} className="inline-flex items-center mb-8">
             <img src="/logo_vertical.png" alt="Elister.ai" className="h-24 w-auto object-contain" />
-          </Link>
+          </a>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Create your account</h2>
           <p className="mt-2 text-slate-600">Start your 14-day free trial. No credit card required.</p>
         </div>

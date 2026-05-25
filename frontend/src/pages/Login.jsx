@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getLandingUrl } from '../utils/urls';
 
 const Login = () => {
   const { login } = useAuth();
@@ -63,9 +64,9 @@ const Login = () => {
         className="max-w-md w-full"
       >
         <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-center mb-8">
+          <a href={getLandingUrl('/')} className="inline-flex items-center mb-8">
             <img src="/logo_vertical.png" alt="Elister.ai" className="h-24 w-auto object-contain" />
-          </Link>
+          </a>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome back</h2>
           <p className="mt-2 text-slate-600">Please enter your details to sign in.</p>
         </div>
