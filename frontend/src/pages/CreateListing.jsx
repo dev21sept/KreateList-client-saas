@@ -29,7 +29,7 @@ import {
 import { ruleService, aiService, ebayService, listingService } from '../services/api';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
-const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false }) => {
+const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = React.useRef(null);
@@ -55,7 +55,9 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full h-12 px-4 bg-white border border-slate-200 rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 disabled:opacity-60 transition-all hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10"
+        className={`w-full h-12 px-4 bg-white border ${
+          error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
+        } rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
       >
         <span className="truncate">{value || placeholder}</span>
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -532,6 +534,34 @@ const CreateListing = () => {
   const nextStep = () => {
     if (step === 1) {
       startAIFetch();
+    } else if (step === 3) {
+      // Validate aspect dropdown values for required/recommended aspects
+      const invalidAspects = [];
+      aspects.forEach(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        if (isRequired || isRecommended) {
+          const vals = aspect.aspectValues || aspect.values || [];
+          if (vals.length > 0) {
+            const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
+            if (currentVal) {
+              const matchesDropdown = vals.some(v => {
+                const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
+              });
+              if (!matchesDropdown) {
+                invalidAspects.push(aspect.localizedAspectName);
+              }
+            }
+          }
+        }
+      });
+
+      if (invalidAspects.length > 0) {
+        alert(`Value is not from the Dropdown for: ${invalidAspects.join(', ')}`);
+        return;
+      }
+      setStep(step + 1);
     } else if (step === 4) {
       handlePublishListing();
     } else {
@@ -841,43 +871,69 @@ const CreateListing = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 overflow-y-auto max-h-[400px] pr-4">
-                  {aspects.map((aspect) => (
-                    <div key={aspect.localizedAspectName} className="space-y-2">
-                      <div className="flex items-center justify-between ml-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                          {aspect.localizedAspectName}
-                          {aspect.aspectConstraint?.aspectRequired && <span className="text-rose-500 ml-1">*</span>}
-                        </label>
+                  {aspects.map((aspect) => {
+                    const vals = aspect.aspectValues || aspect.values || [];
+                    const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+                    const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+                    const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
+                    
+                    let hasDropdownError = false;
+                    if ((isRequired || isRecommended) && vals.length > 0 && currentVal) {
+                      const matchesDropdown = vals.some(v => {
+                        const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                        return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
+                      });
+                      if (!matchesDropdown) {
+                        hasDropdownError = true;
+                      }
+                    }
+
+                    return (
+                      <div key={aspect.localizedAspectName} className="space-y-2">
+                        <div className="flex items-center justify-between ml-1">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                            {aspect.localizedAspectName}
+                            {isRequired && <span className="text-rose-500">*</span>}
+                            {isRecommended && <span className="text-[9px] font-bold text-slate-400 normal-case">(Recommended)</span>}
+                          </label>
+                        </div>
+                        
+                        {(() => {
+                          if (vals.length > 0) {
+                            const options = vals.map(v => {
+                              const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
+                              return { id: valText, label: valText };
+                            });
+                            return (
+                              <div>
+                                <SearchableDropdown 
+                                  value={currentVal}
+                                  onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
+                                  options={options}
+                                  placeholder={`Select ${aspect.localizedAspectName}...`}
+                                  error={hasDropdownError}
+                                />
+                                {hasDropdownError && (
+                                  <p className="text-[11px] font-semibold text-rose-500 mt-1.5 animate-pulse">
+                                    Value is not from the Dropdown
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm"
+                                value={currentVal}
+                                onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
+                                placeholder={`Enter ${aspect.localizedAspectName}...`}
+                              />
+                            );
+                          }
+                        })()}
                       </div>
-                      
-                      {(() => {
-                        const vals = aspect.aspectValues || aspect.values || [];
-                        if (vals.length > 0) {
-                          const options = vals.map(v => {
-                            const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
-                            return { id: valText, label: valText };
-                          });
-                          return (
-                            <SearchableDropdown 
-                              value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
-                              onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
-                              options={options}
-                              placeholder={`Select ${aspect.localizedAspectName}...`}
-                            />
-                          );
-                        } else {
-                          return (
-                            <input 
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm"
-                              value={formData.selectedAspects[aspect.localizedAspectName]?.[0] || ''}
-                              onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
-                              placeholder={`Enter ${aspect.localizedAspectName}...`}
-                            />
-                          );
-                        }
-                      })()}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </motion.div>
