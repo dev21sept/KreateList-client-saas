@@ -1,5 +1,6 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
+const { normalizeProductImages } = require('../utils/imageProcessor');
 
 // @desc    Get all listings for a user
 // @route   GET /api/listings
@@ -55,6 +56,17 @@ exports.createListing = async (req, res) => {
   try {
     req.body.user = req.user.id;
 
+    // Convert base64 images to static files and get absolute URLs
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const isProd = host.includes('elister.ai');
+    const finalProtocol = isProd ? 'https' : protocol;
+    const baseUrl = `${finalProtocol}://${host}`;
+
+    if (req.body.images && Array.isArray(req.body.images)) {
+      req.body.images = await normalizeProductImages(req.body.images, baseUrl);
+    }
+
     if (req.body.sku) {
       const existingListing = await Listing.findOne({ sku: req.body.sku.trim() });
       if (existingListing) {
@@ -106,6 +118,17 @@ exports.updateListing = async (req, res) => {
     }
     if (listing.user.toString() !== req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Convert base64 images to static files and get absolute URLs
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const isProd = host.includes('elister.ai');
+    const finalProtocol = isProd ? 'https' : protocol;
+    const baseUrl = `${finalProtocol}://${host}`;
+
+    if (req.body.images && Array.isArray(req.body.images)) {
+      req.body.images = await normalizeProductImages(req.body.images, baseUrl);
     }
 
     if (req.body.sku && req.body.sku.trim() !== listing.sku) {

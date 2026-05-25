@@ -347,7 +347,13 @@ Response ONLY as JSON: {
 exports.saveAiListing = async (req, res) => {
     try {
         const data = req.body;
-        const normalizedImages = await normalizeProductImages(data.images || []);
+        const host = req.get('host');
+        const protocol = req.protocol;
+        const isProd = host.includes('elister.ai');
+        const finalProtocol = isProd ? 'https' : protocol;
+        const baseUrl = `${finalProtocol}://${host}`;
+
+        const normalizedImages = await normalizeProductImages(data.images || [], baseUrl);
 
         if (normalizedImages.length > 0) {
             const existingListing = await Listing.findOne({

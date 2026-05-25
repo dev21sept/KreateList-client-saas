@@ -1,4 +1,6 @@
 const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 
 function isHttpUrl(value) {
     return /^https?:\/\//i.test(value);
@@ -15,7 +17,7 @@ function looksLikeRawBase64(value) {
     );
 }
 
-async function toNormalizedJpegDataUri(base64OrDataUri) {
+async function saveBase64ImageToDisk(base64OrDataUri, baseUrl) {
     const trimmed = String(base64OrDataUri || '').trim();
     const dataUriMatch = trimmed.match(/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
     let rawBase64 = dataUriMatch ? dataUriMatch[2] : trimmed;
@@ -33,13 +35,24 @@ async function toNormalizedJpegDataUri(base64OrDataUri) {
     const normalized = await sharp(inputBuffer)
         .rotate()
         .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 92, mozjpeg: true })
+        .jpeg({ quality: 85, mozjpeg: true })
         .toBuffer();
 
-    return `data:image/jpeg;base64,${normalized.toString('base64')}`;
+    const filename = `img_${Date.now()}_${Math.floor(Math.random() * 100000)}.jpg`;
+    
+    // Resolve upload dir path (backend/uploads)
+    const uploadDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadDir, filename);
+    await fs.promises.writeFile(filePath, normalized);
+
+    return `${baseUrl}/uploads/${filename}`;
 }
 
-async function normalizeSingleImage(image) {
+async function normalizeSingleImage(image, baseUrl) {
     if (typeof image !== 'string') return null;
     const trimmed = image.trim();
     if (!trimmed) return null;
@@ -50,7 +63,7 @@ async function normalizeSingleImage(image) {
 
     if (isDataUri(trimmed) || looksLikeRawBase64(trimmed)) {
         try {
-            return await toNormalizedJpegDataUri(trimmed);
+            return await saveBase64ImageToDisk(trimmed, baseUrl);
         } catch (error) {
             console.warn(`[IMAGE PROCESSOR] Base64 normalization failed. Skipping image. Reason: ${error.message}`);
             return null;
@@ -60,13 +73,13 @@ async function normalizeSingleImage(image) {
     return null;
 }
 
-async function normalizeProductImages(images = []) {
+async function normalizeProductImages(images = [], baseUrl) {
     if (!Array.isArray(images) || images.length === 0) return [];
 
     const normalized = [];
     for (const image of images) {
         // Keep this sequential to avoid aggressive burst-downloads from remote hosts.
-        const processed = await normalizeSingleImage(image);
+        const processed = await normalizeSingleImage(image, baseUrl);
         if (processed) normalized.push(processed);
     }
 
