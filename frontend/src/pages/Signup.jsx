@@ -42,7 +42,7 @@ const Signup = () => {
     }
 
     try {
-      await signup({
+      const data = await signup({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -56,6 +56,8 @@ const Signup = () => {
 
       if (plan) {
         navigate(`/checkout?plan=${plan}&cycle=${cycle || 'monthly'}`);
+      } else if (data.user?.subscription?.status !== 'active') {
+        navigate('/subscription');
       } else {
         navigate('/dashboard');
       }

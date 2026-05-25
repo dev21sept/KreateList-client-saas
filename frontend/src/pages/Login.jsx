@@ -40,6 +40,8 @@ const Login = () => {
         navigate('/admin');
       } else if (plan) {
         navigate(`/checkout?plan=${plan}&cycle=${cycle || 'monthly'}`);
+      } else if (data.user.subscription?.status !== 'active') {
+        navigate('/subscription');
       } else {
         navigate('/dashboard');
       }
