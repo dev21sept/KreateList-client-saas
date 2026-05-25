@@ -185,30 +185,66 @@ exports.ebayCallback = async (req, res) => {
       throw new Error('Associated User not found in database.');
     }
 
-    user.ebayAccount.connected = true;
-    user.ebayAccount.accessToken = tokens.access_token;
-    user.ebayAccount.refreshToken = tokens.refresh_token;
-    user.ebayAccount.tokenExpires = new Date(Date.now() + (tokens.expires_in * 1000));
-    
+    // Determine connected accounts limit based on plan
+    const plan = user.subscription?.plan || 'free';
+    const planLimits = {
+      free: 0,
+      basic: 1,
+      pro: 5,
+      enterprise: 100
+    };
+    const maxAccounts = planLimits[plan.toLowerCase()] || 0;
+
+    let username = '';
+    let profileName = '';
+    let profileEmail = '';
+    let phoneNum = '';
+
     // Fetch and save the seller's profile info
     try {
       console.log('Fetching eBay user profile during callback...');
       const profile = await ebayService.getUserProfile(tokens.access_token);
       if (profile) {
         const { name, email } = extractSellerProfile(profile);
-        user.ebayAccount.username = profile.username || profile.userId || name;
-        user.ebayAccount.name = name;
-        user.ebayAccount.email = email;
-        user.ebayAccount.phone = profile.individualAccount?.primaryPhone?.phoneNumber || profile.businessAccount?.primaryPhone?.phoneNumber || '';
+        username = profile.username || profile.userId || name;
+        profileName = name;
+        profileEmail = email;
+        phoneNum = profile.individualAccount?.primaryPhone?.phoneNumber || profile.businessAccount?.primaryPhone?.phoneNumber || '';
         
-        console.log(`Connected to eBay account: ${name} (${email})`);
-        console.log('--- PRODUCTION OAUTH TOKENS SAVED TO USER DOCUMENT ---');
+        if (!user.linkedEbayUsernames) {
+          user.linkedEbayUsernames = [];
+        }
+
+        const isAlreadyLinked = user.linkedEbayUsernames.includes(username);
+
+        if (!isAlreadyLinked) {
+          if (user.linkedEbayUsernames.length >= maxAccounts) {
+            const limitMsg = `Your ${plan.toUpperCase()} plan allows a maximum of ${maxAccounts} connected eBay account(s). Please upgrade to connect another account.`;
+            if (isPost) {
+              return res.status(403).json({ success: false, message: limitMsg });
+            }
+            const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(/\/$/, '');
+            return res.redirect(`${frontendUrl}/ebay-accounts?error=${encodeURIComponent(limitMsg)}`);
+          }
+          user.linkedEbayUsernames.push(username);
+        }
+
+        user.ebayAccount.connected = true;
+        user.ebayAccount.accessToken = tokens.access_token;
+        user.ebayAccount.refreshToken = tokens.refresh_token;
+        user.ebayAccount.tokenExpires = new Date(Date.now() + (tokens.expires_in * 1000));
+        user.ebayAccount.username = username;
+        user.ebayAccount.name = profileName;
+        user.ebayAccount.email = profileEmail;
+        user.ebayAccount.phone = phoneNum;
+        
+        console.log(`Connected to eBay account: ${profileName} (${profileEmail})`);
+        await user.save();
       }
     } catch (profileErr) {
       console.error('Error fetching user profile during callback:', profileErr.message);
+      throw profileErr;
     }
-
-    await user.save();
 
     if (isPost) {
       return res.status(200).json({

@@ -21,6 +21,13 @@ const ProtectedRoute = ({ adminOnly = false }) => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const currentPath = window.location.pathname;
+  const isBillingPath = currentPath === '/subscription' || currentPath === '/checkout';
+
+  if (user.role !== 'admin' && user.subscription?.status !== 'active' && !isBillingPath) {
+    return <Navigate to="/subscription" replace />;
+  }
+
   return <Outlet />;
 };
 

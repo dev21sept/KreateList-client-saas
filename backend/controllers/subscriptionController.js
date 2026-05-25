@@ -1,6 +1,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const User = require('../models/User');
 const Plan = require('../models/Plan');
+const razorpayService = require('../services/razorpayService');
 
 // @desc    Get all available plans
 // @route   GET /api/subscriptions/plans
@@ -123,3 +124,103 @@ async function handleSubscriptionDeleted(subscription) {
     { 'subscription.status': 'canceled' }
   );
 }
+
+// @desc    Create Razorpay Order
+// @route   POST /api/subscriptions/razorpay/order
+// @access  Private
+exports.createRazorpayOrder = async (req, res) => {
+  try {
+    const { plan, cycle } = req.body;
+    
+    // Plan prices in INR
+    const planPrices = {
+      basic: { monthly: 999, yearly: 9999 },
+      pro: { monthly: 1999, yearly: 19999 },
+      enterprise: { monthly: 3999, yearly: 39999 }
+    };
+
+    const targetPlan = String(plan || 'pro').toLowerCase();
+    const targetCycle = String(cycle || 'monthly').toLowerCase();
+
+    const planCyclePrice = planPrices[targetPlan] || planPrices.pro;
+    const amount = planCyclePrice[targetCycle] || planCyclePrice.monthly;
+    
+    // Add 18% GST (matching frontend Checkout logic)
+    const gst = Math.round(amount * 0.18);
+    const totalAmount = amount + gst;
+
+    const receiptId = `rcpt_${req.user.id.substring(18)}_${Date.now().toString().slice(-6)}`;
+    const order = await razorpayService.createOrder(totalAmount, receiptId);
+
+    res.status(200).json({
+      success: true,
+      key_id: process.env.RAZORPAY_KEY_ID,
+      amount: order.amount, // in paisa
+      currency: order.currency,
+      order_id: order.id,
+      plan: targetPlan,
+      cycle: targetCycle
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Verify Razorpay Payment
+// @route   POST /api/subscriptions/razorpay/verify
+// @access  Private
+exports.verifyRazorpayPayment = async (req, res) => {
+  try {
+    const {
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      plan,
+      cycle
+    } = req.body;
+
+    const isValid = razorpayService.verifyPaymentSignature(
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed. Invalid signature.'
+      });
+    }
+
+    // Upgrade the user's subscription in DB
+    const expiresAt = new Date();
+    if (cycle === 'yearly') {
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    } else {
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    user.subscription.plan = plan.toLowerCase();
+    user.subscription.status = 'active';
+    user.subscription.expiresAt = expiresAt;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Subscription updated successfully!',
+      data: {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        expiresAt: user.subscription.expiresAt
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

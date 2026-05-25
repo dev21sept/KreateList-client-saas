@@ -22,6 +22,11 @@ export const authService = {
   updateSubscription: (data) => API.put('/auth/subscription', data),
 };
 
+export const subscriptionService = {
+  createRazorpayOrder: (data) => API.post('/subscriptions/razorpay/order', data),
+  verifyRazorpayPayment: (data) => API.post('/subscriptions/razorpay/verify', data),
+};
+
 export const ebayService = {
   connect: () => API.get('/ebay/auth'),
   callback: (code) => API.post('/ebay/callback', { code }),

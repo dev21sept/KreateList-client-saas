@@ -61,6 +61,10 @@ const userSchema = new mongoose.Schema({
     refreshToken: String,
     tokenExpires: Date
   },
+  linkedEbayUsernames: {
+    type: [String],
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now

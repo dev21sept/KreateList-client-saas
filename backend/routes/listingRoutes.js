@@ -9,6 +9,7 @@ const {
   getDashboardStats
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
+const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
@@ -18,13 +19,13 @@ router.get('/stats', getDashboardStats);
 
 router.route('/')
   .get(getListings)
-  .post(createListing);
+  .post(requireActiveSubscription, createListing);
 
 router.route('/:id')
   .get(getListing)
   .put(updateListing)
   .delete(deleteListing);
 
-router.post('/:id/publish', publishListing);
+router.post('/:id/publish', requireActiveSubscription, publishListing);
 
 module.exports = router;

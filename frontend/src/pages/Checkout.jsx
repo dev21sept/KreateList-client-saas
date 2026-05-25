@@ -12,8 +12,23 @@ import {
   Plus,
   Coins
 } from 'lucide-react';
-import { authService } from '../services/api';
+import { authService, subscriptionService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
+// Dynamic script loader for Razorpay Checkout
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
@@ -23,28 +38,16 @@ const Checkout = () => {
   const planParam = (searchParams.get('plan') || 'PRO').toUpperCase();
   const cycleParam = searchParams.get('cycle') || 'monthly';
 
-  const [paymentMethod, setPaymentMethod] = useState('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [error, setError] = useState('');
   const [overrideActivePlan, setOverrideActivePlan] = useState(false);
-  
-  // Card form state
-  const [cardData, setCardData] = useState({
-    number: '',
-    expiry: '',
-    cvv: '',
-    name: ''
-  });
 
-  // UPI form state
-  const [upiId, setUpiId] = useState('');
-
-  // Plans reference
+  // Plans reference in INR
   const planPrices = {
-    BASIC: 79,
-    PRO: 149,
-    ENTERPRISE: 299
+    BASIC: { monthly: 999, yearly: 9999 },
+    PRO: { monthly: 1999, yearly: 19999 },
+    ENTERPRISE: { monthly: 3999, yearly: 39999 }
   };
 
   const planNames = {
@@ -53,69 +56,98 @@ const Checkout = () => {
     ENTERPRISE: 'Enterprise Scale Plan'
   };
 
-  const planBasePrice = planPrices[planParam] || 149;
-  const cycleMultiplier = cycleParam === 'yearly' ? 12 : 1;
+  const planCyclePrice = planPrices[planParam] || planPrices.PRO;
+  const subtotal = planCyclePrice[cycleParam] || planCyclePrice.monthly;
+  const baseMonthlyPrice = cycleParam === 'yearly' ? Math.round(subtotal / 12) : subtotal;
   const cycleLabel = cycleParam === 'yearly' ? 'yr' : 'mo';
   
-  // Calculate pricing
-  const baseMonthlyPrice = cycleParam === 'yearly' ? Math.floor(planBasePrice * 0.95) : planBasePrice;
-  const subtotal = baseMonthlyPrice * cycleMultiplier;
   const gstAmount = Math.round(subtotal * 0.18); // 18% GST
   const totalAmount = subtotal + gstAmount;
-
-  const handleCardChange = (e) => {
-    const { name, value } = e.target;
-    setCardData(prev => ({ ...prev, [name]: value }));
-  };
 
   const handlePay = async (e) => {
     e.preventDefault();
     setError('');
     setIsProcessing(true);
 
-    // Validate payment inputs
-    if (paymentMethod === 'card') {
-      if (!cardData.number || !cardData.expiry || !cardData.cvv || !cardData.name) {
-        setError('Please fill in all credit card details.');
-        setIsProcessing(false);
-        return;
-      }
-    } else if (paymentMethod === 'upi') {
-      if (!upiId || !upiId.includes('@')) {
-        setError('Please enter a valid UPI ID (e.g. user@okhdfcbank).');
-        setIsProcessing(false);
-        return;
-      }
+    const isLoaded = await loadRazorpayScript();
+    if (!isLoaded) {
+      setError('Failed to load Razorpay payment SDK. Please check your internet connection.');
+      setIsProcessing(false);
+      return;
     }
 
-    // Simulate payment processing delay
-    setTimeout(async () => {
-      try {
-        const expiresAt = new Date();
-        if (cycleParam === 'yearly') {
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-        } else {
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-        }
+    try {
+      // 1. Create order on the backend
+      const orderRes = await subscriptionService.createRazorpayOrder({
+        plan: planParam,
+        cycle: cycleParam
+      });
 
-        // Call backend update subscription API
-        await authService.updateSubscription({
-          plan: planParam.toLowerCase(),
-          status: 'active',
-          expiresAt: expiresAt
-        });
-
-        // Refresh user context
-        await loadUser();
-
-        setIsProcessing(false);
-        setPaymentSuccess(true);
-      } catch (err) {
-        console.error('Subscription update failed:', err);
-        setError(err.response?.data?.message || 'Payment simulation failed. Please try again.');
-        setIsProcessing(false);
+      if (!orderRes.data.success) {
+        throw new Error(orderRes.data.message || 'Failed to initialize payment.');
       }
-    }, 2500);
+
+      const { order_id, amount, currency, key_id } = orderRes.data;
+
+      // 2. Configure Razorpay Options
+      const options = {
+        key: key_id,
+        amount: amount,
+        currency: currency,
+        name: 'Elister.ai',
+        description: `${planNames[planParam]} (${cycleParam})`,
+        image: '/logo.png',
+        order_id: order_id,
+        handler: async (response) => {
+          setIsProcessing(true);
+          try {
+            // 3. Send payment signature to backend for verification
+            const verifyRes = await subscriptionService.verifyRazorpayPayment({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              plan: planParam,
+              cycle: cycleParam
+            });
+
+            if (verifyRes.data.success) {
+              // Refresh user context and show success
+              await loadUser();
+              setPaymentSuccess(true);
+            } else {
+              setError(verifyRes.data.message || 'Payment verification failed.');
+            }
+          } catch (err) {
+            console.error('Razorpay verification error:', err);
+            setError(err.response?.data?.message || 'Payment verification failed. Please contact support.');
+          } finally {
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: `${user?.firstName || ''} ${user?.lastName || ''}`,
+          email: user?.email || '',
+          contact: user?.phone || ''
+        },
+        theme: {
+          color: '#6366f1' // Indigo theme color
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessing(false);
+          }
+        }
+      };
+
+      // 3. Open Razorpay Modal
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (err) {
+      console.error('Razorpay payment failed:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to initiate payment. Please try again.');
+      setIsProcessing(false);
+    }
   };
 
   const hasActiveSub = user?.subscription?.status === 'active';
@@ -184,19 +216,19 @@ const Checkout = () => {
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100/50 max-w-sm mx-auto text-left space-y-2.5">
             <div className="flex justify-between text-xs text-slate-400 font-bold uppercase tracking-wider">
               <span>Receipt Details</span>
-              <span>Paid via {paymentMethod.toUpperCase()}</span>
+              <span>Secure Payment Completed</span>
             </div>
             <div className="border-t border-slate-200/50 pt-2 flex justify-between text-sm font-bold text-slate-700">
               <span>{planNames[planParam] || planParam}</span>
-              <span>${subtotal}</span>
+              <span>₹{subtotal}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-500 font-medium">
               <span>GST (18%)</span>
-              <span>${gstAmount}</span>
+              <span>₹{gstAmount}</span>
             </div>
             <div className="border-t border-slate-200/50 pt-2 flex justify-between text-sm font-black text-indigo-600">
               <span>Total Charged</span>
-              <span>${totalAmount}</span>
+              <span>₹{totalAmount}</span>
             </div>
           </div>
 
@@ -240,31 +272,8 @@ const Checkout = () => {
         {/* Left: Payment Form */}
         <div className="lg:col-span-7 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-8">
           <div className="space-y-1">
-            <h2 className="text-2xl font-extrabold text-slate-900">Choose Payment Method</h2>
-            <p className="text-slate-400 text-sm font-medium">Select a mock payment processor to complete checkout.</p>
-          </div>
-
-          {/* Payment Method Selector Tabs */}
-          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-            {[
-              { id: 'card', label: 'Credit Card', icon: <CreditCard size={18} /> },
-              { id: 'upi', label: 'UPI / NetBanking', icon: <Coins size={18} /> },
-              { id: 'paypal', label: 'PayPal', icon: <Building2 size={18} /> }
-            ].map(method => (
-              <button
-                key={method.id}
-                type="button"
-                onClick={() => setPaymentMethod(method.id)}
-                className={`py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                  paymentMethod === method.id 
-                    ? 'bg-white border-slate-200 text-indigo-600 shadow-sm'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {method.icon}
-                {method.label}
-              </button>
-            ))}
+            <h2 className="text-2xl font-extrabold text-slate-900">Checkout</h2>
+            <p className="text-slate-400 text-sm font-medium">Complete your payment securely via Razorpay.</p>
           </div>
 
           <AnimatePresence mode="wait">
@@ -281,106 +290,13 @@ const Checkout = () => {
           </AnimatePresence>
 
           <form onSubmit={handlePay} className="space-y-6">
-            {paymentMethod === 'card' && (
-              <motion.div 
-                key="card-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Card Holder Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={cardData.name}
-                    onChange={handleCardChange}
-                    placeholder="John Doe"
-                    className="w-full h-12 px-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Card Number</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="number"
-                      maxLength="19"
-                      value={cardData.number}
-                      onChange={handleCardChange}
-                      placeholder="4111 2222 3333 4444"
-                      className="w-full h-12 pl-12 pr-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
-                    />
-                    <CreditCard size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Expiry Date</label>
-                    <input
-                      type="text"
-                      name="expiry"
-                      maxLength="5"
-                      value={cardData.expiry}
-                      onChange={handleCardChange}
-                      placeholder="MM/YY"
-                      className="w-full h-12 px-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm text-center"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">CVV</label>
-                    <input
-                      type="password"
-                      name="cvv"
-                      maxLength="3"
-                      value={cardData.cvv}
-                      onChange={handleCardChange}
-                      placeholder="***"
-                      className="w-full h-12 px-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm text-center"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {paymentMethod === 'upi' && (
-              <motion.div 
-                key="upi-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">UPI ID</label>
-                  <input
-                    type="text"
-                    value={upiId}
-                    onChange={(e) => setUpiId(e.target.value)}
-                    placeholder="username@bankname"
-                    className="w-full h-12 px-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
-                  />
-                  <p className="text-[10px] text-slate-400 font-medium ml-1">Enter your UPI VPA to receive a payment request on your mobile app.</p>
-                </div>
-              </motion.div>
-            )}
-
-            {paymentMethod === 'paypal' && (
-              <motion.div 
-                key="paypal-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-4 py-4 text-center bg-slate-50 rounded-2xl border border-slate-100"
-              >
-                <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm font-bold text-slate-700">Simulate PayPal Redirect</p>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">Clicking Pay will simulate logging into your PayPal account to authorize the transaction.</p>
-              </motion.div>
-            )}
+            <div className="p-8 bg-slate-50 border border-slate-100 rounded-3xl flex flex-col items-center justify-center text-center space-y-4 shadow-inner">
+              <ShieldCheck className="w-12 h-12 text-indigo-500 stroke-[2]" />
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">Secure Payment Gateway</h4>
+                <p className="text-xs text-slate-400 max-w-sm mt-1">Payment is processed securely by Razorpay. We support Debit/Credit Cards, UPI, NetBanking, and all major wallets.</p>
+              </div>
+            </div>
 
             <button
               type="submit"
@@ -390,10 +306,10 @@ const Checkout = () => {
               {isProcessing ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Processing Mock Transaction...
+                  Processing Checkout...
                 </>
               ) : (
-                `Pay $${totalAmount} Now`
+                `Pay ₹${totalAmount} Now`
               )}
             </button>
           </form>
@@ -414,23 +330,23 @@ const Checkout = () => {
                 <h4 className="font-bold text-slate-800 text-sm mt-1">{planNames[planParam] || planParam}</h4>
                 <p className="text-xs text-slate-400 font-medium">Billed {cycleParam}</p>
               </div>
-              <span className="font-black text-slate-800">${baseMonthlyPrice}<span className="text-[10px] text-slate-400">/{cycleLabel}</span></span>
+              <span className="font-black text-slate-800">₹{baseMonthlyPrice}<span className="text-[10px] text-slate-400">/{cycleLabel}</span></span>
             </div>
           </div>
 
           <div className="space-y-3 border-t border-slate-200/60 pt-4 text-xs font-semibold text-slate-600">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>${subtotal}</span>
+              <span>₹{subtotal}</span>
             </div>
             <div className="flex justify-between text-slate-400">
               <span>GST / Tax (18%)</span>
-              <span>${gstAmount}</span>
+              <span>₹{gstAmount}</span>
             </div>
             
             <div className="border-t border-slate-200/60 pt-3 flex justify-between text-sm font-black text-slate-800">
               <span>Total Price</span>
-              <span>${totalAmount}</span>
+              <span>₹{totalAmount}</span>
             </div>
           </div>
         </div>
