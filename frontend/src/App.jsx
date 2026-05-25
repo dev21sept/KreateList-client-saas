@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
 // Layouts
@@ -35,11 +35,75 @@ import AdminSettings from './pages/admin/AdminSettings';
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Domain Routing Guard Component
+const DomainRedirect = ({ children }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    // Check if we should enforce domain routing:
+    // Only in production, or if the dev hostname explicitly contains a subdomain
+    const shouldRedirect = !isDev || hostname.startsWith('app.');
+    if (!shouldRedirect) return;
+
+    const isAppSubdomain = hostname.startsWith('app.');
+    const currentPath = location.pathname;
+    
+    const port = window.location.port ? `:${window.location.port}` : '';
+    const landingBase = isDev ? `http://localhost${port}` : 'https://elister.ai';
+    const appBase = isDev ? `http://app.localhost${port}` : 'https://app.elister.ai';
+
+    const appPaths = [
+      '/login',
+      '/signup',
+      '/dashboard',
+      '/listings',
+      '/create-listing',
+      '/rules',
+      '/ebay-accounts',
+      '/ebay-callback',
+      '/subscription',
+      '/settings',
+      '/checkout',
+      '/admin'
+    ];
+
+    const isAppPath = appPaths.some(path => 
+      currentPath === path || currentPath.startsWith(path + '/')
+    );
+
+    if (isAppSubdomain) {
+      if (currentPath === '/') {
+        // Redirect root subdomain to /dashboard (which redirects to login if unauthenticated)
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      
+      if (!isAppPath) {
+        // On app domain but accessing landing page path, redirect to landing domain
+        window.location.href = `${landingBase}${currentPath}${location.search}`;
+      }
+    } else {
+      // On landing page domain
+      if (isAppPath) {
+        // On landing domain but accessing app path, redirect to app domain
+        window.location.href = `${appBase}${currentPath}${location.search}`;
+      }
+    }
+  }, [location, navigate]);
+
+  return children;
+};
+
 const App = () => {
   return (
     <Router>
-      <AnimatePresence mode="wait">
-        <Routes>
+      <DomainRedirect>
+        <AnimatePresence mode="wait">
+          <Routes>
           {/* Public Routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
@@ -85,8 +149,9 @@ const App = () => {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AnimatePresence>
+          </Routes>
+        </AnimatePresence>
+      </DomainRedirect>
     </Router>
   );
 };
