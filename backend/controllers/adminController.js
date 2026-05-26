@@ -6,7 +6,7 @@ const Listing = require('../models/Listing');
 // @access  Private/Admin
 exports.getStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({});
+    const totalUsers = await User.countDocuments({ role: 'user' });
     const totalListings = await Listing.countDocuments();
     const publishedListings = await Listing.countDocuments({ status: 'published' });
     
