@@ -74,6 +74,9 @@ exports.getUsers = async (req, res) => {
 // @access  Private/Admin
 exports.updateUser = async (req, res) => {
   try {
+    if (req.body.subscription) {
+      req.body.subscription.paymentMethod = 'admin';
+    }
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true

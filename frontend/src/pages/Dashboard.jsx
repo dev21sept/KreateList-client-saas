@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   ShoppingBag, 
   CheckCircle, 
@@ -12,11 +13,30 @@ import {
 import { listingService, authService, ebayService } from '../services/api';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [statsData, setStatsData] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [user, setUser] = useState(null);
   const [ebayStatus, setEbayStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const getPlanLimit = (planName) => {
+    const plan = String(planName || 'free').toLowerCase();
+    switch (plan) {
+      case 'basic': return 500;
+      case 'pro': return 3000;
+      case 'enterprise': return 10000;
+      case 'free':
+      default: return 0;
+    }
+  };
+
+  const getRemainingDays = (expiresAt) => {
+    if (!expiresAt) return null;
+    const diffTime = new Date(expiresAt) - new Date();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -126,17 +146,25 @@ const Dashboard = () => {
         <div className="space-y-8">
           <div className="bg-indigo-600 p-8 rounded-3xl shadow-xl shadow-indigo-200 text-white relative overflow-hidden">
             <div className="relative z-10">
-              <h3 className="text-xl font-bold mb-2 capitalize">{user?.subscription?.plan || 'Free'} Plan</h3>
+              <h3 className="text-xl font-bold mb-1 capitalize">{user?.subscription?.plan || 'Free'} Plan</h3>
+              {user?.subscription?.expiresAt && (
+                <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-4">
+                  {getRemainingDays(user.subscription.expiresAt)} Days Left
+                </div>
+              )}
               <p className="text-indigo-100 text-sm mb-6">
-                You've used {statsData?.total || 0} of {user?.subscription?.plan === 'pro' ? '5,000' : user?.subscription?.plan === 'basic' ? '1,000' : '10'} monthly listings.
+                You've used {statsData?.total || 0} of {getPlanLimit(user?.subscription?.plan)} monthly listings.
               </p>
               <div className="w-full bg-indigo-500 rounded-full h-2 mb-6">
                 <div 
                   className="bg-white h-2 rounded-full transition-all duration-500" 
-                  style={{ width: `${Math.min(((statsData?.total || 0) / (user?.subscription?.plan === 'pro' ? 5000 : user?.subscription?.plan === 'basic' ? 1000 : 10)) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((statsData?.total || 0) / Math.max(getPlanLimit(user?.subscription?.plan), 1)) * 100, 100)}%` }}
                 ></div>
               </div>
-              <button className="w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors">
+              <button 
+                onClick={() => navigate('/subscription')}
+                className="w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors"
+              >
                 Upgrade Plan
               </button>
             </div>

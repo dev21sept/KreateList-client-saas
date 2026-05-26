@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Zap, Rocket, Building2, Package, Plus, Users, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/api';
 
 const Subscription = () => {
   const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await authService.getMe();
+        if (res.data.success) {
+          setUser(res.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching user subscription details:", err);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const plans = [
     {
@@ -212,20 +228,30 @@ const Subscription = () => {
                 </ul>
               </div>
 
-              <button 
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/checkout?plan=${plan.name}&cycle=${billingCycle}`);
-                }}
-                className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
-                  isHighlighted 
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200 hover:scale-[1.01]' 
-                    : 'bg-slate-900 text-white hover:bg-slate-800'
-                }`}
-              >
-                {isHighlighted ? 'Get Started Now' : `Select ${plan.name}`}
-              </button>
+              {(() => {
+                const isActive = user?.subscription?.plan?.toLowerCase() === plan.name.toLowerCase() && user?.subscription?.status === 'active';
+                return (
+                  <button 
+                    type="button"
+                    disabled={isActive}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isActive) {
+                        navigate(`/checkout?plan=${plan.name}&cycle=${billingCycle}`);
+                      }
+                    }}
+                    className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${
+                      isActive
+                        ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed border border-emerald-200'
+                        : isHighlighted 
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200 hover:scale-[1.01]' 
+                          : 'bg-slate-900 text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {isActive ? 'Active Plan' : isHighlighted ? 'Get Started Now' : `Select ${plan.name}`}
+                  </button>
+                );
+              })()}
             </motion.div>
           );
         })}

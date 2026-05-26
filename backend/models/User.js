@@ -46,6 +46,11 @@ const userSchema = new mongoose.Schema({
     },
     stripeCustomerId: String,
     stripeSubscriptionId: String,
+    paymentMethod: {
+      type: String,
+      enum: ['free', 'stripe', 'razorpay', 'admin'],
+      default: 'free'
+    },
     expiresAt: Date
   },
   ebayAccount: {

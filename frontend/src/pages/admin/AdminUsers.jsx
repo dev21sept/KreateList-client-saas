@@ -13,7 +13,8 @@ import {
   Phone,
   BarChart2,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  CreditCard
 } from 'lucide-react';
 import { adminService } from '../../services/api';
 
@@ -118,6 +119,36 @@ const AdminUsers = () => {
         ? 'text-amber-600 bg-amber-50 border-amber-100' 
         : 'text-emerald-600 bg-emerald-50 border-emerald-100'
     };
+  };
+
+  // Payment method display logic
+  const getPaymentMethodDisplay = (user) => {
+    const method = user.subscription?.paymentMethod;
+    const plan = user.subscription?.plan;
+    const status = user.subscription?.status;
+
+    if (!plan || plan === 'free') {
+      return { text: 'Free Tier', badgeColor: 'bg-slate-100 text-slate-600 border-slate-200' };
+    }
+
+    if (method === 'admin') {
+      return { text: 'Admin Activation', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200' };
+    }
+
+    if (method === 'razorpay') {
+      return { text: 'Razorpay Gateway', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    }
+
+    if (method === 'stripe') {
+      return { text: 'Stripe Gateway', badgeColor: 'bg-violet-50 text-violet-700 border-violet-200' };
+    }
+
+    // Legacy fallback for previously active test users
+    if (status === 'active') {
+      return { text: 'Razorpay (Legacy)', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    }
+
+    return { text: 'None', badgeColor: 'bg-slate-100 text-slate-500 border-slate-200' };
   };
 
   const handleRowClick = (userId) => {
@@ -257,6 +288,7 @@ const AdminUsers = () => {
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => {
                   const subInfo = getSubscriptionInfo(user);
+                  const paymentInfo = getPaymentMethodDisplay(user);
                   const isExpanded = expandedUserId === user._id;
 
                   return (
@@ -325,11 +357,14 @@ const AdminUsers = () => {
                               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">User Details</h4>
-                                  <p className="text-xs text-slate-600 flex items-center mb-1">
+                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
                                     <Phone size={12} className="mr-2 text-slate-400" /> {user.phone || 'No phone number'}
                                   </p>
-                                  <p className="text-xs text-slate-600 flex items-center">
+                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
                                     <Calendar size={12} className="mr-2 text-slate-400" /> Joined: {new Date(user.createdAt).toLocaleDateString()}
+                                  </p>
+                                  <p className="text-xs text-slate-600 flex items-center">
+                                    <CreditCard size={12} className="mr-2 text-slate-400" /> Payment: <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold border ${paymentInfo.badgeColor}`}>{paymentInfo.text}</span>
                                   </p>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-slate-100 text-[10px] text-slate-400">

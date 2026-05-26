@@ -103,7 +103,8 @@ async function handleSubscriptionCreated(session) {
   await User.findByIdAndUpdate(userId, {
     'subscription.status': 'active',
     'subscription.stripeSubscriptionId': stripeSubscriptionId,
-    'subscription.expiresAt': new Date(subscription.current_period_end * 1000)
+    'subscription.expiresAt': new Date(subscription.current_period_end * 1000),
+    'subscription.paymentMethod': 'stripe'
   });
 }
 
@@ -207,6 +208,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
     user.subscription.plan = plan.toLowerCase();
     user.subscription.status = 'active';
     user.subscription.expiresAt = expiresAt;
+    user.subscription.paymentMethod = 'razorpay';
 
     await user.save();
 
