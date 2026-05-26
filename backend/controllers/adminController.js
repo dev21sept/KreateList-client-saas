@@ -34,7 +34,7 @@ exports.getStats = async (req, res) => {
 // @access  Private/Admin
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find({}).sort({ createdAt: -1 });
+    const users = await User.find({ role: 'user' }).sort({ createdAt: -1 });
     
     // Fetch stats for each user
     const usersWithStats = await Promise.all(users.map(async (user) => {

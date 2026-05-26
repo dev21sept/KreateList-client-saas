@@ -34,7 +34,6 @@ const AdminUsers = () => {
   // Modal Edit state
   const [editingUser, setEditingUser] = useState(null);
   const [editFormData, setEditFormData] = useState({
-    role: 'user',
     plan: 'free',
     status: 'inactive',
     expiresAt: ''
@@ -129,7 +128,6 @@ const AdminUsers = () => {
     e.stopPropagation();
     setEditingUser(user);
     setEditFormData({
-      role: user.role || 'user',
       plan: user.subscription?.plan || 'free',
       status: user.subscription?.status || 'inactive',
       expiresAt: user.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toISOString().split('T')[0] : ''
@@ -148,7 +146,6 @@ const AdminUsers = () => {
     e.preventDefault();
     try {
       const updateData = {
-        role: editFormData.role,
         subscription: {
           plan: editFormData.plan,
           status: editFormData.status,
@@ -250,7 +247,6 @@ const AdminUsers = () => {
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider"></th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">User</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Plan</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Subscription Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Days Left</th>
@@ -282,11 +278,6 @@ const AdminUsers = () => {
                               <p className="text-xs text-slate-400 flex items-center"><Mail size={12} className="mr-1" /> {user.email}</p>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-semibold">
-                          <span className={`px-2 py-0.5 rounded text-xs ${user.role === 'admin' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {user.role}
-                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-xs font-bold px-2 py-1 rounded-full ${
@@ -328,7 +319,7 @@ const AdminUsers = () => {
                       {/* Collapsible details row */}
                       {isExpanded && (
                         <tr className="bg-slate-50/70">
-                          <td colSpan={7} className="px-8 py-6">
+                          <td colSpan={6} className="px-8 py-6">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                               {/* Contact Details */}
                               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
@@ -392,7 +383,7 @@ const AdminUsers = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     No users found matching current filters.
                   </td>
                 </tr>
@@ -426,20 +417,6 @@ const AdminUsers = () => {
               </div>
 
               <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
-                {/* Role selection */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Role</label>
-                  <select 
-                    name="role"
-                    value={editFormData.role}
-                    onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-
                 {/* Plan selection */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subscription Plan</label>
