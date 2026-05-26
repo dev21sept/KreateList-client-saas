@@ -7,9 +7,10 @@ const jwt = require('jsonwebtoken');
 exports.register = async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone } = req.body;
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
 
     // Check if user exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: cleanEmail });
 
     if (userExists) {
       return res.status(400).json({
@@ -22,7 +23,7 @@ exports.register = async (req, res) => {
     const user = await User.create({
       firstName,
       lastName,
-      email,
+      email: cleanEmail,
       password,
       phone
     });
@@ -42,6 +43,7 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
 
     // Validate email & password
     if (!email || !password) {
@@ -52,7 +54,7 @@ exports.login = async (req, res) => {
     }
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: cleanEmail }).select('+password');
 
     if (!user) {
       return res.status(401).json({

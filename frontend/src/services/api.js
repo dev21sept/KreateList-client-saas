@@ -59,4 +59,10 @@ export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
 };
 
+export const adminService = {
+  getStats: () => API.get('/admin/stats'),
+  getUsers: () => API.get('/admin/users'),
+  updateUser: (id, data) => API.put(`/admin/users/${id}`, data),
+};
+
 export default API;

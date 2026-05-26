@@ -1,21 +1,83 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Users, 
   CreditCard, 
   ShoppingBag, 
   BarChart3, 
-  ArrowUpRight,
-  TrendingUp,
-  Activity
+  Activity,
+  UserPlus
 } from 'lucide-react';
+import { adminService } from '../../services/api';
 
 const AdminDashboard = () => {
+  const [statsData, setStatsData] = useState(null);
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [statsRes, usersRes] = await Promise.all([
+          adminService.getStats(),
+          adminService.getUsers()
+        ]);
+        
+        if (statsRes.data?.success) {
+          setStatsData(statsRes.data.data);
+        }
+        if (usersRes.data?.success) {
+          // Keep top 5 recent users
+          setRecentUsers(usersRes.data.data.slice(0, 5));
+        }
+      } catch (err) {
+        console.error('Error fetching admin dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const formatTimeAgo = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-6 rounded-3xl text-center font-bold">
+        {error}
+      </div>
+    );
+  }
+
   const stats = [
-    { name: 'Total Users', value: '12,842', icon: <Users size={24} />, color: 'bg-indigo-600' },
-    { name: 'Monthly Revenue', value: '$48,290', icon: <CreditCard size={24} />, color: 'bg-emerald-600' },
-    { name: 'Total Listings', value: '450,210', icon: <ShoppingBag size={24} />, color: 'bg-violet-600' },
-    { name: 'Active Subs', value: '1,240', icon: <Activity size={24} />, color: 'bg-amber-600' },
+    { name: 'Total Users', value: statsData?.totalUsers || 0, icon: <Users size={24} />, color: 'bg-indigo-600' },
+    { name: 'Monthly Revenue', value: statsData?.monthlyRevenue ? `$${statsData.monthlyRevenue.toLocaleString()}` : '$0', icon: <CreditCard size={24} />, color: 'bg-emerald-600' },
+    { name: 'Total Listings', value: statsData?.totalListings || 0, icon: <ShoppingBag size={24} />, color: 'bg-violet-600' },
+    { name: 'Active Subs', value: statsData?.activeSubscriptions || 0, icon: <Activity size={24} />, color: 'bg-amber-600' },
   ];
 
   return (
@@ -71,15 +133,27 @@ const AdminDashboard = () => {
         <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Recent System Activity</h3>
           <div className="space-y-6">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-start space-x-4">
-                <div className="w-2 h-2 bg-indigo-600 rounded-full mt-2 shrink-0"></div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">New Premium Subscription</p>
-                  <p className="text-xs text-slate-500">User <span className="font-mono">#ID-2910</span> upgraded to Pro Plan • 5m ago</p>
+            {recentUsers.length > 0 ? (
+              recentUsers.map((user, i) => (
+                <div key={user._id || i} className="flex items-start space-x-4">
+                  <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                    <UserPlus size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">New User Registered</p>
+                    <p className="text-xs text-slate-500">
+                      {user.firstName} {user.lastName} ({user.email}) joined with{' '}
+                      <span className="font-semibold text-indigo-600">
+                        {user.subscription?.plan?.toUpperCase() || 'FREE'}
+                      </span>{' '}
+                      plan • {formatTimeAgo(user.createdAt)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm text-center py-8">No recent signups found.</p>
+            )}
           </div>
         </div>
       </div>
@@ -88,3 +162,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
