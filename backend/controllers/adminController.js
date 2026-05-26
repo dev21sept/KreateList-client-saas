@@ -76,6 +76,9 @@ exports.updateUser = async (req, res) => {
   try {
     if (req.body.subscription) {
       req.body.subscription.paymentMethod = 'admin';
+      if (!req.body.subscription.paymentDate && req.body.subscription.status === 'active') {
+        req.body.subscription.paymentDate = new Date();
+      }
     }
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,

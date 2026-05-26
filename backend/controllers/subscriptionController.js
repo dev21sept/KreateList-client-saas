@@ -205,10 +205,23 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    user.subscription.plan = plan.toLowerCase();
+    const planPrices = {
+      basic: { monthly: 1, yearly: 10 },
+      pro: { monthly: 149, yearly: 1692 },
+      enterprise: { monthly: 299, yearly: 3408 }
+    };
+    const targetPlan = plan.toLowerCase();
+    const targetCycle = (cycle || 'monthly').toLowerCase();
+    const cyclePrices = planPrices[targetPlan] || planPrices.pro;
+    const amountPaid = cyclePrices[targetCycle] || cyclePrices.monthly;
+
+    user.subscription.plan = targetPlan;
     user.subscription.status = 'active';
     user.subscription.expiresAt = expiresAt;
     user.subscription.paymentMethod = 'razorpay';
+    user.subscription.paymentAmount = amountPaid;
+    user.subscription.paymentDate = new Date();
+    user.subscription.razorpayPaymentId = razorpay_payment_id;
 
     await user.save();
 

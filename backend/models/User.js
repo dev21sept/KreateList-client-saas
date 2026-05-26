@@ -51,6 +51,12 @@ const userSchema = new mongoose.Schema({
       enum: ['free', 'stripe', 'razorpay', 'admin'],
       default: 'free'
     },
+    paymentAmount: {
+      type: Number,
+      default: 0
+    },
+    paymentDate: Date,
+    razorpayPaymentId: String,
     expiresAt: Date
   },
   ebayAccount: {

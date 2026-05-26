@@ -37,7 +37,9 @@ const AdminUsers = () => {
   const [editFormData, setEditFormData] = useState({
     plan: 'free',
     status: 'inactive',
-    expiresAt: ''
+    expiresAt: '',
+    paymentAmount: 0,
+    paymentDate: ''
   });
 
   const fetchUsers = async () => {
@@ -161,7 +163,9 @@ const AdminUsers = () => {
     setEditFormData({
       plan: user.subscription?.plan || 'free',
       status: user.subscription?.status || 'inactive',
-      expiresAt: user.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toISOString().split('T')[0] : ''
+      expiresAt: user.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toISOString().split('T')[0] : '',
+      paymentAmount: user.subscription?.paymentAmount || 0,
+      paymentDate: user.subscription?.paymentDate ? new Date(user.subscription.paymentDate).toISOString().split('T')[0] : ''
     });
   };
 
@@ -180,7 +184,9 @@ const AdminUsers = () => {
         subscription: {
           plan: editFormData.plan,
           status: editFormData.status,
-          expiresAt: editFormData.expiresAt ? new Date(editFormData.expiresAt) : null
+          expiresAt: editFormData.expiresAt ? new Date(editFormData.expiresAt) : null,
+          paymentAmount: Number(editFormData.paymentAmount || 0),
+          paymentDate: editFormData.paymentDate ? new Date(editFormData.paymentDate) : null
         }
       };
       const res = await adminService.updateUser(editingUser._id, updateData);
@@ -363,9 +369,31 @@ const AdminUsers = () => {
                                   <p className="text-xs text-slate-600 flex items-center mb-1.5">
                                     <Calendar size={12} className="mr-2 text-slate-400" /> Joined: {new Date(user.createdAt).toLocaleDateString()}
                                   </p>
-                                  <p className="text-xs text-slate-600 flex items-center">
+                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
                                     <CreditCard size={12} className="mr-2 text-slate-400" /> Payment: <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold border ${paymentInfo.badgeColor}`}>{paymentInfo.text}</span>
                                   </p>
+                                  {user.subscription?.plan !== 'free' && (
+                                    <>
+                                      <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
+                                        Amount: <span className="font-bold text-slate-900 ml-1">${user.subscription?.paymentAmount || 0}</span>
+                                      </p>
+                                      {user.subscription?.paymentDate && (
+                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
+                                          Paid At: <span className="text-slate-900 ml-1">{new Date(user.subscription.paymentDate).toLocaleString()}</span>
+                                        </p>
+                                      )}
+                                      {user.subscription?.razorpayPaymentId && (
+                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
+                                          Txn ID: <span className="font-mono text-slate-900 ml-1">{user.subscription.razorpayPaymentId}</span>
+                                        </p>
+                                      )}
+                                      {user.subscription?.stripeSubscriptionId && (
+                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
+                                          Stripe ID: <span className="font-mono text-slate-900 ml-1">{user.subscription.stripeSubscriptionId}</span>
+                                        </p>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-slate-100 text-[10px] text-slate-400">
                                   ID: {user._id}
@@ -497,6 +525,34 @@ const AdminUsers = () => {
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
                   />
                 </div>
+
+                {/* Custom Payment Amount (only relevant if not Free) */}
+                {editFormData.plan !== 'free' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Amount (USD)</label>
+                      <input 
+                        type="number"
+                        name="paymentAmount"
+                        value={editFormData.paymentAmount}
+                        onChange={handleFormChange}
+                        placeholder="e.g. 149"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Date</label>
+                      <input 
+                        type="date"
+                        name="paymentDate"
+                        value={editFormData.paymentDate}
+                        onChange={handleFormChange}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="pt-4 flex space-x-2 justify-end">
                   <button 
