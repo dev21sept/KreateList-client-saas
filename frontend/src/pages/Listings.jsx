@@ -596,6 +596,22 @@ const Listings = () => {
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
                         <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.brand || '-'}</p>
                       </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.color || '-'}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.quantity || '1'}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Style Tags</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.styleTag || '-'}</p>
+                      </div>
                     </>
                   )}
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -658,11 +674,15 @@ const Listings = () => {
               {previewListing.platform === 'poshmark' ? (
                 <button 
                   onClick={() => {
-                    const plainDescription = previewListing.description.replace(/<[^>]*>/g, '');
+                    const plainDescription = previewListing.description ? previewListing.description.replace(/<[^>]*>/g, '') : '';
                     const brandVal = previewListing.brand || 'Generic';
                     const listingPriceVal = previewListing.price || '0.00';
                     const originalPriceVal = previewListing.originalPrice || '0.00';
-                    const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\n\nDescription:\n${plainDescription}`;
+                    const colorVal = previewListing.color || 'N/A';
+                    const sizeVal = previewListing.size || 'N/A';
+                    const quantityVal = previewListing.quantity || '1';
+                    const styleTagVal = previewListing.styleTag || 'N/A';
+                    const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\nColor: ${colorVal}\nSize: ${sizeVal}\nQuantity: ${quantityVal}\nStyle Tags: ${styleTagVal}\n\nDescription:\n${plainDescription}`;
                     navigator.clipboard.writeText(copyText);
                     alert('Listing details copied to clipboard!');
                   }}

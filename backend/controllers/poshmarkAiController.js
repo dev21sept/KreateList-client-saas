@@ -258,6 +258,10 @@ Examples:
 * Home > Kitchen > Cookware
 
 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' (MSRP / original retail price when brand new) in USD.
+5. Attribute Extraction:
+   - Identify the primary 'color'(s) of the item.
+   - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.
+   - Identify the 'size' of the item if visible in the images or estimate it if not.
 
 Context: Gender: ${gender}.
 
@@ -268,7 +272,10 @@ Response ONLY as JSON: {
   "description": "HTML content",
   "category": "Poshmark category path (e.g. Women > Shoes > Heels)",
   "selling_price": 0.00,
-  "original_price": 0.00
+  "original_price": 0.00,
+  "color": "Primary color(s)",
+  "style_tag": "style tags (comma-separated)",
+  "size": "Size"
 }`
                         },
                         ...imageContent
@@ -346,6 +353,9 @@ Response ONLY as JSON: {
                 category_name: normalizedCategory,
                 price: finalData.selling_price || finalData.price,
                 originalPrice: finalData.original_price || '',
+                color: finalData.color || '',
+                styleTag: finalData.style_tag || '',
+                size: finalData.size || '',
                 sku: finalData.sku
             }
         });

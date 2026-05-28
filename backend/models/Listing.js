@@ -63,6 +63,13 @@ const listingSchema = new mongoose.Schema({
   poshmarkUrl: String,
   brand: String,
   originalPrice: String,
+  color: String,
+  styleTag: String,
+  quantity: {
+    type: Number,
+    default: 1
+  },
+  size: String,
   createdAt: {
     type: Date,
     default: Date.now

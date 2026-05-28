@@ -230,6 +230,10 @@ const CreatePoshmarkListing = () => {
     title: '',
     brand: '',
     originalPrice: '',
+    color: '',
+    styleTag: '',
+    quantity: 1,
+    size: '',
     category: '',
     categoryId: '',
     price: '',
@@ -277,6 +281,10 @@ const CreatePoshmarkListing = () => {
               title: listing.title || '',
               brand: listing.brand || '',
               originalPrice: listing.originalPrice || '',
+              color: listing.color || '',
+              styleTag: listing.styleTag || '',
+              quantity: listing.quantity || 1,
+              size: listing.size || '',
               category: listing.category || '',
               categoryId: listing.categoryId || '',
               price: listing.price || '',
@@ -354,6 +362,10 @@ const CreatePoshmarkListing = () => {
           title: result.title,
           brand: result.brand || '',
           originalPrice: result.originalPrice || '',
+          color: result.color || '',
+          styleTag: result.styleTag || '',
+          quantity: 1,
+          size: result.size || '',
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
@@ -413,6 +425,10 @@ const CreatePoshmarkListing = () => {
       title: formData.title,
       brand: formData.brand,
       originalPrice: formData.originalPrice,
+      color: formData.color,
+      styleTag: formData.styleTag,
+      quantity: formData.quantity,
+      size: formData.size,
       description: formData.description,
       price: formData.price,
       sku: formData.sku,
@@ -699,6 +715,46 @@ const CreatePoshmarkListing = () => {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
+                        <input 
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                          value={formData.color}
+                          onChange={(e) => setFormData({...formData, color: e.target.value})}
+                          placeholder="e.g. Red, Blue..."
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
+                        <input 
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                          value={formData.size}
+                          onChange={(e) => setFormData({...formData, size: e.target.value})}
+                          placeholder="e.g. M, L, 10..."
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Quantity</label>
+                        <input 
+                          type="number"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                          value={formData.quantity}
+                          onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 1})}
+                          min="1"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags</label>
+                        <input 
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                          value={formData.styleTag}
+                          onChange={(e) => setFormData({...formData, styleTag: e.target.value})}
+                          placeholder="e.g. Vintage, Boho..."
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
@@ -839,6 +895,25 @@ const CreatePoshmarkListing = () => {
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</label>
                       <p className="text-xs font-mono font-bold text-slate-500 uppercase">{formData.sku || 'Auto-Generated'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-50">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Color</label>
+                      <p className="text-xs font-bold text-slate-700">{formData.color || 'N/A'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Size</label>
+                      <p className="text-xs font-bold text-slate-700">{formData.size || 'N/A'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</label>
+                      <p className="text-xs font-bold text-slate-700">{formData.quantity || '1'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Style Tags</label>
+                      <p className="text-xs font-bold text-slate-700">{formData.styleTag || 'N/A'}</p>
                     </div>
                   </div>
 
