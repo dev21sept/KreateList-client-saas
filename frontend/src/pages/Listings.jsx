@@ -633,24 +633,26 @@ const Listings = () => {
                 )}
 
                 {/* Item Specifics */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
-                  {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      {Object.entries(previewListing.itemSpecifics).map(([key, val]) => {
-                        const displayVal = Array.isArray(val) ? val.join(', ') : val;
-                        return (
-                          <div key={key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                            <span className="text-xs font-bold text-slate-500">{key}</span>
-                            <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[150px]">{displayVal || '-'}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No specifics configured.</p>
-                  )}
-                </div>
+                {previewListing.platform !== 'poshmark' && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
+                    {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.entries(previewListing.itemSpecifics).map(([key, val]) => {
+                          const displayVal = Array.isArray(val) ? val.join(', ') : val;
+                          return (
+                            <div key={key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-500">{key}</span>
+                              <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[150px]">{displayVal || '-'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No specifics configured.</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Description Template */}
                 <div className="space-y-2">
