@@ -19,6 +19,13 @@ const productSchema = new mongoose.Schema({
     type: String,
     default: 'ebay'
   },
+  status: {
+    type: String,
+    enum: ['draft', 'live'],
+    default: 'draft'
+  },
+  ebayListingId: String,
+  ebayUrl: String,
   updated_at: {
     type: Date,
     default: Date.now

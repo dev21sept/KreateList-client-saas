@@ -127,27 +127,25 @@ exports.analyzeListing = async (req, res) => {
         let categoryId = '';
         let categoryPath = 'General';
 
-        if (platform === 'ebay') {
-            const query = categoryResult?.category_query || 'General';
-            try {
-                const appToken = await ebayService.getAppToken();
-                const suggestions = await ebayService.getCategorySuggestions(appToken, query);
-                if (suggestions && suggestions.length > 0) {
-                    const bestSuggest = suggestions[0];
-                    categoryId = bestSuggest.category.categoryId;
+        const query = categoryResult?.category_query || 'General';
+        try {
+            const appToken = await ebayService.getAppToken();
+            const suggestions = await ebayService.getCategorySuggestions(appToken, query);
+            if (suggestions && suggestions.length > 0) {
+                const bestSuggest = suggestions[0];
+                categoryId = bestSuggest.category.categoryId;
 
-                    let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
-                    ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
-                    categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
-                    
-                    console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
-                } else {
-                    categoryPath = query;
-                }
-            } catch (err) {
-                console.error("Failed to fetch official category suggestions:", err.message);
+                let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
+                ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
+                categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
+                
+                console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
+            } else {
                 categoryPath = query;
             }
+        } catch (err) {
+            console.error("Failed to fetch official category suggestions:", err.message);
+            categoryPath = query;
         }
 
         console.log(`✅ Phase 1: ${categoryPath} (ID: ${categoryId})`);
@@ -155,7 +153,7 @@ exports.analyzeListing = async (req, res) => {
         // --- PHASE 2: FETCH OFFICIAL ASPECTS (EBAY ONLY) ---
         let officialAspects = [];
         let aspectNamesList = [];
-        if (platform === 'ebay' && categoryId) {
+        if (categoryId) {
             try {
                 console.log(`--- Fetching official eBay aspects for Category: ${categoryId} ---`);
                 const appToken = await ebayService.getAppToken();
@@ -164,19 +162,26 @@ exports.analyzeListing = async (req, res) => {
                 if (aspectsData && aspectsData.aspects) {
                     officialAspects = aspectsData.aspects.map(aspect => ({
                         localizedAspectName: aspect.localizedAspectName,
-                        required: aspect.aspectConstraint?.aspectRequired || false,
-                        usage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL',
-                        values: aspect.aspectValues ? aspect.aspectValues.map(v => v.localizedValue) : []
+                        aspectConstraint: {
+                            aspectRequired: aspect.aspectConstraint?.aspectRequired || false,
+                            aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL'
+                        },
+                        aspectValues: aspect.aspectValues ? aspect.aspectValues.map(v => ({ localizedValue: v.localizedValue })) : []
                     }));
 
                     officialAspects.sort((a, b) => {
-                        if (a.required && !b.required) return -1;
-                        if (!a.required && b.required) return 1;
-                        if (a.usage === 'RECOMMENDED' && b.usage !== 'RECOMMENDED') return -1;
-                        if (a.usage !== 'RECOMMENDED' && b.usage === 'RECOMMENDED') return 1;
+                        const aRequired = a.aspectConstraint.aspectRequired;
+                        const bRequired = b.aspectConstraint.aspectRequired;
+                        const aUsage = a.aspectConstraint.aspectUsage;
+                        const bUsage = b.aspectConstraint.aspectUsage;
+                        
+                        if (aRequired && !bRequired) return -1;
+                        if (!aRequired && bRequired) return 1;
+                        if (aUsage === 'RECOMMENDED' && bUsage !== 'RECOMMENDED') return -1;
+                        if (aUsage !== 'RECOMMENDED' && bUsage === 'RECOMMENDED') return 1;
                         return 0;
                     });
-
+                    
                     aspectNamesList = officialAspects.map(a => a.localizedAspectName);
                     console.log(`✅ Phase 2: Successfully fetched ${officialAspects.length} official eBay aspects.`);
                 } else {
@@ -219,14 +224,14 @@ exports.analyzeListing = async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: `You are a world-class ${platform} listing expert. You strictly follow instructions.`
+                    content: `You are a world-class ebay listing expert. You strictly follow instructions.`
                 },
                 {
                     role: "user",
                     content: [
                         {
                             type: "text",
-                            text: `Analyze images for a professional ${platform} listing.
+                            text: `Analyze images for a professional ebay listing.
                             
 1. Visual Research & Title Construction:
    - Identify the EXACT retail name of this product.

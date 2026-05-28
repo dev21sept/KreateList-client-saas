@@ -723,6 +723,24 @@ async function getInventoryItems(token, limit = 100, offset = 0) {
 }
 
 /**
+ * Gets all offers for the seller
+ */
+async function getAllOffers(token, limit = 100, offset = 0) {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/sell/inventory/v1/offer?limit=${limit}&offset=${offset}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Language': 'en-US'
+            }
+        });
+        return response.data; // { offers: [], total: X, ... }
+    } catch (error) {
+        console.error('Error fetching all eBay offers:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+/**
  * Gets the Authenticated User's Profile (Username/ID)
  */
 async function getUserProfile(token) {
@@ -817,6 +835,7 @@ module.exports = {
     getOffers,
     getOrders,
     getInventoryItems,
+    getAllOffers,
     getCategoryConditions,
     updateShippingFulfillment,
     getUserProfile,

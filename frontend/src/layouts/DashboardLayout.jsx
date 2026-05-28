@@ -13,7 +13,8 @@ import {
   X,
   Bell,
   Search,
-  Users
+  Users,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +26,9 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(
+    location.pathname.startsWith('/create-')
+  );
 
   const handleLogout = () => {
     logout();
@@ -34,7 +38,14 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const userMenuItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
-    { name: 'Create Listing', icon: <PlusCircle size={20} />, path: '/create-listing' },
+    { 
+      name: 'Create Listing', 
+      icon: <PlusCircle size={20} />, 
+      subItems: [
+        { name: 'eBay Listing', path: '/create-ebay-listing' },
+        { name: 'Poshmark Listing', path: '/create-poshmark-listing' }
+      ]
+    },
     { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },
     { name: 'Accounts', icon: <LinkIcon size={20} />, path: '/ebay-accounts' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
@@ -74,6 +85,62 @@ const DashboardLayout = ({ isAdmin = false }) => {
           {/* Navigation */}
           <nav className="flex-grow px-3 space-y-1">
             {menuItems.map((item) => {
+              if (item.subItems) {
+                const isSubActive = item.subItems.some(sub => location.pathname === sub.path.split('?')[0]);
+                return (
+                  <div key={item.name} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isSidebarOpen) {
+                          setIsSidebarOpen(true);
+                          setIsCreateDropdownOpen(true);
+                        } else {
+                          setIsCreateDropdownOpen(!isCreateDropdownOpen);
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all ${
+                        isSubActive 
+                          ? 'bg-indigo-50/50 text-indigo-600 font-semibold' 
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className={`${isSubActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+                          {item.icon}
+                        </span>
+                        {isSidebarOpen && <span className="truncate">{item.name}</span>}
+                      </div>
+                      {isSidebarOpen && (
+                        <ChevronDown 
+                          size={16} 
+                          className={`text-slate-400 transition-transform duration-200 ${isCreateDropdownOpen ? 'rotate-180' : ''}`} 
+                        />
+                      )}
+                    </button>
+                    {isCreateDropdownOpen && isSidebarOpen && (
+                      <div className="pl-9 space-y-1">
+                        {item.subItems.map((sub) => {
+                          const isCurrentSubActive = location.pathname === sub.path;
+                          return (
+                            <Link
+                              key={sub.name}
+                              to={sub.path}
+                              className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-xs transition-all ${
+                                isCurrentSubActive
+                                  ? 'bg-indigo-50 text-indigo-600 font-bold'
+                                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                              }`}
+                            >
+                              <span>{sub.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
               const isActive = location.pathname === item.path;
               return (
                 <Link

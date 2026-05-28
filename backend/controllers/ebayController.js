@@ -341,6 +341,43 @@ exports.syncInventory = async (req, res) => {
     if (!token) return res.status(401).json({ success: false, error: 'No valid token' });
 
     console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
+
+    // Fetch all offers for matching with SKUs to determine status (draft vs live)
+    let offersOffset = 0;
+    let offersLimit = 100;
+    let offersHasMore = true;
+    const offersMap = {}; // sku -> { status, listingId }
+
+    try {
+      while (offersHasMore) {
+        const offersData = await ebayService.getAllOffers(token, offersLimit, offersOffset);
+        const offersList = offersData.offers || [];
+        if (offersList.length === 0) break;
+
+        for (const offer of offersList) {
+          if (offer.sku) {
+            // A published offer takes precedence to mark status as 'live'
+            const existing = offersMap[offer.sku];
+            if (!existing || offer.status === 'PUBLISHED') {
+              offersMap[offer.sku] = {
+                status: offer.status === 'PUBLISHED' ? 'live' : 'draft',
+                listingId: offer.listingId
+              };
+            }
+          }
+        }
+
+        if (offersList.length < offersLimit) {
+          offersHasMore = false;
+        } else {
+          offersOffset += offersLimit;
+        }
+      }
+      console.log(`[SYNC] Retrieved and mapped ${Object.keys(offersMap).length} eBay offers.`);
+    } catch (offerErr) {
+      console.error('Error fetching offers during sync:', offerErr.message);
+    }
+
     let offset = 0;
     let limit = 100;
     let hasMore = true;
@@ -366,6 +403,8 @@ exports.syncInventory = async (req, res) => {
           continue;
         }
 
+        const offerInfo = offersMap[item.sku] || { status: 'draft', listingId: null };
+
         // Map eBay item to our Product model
         const product = {
           user: userId,
@@ -376,6 +415,9 @@ exports.syncInventory = async (req, res) => {
           images: item.product.imageUrls || [],
           selling_price: item.price?.value,
           source: 'ebay',
+          status: offerInfo.status,
+          ebayListingId: offerInfo.listingId,
+          ebayUrl: offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null,
           updated_at: Date.now()
         };
 
@@ -411,7 +453,7 @@ exports.syncInventory = async (req, res) => {
     }
     throw error;
   }
-};
+}
 
 // Explicit Sync Trigger Endpoint
 exports.triggerSync = async (req, res) => {
@@ -635,6 +677,18 @@ exports.getCategoryAspects = async (req, res) => {
     }
 
     res.status(200).json({ success: true, data: officialAspects });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get Synced Inventory from Database
+// @route   GET /api/ebay/inventory
+// @access  Private
+exports.getSyncedInventory = async (req, res) => {
+  try {
+    const products = await Product.find({ user: req.user.id }).sort({ updated_at: -1 });
+    res.status(200).json({ success: true, count: products.length, data: products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -36,6 +36,8 @@ export const ebayService = {
   disconnect: () => API.delete('/ebay/disconnect'),
   suggestCategories: (query) => API.get(`/ebay/categories/suggest?q=${encodeURIComponent(query)}`),
   getCategoryAspects: (categoryId) => API.get(`/ebay/categories/${categoryId}/aspects`),
+  getInventory: () => API.get('/ebay/inventory'),
+  syncInventory: () => API.post('/ebay/sync/inventory'),
 };
 
 export const listingService = {
@@ -57,6 +59,8 @@ export const ruleService = {
 
 export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
+  poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
+  poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
 };
 
 export const adminService = {

@@ -59,7 +59,21 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
           {Icon && <Icon size={16} className="text-slate-400" />}
           <span className="truncate">{selectedOption?.label || placeholder}</span>
         </div>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {value && !disabled && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect('');
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
       </button>
 
       {isOpen && !disabled && (

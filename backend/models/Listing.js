@@ -37,6 +37,9 @@ const listingSchema = new mongoose.Schema({
   ebayListingId: String,
   ebayUrl: String,
   errorMessage: String,
+  selectedRule: String,
+  selectedCondition: String,
+  conditionId: String,
   itemSpecifics: {
     type: Map,
     of: [String]
@@ -51,6 +54,15 @@ const listingSchema = new mongoose.Schema({
     width: Number,
     height: Number
   },
+  platform: {
+    type: String,
+    enum: ['ebay', 'poshmark'],
+    default: 'ebay'
+  },
+  poshmarkListingId: String,
+  poshmarkUrl: String,
+  brand: String,
+  originalPrice: String,
   createdAt: {
     type: Date,
     default: Date.now

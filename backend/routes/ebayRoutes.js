@@ -11,7 +11,8 @@ const {
   getInventoryLocations,
   getCategoryConditions,
   suggestCategories,
-  getCategoryAspects
+  getCategoryAspects,
+  getSyncedInventory
 } = require('../controllers/ebayController');
 const { protect } = require('../middleware/auth');
 
@@ -32,6 +33,7 @@ router.delete('/disconnect', protect, disconnectEbay);
 // Sync and Auxiliary Routes
 router.post('/sync/orders', protect, syncOrders);
 router.post('/sync/inventory', protect, syncInventory);
+router.get('/inventory', protect, getSyncedInventory);
 router.get('/locations', protect, getInventoryLocations);
 router.get('/conditions', protect, getCategoryConditions);
 router.get('/categories/suggest', protect, suggestCategories);
