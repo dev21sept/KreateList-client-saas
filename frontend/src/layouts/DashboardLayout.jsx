@@ -63,10 +63,10 @@ const DashboardLayout = ({ isAdmin = false }) => {
       name: 'Create Listing', 
       icon: <PlusCircle size={20} />, 
       subItems: [
-        { name: 'eBay Listing', path: '/create-ebay-listing' },
-        { name: 'Poshmark Listing', path: '/create-poshmark-listing' },
-        { name: 'Vinted Listing', path: '/create-vinted-listing' },
-        { name: 'Depop Listing', path: '/create-depop-listing' }
+        { name: 'eBay Listing', path: '/create-ebay-listing', logo: '/ebay.png' },
+        { name: 'Poshmark Listing', path: '/create-poshmark-listing', logo: '/poshmark.png' },
+        { name: 'Vinted Listing', path: '/create-vinted-listing', logo: '/vinted.jpg' },
+        { name: 'Depop Listing', path: '/create-depop-listing', logo: '/depop.png' }
       ]
     },
     { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },
@@ -168,6 +168,13 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                               }`}
                             >
+                              {sub.logo && (
+                                <img 
+                                  src={sub.logo} 
+                                  alt={sub.name} 
+                                  className="w-4 h-4 object-contain rounded" 
+                                />
+                              )}
                               <span>{sub.name}</span>
                             </Link>
                           );
