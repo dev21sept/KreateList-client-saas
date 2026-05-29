@@ -261,7 +261,7 @@ exports.updateSubscription = async (req, res) => {
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, phone } = req.body;
+    const { firstName, lastName, phone, currency } = req.body;
 
     const user = await User.findById(req.user.id);
     if (!user) {
@@ -271,6 +271,7 @@ exports.updateProfile = async (req, res) => {
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
     if (phone !== undefined) user.phone = phone;
+    if (currency) user.currency = currency;
 
     await user.save();
 
@@ -430,7 +431,8 @@ const sendTokenResponse = (user, statusCode, res) => {
       lastName: user.lastName,
       email: user.email,
       role: user.role,
-      subscription: user.subscription
+      subscription: user.subscription,
+      currency: user.currency || 'USD'
     }
   });
 };

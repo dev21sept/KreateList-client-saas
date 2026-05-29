@@ -24,6 +24,8 @@ import Listings from './pages/Listings';
 import CreateListing from './pages/CreateListing';
 import CreateEbayListing from './pages/CreateEbayListing';
 import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
+import CreateVintedListing from './pages/CreateVintedListing';
+import CreateDepopListing from './pages/CreateDepopListing';
 import Rules from './pages/Rules';
 import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
@@ -70,6 +72,8 @@ const DomainRedirect = ({ children }) => {
       '/create-listing',
       '/create-ebay-listing',
       '/create-poshmark-listing',
+      '/create-vinted-listing',
+      '/create-depop-listing',
       '/rules',
       '/ebay-accounts',
       '/ebay-callback',
@@ -140,6 +144,8 @@ const App = () => {
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
               <Route path="/create-poshmark-listing" element={<CreatePoshmarkListing />} />
+              <Route path="/create-vinted-listing" element={<CreateVintedListing />} />
+              <Route path="/create-depop-listing" element={<CreateDepopListing />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/ebay-accounts" element={<EbayAccounts />} />
               {/* Alias for ebay callback to handle it on the same page */}

@@ -57,11 +57,15 @@ const listingSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['ebay', 'poshmark'],
+    enum: ['ebay', 'poshmark', 'vinted', 'depop'],
     default: 'ebay'
   },
   poshmarkListingId: String,
   poshmarkUrl: String,
+  vintedListingId: String,
+  vintedUrl: String,
+  depopListingId: String,
+  depopUrl: String,
   brand: String,
   originalPrice: String,
   color: String,

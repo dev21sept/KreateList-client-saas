@@ -76,6 +76,10 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  currency: {
+    type: String,
+    default: 'USD'
+  },
   isVerified: {
     type: Boolean,
     default: false

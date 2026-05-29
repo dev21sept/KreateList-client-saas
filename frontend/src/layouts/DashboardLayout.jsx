@@ -64,7 +64,9 @@ const DashboardLayout = ({ isAdmin = false }) => {
       icon: <PlusCircle size={20} />, 
       subItems: [
         { name: 'eBay Listing', path: '/create-ebay-listing' },
-        { name: 'Poshmark Listing', path: '/create-poshmark-listing' }
+        { name: 'Poshmark Listing', path: '/create-poshmark-listing' },
+        { name: 'Vinted Listing', path: '/create-vinted-listing' },
+        { name: 'Depop Listing', path: '/create-depop-listing' }
       ]
     },
     { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },

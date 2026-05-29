@@ -67,6 +67,10 @@ export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
   poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
   poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
+  vintedAnalyze: (data) => API.post('/ai/vinted-analyze', data),
+  vintedSuggestCategories: (query) => API.get(`/ai/vinted-categories?query=${query}`),
+  depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
+  depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
 };
 
 export const adminService = {
