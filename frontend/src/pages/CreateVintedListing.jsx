@@ -496,32 +496,7 @@ const CreateVintedListing = () => {
               exit={{ opacity: 0 }}
               className="space-y-10 flex-1"
             >
-              <div className="space-y-4">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
-                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
-                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {formData.images.map((img, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
-                      <img src={img} className="w-full h-full object-cover" alt="Product" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button 
-                          onClick={() => deleteImage(i)}
-                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
-                         >
-                          <X size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              {/* Selection Section */}
               <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em] flex items-center">
@@ -566,6 +541,33 @@ const CreateVintedListing = () => {
                       placeholder="Select condition..."
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Image Section */}
+              <div className="space-y-4">
+                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
+                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
+                </label>
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
+                  </label>
+                  {formData.images.map((img, i) => (
+                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
+                      <img src={img} className="w-full h-full object-cover" alt="Product" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                         <button 
+                          onClick={() => deleteImage(i)}
+                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
+                         >
+                          <X size={16} />
+                         </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </motion.div>
