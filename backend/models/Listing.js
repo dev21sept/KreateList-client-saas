@@ -40,6 +40,7 @@ const listingSchema = new mongoose.Schema({
   selectedRule: String,
   selectedCondition: String,
   conditionId: String,
+  selectedModel: String,
   itemSpecifics: {
     type: Map,
     of: [String]

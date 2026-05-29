@@ -213,3 +213,36 @@ exports.sendUsageWarningEmail = async (email, plan, currentUsage, limit, type = 
   `;
   return await sendEmail({ to: email, subject, text, html });
 };
+
+/**
+ * Send Password Reset email
+ */
+exports.sendResetPasswordEmail = async (email, resetUrl, name = '') => {
+  const subject = 'Reset Your Elister.ai Password';
+  const text = `Hi ${name || 'User'},\n\nA password reset request was received for your Elister.ai account. Please reset your password by clicking this link: ${resetUrl}\n\nThis link is valid for 30 minutes. If you did not request this, please ignore this email.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #4f46e5; margin: 0;">Password Reset Request</h2>
+        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Security & Account Recovery</p>
+      </div>
+      <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px; margin-bottom: 20px;">
+        <p style="font-size: 16px; color: #1e293b; margin-top: 0; font-weight: bold;">Hi ${name || 'User'},</p>
+        <p style="font-size: 15px; color: #334155; line-height: 1.5;">
+          Aapke Elister.ai account ka password reset karne ke liye ek request mili hai. Apna password reset karne ke liye niche diye gaye button par click karein:
+        </p>
+      </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">Reset My Password</a>
+      </div>
+      <p style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 20px;">
+        Ye link agle **30 minutes** ke liye valid hai.
+      </p>
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        Agar aapne ye request nahi ki thi, toh kripya is email ko ignore karein. Aapka password surakshit rahega.<br>
+        &copy; ${new Date().getFullYear()} Elister.ai. All rights reserved.
+      </p>
+    </div>
+  `;
+  return await sendEmail({ to: email, subject, text, html });
+};

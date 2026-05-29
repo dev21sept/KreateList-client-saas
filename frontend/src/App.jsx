@@ -17,6 +17,8 @@ import RefundPolicy from './pages/RefundPolicy';
 import ShippingPolicy from './pages/ShippingPolicy';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Listings from './pages/Listings';
 import CreateListing from './pages/CreateListing';
@@ -61,6 +63,8 @@ const DomainRedirect = ({ children }) => {
     const appPaths = [
       '/login',
       '/signup',
+      '/forgot-password',
+      '/reset-password',
       '/dashboard',
       '/listings',
       '/create-listing',
@@ -124,6 +128,8 @@ const App = () => {
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
           </Route>
 
           {/* User Protected Routes */}

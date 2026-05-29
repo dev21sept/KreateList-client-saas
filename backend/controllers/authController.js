@@ -20,31 +20,17 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-
-    // Create user
+    // Create user (OTP system temporarily disabled - directly set isVerified: true)
     const user = await User.create({
       firstName,
       lastName,
       email: cleanEmail,
       password,
       phone,
-      isVerified: false,
-      otpCode: otp,
-      otpExpires
+      isVerified: true
     });
 
-    // Send OTP Email
-    await sendOtpEmail(cleanEmail, otp, firstName);
-
-    res.status(201).json({
-      success: true,
-      verificationRequired: true,
-      email: cleanEmail,
-      message: 'Account created. OTP verification code has been sent to your email.'
-    });
+    sendTokenResponse(user, 201, res);
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -86,25 +72,6 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
-      });
-    }
-
-    // Check email verification status
-    if (!user.isVerified) {
-      // Generate new OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.otpCode = otp;
-      user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
-      await user.save();
-
-      // Send OTP Email
-      await sendOtpEmail(user.email, otp, user.firstName);
-
-      return res.status(403).json({
-        success: false,
-        verificationRequired: true,
-        email: user.email,
-        message: 'Your email address is not verified. A new verification OTP code has been sent.'
       });
     }
 
@@ -194,12 +161,66 @@ exports.resendOtp = async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Private
 exports.getMe = async (req, res) => {
-  const user = await User.findById(req.user.id);
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
 
-  res.status(200).json({
-    success: true,
-    data: user
-  });
+    const Listing = require('../models/Listing');
+    
+    // Count listings created by the user in the current calendar month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const listingsCount = await Listing.countDocuments({
+      user: req.user.id,
+      createdAt: { $gte: startOfMonth }
+    });
+
+    const plan = user.subscription?.plan || 'free';
+    const expiresAt = user.subscription?.expiresAt;
+
+    // Define limits
+    const planLimits = {
+      free: 0,
+      basic: 500,
+      pro: 3000,
+      enterprise: 10000
+    };
+
+    const aiLimits = {
+      free: 10,
+      basic: 50,
+      pro: 500,
+      enterprise: 99999
+    };
+
+    const listingLimit = planLimits[plan.toLowerCase()] || 0;
+    const aiFetchLimit = aiLimits[plan.toLowerCase()] || 10;
+
+    let daysLeft = 0;
+    if (expiresAt) {
+      const diffTime = new Date(expiresAt) - new Date();
+      daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+
+    const userData = user.toObject();
+    userData.usage = {
+      listingsCount,
+      listingLimit,
+      aiFetchLimit,
+      daysLeft
+    };
+
+    res.status(200).json({
+      success: true,
+      data: userData
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 // @desc    Update user subscription
@@ -229,6 +250,162 @@ exports.updateSubscription = async (req, res) => {
     res.status(200).json({
       success: true,
       data: user
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Update user profile details
+// @route   PUT /api/auth/profile
+// @access  Private
+exports.updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, phone } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (phone !== undefined) user.phone = phone;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: user
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Change password
+// @route   PUT /api/auth/password
+// @access  Private
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Please provide current and new passwords' });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check if current password is correct
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Hash of new password will be handled by the pre-save hook in User model
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Please provide an email address' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Generate reset token
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(20).toString('hex');
+
+    // Hash token and set to resetPasswordToken field
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    // Set token expiration (30 minutes)
+    user.resetPasswordExpire = Date.now() + 30 * 60 * 1000;
+
+    await user.save();
+
+    // Create reset URL
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    if (frontendUrl.endsWith('/')) {
+      frontendUrl = frontendUrl.slice(0, -1);
+    }
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+    const { sendResetPasswordEmail } = require('../services/emailService');
+    await sendResetPasswordEmail(user.email, resetUrl, user.firstName);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset link has been sent to your email.'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password/:token
+// @access  Public
+exports.resetPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    // Hash token from URL
+    const crypto = require('crypto');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(req.params.token)
+      .digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Reset link is invalid or has expired' });
+    }
+
+    // Set new password (will be hashed by pre-save hook)
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. You can now login.'
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

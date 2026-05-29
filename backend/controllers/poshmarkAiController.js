@@ -107,8 +107,20 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
             description_prompt = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
-            condition_note = ''
+            condition_note = '',
+            model = 'gpt-4o-mini'
         } = req.body;
+
+        // Instantiate the appropriate AI client based on model
+        let aiClient = openai;
+        let finalModel = model || 'gpt-4o-mini';
+
+        if (finalModel.startsWith('gemini-')) {
+            aiClient = new OpenAI({
+                apiKey: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY,
+                baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+            });
+        }
 
         console.log(`[Poshmark AI] Analyzing product. description_prompt: "${description_prompt}", title_sequence: [${title_sequence.join(', ')}]`);
 
@@ -153,8 +165,8 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
      - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
      - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>`;
 
-        const mainResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
+        const mainResponse = await aiClient.chat.completions.create({
+            model: finalModel,
             temperature: 0,
             messages: [
                 {

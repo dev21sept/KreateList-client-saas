@@ -240,7 +240,18 @@ const CreateEbayListing = () => {
     conditionNote: '',
     selectedAspects: {},
     sku: '',
+    selectedModel: 'gpt-4o-mini',
   });
+
+  const modelOptions = useMemo(() => [
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
+    { id: 'gpt-4o', label: 'GPT-4o (OpenAI)', description: 'High-accuracy, multi-modal OpenAI model' },
+    { id: 'gpt-4-turbo', label: 'GPT-4 Turbo (OpenAI)', description: 'Legacy high-performance OpenAI model' },
+    { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (OpenAI)', description: 'Standard lightweight OpenAI model' },
+    { id: 'gemini-1.5-flash', label: '1.5 Flash (AI Studio)', description: 'Vibrant, fast Google AI Studio model' },
+    { id: 'gemini-1.5-pro', label: '1.5 Pro (AI Studio)', description: 'Highly intelligent Google AI Studio model' },
+    { id: 'gemini-2.0-flash', label: '2.0 Flash (AI Studio)', description: 'Latest ultra-fast Google AI Studio model' }
+  ], []);
 
   useEffect(() => {
     const fetchRules = async () => {
@@ -285,6 +296,7 @@ const CreateEbayListing = () => {
               conditionNote: listing.conditionNote || '',
               selectedAspects: listing.itemSpecifics || {},
               sku: listing.sku || '',
+              selectedModel: listing.selectedModel || 'gpt-4o-mini',
             });
 
             if (listing.categoryId) {
@@ -357,7 +369,8 @@ const CreateEbayListing = () => {
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         condition_note: selectedRuleObj?.condition_note || '',
-        condition_name: formData.selectedCondition
+        condition_name: formData.selectedCondition,
+        model: formData.selectedModel || 'gpt-4o-mini'
       });
 
       if (response.data.success) {
@@ -480,6 +493,7 @@ const CreateEbayListing = () => {
       selectedRule: formData.selectedRule,
       selectedCondition: formData.selectedCondition,
       conditionId: formData.conditionId,
+      selectedModel: formData.selectedModel || 'gpt-4o-mini',
       packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
       packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
       status: 'draft',
@@ -519,6 +533,7 @@ const CreateEbayListing = () => {
       selectedRule: formData.selectedRule,
       selectedCondition: formData.selectedCondition,
       conditionId: formData.conditionId,
+      selectedModel: formData.selectedModel || 'gpt-4o-mini',
       packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
       packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
       status: 'draft',
@@ -662,10 +677,22 @@ const CreateEbayListing = () => {
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
+                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
+                      <Sparkles size={14} className="mr-1.5 text-indigo-650" /> Select AI Model
+                    </label>
+                    <SearchableDropdown 
+                      value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                      onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                      options={modelOptions}
+                      placeholder="Select model..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
+                      <Zap size={14} className="mr-1.5 text-indigo-650" /> Select AI Listing Rule
                     </label>
                     <SearchableDropdown 
                       value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
@@ -677,8 +704,8 @@ const CreateEbayListing = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
+                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                      <Info size={14} className="mr-1.5 text-indigo-650" /> Product Condition
                     </label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
@@ -740,17 +767,62 @@ const CreateEbayListing = () => {
                         </div>
                       ))}
                     </div>
-                    <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
-                      <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest mb-2">Analysis Results</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Zap size={14} className="text-indigo-600" />
-                          <span className="text-xs font-bold text-indigo-700">AI Generated Content</span>
+                    <div className="p-5 bg-indigo-50/30 rounded-[2rem] border border-indigo-100/50 space-y-5">
+                      <div className="flex items-center gap-2 pb-1 border-b border-indigo-100/40">
+                        <Sparkles size={16} className="text-indigo-650 animate-pulse" />
+                        <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">AI Settings & Regeneration</h4>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">AI Model</label>
+                          <SearchableDropdown 
+                            value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                            onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                            options={modelOptions}
+                            placeholder="Select model..."
+                          />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={14} className="text-emerald-600" />
-                          <span className="text-xs font-bold text-emerald-700">Sequence Followed</span>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">AI Rule</label>
+                          <SearchableDropdown 
+                            value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
+                            onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
+                            options={ruleOptions}
+                            placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
+                            disabled={rules.length === 0}
+                          />
                         </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">Condition</label>
+                          <SearchableDropdown 
+                            value={formData.selectedCondition}
+                            onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
+                            options={conditionOptions}
+                            placeholder="Select condition..."
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={startAIFetch}
+                          disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition-all shadow-md shadow-indigo-100 disabled:opacity-50 mt-2 cursor-pointer"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Regenerating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={12} />
+                              Regenerate AI Content
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   </div>

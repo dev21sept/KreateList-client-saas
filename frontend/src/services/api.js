@@ -22,6 +22,10 @@ export const authService = {
   updateSubscription: (data) => API.put('/auth/subscription', data),
   verifyOtp: (data) => API.post('/auth/verify-otp', data),
   resendOtp: (data) => API.post('/auth/resend-otp', data),
+  updateProfile: (data) => API.put('/auth/profile', data),
+  changePassword: (data) => API.put('/auth/password', data),
+  forgotPassword: (data) => API.post('/auth/forgot-password', data),
+  resetPassword: (token, data) => API.post(`/auth/reset-password/${token}`, data),
 };
 
 export const subscriptionService = {
