@@ -542,6 +542,21 @@ const CreateDepopListing = () => {
                     />
                   </div>
                 </div>
+
+                {formData.selectedRule && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
+                      Sequence: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.slice(0, 3).join(' | ')}
+                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.length > 3 ? '...' : ''}
+                    </span>
+                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                      Condition Note: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.slice(0, 50) || 'None'}
+                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.length > 50 ? '...' : ''}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Image Section */}
