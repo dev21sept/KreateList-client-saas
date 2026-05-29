@@ -2,6 +2,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const User = require('../models/User');
 const Plan = require('../models/Plan');
 const razorpayService = require('../services/razorpayService');
+const { sendSubscriptionEmail } = require('../services/emailService');
 
 // @desc    Get all available plans
 // @route   GET /api/subscriptions/plans
@@ -99,13 +100,20 @@ async function handleSubscriptionCreated(session) {
   const userId = session.metadata.userId;
   const stripeSubscriptionId = session.subscription;
   const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  const amountPaid = subscription.items.data[0].price.unit_amount / 100;
   
-  await User.findByIdAndUpdate(userId, {
+  const user = await User.findByIdAndUpdate(userId, {
     'subscription.status': 'active',
     'subscription.stripeSubscriptionId': stripeSubscriptionId,
     'subscription.expiresAt': new Date(subscription.current_period_end * 1000),
-    'subscription.paymentMethod': 'stripe'
-  });
+    'subscription.paymentMethod': 'stripe',
+    'subscription.paymentAmount': amountPaid,
+    'subscription.paymentDate': new Date()
+  }, { new: true });
+
+  if (user) {
+    await sendSubscriptionEmail(user.email, user.subscription.plan, amountPaid, user.subscription.expiresAt, user.firstName);
+  }
 }
 
 async function handleSubscriptionUpdated(subscription) {
@@ -224,6 +232,9 @@ exports.verifyRazorpayPayment = async (req, res) => {
     user.subscription.razorpayPaymentId = razorpay_payment_id;
 
     await user.save();
+
+    // Send confirmation email
+    await sendSubscriptionEmail(user.email, targetPlan, amountPaid, expiresAt, user.firstName);
 
     res.status(200).json({
       success: true,

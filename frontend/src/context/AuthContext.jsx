@@ -26,15 +26,33 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await authService.login({ email, password });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+      setUser(res.data.user);
+    }
     return res.data;
   };
 
   const signup = async (userData) => {
     const res = await authService.signup(userData);
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+      setUser(res.data.user);
+    }
+    return res.data;
+  };
+
+  const verifyOtp = async (email, otp) => {
+    const res = await authService.verifyOtp({ email, otp });
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+      setUser(res.data.user);
+    }
+    return res.data;
+  };
+
+  const resendOtp = async (email) => {
+    const res = await authService.resendOtp({ email });
     return res.data;
   };
 
@@ -44,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, loadUser }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, loadUser, verifyOtp, resendOtp }}>
       {children}
     </AuthContext.Provider>
   );

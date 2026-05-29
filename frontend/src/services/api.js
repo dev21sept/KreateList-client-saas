@@ -20,6 +20,8 @@ export const authService = {
   signup: (data) => API.post('/auth/register', data),
   getMe: () => API.get('/auth/me'),
   updateSubscription: (data) => API.put('/auth/subscription', data),
+  verifyOtp: (data) => API.post('/auth/verify-otp', data),
+  resendOtp: (data) => API.post('/auth/resend-otp', data),
 };
 
 export const subscriptionService = {

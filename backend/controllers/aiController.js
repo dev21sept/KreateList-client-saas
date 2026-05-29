@@ -68,6 +68,55 @@ exports.analyzeListing = async (req, res) => {
             condition_note = ''
         } = req.body;
 
+        // Check user subscription usage limits
+        const User = require('../models/User');
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+
+        const plan = user.subscription?.plan || 'free';
+        const status = user.subscription?.status;
+
+        if (plan !== 'free' && status !== 'active') {
+            return res.status(403).json({ error: "Your subscription plan is inactive. Please activate your subscription." });
+        }
+
+        // Limit mappings
+        const limits = {
+            free: 10,
+            basic: 50,
+            pro: 500,
+            enterprise: 99999
+        };
+        const limit = limits[plan] || 10;
+
+        // Count listings created in the current month
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const currentUsage = await Listing.countDocuments({
+            user: req.user.id,
+            createdAt: { $gte: startOfMonth }
+        });
+
+        if (currentUsage >= limit) {
+            const { sendUsageWarningEmail } = require('../services/emailService');
+            sendUsageWarningEmail(user.email, plan, currentUsage, limit, 'ai_fetch', user.firstName).catch(console.error);
+
+            return res.status(403).json({ 
+                error: `Usage limit exceeded. You have used all ${limit} listings available in your ${plan.toUpperCase()} plan. Please upgrade to continue.`
+            });
+        }
+
+        // Warning at 80% usage threshold
+        const warningThreshold = Math.floor(limit * 0.8);
+        if (currentUsage === warningThreshold) {
+            const { sendUsageWarningEmail } = require('../services/emailService');
+            sendUsageWarningEmail(user.email, plan, currentUsage + 1, limit, 'ai_fetch', user.firstName).catch(console.error);
+        }
+
         console.log(`[AI] Analyzing product. description_prompt: "${description_prompt}", title_sequence: [${title_sequence.join(', ')}]`);
 
         const effectiveStructure = dedupeOrdered(

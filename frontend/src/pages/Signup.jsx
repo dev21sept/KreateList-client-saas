@@ -6,11 +6,15 @@ import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
 
 const Signup = () => {
-  const { signup } = useAuth();
+  const { signup, verifyOtp, resendOtp } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [resendSuccess, setResendSuccess] = useState('');
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -50,6 +54,38 @@ const Signup = () => {
         password: formData.password
       });
 
+      if (data.verificationRequired) {
+        setRegisteredEmail(formData.email);
+        setShowOtp(true);
+      } else {
+        const queryParams = new URLSearchParams(window.location.search);
+        const plan = queryParams.get('plan');
+        const cycle = queryParams.get('cycle');
+
+        if (plan) {
+          navigate(`/checkout?plan=${plan}&cycle=${cycle || 'monthly'}`);
+        } else if (data.user?.subscription?.status !== 'active') {
+          navigate('/subscription');
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Signup failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setResendSuccess('');
+
+    try {
+      const data = await verifyOtp(registeredEmail, otpCode);
+
       const queryParams = new URLSearchParams(window.location.search);
       const plan = queryParams.get('plan');
       const cycle = queryParams.get('cycle');
@@ -62,11 +98,92 @@ const Signup = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Signup failed. Please try again.');
+      setError(err.response?.data?.message || 'OTP verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleResendOtp = async () => {
+    setError('');
+    setResendSuccess('');
+    try {
+      await resendOtp(registeredEmail);
+      setResendSuccess('Verification OTP code resent successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend OTP.');
+    }
+  };
+
+  if (showOtp) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full -z-10">
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-100/40 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-100/40 blur-[120px] rounded-full"></div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full"
+        >
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Verify your email</h2>
+            <p className="mt-2 text-slate-600">Enter the 6-digit OTP code sent to <span className="font-semibold text-indigo-600">{registeredEmail}</span></p>
+          </div>
+
+          <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              {error && (
+                <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 text-sm font-bold rounded-xl text-center animate-shake">
+                  {error}
+                </div>
+              )}
+              {resendSuccess && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-600 text-sm font-bold rounded-xl text-center animate-shake">
+                  {resendSuccess}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 ml-1">OTP Verification Code</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="input-field text-center font-bold tracking-[8px] text-2xl w-full"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading || otpCode.length !== 6}
+                className={`btn-primary w-full py-4 text-lg ${(loading || otpCode.length !== 6) ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Verifying...' : 'Verify & Continue'}
+              </button>
+            </form>
+
+            <div className="mt-8 pt-8 border-t border-slate-100 text-center">
+              <p className="text-slate-600 text-sm">
+                Didn't receive the code?{' '}
+                <button 
+                  onClick={handleResendOtp}
+                  className="text-indigo-600 font-bold hover:underline"
+                >
+                  Resend OTP
+                </button>
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">

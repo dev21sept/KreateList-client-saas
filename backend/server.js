@@ -12,6 +12,10 @@ dotenv.config();
 // Connect to database
 connectDB();
 
+// Initialize automated cron jobs
+const { initCronJobs } = require('./utils/cronJobs');
+initCronJobs();
+
 const app = express();
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);

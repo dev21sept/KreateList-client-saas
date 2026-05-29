@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { sendOtpEmail } = require('../services/emailService');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -19,16 +20,31 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
     // Create user
     const user = await User.create({
       firstName,
       lastName,
       email: cleanEmail,
       password,
-      phone
+      phone,
+      isVerified: false,
+      otpCode: otp,
+      otpExpires
     });
 
-    sendTokenResponse(user, 201, res);
+    // Send OTP Email
+    await sendOtpEmail(cleanEmail, otp, firstName);
+
+    res.status(201).json({
+      success: true,
+      verificationRequired: true,
+      email: cleanEmail,
+      message: 'Account created. OTP verification code has been sent to your email.'
+    });
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -73,12 +89,104 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check email verification status
+    if (!user.isVerified) {
+      // Generate new OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otpCode = otp;
+      user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save();
+
+      // Send OTP Email
+      await sendOtpEmail(user.email, otp, user.firstName);
+
+      return res.status(403).json({
+        success: false,
+        verificationRequired: true,
+        email: user.email,
+        message: 'Your email address is not verified. A new verification OTP code has been sent.'
+      });
+    }
+
     sendTokenResponse(user, 200, res);
   } catch (err) {
     res.status(500).json({
       success: false,
       message: err.message
     });
+  }
+};
+
+// @desc    Verify OTP for registration
+// @route   POST /api/auth/verify-otp
+// @access  Public
+exports.verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Please provide email and OTP code' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.otpCode !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid verification OTP code' });
+    }
+
+    if (new Date() > new Date(user.otpExpires)) {
+      return res.status(400).json({ success: false, message: 'OTP verification code has expired' });
+    }
+
+    // Mark as verified
+    user.isVerified = true;
+    user.otpCode = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    sendTokenResponse(user, 200, res);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Resend verification OTP code
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: 'Account is already verified' });
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otpCode = otp;
+    user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    // Send OTP Email
+    await sendOtpEmail(cleanEmail, otp, user.firstName);
+
+    res.status(200).json({ success: true, message: 'Verification OTP code resent successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

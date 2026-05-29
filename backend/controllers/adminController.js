@@ -80,10 +80,29 @@ exports.updateUser = async (req, res) => {
         req.body.subscription.paymentDate = new Date();
       }
     }
+    const originalUser = await User.findById(req.params.id);
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
+
+    if (req.body.subscription && user) {
+      const wasActive = originalUser?.subscription?.status === 'active';
+      const isActive = user.subscription?.status === 'active';
+      const planChanged = originalUser?.subscription?.plan !== user.subscription?.plan;
+
+      if (isActive && (!wasActive || planChanged)) {
+        const { sendSubscriptionEmail } = require('../services/emailService');
+        await sendSubscriptionEmail(
+          user.email,
+          user.subscription.plan,
+          user.subscription.paymentAmount || 0,
+          user.subscription.expiresAt,
+          user.firstName
+        );
+      }
+    }
+
     res.status(200).json({ success: true, data: user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
