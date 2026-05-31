@@ -144,7 +144,10 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
 
         const imageContent = compressedImages.map(url => ({
             type: "image_url",
-            image_url: { url: url }
+            image_url: { 
+                url: url,
+                detail: "low"
+            }
         }));
 
         const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
