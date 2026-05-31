@@ -23,6 +23,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { ruleService, aiService, ebayService, listingService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -218,6 +219,7 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search categor
 
 const CreateEbayListing = () => {
   const navigate = useNavigate();
+  const { toast } = useNotification();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'ebay';
@@ -314,7 +316,7 @@ const CreateEbayListing = () => {
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
-          alert("Failed to load listing for editing.");
+          toast.error("Failed to load listing for editing.");
         } finally {
           setLoading(false);
         }
@@ -345,15 +347,15 @@ const CreateEbayListing = () => {
 
   const startAIFetch = async () => {
     if (formData.images.length === 0) {
-      alert("Please upload at least one product image.");
+      toast.warning("Please upload at least one product image.");
       return;
     }
     if (!formData.selectedRule) {
-      alert("Please select an AI Listing Rule.");
+      toast.warning("Please select an AI Listing Rule.");
       return;
     }
     if (!formData.selectedCondition) {
-      alert("Please select a Product Condition.");
+      toast.warning("Please select a Product Condition.");
       return;
     }
 
@@ -404,7 +406,7 @@ const CreateEbayListing = () => {
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
-      alert("Failed to analyze listing with AI. Check console for details.");
+      toast.error("Failed to analyze listing with AI. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -505,12 +507,12 @@ const CreateEbayListing = () => {
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
-        alert(editId ? 'Listing updated successfully!' : 'Listing saved as Draft successfully!');
+        toast.success(editId ? 'Listing updated successfully!' : 'Listing saved as Draft successfully!');
         navigate('/listings');
       }
     } catch (error) {
       console.error("Error saving draft:", error);
-      alert(error.response?.data?.message || "Failed to save draft.");
+      toast.error(error.response?.data?.message || "Failed to save draft.");
     } finally {
       setLoading(false);
     }
@@ -548,16 +550,16 @@ const CreateEbayListing = () => {
         const listingId = editId || createResponse.data.data._id || createResponse.data.data.id;
         const publishResponse = await listingService.publish(listingId);
         if (publishResponse.data.success) {
-          alert('Listing published to eBay successfully!');
+          toast.success('Listing published to eBay successfully!');
           navigate('/listings');
         } else {
-          alert('Listing saved, but failed to publish to eBay: ' + (publishResponse.data.message || 'Unknown error'));
+          toast.warning('Listing saved, but failed to publish to eBay: ' + (publishResponse.data.message || 'Unknown error'));
           navigate('/listings');
         }
       }
     } catch (error) {
       console.error("Error publishing listing:", error);
-      alert(error.response?.data?.message || "Failed to publish listing.");
+      toast.error(error.response?.data?.message || "Failed to publish listing.");
     } finally {
       setLoading(false);
     }
@@ -589,7 +591,7 @@ const CreateEbayListing = () => {
       });
 
       if (invalidAspects.length > 0) {
-        alert(`Value is not from the Dropdown for: ${invalidAspects.join(', ')}`);
+        toast.warning(`Value is not from the Dropdown for: ${invalidAspects.join(', ')}`);
         return;
       }
       setStep(step + 1);

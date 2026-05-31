@@ -21,6 +21,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { ruleService, aiService, listingService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -214,6 +215,7 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search Poshmar
 
 const CreatePoshmarkListing = () => {
   const navigate = useNavigate();
+  const { toast } = useNotification();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'poshmark';
@@ -310,7 +312,7 @@ const CreatePoshmarkListing = () => {
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
-          alert("Failed to load listing for editing.");
+          toast.error("Failed to load listing for editing.");
         } finally {
           setLoading(false);
         }
@@ -341,15 +343,15 @@ const CreatePoshmarkListing = () => {
 
   const startAIFetch = async () => {
     if (formData.images.length === 0) {
-      alert("Please upload at least one product image.");
+      toast.warning("Please upload at least one product image.");
       return;
     }
     if (!formData.selectedRule) {
-      alert("Please select an AI Listing Rule.");
+      toast.warning("Please select an AI Listing Rule.");
       return;
     }
     if (!formData.selectedCondition) {
-      alert("Please select a Product Condition.");
+      toast.warning("Please select a Product Condition.");
       return;
     }
 
@@ -389,7 +391,7 @@ const CreatePoshmarkListing = () => {
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
-      alert("Failed to analyze listing with AI. Check console for details.");
+      toast.error("Failed to analyze listing with AI. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -464,12 +466,12 @@ const CreatePoshmarkListing = () => {
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
-        alert(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
+        toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
         navigate('/listings');
       }
     } catch (error) {
       console.error("Error saving listing:", error);
-      alert(error.response?.data?.message || "Failed to save listing.");
+      toast.error(error.response?.data?.message || "Failed to save listing.");
     } finally {
       setLoading(false);
     }

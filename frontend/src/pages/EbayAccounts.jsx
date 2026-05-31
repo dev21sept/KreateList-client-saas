@@ -25,9 +25,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ebayService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 const EbayAccounts = () => {
   const { user, loadUser } = useAuth();
+  const { toast, confirm } = useNotification();
   const ebay = user?.ebayAccount;
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -46,7 +48,7 @@ const EbayAccounts = () => {
       handleCallback(code);
     } else if (error && !called.current) {
       called.current = true;
-      alert(`eBay Connection Error: ${error}`);
+      toast.error(`eBay Connection Error: ${error}`);
       navigate('/ebay-accounts', { replace: true });
     } else if (success && !called.current) {
       called.current = true;
@@ -65,7 +67,7 @@ const EbayAccounts = () => {
       console.log('eBay Callback Success:', response.data);
       
       await loadUser();
-      alert('eBay Account Connected Successfully!');
+      toast.success('eBay Account Connected Successfully!');
       
       // Clean up the URL
       navigate('/ebay-accounts', { replace: true });
@@ -81,7 +83,7 @@ const EbayAccounts = () => {
         console.error('Error Message:', error.message);
       }
       console.error('=====================================================');
-      alert('eBay Connection Failed! Check the console for detailed error logs.');
+      toast.error('eBay Connection Failed! Check the console for detailed error logs.');
     } finally {
       setLoading(false);
       setStatusMsg('');
@@ -98,23 +100,25 @@ const EbayAccounts = () => {
         console.log('Redirecting to:', response.data.url);
         window.location.href = response.data.url;
       } else {
-        alert('Error: Backend did not return a valid URL.');
+        toast.error('Error: Backend did not return a valid URL.');
       }
     } catch (error) {
       console.error('Error connecting eBay (Fetching Auth URL):', error);
-      alert('Failed to connect to backend to get eBay URL! Check console for details. Error: ' + error.message);
+      toast.error('Failed to connect to backend to get eBay URL! Check console for details. Error: ' + error.message);
       setLoading(false);
     }
   };
 
   const handleDisconnect = async () => {
-    if (window.confirm('Are you sure you want to disconnect your eBay account?')) {
+    if (await confirm('Are you sure you want to disconnect your eBay account?', { title: 'Disconnect eBay Account', destructive: true })) {
       try {
         setLoading(true);
         await ebayService.disconnect();
         await loadUser();
+        toast.success('eBay account disconnected successfully.');
       } catch (error) {
         console.error('Error disconnecting eBay:', error);
+        toast.error('Failed to disconnect eBay account.');
       } finally {
         setLoading(false);
       }

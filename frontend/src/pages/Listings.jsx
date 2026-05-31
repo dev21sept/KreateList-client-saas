@@ -17,6 +17,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { listingService, ebayService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 const getImageSrc = (src) => {
   if (!src) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
@@ -28,6 +29,7 @@ const getImageSrc = (src) => {
 
 const Listings = () => {
   const navigate = useNavigate();
+  const { toast, confirm } = useNotification();
   const [selectedListings, setSelectedListings] = useState([]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,12 +109,12 @@ const Listings = () => {
     try {
       const res = await ebayService.syncInventory();
       if (res.data.success) {
-        alert(`Successfully synced ${res.data.count} items from eBay!`);
+        toast.success(`Successfully synced ${res.data.count} items from eBay!`);
         fetchEbayInventory();
       }
     } catch (error) {
       console.error("Error syncing eBay inventory:", error);
-      alert("Failed to sync inventory from eBay.");
+      toast.error("Failed to sync inventory from eBay.");
     } finally {
       setSyncing(false);
     }
@@ -142,14 +144,14 @@ const Listings = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this listing?")) {
+    if (await confirm("Are you sure you want to delete this listing?", { title: 'Delete Listing', destructive: true })) {
       try {
         await listingService.delete(id);
-        alert("Listing deleted successfully!");
+        toast.success("Listing deleted successfully!");
         fetchListings();
       } catch (error) {
         console.error("Error deleting listing:", error);
-        alert("Failed to delete listing.");
+        toast.error("Failed to delete listing.");
       }
     }
   };
@@ -158,12 +160,12 @@ const Listings = () => {
     setPublishingId(id);
     try {
       await listingService.publish(id);
-      alert("Listing published to eBay successfully!");
+      toast.success("Listing published to eBay successfully!");
       setPreviewListing(null);
       fetchListings();
     } catch (error) {
       console.error("Error publishing listing:", error);
-      alert(error.response?.data?.message || "Failed to publish listing to eBay.");
+      toast.error(error.response?.data?.message || "Failed to publish listing to eBay.");
     } finally {
       setPublishingId(null);
     }
@@ -686,7 +688,7 @@ const Listings = () => {
                     const styleTagVal = previewListing.styleTag || 'N/A';
                     const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\nColor: ${colorVal}\nSize: ${sizeVal}\nQuantity: ${quantityVal}\nStyle Tags: ${styleTagVal}\n\nDescription:\n${plainDescription}`;
                     navigator.clipboard.writeText(copyText);
-                    alert('Listing details copied to clipboard!');
+                    toast.success('Listing details copied to clipboard!');
                   }}
                   className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 flex items-center gap-2"
                 >

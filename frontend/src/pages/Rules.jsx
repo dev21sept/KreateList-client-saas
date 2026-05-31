@@ -25,6 +25,7 @@ import {
   Weight
 } from 'lucide-react';
 import { ruleService, ebayService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, icon: Icon }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,6 +119,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
 };
 
 const Rules = () => {
+  const { toast, confirm } = useNotification();
   const [rules, setRules] = useState([]);
   const [showRuleList, setShowRuleList] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -254,21 +256,22 @@ const Rules = () => {
   };
 
   const handleDeleteRule = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this rule?')) return;
+    if (!(await confirm('Are you sure you want to delete this rule?', { title: 'Delete Rule', destructive: true }))) return;
     
     try {
       await ruleService.delete(id);
       setRules(rules.filter(r => (r._id || r.id) !== id));
       if (editingId === id) resetFields();
+      toast.success('Rule deleted successfully!');
     } catch (error) {
-      alert('Failed to delete rule');
+      toast.error('Failed to delete rule');
       console.error(error);
     }
   };
 
   const handleSaveRule = async () => {
     if (!ruleName.trim()) {
-      alert('Please enter a rule name');
+      toast.warning('Please enter a rule name');
       return;
     }
     setIsSaving(true);
@@ -291,18 +294,18 @@ const Rules = () => {
         const response = await ruleService.update(editingId, ruleData);
         if (response.data.success) {
           setRules(rules.map(r => (r._id || r.id) === editingId ? response.data.data : r));
-          alert('Rule updated successfully!');
+          toast.success('Rule updated successfully!');
         }
       } else {
         const response = await ruleService.create(ruleData);
         if (response.data.success) {
           setRules([response.data.data, ...rules]);
-          alert('Rule saved successfully!');
+          toast.success('Rule saved successfully!');
         }
       }
       resetFields();
     } catch (error) {
-      alert('Failed to save rule');
+      toast.error('Failed to save rule');
       console.error(error);
     } finally {
       setIsSaving(false);

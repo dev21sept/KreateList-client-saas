@@ -17,8 +17,10 @@ import {
   CreditCard
 } from 'lucide-react';
 import { adminService } from '../../services/api';
+import { useNotification } from '../../context/NotificationContext';
 
 const AdminUsers = () => {
+  const { toast } = useNotification();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,11 +194,12 @@ const AdminUsers = () => {
       const res = await adminService.updateUser(editingUser._id, updateData);
       if (res.data?.success) {
         setEditingUser(null);
+        toast.success('Subscription updated successfully!');
         fetchUsers();
       }
     } catch (err) {
       console.error('Error saving user edits:', err);
-      alert('Failed to update subscription. Please try again.');
+      toast.error('Failed to update subscription. Please try again.');
     }
   };
 
