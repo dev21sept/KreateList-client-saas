@@ -16,11 +16,13 @@ import {
   Check,
   Tag,
   Eye,
+  Code,
   Trash2
 } from 'lucide-react';
 import { ruleService, aiService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { VINTED_CONDITIONS } from '../constants/vintedConditions';
+import { VINTED_MATERIALS } from '../constants/vintedMaterials';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -211,6 +213,402 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search Vinted 
   );
 };
 
+const BrandSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Search or enter brand...', loading = false }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(opt => opt.label.toLowerCase().includes(q));
+  }, [searchTerm, options]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm h-12"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchTerm(val);
+            onSelect(val);
+            setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+            setSearchTerm(value || '');
+          }}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchTerm(value || '');
+          }}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          {loading && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Loading brands...</div>
+          )}
+          {!loading && filteredOptions.length === 0 && (
+            <div 
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              onClick={() => {
+                onSelect(searchTerm);
+                setIsOpen(false);
+              }}
+            >
+              Use custom brand: "{searchTerm}"
+            </div>
+          )}
+          {!loading && filteredOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                onSelect(opt.label);
+                setIsOpen(false);
+                setSearchTerm(opt.label);
+              }}
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors"
+            >
+              <span className="text-xs font-bold text-slate-700 hover:text-inherit">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ColorSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Search or enter color...', loading = false }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(opt => opt.label.toLowerCase().includes(q));
+  }, [searchTerm, options]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm h-12"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchTerm(val);
+            onSelect(val);
+            setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+            setSearchTerm(value || '');
+          }}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchTerm(value || '');
+          }}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          {loading && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Loading colors...</div>
+          )}
+          {!loading && filteredOptions.length === 0 && (
+            <div 
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              onClick={() => {
+                onSelect(searchTerm);
+                setIsOpen(false);
+              }}
+            >
+              Use custom color: "{searchTerm}"
+            </div>
+          )}
+          {!loading && filteredOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                onSelect(opt.label);
+                setIsOpen(false);
+                setSearchTerm(opt.label);
+              }}
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors"
+            >
+              <span className="text-xs font-bold text-slate-700 hover:text-inherit">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SizeSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Search or enter size...', loading = false }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(opt => opt.label.toLowerCase().includes(q));
+  }, [searchTerm, options]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm h-12"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchTerm(val);
+            onSelect(val);
+            setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+            setSearchTerm(value || '');
+          }}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchTerm(value || '');
+          }}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+          {loading && (
+            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Loading sizes...</div>
+          )}
+          {!loading && filteredOptions.length === 0 && (
+            <div 
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              onClick={() => {
+                onSelect(searchTerm);
+                setIsOpen(false);
+              }}
+            >
+              Use custom size: "{searchTerm}"
+            </div>
+          )}
+          {!loading && filteredOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                onSelect(opt.label);
+                setIsOpen(false);
+                setSearchTerm(opt.label);
+              }}
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors"
+            >
+              <span className="text-xs font-bold text-slate-700 hover:text-inherit">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MaterialMultiSelectDropdown = ({ value, onChange, placeholder = 'Select materials (1-3)...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = React.useRef(null);
+  const { toast } = useNotification();
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = useMemo(() => {
+    return value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return VINTED_MATERIALS;
+    return VINTED_MATERIALS.filter(m => m.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  const handleSelect = (material) => {
+    if (selected.includes(material)) {
+      const updated = selected.filter(item => item !== material);
+      onChange(updated.join(', '));
+    } else {
+      if (selected.length >= 3) {
+        toast.warning("You can select a maximum of 3 materials.");
+        return;
+      }
+      const updated = [...selected, material];
+      onChange(updated.join(', '));
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full min-h-12 px-4 py-2 bg-white border border-slate-200 hover:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 cursor-pointer transition-all"
+      >
+        <div className="flex flex-wrap gap-1.5 items-center flex-1 min-w-0 mr-2">
+          {selected.length > 0 ? (
+            selected.map((item) => (
+              <span
+                key={item}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-extrabold rounded-lg shadow-sm"
+              >
+                {item}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="p-0.5 hover:bg-indigo-100 rounded-md text-indigo-400 hover:text-indigo-700 transition-all cursor-pointer flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 font-semibold">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {selected.length > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 font-sans">
+          <div className="p-3 bg-slate-50 border-b border-slate-100">
+            <div className="relative">
+              <input
+                autoFocus
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search materials..."
+                className="w-full h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+          
+          <div className="max-h-60 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((item) => {
+                const isSelected = selected.includes(item);
+                const isLimitReached = selected.length >= 3 && !isSelected;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    disabled={isLimitReached}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 transition-colors flex items-center justify-between ${
+                      isSelected 
+                        ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' 
+                        : isLimitReached 
+                          ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400' 
+                          : 'hover:bg-indigo-600 hover:text-white text-slate-700'
+                    }`}
+                  >
+                    <span className="text-xs font-bold">{item}</span>
+                    {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-4 text-xs text-slate-400 text-center font-medium">No materials found</div>
+            )}
+          </div>
+
+          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
+            <span>Limit: 1 - 3 materials</span>
+            <span className={selected.length < 1 || selected.length > 3 ? 'text-rose-500 font-extrabold' : 'text-indigo-600 font-extrabold'}>
+              {selected.length}/3 Selected
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CreateVintedListing = () => {
   const navigate = useNavigate();
   const { toast } = useNotification();
@@ -222,6 +620,22 @@ const CreateVintedListing = () => {
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
+  const [categoryFields, setCategoryFields] = useState({
+    brand_field_visibility: true,
+    size_field_visibility: true,
+    color_field_visibility: true,
+    isbn_field_visibility: false,
+    author_field_visibility: false,
+    book_title_field_visibility: false,
+    video_game_rating_field_visibility: false,
+    measurements_field_visibility: false
+  });
+  const [categoryBrands, setCategoryBrands] = useState([]);
+  const [fetchingBrands, setFetchingBrands] = useState(false);
+  const [categorySizes, setCategorySizes] = useState([]);
+  const [fetchingSizes, setFetchingSizes] = useState(false);
+  const [vintedColors, setVintedColors] = useState([]);
+  const [fetchingColors, setFetchingColors] = useState(false);
   const [formData, setFormData] = useState({
     images: [],
     selectedRule: '',
@@ -241,6 +655,12 @@ const CreateVintedListing = () => {
     conditionNote: '',
     sku: '',
     selectedModel: 'gpt-4o-mini',
+    isbn: '',
+    author: '',
+    bookTitle: '',
+    videoGameRating: '',
+    measurements: '',
+    material: '',
   });
 
   const modelOptions = useMemo(() => [
@@ -299,7 +719,36 @@ const CreateVintedListing = () => {
               conditionNote: listing.conditionNote || '',
               sku: listing.sku || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
+              isbn: listing.isbn || '',
+              author: listing.author || '',
+              bookTitle: listing.bookTitle || '',
+              videoGameRating: listing.videoGameRating || '',
+              measurements: listing.measurements || '',
+              material: listing.material || '',
             });
+
+            if (listing.category) {
+              aiService.vintedGetCategoryDetails({ path: listing.category, id: listing.categoryId })
+                .then(catRes => {
+                  if (catRes.data.success && catRes.data.data) {
+                    const cat = catRes.data.data;
+                    setCategoryFields({
+                      brand_field_visibility: cat.brand_field_visibility,
+                      size_field_visibility: cat.size_field_visibility,
+                      color_field_visibility: cat.color_field_visibility,
+                      isbn_field_visibility: cat.isbn_field_visibility,
+                      author_field_visibility: cat.author_field_visibility,
+                      book_title_field_visibility: cat.book_title_field_visibility,
+                      video_game_rating_field_visibility: cat.video_game_rating_field_visibility,
+                      measurements_field_visibility: cat.measurements_field_visibility
+                    });
+                  }
+                })
+                .catch(err => {
+                  console.error("Error fetching Vinted category details on edit:", err);
+                });
+            }
+
             setStep(2);
           }
         } catch (error) {
@@ -312,6 +761,65 @@ const CreateVintedListing = () => {
       fetchListing();
     }
   }, [editId]);
+
+  useEffect(() => {
+    if (!formData.categoryId) {
+      setCategoryBrands([]);
+      return;
+    }
+    const fetchBrandsForCategory = async () => {
+      setFetchingBrands(true);
+      try {
+        const response = await aiService.vintedGetCategoryBrands(formData.categoryId);
+        if (response.data.success) {
+          setCategoryBrands(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching Vinted category brands:", err);
+      } finally {
+        setFetchingBrands(false);
+      }
+    };
+    fetchBrandsForCategory();
+  }, [formData.categoryId]);
+
+  useEffect(() => {
+    const fetchColors = async () => {
+      setFetchingColors(true);
+      try {
+        const response = await aiService.vintedGetColors();
+        if (response.data.success) {
+          setVintedColors(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching Vinted colors:", err);
+      } finally {
+        setFetchingColors(false);
+      }
+    };
+    fetchColors();
+  }, []);
+
+  useEffect(() => {
+    if (!formData.categoryId) {
+      setCategorySizes([]);
+      return;
+    }
+    const fetchSizesForCategory = async () => {
+      setFetchingSizes(true);
+      try {
+        const response = await aiService.vintedGetCategorySizes(formData.categoryId);
+        if (response.data.success) {
+          setCategorySizes(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching Vinted category sizes:", err);
+      } finally {
+        setFetchingSizes(false);
+      }
+    };
+    fetchSizesForCategory();
+  }, [formData.categoryId]);
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -370,16 +878,34 @@ const CreateVintedListing = () => {
           brand: result.brand || '',
           originalPrice: result.originalPrice || '',
           color: result.color || '',
-          styleTag: result.styleTag || '',
+          styleTag: '',
           quantity: 1,
           size: result.size || '',
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
           category: result.category_name || result.category || '',
-          categoryId: '',
-          sku: result.sku || ''
+          categoryId: result.categoryId || '',
+          sku: result.sku || '',
+          isbn: '', // Category-specific dynamic field, do not fill by AI
+          author: '', // Category-specific dynamic field, do not fill by AI
+          bookTitle: '', // Category-specific dynamic field, do not fill by AI
+          videoGameRating: '', // Category-specific dynamic field, do not fill by AI
+          measurements: '', // Category-specific dynamic field, do not fill by AI
+          material: '' // Fixed dropdown, do not fill by AI
         }));
+        if (result.categoryFields) {
+          setCategoryFields({
+            brand_field_visibility: result.categoryFields.brand_field_visibility,
+            size_field_visibility: result.categoryFields.size_field_visibility,
+            color_field_visibility: result.categoryFields.color_field_visibility,
+            isbn_field_visibility: result.categoryFields.isbn_field_visibility,
+            author_field_visibility: result.categoryFields.author_field_visibility,
+            book_title_field_visibility: result.categoryFields.book_title_field_visibility,
+            video_game_rating_field_visibility: result.categoryFields.video_game_rating_field_visibility,
+            measurements_field_visibility: result.categoryFields.measurements_field_visibility
+          });
+        }
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
@@ -387,6 +913,24 @@ const CreateVintedListing = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategorySelect = (opt) => {
+    setFormData(prev => ({
+      ...prev,
+      category: opt.fullName,
+      categoryId: opt.id
+    }));
+    setCategoryFields({
+      brand_field_visibility: opt.brand_field_visibility ?? false,
+      size_field_visibility: opt.size_field_visibility ?? false,
+      color_field_visibility: opt.color_field_visibility ?? false,
+      isbn_field_visibility: opt.isbn_field_visibility ?? false,
+      author_field_visibility: opt.author_field_visibility ?? false,
+      book_title_field_visibility: opt.book_title_field_visibility ?? false,
+      video_game_rating_field_visibility: opt.video_game_rating_field_visibility ?? false,
+      measurements_field_visibility: opt.measurements_field_visibility ?? false
+    });
   };
 
   const ruleOptions = useMemo(() => rules.map(rule => ({
@@ -417,8 +961,8 @@ const CreateVintedListing = () => {
       brand: formData.brand,
       originalPrice: formData.originalPrice,
       color: formData.color,
-      styleTag: formData.styleTag,
-      quantity: formData.quantity,
+      styleTag: '',
+      quantity: 1,
       size: formData.size,
       description: formData.description,
       price: formData.price,
@@ -431,6 +975,12 @@ const CreateVintedListing = () => {
       selectedCondition: formData.selectedCondition,
       conditionId: formData.conditionId,
       selectedModel: formData.selectedModel || 'gpt-4o-mini',
+      isbn: formData.isbn,
+      author: formData.author,
+      bookTitle: formData.bookTitle,
+      videoGameRating: formData.videoGameRating,
+      measurements: formData.measurements,
+      material: formData.material,
       packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
       packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
       status: 'draft',
@@ -457,6 +1007,15 @@ const CreateVintedListing = () => {
     if (step === 1) {
       startAIFetch();
     } else if (step === 2) {
+      const selectedMats = formData.material ? formData.material.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (selectedMats.length === 0) {
+        toast.warning("Please select at least 1 material.");
+        return;
+      }
+      if (selectedMats.length > 3) {
+        toast.warning("You can select a maximum of 3 materials.");
+        return;
+      }
       setStep(3);
     } else if (step === 3) {
       handleSaveListing();
@@ -634,21 +1193,13 @@ const CreateVintedListing = () => {
                       />
                     </div>
 
+                    {/* Row 1: Category, SKU, and Brand (if visible) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.brand}
-                          onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                          placeholder="Enter brand name..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 md:col-span-1">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Vinted Category</label>
                         <CategorySearchDropdown 
                           value={formData.category}
-                          onSelect={(opt) => setFormData({...formData, category: opt.fullName, categoryId: opt.id})}
+                          onSelect={handleCategorySelect}
                           placeholder="Search and edit category..."
                         />
                       </div>
@@ -660,8 +1211,21 @@ const CreateVintedListing = () => {
                           onChange={(e) => setFormData({...formData, sku: e.target.value})}
                         />
                       </div>
+                      {categoryFields.brand_field_visibility && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
+                          <BrandSearchDropdown 
+                            value={formData.brand}
+                            onSelect={(val) => setFormData({...formData, brand: val})}
+                            options={categoryBrands}
+                            loading={fetchingBrands}
+                            placeholder="Search or type brand..."
+                          />
+                        </div>
+                      )}
                     </div>
 
+                    {/* Row 2: Listing Price, Condition, and Color (if visible) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Price</label>
@@ -684,61 +1248,147 @@ const CreateVintedListing = () => {
                           placeholder="Select condition..."
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.color}
-                          onChange={(e) => setFormData({...formData, color: e.target.value})}
-                          placeholder="Color..."
-                        />
-                      </div>
+                      {categoryFields.color_field_visibility && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
+                          <ColorSearchDropdown 
+                            value={formData.color}
+                            onSelect={(val) => setFormData({...formData, color: val})}
+                            options={vintedColors}
+                            loading={fetchingColors}
+                            placeholder="Search or type color..."
+                          />
+                        </div>
+                      )}
                     </div>
 
+                    {/* Row 3: Size (if visible) and Material (recommended) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {categoryFields.size_field_visibility && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
+                          <SizeSearchDropdown 
+                            value={formData.size}
+                            onSelect={(val) => setFormData({...formData, size: val})}
+                            options={categorySizes}
+                            loading={fetchingSizes}
+                            placeholder="Search or type size..."
+                          />
+                        </div>
+                      )}
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.size}
-                          onChange={(e) => setFormData({...formData, size: e.target.value})}
-                          placeholder="Size..."
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Material (recommended)</label>
+                        <MaterialMultiSelectDropdown 
+                          value={formData.material || ''}
+                          onChange={(val) => setFormData({...formData, material: val})}
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center ml-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</label>
-                        <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                    {/* Category Specific Dynamic Fields (Book and Game Details) */}
+                    {(categoryFields.isbn_field_visibility || 
+                      categoryFields.author_field_visibility || 
+                      categoryFields.book_title_field_visibility || 
+                      categoryFields.video_game_rating_field_visibility || 
+                      categoryFields.measurements_field_visibility) && (
+                      <div className="p-6 bg-slate-50/50 border border-slate-100 rounded-[2rem] space-y-4">
+                        <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60">
+                          <Sparkles size={14} className="text-indigo-650" />
+                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-wider">Additional Category Fields</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {categoryFields.book_title_field_visibility && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Book Title</label>
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                                value={formData.bookTitle}
+                                onChange={(e) => setFormData({...formData, bookTitle: e.target.value})}
+                                placeholder="Book Title..."
+                              />
+                            </div>
+                          )}
+                          {categoryFields.author_field_visibility && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Author</label>
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                                value={formData.author}
+                                onChange={(e) => setFormData({...formData, author: e.target.value})}
+                                placeholder="Author..."
+                              />
+                            </div>
+                          )}
+                          {categoryFields.isbn_field_visibility && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ISBN</label>
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                                value={formData.isbn}
+                                onChange={(e) => setFormData({...formData, isbn: e.target.value})}
+                                placeholder="ISBN..."
+                              />
+                            </div>
+                          )}
+                          {categoryFields.video_game_rating_field_visibility && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Video Game Rating</label>
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                                value={formData.videoGameRating}
+                                onChange={(e) => setFormData({...formData, videoGameRating: e.target.value})}
+                                placeholder="Video game rating..."
+                              />
+                            </div>
+                          )}
+                          {categoryFields.measurements_field_visibility && (
+                            <div className="space-y-1.5 md:col-span-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Measurements</label>
+                              <input 
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                                value={formData.measurements}
+                                onChange={(e) => setFormData({...formData, measurements: e.target.value})}
+                                placeholder="e.g. Pit to pit: 21 in, Length: 28 in..."
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                           <button 
                             type="button"
                             onClick={() => setDescriptionMode('preview')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                           >
-                            Preview HTML
+                            <Eye size={12} /> Preview
                           </button>
                           <button 
                             type="button"
                             onClick={() => setDescriptionMode('edit')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                           >
-                            Edit Source
+                            <Code size={12} /> HTML
                           </button>
                         </div>
                       </div>
-                      
-                      {descriptionMode === 'preview' ? (
-                        <div 
-                          className="w-full min-h-[160px] p-4 bg-slate-50 border border-slate-250 rounded-2xl text-slate-700 text-xs leading-relaxed overflow-y-auto max-h-[300px]"
-                          dangerouslySetInnerHTML={{ __html: formData.description }}
-                        />
-                      ) : (
+
+                      {descriptionMode === 'edit' ? (
                         <textarea 
-                          rows={6}
-                          className="w-full px-4 py-3 bg-white border border-slate-250 rounded-2xl text-xs font-semibold outline-none focus:border-indigo-500 transition-all leading-relaxed"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-mono leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
                           value={formData.description}
                           onChange={(e) => setFormData({...formData, description: e.target.value})}
+                          placeholder="Enter description..."
+                        />
+                      ) : (
+                        <div 
+                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-[13px] font-medium leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
+                          dangerouslySetInnerHTML={{ __html: formData.description }}
+                          style={{ wordBreak: 'break-word' }}
                         />
                       )}
                     </div>
@@ -778,22 +1428,64 @@ const CreateVintedListing = () => {
                     <div className="space-y-4">
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Item Specifications</h4>
                       <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <p className="text-slate-400">Brand</p>
-                          <p className="font-bold text-slate-700">{formData.brand || 'None'}</p>
-                        </div>
+                        {categoryFields.brand_field_visibility && (
+                          <div>
+                            <p className="text-slate-400">Brand</p>
+                            <p className="font-bold text-slate-700">{formData.brand || 'None'}</p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-slate-400">Condition</p>
                           <p className="font-bold text-slate-700">{formData.selectedCondition}</p>
                         </div>
-                        <div>
-                          <p className="text-slate-400">Size</p>
-                          <p className="font-bold text-slate-700">{formData.size || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Color</p>
-                          <p className="font-bold text-slate-700">{formData.color || 'None'}</p>
-                        </div>
+                        {categoryFields.size_field_visibility && (
+                          <div>
+                            <p className="text-slate-400">Size</p>
+                            <p className="font-bold text-slate-700">{formData.size || 'None'}</p>
+                          </div>
+                        )}
+                        {categoryFields.color_field_visibility && (
+                          <div>
+                            <p className="text-slate-400">Color</p>
+                            <p className="font-bold text-slate-700">{formData.color || 'None'}</p>
+                          </div>
+                        )}
+                        {formData.material && (
+                          <div>
+                            <p className="text-slate-400">Material</p>
+                            <p className="font-bold text-slate-700">{formData.material}</p>
+                          </div>
+                        )}
+                        {categoryFields.book_title_field_visibility && formData.bookTitle && (
+                          <div>
+                            <p className="text-slate-400">Book Title</p>
+                            <p className="font-bold text-slate-700">{formData.bookTitle}</p>
+                          </div>
+                        )}
+                        {categoryFields.author_field_visibility && formData.author && (
+                          <div>
+                            <p className="text-slate-400">Author</p>
+                            <p className="font-bold text-slate-700">{formData.author}</p>
+                          </div>
+                        )}
+                        {categoryFields.isbn_field_visibility && formData.isbn && (
+                          <div>
+                            <p className="text-slate-400">ISBN</p>
+                            <p className="font-bold text-slate-700">{formData.isbn}</p>
+                          </div>
+                        )}
+                        {categoryFields.video_game_rating_field_visibility && formData.videoGameRating && (
+                          <div>
+                            <p className="text-slate-400">Game Rating</p>
+                            <p className="font-bold text-slate-700">{formData.videoGameRating}</p>
+                          </div>
+                        )}
+                        {categoryFields.measurements_field_visibility && formData.measurements && (
+                          <div className="col-span-2">
+                            <p className="text-slate-400">Measurements</p>
+                            <p className="font-bold text-slate-700">{formData.measurements}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

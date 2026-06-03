@@ -157,16 +157,25 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
    - STRICT: If the instruction contains placeholders like {Brand}, {Size}, {Material}, {Type}, etc., replace them with data from the images. 
    - SMART ADAPTATION: If the user provides a fixed template but the image clearly shows something else, adapt the template intelligently to match the physical product while maintaining the user's requested tone and structure. 
    - If it is a general prompt like "Summarize in 2 sentences" or "only two line", follow it EXACTLY. 
-   - Do NOT use any other default structures. Format with HTML tags like <b> and <br> for spacing.`
-            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
-   - Analyze the item to write a professional summary.
-   - Use HTML <b> for section headers and <br><br> for spacing.
+   - Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`
+            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
+   - Analyze the item to write a professional, engaging summary.
+   - Do NOT use HTML tags (like <b>, <br>).
+   - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\\n\\n) for clear, readable spacing.
+   - Use bullet points (• or -) for key features and design details.
    - Include these sections:
-     - <b>The Ultimate Look / Perfect Upgrade:</b> {Engaging hook about the item}.<br><br>
-     - <b>About the Brand:</b> {Quality/Heritage info about the brand}.<br><br>
-     - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
-     - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
-     - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>`;
+     THE ULTIMATE LOOK / PERFECT UPGRADE: {Engaging hook about the item}
+     
+     ABOUT THE BRAND: {Quality/Heritage info about the brand}
+     
+     KEY FEATURES & DESIGN:
+     - {Key feature 1}
+     - {Key feature 2}
+     - {Key feature 3}
+     
+     VERSATILITY / USAGE: {Styling tips or functional use cases}
+     
+     CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,
@@ -191,20 +200,20 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
    - GOAL: A professional, keyword-rich title between 70-80 characters.
    - NO BLANKS: Fill every requested attribute.
    - Output as a JSON object inside 'title_parts'.
-
+ 
 ${descriptionInstruction}
-
+ 
 # Optimized Poshmark Category Prompt (Production Ready)
-
+ 
 3. Category Detection
-
+ 
 Determine the MOST accurate Poshmark category for the item shown in the images.
-
+ 
 Rules:
-
+ 
 * Output category format exactly as:
   Root > Subcategory > Type
-
+ 
 * Root category MUST be one of:
   Women
   Men
@@ -213,14 +222,14 @@ Rules:
   Pets
   Electronics
   Beauty
-
+ 
 * Never use:
   Unisex
-
+ 
 * Choose Men or Women based on the item's visual design and styling.
-
+ 
 * Focus on the ACTUAL product type visible in the images:
-
+ 
   * T-Shirts
   * Polo Shirts
   * Button Down Shirts
@@ -233,37 +242,37 @@ Rules:
   * Makeup
   * Electronics
     etc.
-
+ 
 IMPORTANT MEN'S SHIRT RULES:
-
+ 
 * Never output:
   Men > Tops
   Men > Shirts > T-Shirts
-
+ 
 * Men's regular t-shirts MUST map to:
   Men > Shirts > Tees - Short Sleeve
   or
   Men > Shirts > Tees - Long Sleeve
-
+ 
 * Polo shirts MUST map to:
   Men > Shirts > Polos
-
+ 
 * Hoodies and sweatshirts MUST map to:
   Men > Shirts > Sweatshirts & Hoodies
-
+ 
 * Tank tops MUST map to:
   Men > Shirts > Tank Tops
-
+ 
 * Jerseys MUST map to:
   Men > Shirts > Jerseys
-
+ 
 * Button-down shirts MUST map to:
   Men > Shirts > Casual Button Down Shirts
   or
   Men > Shirts > Dress Shirts
-
+ 
 Examples:
-
+ 
 * Women > Tops > Blouses
 * Women > Shoes > Sneakers
 * Men > Shirts > Tees - Short Sleeve
@@ -271,20 +280,20 @@ Examples:
 * Men > Jackets & Coats > Bomber Jackets
 * Beauty > Makeup > Lips
 * Home > Kitchen > Cookware
-
+ 
 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' (MSRP / original retail price when brand new) in USD.
 5. Attribute Extraction:
    - Identify the primary 'color'(s) of the item.
    - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.
    - Identify the 'size' of the item if visible in the images or estimate it if not.
-
+ 
 Context: Gender: ${gender}.
-
+ 
 Response ONLY as JSON: {
   "brand": "Company Name",
   "title": "A long, descriptive, 80-character marketplace title",
   "title_parts": { "AttributeName": "Value", ... },
-  "description": "HTML content",
+  "description": "Clean formatted plain text description (NO HTML tags)",
   "category": "Poshmark category path (e.g. Women > Shoes > Heels)",
   "selling_price": 0.00,
   "original_price": 0.00,
@@ -299,13 +308,13 @@ Response ONLY as JSON: {
             ],
             response_format: { type: "json_object" }
         });
-
+ 
         const finalData = JSON.parse(mainResponse.choices[0].message.content);
-
+ 
         if (!finalData) {
             throw new Error("OpenAI returned an empty or invalid JSON response.");
         }
-
+ 
         // --- DYNAMIC SKU GENERATION ---
         let skuCode = '';
         let isUnique = false;
@@ -321,15 +330,15 @@ Response ONLY as JSON: {
             }
         }
         finalData.sku = skuCode;
-
+ 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};
-
+ 
         effectiveStructure.forEach(key => {
             const foundKey = Object.keys(aiResponseParts).find(k => k.toLowerCase() === key.toLowerCase());
             standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
         });
-
+ 
         const titleString = effectiveStructure
             .map(key => {
                 let val = standardizedParts[key] || '';
@@ -343,10 +352,15 @@ Response ONLY as JSON: {
             .join(' ')
             .substring(0, 80)
             .trim();
-
+ 
         const finalTitle = titleString || finalData.title || 'New Listing';
-        const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
-
+        
+        let templatedDescription = finalData.description || '';
+        // In case the AI still generated HTML tags, clean them up for Poshmark
+        templatedDescription = templatedDescription
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]*>/g, '');
+ 
         if (req.user) {
             await logActivity({
                 action: 'ai_fetch',

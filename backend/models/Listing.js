@@ -75,6 +75,12 @@ const listingSchema = new mongoose.Schema({
     default: 1
   },
   size: String,
+  isbn: String,
+  author: String,
+  bookTitle: String,
+  videoGameRating: String,
+  measurements: String,
+  material: String,
   createdAt: {
     type: Date,
     default: Date.now

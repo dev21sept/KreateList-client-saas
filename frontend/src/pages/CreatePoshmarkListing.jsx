@@ -432,7 +432,15 @@ const CreatePoshmarkListing = () => {
     setFiles(newFiles);
   };
 
-  const handleSaveListing = async () => {
+  const handleSaveListing = async (publish = false) => {
+    if (publish) {
+      const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
+      if (!isExtensionInstalled) {
+        toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
+        return;
+      }
+    }
+
     setLoading(true);
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -466,7 +474,36 @@ const CreatePoshmarkListing = () => {
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
+        const savedListing = response.data.data;
         toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
+        
+        if (publish) {
+          // Strip HTML tags for Poshmark's text-only description box
+          const plainDesc = savedListing.description 
+            ? savedListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+            : '';
+
+          window.postMessage({
+            action: 'ELISTER_LIST_ITEM_TRIGGER',
+            data: {
+              title: savedListing.title,
+              description: plainDesc,
+              brand: savedListing.brand || "",
+              price: parseFloat(savedListing.price) || 0.0,
+              originalPrice: parseFloat(savedListing.originalPrice) || 0.0,
+              size: savedListing.size || "OS",
+              colors: savedListing.color ? [savedListing.color] : [],
+              condition: savedListing.conditionId || "uln",
+              styleTags: savedListing.styleTag ? savedListing.styleTag.split(',').map(t => t.trim()) : [],
+              departmentId: savedListing.departmentId || "01008c10d97b4e1245005764", // Default Men
+              categoryId: savedListing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
+              subcategoryIds: savedListing.subcategoryIds ? (Array.isArray(savedListing.subcategoryIds) ? savedListing.subcategoryIds : [savedListing.subcategoryIds]) : [],
+              images: savedListing.images || []
+            }
+          }, "*");
+
+          toast.success("Opening Poshmark and launching publisher queue...");
+        }
         navigate('/listings');
       }
     } catch (error) {
@@ -842,24 +879,25 @@ const CreatePoshmarkListing = () => {
                             onClick={() => setDescriptionMode('edit')}
                             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                           >
-                            <Code size={12} /> HTML
+                            <Code size={12} /> Edit
                           </button>
                         </div>
                       </div>
 
                       {descriptionMode === 'edit' ? (
                         <textarea 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-mono leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-700 leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
                           value={formData.description}
                           onChange={(e) => setFormData({...formData, description: e.target.value})}
-                          placeholder="Enter raw HTML description..."
+                          placeholder="Enter description..."
                         />
                       ) : (
                         <div 
-                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-[13px] font-medium leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
-                          dangerouslySetInnerHTML={{ __html: formData.description }}
-                          style={{ wordBreak: 'break-word' }}
-                        />
+                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm font-semibold text-slate-700 leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
+                          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                        >
+                          {formData.description}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -993,9 +1031,11 @@ const CreatePoshmarkListing = () => {
                   <div className="space-y-3 pt-6 border-t border-slate-50">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description Preview</label>
                     <div 
-                      className="text-[11px] text-slate-600 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
-                      dangerouslySetInnerHTML={{ __html: formData.description }}
-                    />
+                      className="text-xs text-slate-600 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
+                      {formData.description}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1016,19 +1056,36 @@ const CreatePoshmarkListing = () => {
           </button>
           
           <div className="flex items-center gap-4">
-            <button 
-              onClick={nextStep}
-              disabled={loading || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
-              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
-            >
-              {loading ? (
-                <>Working...</>
-              ) : step === 3 ? (
-                <>Save Poshmark Listing</>
-              ) : (
-                <>Continue</>
-              )}
-            </button>
+            {step === 3 ? (
+              <>
+                <button 
+                  onClick={() => handleSaveListing(false)}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Save Draft
+                </button>
+                <button 
+                  onClick={() => handleSaveListing(true)}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-750 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                >
+                  {loading ? 'Working...' : 'Save & Publish to Poshmark'}
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={nextStep}
+                disabled={loading || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
+                className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>Working...</>
+                ) : (
+                  <>Continue</>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

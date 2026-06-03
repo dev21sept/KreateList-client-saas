@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-scoring": "node C:/Users/user/.gemini/antigravity-ide/brain/c84a1485-6067-460f-a659-0b76471e8bf3/scratch/test_scoring.js"
   },
   "keywords": [],
   "author": "",

@@ -14,7 +14,8 @@ import {
   Edit, 
   Eye, 
   X,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { listingService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -169,6 +170,41 @@ const Listings = () => {
     } finally {
       setPublishingId(null);
     }
+  };
+
+  const handlePoshmarkPublish = (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
+      return;
+    }
+
+    // Strip HTML tags for Poshmark's text-only description box
+    const plainDesc = listing.description 
+      ? listing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+      : '';
+
+    window.postMessage({
+      action: 'ELISTER_LIST_ITEM_TRIGGER',
+      data: {
+        title: listing.title,
+        description: plainDesc,
+        brand: listing.brand || "",
+        price: parseFloat(listing.price) || 0.0,
+        originalPrice: parseFloat(listing.originalPrice) || 0.0,
+        size: listing.size || "OS",
+        colors: listing.color ? [listing.color] : [],
+        condition: listing.conditionId || "uln",
+        styleTags: listing.styleTag ? listing.styleTag.split(',').map(t => t.trim()) : [],
+        departmentId: listing.departmentId || "01008c10d97b4e1245005764", // Default Men
+        categoryId: listing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
+        subcategoryIds: listing.subcategoryIds ? (Array.isArray(listing.subcategoryIds) ? listing.subcategoryIds : [listing.subcategoryIds]) : [],
+        images: listing.images || []
+      }
+    }, "*");
+
+    toast.success("Opening Poshmark and launching publisher queue...");
+    setPreviewListing(null);
   };
 
   const getStatusBadge = (status) => {
@@ -368,17 +404,42 @@ const Listings = () => {
                             <Edit size={16} />
                           </button>
                           {listing.platform === 'poshmark' ? (
-                            listing.poshmarkUrl && (
-                              <a href={listing.poshmarkUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on Poshmark">
-                                <ExternalLink size={16} />
-                              </a>
-                            )
+                            <>
+                              <button 
+                                onClick={() => handlePoshmarkPublish(listing)}
+                                className="p-2 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-400 transition-all"
+                                title="Quick List to Poshmark (API)"
+                              >
+                                <Zap size={16} className="text-rose-500" />
+                              </button>
+                              {listing.poshmarkUrl && (
+                                <a href={listing.poshmarkUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on Poshmark">
+                                  <ExternalLink size={16} />
+                                </a>
+                              )}
+                            </>
                           ) : (
-                            listing.ebayUrl && (
-                              <a href={listing.ebayUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on eBay">
-                                <ExternalLink size={16} />
-                              </a>
-                            )
+                            <>
+                              {listing.status !== 'published' && (
+                                <button 
+                                  onClick={() => handlePublish(listing._id)}
+                                  disabled={publishingId === listing._id}
+                                  className="p-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-400 transition-all disabled:opacity-50"
+                                  title="Quick List to eBay (API)"
+                                >
+                                  {publishingId === listing._id ? (
+                                    <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <Zap size={16} className="text-indigo-500" />
+                                  )}
+                                </button>
+                              )}
+                              {listing.ebayUrl && (
+                                <a href={listing.ebayUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on eBay">
+                                  <ExternalLink size={16} />
+                                </a>
+                              )}
+                            </>
                           )}
                           <button 
                             onClick={() => handleDelete(listing._id)}
@@ -586,14 +647,16 @@ const Listings = () => {
                       ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
                     </p>
                   </div>
-                  {previewListing.platform === 'poshmark' && (
+                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
                     <>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
-                        <p className="text-base font-black text-slate-500 mt-1">
-                          ${previewListing.originalPrice ? parseFloat(previewListing.originalPrice || 0).toFixed(2) : '0.00'}
-                        </p>
-                      </div>
+                      {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted') && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
+                          <p className="text-base font-black text-slate-500 mt-1">
+                            ${previewListing.originalPrice ? parseFloat(previewListing.originalPrice || 0).toFixed(2) : '0.00'}
+                          </p>
+                        </div>
+                      )}
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
                         <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.brand || '-'}</p>
@@ -606,14 +669,24 @@ const Listings = () => {
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
                         <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.quantity || '1'}</p>
-                      </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Style Tags</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.styleTag || '-'}</p>
-                      </div>
+                      {previewListing.platform !== 'vinted' && (
+                        <>
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
+                            <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.quantity || '1'}</p>
+                          </div>
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Style Tags</p>
+                            <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.styleTag || '-'}</p>
+                          </div>
+                        </>
+                      )}
+                      {previewListing.platform === 'vinted' && previewListing.material && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
+                        </div>
+                      )}
                     </>
                   )}
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -635,7 +708,7 @@ const Listings = () => {
                 )}
 
                 {/* Item Specifics */}
-                {previewListing.platform !== 'poshmark' && (
+                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'vinted' && previewListing.platform !== 'depop' && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
                     {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
@@ -676,41 +749,75 @@ const Listings = () => {
                 Close
               </button>
               {previewListing.platform === 'poshmark' ? (
-                <button 
-                  onClick={() => {
-                    const plainDescription = previewListing.description ? previewListing.description.replace(/<[^>]*>/g, '') : '';
-                    const brandVal = previewListing.brand || 'Generic';
-                    const listingPriceVal = previewListing.price || '0.00';
-                    const originalPriceVal = previewListing.originalPrice || '0.00';
-                    const colorVal = previewListing.color || 'N/A';
-                    const sizeVal = previewListing.size || 'N/A';
-                    const quantityVal = previewListing.quantity || '1';
-                    const styleTagVal = previewListing.styleTag || 'N/A';
-                    const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\nColor: ${colorVal}\nSize: ${sizeVal}\nQuantity: ${quantityVal}\nStyle Tags: ${styleTagVal}\n\nDescription:\n${plainDescription}`;
-                    navigator.clipboard.writeText(copyText);
-                    toast.success('Listing details copied to clipboard!');
-                  }}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 flex items-center gap-2"
-                >
-                  Copy Details
-                </button>
-              ) : (
-                previewListing.status !== 'published' && (
+                <>
                   <button 
-                    onClick={() => handlePublish(previewListing._id)}
-                    disabled={publishingId === previewListing._id}
-                    className="btn-primary py-2 px-6 flex items-center justify-center gap-2 min-w-[120px] disabled:opacity-50"
+                    onClick={() => handlePoshmarkPublish(previewListing)}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-750 transition-all shadow-md shadow-indigo-100"
                   >
-                    {publishingId === previewListing._id ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Listing...
-                      </>
-                    ) : (
-                      'List by API'
-                    )}
+                    List to Poshmark (API)
                   </button>
-                )
+                  <button 
+                    onClick={() => {
+                      const plainDescription = previewListing.description ? previewListing.description.replace(/<[^>]*>/g, '') : '';
+                      const brandVal = previewListing.brand || 'Generic';
+                      const listingPriceVal = previewListing.price || '0.00';
+                      const originalPriceVal = previewListing.originalPrice || '0.00';
+                      const colorVal = previewListing.color || 'N/A';
+                      const sizeVal = previewListing.size || 'N/A';
+                      const quantityVal = previewListing.quantity || '1';
+                      const styleTagVal = previewListing.styleTag || 'N/A';
+                      const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\nColor: ${colorVal}\nSize: ${sizeVal}\nQuantity: ${quantityVal}\nStyle Tags: ${styleTagVal}\n\nDescription:\n${plainDescription}`;
+                      navigator.clipboard.writeText(copyText);
+                      toast.success('Listing details copied to clipboard!');
+                    }}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 flex items-center gap-2"
+                  >
+                    Copy Details
+                  </button>
+                </>
+              ) : (
+                <>
+                  {previewListing.status !== 'published' && (
+                    <button 
+                      onClick={() => handlePublish(previewListing._id)}
+                      disabled={publishingId === previewListing._id}
+                      className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                    >
+                      {publishingId === previewListing._id ? (
+                        <>
+                          <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                          Listing...
+                        </>
+                      ) : (
+                        'List to eBay (API)'
+                      )}
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => handlePoshmarkPublish(previewListing)}
+                    className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-rose-100"
+                  >
+                    Cross-list to Poshmark (API)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const plainDescription = previewListing.description ? previewListing.description.replace(/<[^>]*>/g, '') : '';
+                      const brandVal = previewListing.brand || 'Generic';
+                      const listingPriceVal = previewListing.price || '0.00';
+                      const originalPriceVal = previewListing.originalPrice || '0.00';
+                      const colorVal = previewListing.color || 'N/A';
+                      const sizeVal = previewListing.size || 'N/A';
+                      const quantityVal = previewListing.quantity || '1';
+                      const styleTagVal = previewListing.styleTag || 'N/A';
+                      const copyText = `Title: ${previewListing.title}\nBrand: ${brandVal}\nListing Price: $${listingPriceVal}\nOriginal Price: $${originalPriceVal}\nColor: ${colorVal}\nSize: ${sizeVal}\nQuantity: ${quantityVal}\nStyle Tags: ${styleTagVal}\n\nDescription:\n${plainDescription}`;
+                      navigator.clipboard.writeText(copyText);
+                      toast.success('Listing details copied to clipboard!');
+                    }}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 flex items-center gap-2"
+                  >
+                    Copy Details
+                  </button>
+                </>
               )}
             </div>
           </div>

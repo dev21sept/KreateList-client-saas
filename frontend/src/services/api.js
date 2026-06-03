@@ -69,6 +69,10 @@ export const aiService = {
   poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
   vintedAnalyze: (data) => API.post('/ai/vinted-analyze', data),
   vintedSuggestCategories: (query) => API.get(`/ai/vinted-categories?query=${query}`),
+  vintedGetCategoryDetails: (params) => API.get('/ai/vinted-category-details', { params }),
+  vintedGetCategoryBrands: (categoryId) => API.get(`/ai/vinted-brands?category_id=${categoryId}`),
+  vintedGetColors: () => API.get('/ai/vinted-colors'),
+  vintedGetCategorySizes: (catalogIds) => API.get(`/ai/vinted-sizes?catalog_ids=${catalogIds}`),
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
 };
