@@ -20,12 +20,39 @@ import {
 import { listingService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 
+const NO_IMAGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect fill="%23f1f5f9" width="150" height="150"/><path d="M55 65 L75 85 L95 60 L115 90 L35 90 Z" fill="%23cbd5e1"/><circle cx="55" cy="50" r="8" fill="%23cbd5e1"/></svg>');
+
 const getImageSrc = (src) => {
-  if (!src) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
+  if (!src) return NO_IMAGE_PLACEHOLDER;
   if (typeof src === 'string' && src.startsWith('blob:')) {
-    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
+    return NO_IMAGE_PLACEHOLDER;
   }
   return src;
+};
+
+// Session cache keys
+const CACHE_KEY_LISTINGS = 'elister_cache_listings';
+const CACHE_KEY_STATS = 'elister_cache_stats';
+const CACHE_KEY_EBAY = 'elister_cache_ebay';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const getCached = (key) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+};
+
+const setCache = (key, data) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+  } catch { /* quota exceeded, ignore */ }
 };
 
 const Listings = () => {
@@ -122,21 +149,39 @@ const Listings = () => {
   };
 
   useEffect(() => {
-    fetchListings();
+    // Load from cache first for instant render
+    const cachedListings = getCached(CACHE_KEY_LISTINGS);
+    const cachedStats = getCached(CACHE_KEY_STATS);
+    const cachedEbay = getCached(CACHE_KEY_EBAY);
+    if (cachedListings) {
+      setListings(cachedListings);
+      setLoading(false);
+    }
+    if (cachedStats) setStats(cachedStats);
+    if (cachedEbay) setIsEbayConnected(cachedEbay);
+    fetchListings(!cachedListings);
   }, []);
 
-  const fetchListings = async () => {
+  const fetchListings = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [listingsRes, statsRes, ebayStatusRes] = await Promise.all([
         listingService.getAll(),
         listingService.getStats(),
         ebayService.getStatus().catch(() => ({ data: { success: false } }))
       ]);
-      setListings(listingsRes.data.data);
-      setStats(statsRes.data.data.stats);
-      if (ebayStatusRes?.data?.success && ebayStatusRes.data.data.connected) {
-        setIsEbayConnected(true);
-      }
+      const listingsData = listingsRes.data.data;
+      const statsData = statsRes.data.data.stats;
+      const ebayConnected = !!(ebayStatusRes?.data?.success && ebayStatusRes.data.data.connected);
+
+      setListings(listingsData);
+      setStats(statsData);
+      setIsEbayConnected(ebayConnected);
+
+      // Update cache
+      setCache(CACHE_KEY_LISTINGS, listingsData);
+      setCache(CACHE_KEY_STATS, statsData);
+      setCache(CACHE_KEY_EBAY, ebayConnected);
     } catch (error) {
       console.error("Error fetching listings:", error);
     } finally {
@@ -377,7 +422,7 @@ const Listings = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 overflow-hidden">
-                            <img src={getImageSrc(listing.images && listing.images[0])} alt="" className="w-full h-full object-cover" />
+                            <img src={getImageSrc(listing.thumbnail)} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <span className="font-bold text-slate-900 text-sm line-clamp-1">{listing.title}</span>
@@ -500,7 +545,7 @@ const Listings = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 overflow-hidden">
-                            <img src={getImageSrc(product.images && product.images[0])} alt="" className="w-full h-full object-cover" />
+                            <img src={getImageSrc(product.thumbnail || (product.images && product.images[0]))} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <span className="font-bold text-slate-900 text-sm line-clamp-1">{product.title}</span>

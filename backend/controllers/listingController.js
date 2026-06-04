@@ -1,6 +1,6 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
-const { normalizeProductImages } = require('../utils/imageProcessor');
+const { normalizeProductImages, generateThumbnail } = require('../utils/imageProcessor');
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
 
@@ -71,6 +71,11 @@ exports.createListing = async (req, res) => {
 
     if (req.body.images && Array.isArray(req.body.images)) {
       req.body.images = await normalizeProductImages(req.body.images, baseUrl);
+      if (req.body.images.length > 0) {
+        req.body.thumbnail = await generateThumbnail(req.body.images[0]);
+      } else {
+        req.body.thumbnail = '';
+      }
     }
 
     if (!req.body.sku) {
@@ -127,6 +132,11 @@ exports.updateListing = async (req, res) => {
 
     if (req.body.images && Array.isArray(req.body.images)) {
       req.body.images = await normalizeProductImages(req.body.images, baseUrl);
+      if (req.body.images.length > 0) {
+        req.body.thumbnail = await generateThumbnail(req.body.images[0]);
+      } else {
+        req.body.thumbnail = '';
+      }
     }
 
 
@@ -348,9 +358,7 @@ exports.publishListing = async (req, res) => {
     if (listing.material && !aspects['Material']) aspects['Material'] = [listing.material];
 
     // 5. Structure weight and dimensions
-    const packageWeightAndSize = {
-      packageType: 'MAILING_BOX'
-    };
+    const packageWeightAndSize = {};
 
     if (listing.packageWeight) {
       const totalOunces = (listing.packageWeight.lbs || 0) * 16 + (listing.packageWeight.oz || 0);

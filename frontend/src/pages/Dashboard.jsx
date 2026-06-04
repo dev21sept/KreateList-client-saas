@@ -39,6 +39,32 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    // Load from cache first for instant render
+    const CACHE_TTL = 5 * 60 * 1000;
+    const loadCached = (key) => {
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return null;
+        const { data, ts } = JSON.parse(raw);
+        if (Date.now() - ts > CACHE_TTL) return null;
+        return data;
+      } catch { return null; }
+    };
+    const saveCache = (key, data) => {
+      try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch {}
+    };
+
+    const cachedStats = loadCached('dash_stats');
+    const cachedActivity = loadCached('dash_activity');
+    const cachedUser = loadCached('dash_user');
+    const cachedEbay = loadCached('dash_ebay');
+    
+    if (cachedStats) setStatsData(cachedStats);
+    if (cachedActivity) setRecentActivity(cachedActivity);
+    if (cachedUser) setUser(cachedUser);
+    if (cachedEbay) setEbayStatus(cachedEbay);
+    if (cachedStats && cachedUser) setLoading(false);
+
     const fetchData = async () => {
       try {
         const [statsRes, userRes, ebayRes] = await Promise.all([
@@ -47,10 +73,20 @@ const Dashboard = () => {
           ebayService.getStatus()
         ]);
         
-        setStatsData(statsRes.data.data.stats);
-        setRecentActivity(statsRes.data.data.recentActivity);
-        setUser(userRes.data.data);
-        setEbayStatus(ebayRes.data.data);
+        const stats = statsRes.data.data.stats;
+        const activity = statsRes.data.data.recentActivity;
+        const userData = userRes.data.data;
+        const ebayData = ebayRes.data.data;
+
+        setStatsData(stats);
+        setRecentActivity(activity);
+        setUser(userData);
+        setEbayStatus(ebayData);
+
+        saveCache('dash_stats', stats);
+        saveCache('dash_activity', activity);
+        saveCache('dash_user', userData);
+        saveCache('dash_ebay', ebayData);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {

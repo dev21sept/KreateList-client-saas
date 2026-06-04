@@ -73,6 +73,48 @@ async function normalizeProductImages(images = []) {
     return [...new Set(normalized)];
 }
 
+async function generateThumbnail(image) {
+    if (typeof image !== 'string') return null;
+    const trimmed = image.trim();
+    if (!trimmed) return null;
+
+    if (isHttpUrl(trimmed)) {
+        return trimmed;
+    }
+
+    if (isDataUri(trimmed) || looksLikeRawBase64(trimmed)) {
+        try {
+            const dataUriMatch = trimmed.match(/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
+            let rawBase64 = dataUriMatch ? dataUriMatch[2] : trimmed;
+            rawBase64 = rawBase64.replace(/[\r\n\t\s]+/g, '');
+
+            if (!/^[a-z0-9+/=]+$/i.test(rawBase64)) {
+                return null;
+            }
+
+            const inputBuffer = Buffer.from(rawBase64, 'base64');
+            if (!inputBuffer.length) {
+                return null;
+            }
+
+            const thumbnailBuffer = await sharp(inputBuffer)
+                .rotate()
+                .resize({ width: 150, height: 150, fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 50, mozjpeg: true })
+                .toBuffer();
+
+            return `data:image/jpeg;base64,${thumbnailBuffer.toString('base64')}`;
+        } catch (error) {
+            console.warn(`[IMAGE PROCESSOR] Thumbnail generation failed. Reason: ${error.message}`);
+            return null;
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
-    normalizeProductImages
+    normalizeProductImages,
+    generateThumbnail
 };
+

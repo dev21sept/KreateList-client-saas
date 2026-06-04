@@ -29,6 +29,7 @@ const listingSchema = new mongoose.Schema({
   },
   categoryId: String,
   images: [String],
+  thumbnail: String,
   status: {
     type: String,
     enum: ['draft', 'scheduled', 'published', 'failed'],
