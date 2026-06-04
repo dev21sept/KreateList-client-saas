@@ -11,8 +11,7 @@ const { getValidToken } = require('./ebayController');
 exports.getListings = async (req, res) => {
   try {
     const listings = await Listing.find({ user: req.user.id })
-      .select('-description -itemSpecifics')
-      .select({ images: { $slice: 1 } })
+      .select('-description -itemSpecifics -images')
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: listings.length, data: listings });
   } catch (err) {
@@ -34,8 +33,7 @@ exports.getDashboardStats = async (req, res) => {
     const failedListings = await Listing.countDocuments({ user: userId, status: 'failed' });
 
     const recentActivity = await Listing.find({ user: userId })
-      .select('-description -itemSpecifics')
-      .select({ images: { $slice: 1 } })
+      .select('-description -itemSpecifics -images')
       .sort({ createdAt: -1 })
       .limit(5);
 
