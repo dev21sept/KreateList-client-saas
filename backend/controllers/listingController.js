@@ -155,13 +155,35 @@ exports.deleteListing = async (req, res) => {
 
 // Helper to map eBay condition IDs to Inventory API enum strings
 function mapConditionIdToEnum(conditionId) {
-  const id = String(conditionId);
-  if (id === '1000') return 'NEW';
-  if (id === '1500' || id === '1750') return 'LIKE_NEW';
-  if (id === '2000' || id === '2500') return 'VERY_GOOD';
-  if (id === '3000') return 'GOOD';
-  if (id === '4000' || id === '5000' || id === '6000') return 'ACCEPTABLE';
-  if (id === '7000') return 'FOR_PARTS_OR_NOT_WORKING';
+  const id = String(conditionId || '1000').toLowerCase();
+  
+  const validEnums = ['NEW', 'LIKE_NEW', 'NEW_OTHER', 'NEW_WITH_DEFECTS', 'USED_EXCELLENT', 'USED_VERY_GOOD', 'USED_GOOD', 'USED_ACCEPTABLE', 'FOR_PARTS_OR_NOT_WORKING'];
+  if (validEnums.includes(id.toUpperCase())) return id.toUpperCase();
+
+  if (id.startsWith('1000')) {
+    if (id.includes('wd') || id.includes('defect')) return 'NEW_WITH_DEFECTS';
+    if (id.includes('c') || id.includes('g') || id.includes('f')) return 'USED_EXCELLENT';
+    return 'NEW';
+  }
+  if (id.startsWith('1500') || id.startsWith('1750')) {
+    return 'LIKE_NEW';
+  }
+  if (id.startsWith('2000') || id.startsWith('2500') || id.startsWith('2010') || id.startsWith('2020') || id.startsWith('2030')) {
+    return 'USED_EXCELLENT';
+  }
+  if (id.startsWith('2750')) {
+    return 'LIKE_NEW';
+  }
+  if (id.startsWith('3000') || id.startsWith('4000') || id.startsWith('5000')) {
+    return 'USED_GOOD';
+  }
+  if (id.startsWith('6000')) {
+    return 'USED_ACCEPTABLE';
+  }
+  if (id.startsWith('7000')) {
+    return 'FOR_PARTS_OR_NOT_WORKING';
+  }
+  
   return 'NEW'; // Default fallback
 }
 
