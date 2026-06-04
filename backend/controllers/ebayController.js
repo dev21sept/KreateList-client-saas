@@ -41,6 +41,9 @@ async function getValidToken(userId) {
   }
 }
 
+exports.getValidToken = getValidToken;
+
+
 // Helpers for profile extraction
 function extractSellerProfile(profile) {
   const businessName = profile?.businessAccount?.name || null;

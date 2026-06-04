@@ -243,6 +243,8 @@ const CreateEbayListing = () => {
     selectedAspects: {},
     sku: '',
     selectedModel: 'gpt-4o-mini',
+    packageWeight: { lbs: '', oz: '' },
+    packageDimensions: { length: '', width: '', height: '' }
   });
 
   const modelOptions = useMemo(() => [
@@ -299,6 +301,8 @@ const CreateEbayListing = () => {
               selectedAspects: listing.itemSpecifics || {},
               sku: listing.sku || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
+              packageWeight: listing.packageWeight || { lbs: '', oz: '' },
+              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' }
             });
 
             if (listing.categoryId) {
@@ -401,7 +405,9 @@ const CreateEbayListing = () => {
           category: result.category_name || result.category,
           categoryId: result.category_id,
           selectedAspects: initialAspects,
-          sku: result.sku || ''
+          sku: result.sku || '',
+          packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' },
+          packageDimensions: selectedRuleObj?.packageDimensions || { length: '', width: '', height: '' }
         }));
       }
     } catch (error) {
@@ -480,7 +486,6 @@ const CreateEbayListing = () => {
 
   const handleSaveDraft = async () => {
     setLoading(true);
-    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
     const listingData = {
       title: formData.title,
@@ -496,8 +501,8 @@ const CreateEbayListing = () => {
       selectedCondition: formData.selectedCondition,
       conditionId: formData.conditionId,
       selectedModel: formData.selectedModel || 'gpt-4o-mini',
-      packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
-      packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
+      packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
+      packageDimensions: formData.packageDimensions || { length: 0, width: 0, height: 0 },
       status: 'draft',
       platform
     };
@@ -517,10 +522,9 @@ const CreateEbayListing = () => {
       setLoading(false);
     }
   };
-
+ 
   const handlePublishListing = async () => {
     setLoading(true);
-    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
     const listingData = {
       title: formData.title,
@@ -536,8 +540,8 @@ const CreateEbayListing = () => {
       selectedCondition: formData.selectedCondition,
       conditionId: formData.conditionId,
       selectedModel: formData.selectedModel || 'gpt-4o-mini',
-      packageWeight: selectedRuleObj?.packageWeight || { lbs: 0, oz: 0 },
-      packageDimensions: selectedRuleObj?.packageDimensions || { length: 0, width: 0, height: 0 },
+      packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
+      packageDimensions: formData.packageDimensions || { length: 0, width: 0, height: 0 },
       status: 'draft',
       platform
     };
@@ -668,7 +672,15 @@ const CreateEbayListing = () => {
                     </label>
                     <SearchableDropdown 
                       value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                      onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
+                      onSelect={(opt) => {
+                        const rule = rules.find(r => (r._id || r.id) === opt.id);
+                        setFormData({
+                          ...formData,
+                          selectedRule: opt.id,
+                          packageWeight: rule?.packageWeight || { lbs: '', oz: '' },
+                          packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' }
+                        });
+                      }}
                       options={ruleOptions}
                       placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
                       disabled={rules.length === 0}
@@ -891,6 +903,87 @@ const CreateEbayListing = () => {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Package Weight */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Package Weight</label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input 
+                              type="number"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.packageWeight?.lbs || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                packageWeight: { ...formData.packageWeight, lbs: parseFloat(e.target.value) || 0 }
+                              })}
+                              placeholder="lbs"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">lbs</span>
+                          </div>
+                          <div className="relative flex-1">
+                            <input 
+                              type="number"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.packageWeight?.oz || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                packageWeight: { ...formData.packageWeight, oz: parseFloat(e.target.value) || 0 }
+                              })}
+                              placeholder="oz"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">oz</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Package Dimensions */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Dimensions (L x W x H)</label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input 
+                              type="number"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.packageDimensions?.length || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                packageDimensions: { ...formData.packageDimensions, length: parseFloat(e.target.value) || 0 }
+                              })}
+                              placeholder="L"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
+                          </div>
+                          <div className="relative flex-1">
+                            <input 
+                              type="number"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.packageDimensions?.width || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                packageDimensions: { ...formData.packageDimensions, width: parseFloat(e.target.value) || 0 }
+                              })}
+                              placeholder="W"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
+                          </div>
+                          <div className="relative flex-1">
+                            <input 
+                              type="number"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.packageDimensions?.height || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                packageDimensions: { ...formData.packageDimensions, height: parseFloat(e.target.value) || 0 }
+                              })}
+                              placeholder="H"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
@@ -1082,13 +1175,13 @@ const CreateEbayListing = () => {
                      <div className="p-3 bg-white rounded-xl border border-slate-200">
                         <p className="text-[8px] font-bold text-slate-400 uppercase">Weight</p>
                         <p className="text-[10px] font-black text-slate-700">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.packageWeight?.lbs || 0}lb {rules.find(r => (r._id || r.id) === formData.selectedRule)?.packageWeight?.oz || 0}oz
+                          {formData.packageWeight?.lbs || 0}lb {formData.packageWeight?.oz || 0}oz
                         </p>
                      </div>
                      <div className="p-3 bg-white rounded-xl border border-slate-200">
                         <p className="text-[8px] font-bold text-slate-400 uppercase">Dimensions</p>
                         <p className="text-[10px] font-black text-slate-700">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.packageDimensions?.length || 0}x{rules.find(r => (r._id || r.id) === formData.selectedRule)?.packageDimensions?.width || 0}x{rules.find(r => (r._id || r.id) === formData.selectedRule)?.packageDimensions?.height || 0}
+                          {formData.packageDimensions?.length || 0}x{formData.packageDimensions?.width || 0}x{formData.packageDimensions?.height || 0}
                         </p>
                      </div>
                    </div>
