@@ -421,6 +421,10 @@ exports.publishListing = async (req, res) => {
       }
     };
 
+    if (listing.conditionNote) {
+      inventoryItemData.conditionDescription = listing.conditionNote;
+    }
+
     if (packageWeightAndSize.weight || packageWeightAndSize.dimensions) {
       inventoryItemData.packageWeightAndSize = packageWeightAndSize;
     }
