@@ -748,7 +748,7 @@ const CreateEbayListing = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-650" /> Select AI Model
+                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
                     </label>
                     <SearchableDropdown 
                       value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
@@ -760,7 +760,7 @@ const CreateEbayListing = () => {
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-650" /> Select AI Listing Rule
+                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
                     </label>
                     <SearchableDropdown 
                       value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
@@ -785,7 +785,7 @@ const CreateEbayListing = () => {
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-650" /> Product Condition
+                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
                     </label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
@@ -879,7 +879,7 @@ const CreateEbayListing = () => {
                     </div>
                     <div className="p-5 bg-indigo-50/30 rounded-[2rem] border border-indigo-100/50 space-y-5">
                       <div className="flex items-center gap-2 pb-1 border-b border-indigo-100/40">
-                        <Sparkles size={16} className="text-indigo-650 animate-pulse" />
+                        <Sparkles size={16} className="text-indigo-600 animate-pulse" />
                         <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">AI Settings & Regeneration</h4>
                       </div>
 
@@ -919,7 +919,7 @@ const CreateEbayListing = () => {
                           type="button"
                           onClick={startAIFetch}
                           disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
-                          className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition-all shadow-md shadow-indigo-100 disabled:opacity-50 mt-2 cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition-all shadow-md shadow-indigo-100 disabled:opacity-50 mt-2 cursor-pointer"
                         >
                           {loading ? (
                             <>
@@ -1387,7 +1387,7 @@ const CreateEbayListing = () => {
                                 e.stopPropagation();
                                 deleteImage(i);
                               }}
-                              className="p-1.5 bg-red-650/80 backdrop-blur-sm rounded-xl text-white hover:bg-red-600 transition-colors shadow-sm"
+                              className="p-1.5 bg-red-600/80 backdrop-blur-sm rounded-xl text-white hover:bg-red-600 transition-colors shadow-sm"
                               title="Delete Image"
                             >
                               <Trash2 size={12} />
@@ -1510,7 +1510,7 @@ const CreateEbayListing = () => {
           
           <div className="flex items-center gap-4">
             {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
                 <Loader2 size={12} className="animate-spin text-indigo-500" />
                 {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
               </span>
@@ -1528,7 +1528,7 @@ const CreateEbayListing = () => {
             <button 
               onClick={nextStep}
               disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
-              className="flex items-center gap-2 px-8 py-3 bg-indigo-650 text-white rounded-2xl font-bold text-sm hover:bg-indigo-750 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
             >
               {loading ? (
                 <>Working...</>

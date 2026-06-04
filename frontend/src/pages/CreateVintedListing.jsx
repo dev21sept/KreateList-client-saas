@@ -270,7 +270,7 @@ const BrandSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sea
           )}
           {!loading && filteredOptions.length === 0 && (
             <div 
-              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer text-xs font-bold text-slate-500"
               onClick={() => {
                 onSelect(searchTerm);
                 setIsOpen(false);
@@ -356,7 +356,7 @@ const ColorSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sea
           )}
           {!loading && filteredOptions.length === 0 && (
             <div 
-              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer text-xs font-bold text-slate-500"
               onClick={() => {
                 onSelect(searchTerm);
                 setIsOpen(false);
@@ -442,7 +442,7 @@ const SizeSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sear
           )}
           {!loading && filteredOptions.length === 0 && (
             <div 
-              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-650 transition-colors cursor-pointer text-xs font-bold text-slate-500"
+              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer text-xs font-bold text-slate-500"
               onClick={() => {
                 onSelect(searchTerm);
                 setIsOpen(false);
@@ -1099,7 +1099,7 @@ const CreateVintedListing = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-650" /> Select AI Model
+                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
                     </label>
                     <SearchableDropdown 
                       value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
@@ -1111,7 +1111,7 @@ const CreateVintedListing = () => {
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-650" /> Select AI Listing Rule
+                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
                     </label>
                     <SearchableDropdown 
                       value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
@@ -1124,7 +1124,7 @@ const CreateVintedListing = () => {
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-650" /> Product Condition
+                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
                     </label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
@@ -1324,7 +1324,7 @@ const CreateVintedListing = () => {
                       categoryFields.measurements_field_visibility) && (
                       <div className="p-6 bg-slate-50/50 border border-slate-100 rounded-[2rem] space-y-4">
                         <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60">
-                          <Sparkles size={14} className="text-indigo-650" />
+                          <Sparkles size={14} className="text-indigo-600" />
                           <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-wider">Additional Category Fields</h4>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1439,7 +1439,7 @@ const CreateVintedListing = () => {
             >
               <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-650" />
+                  <CheckCircle2 className="w-5 h-5 text-indigo-600" />
                   <span className="text-xs font-bold text-indigo-900">Your Vinted listing is ready to be saved as a draft.</span>
                 </div>
 
@@ -1447,7 +1447,7 @@ const CreateVintedListing = () => {
                   <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm">{formData.title}</h3>
-                      <p className="text-[10px] text-indigo-650 font-bold uppercase mt-0.5 tracking-wider">{formData.category}</p>
+                      <p className="text-[10px] text-indigo-600 font-bold uppercase mt-0.5 tracking-wider">{formData.category}</p>
                     </div>
                     <div className="text-right">
                       <span className="text-lg font-black text-slate-950">${formData.price}</span>
@@ -1549,7 +1549,7 @@ const CreateVintedListing = () => {
 
           <div className="flex items-center gap-4">
             {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
                 <Loader2 size={12} className="animate-spin text-indigo-500" />
                 {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
               </span>
