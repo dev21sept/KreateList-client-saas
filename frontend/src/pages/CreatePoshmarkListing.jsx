@@ -646,9 +646,17 @@ const CreatePoshmarkListing = () => {
             ? savedListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
             : '';
 
+          const token = localStorage.getItem('token');
+          const backendUrl = import.meta.env.MODE === 'production'
+            ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+            : 'http://localhost:5000/api';
+
           window.postMessage({
             action: 'ELISTER_LIST_ITEM_TRIGGER',
             data: {
+              listingId: savedListing._id,
+              token,
+              backendUrl,
               title: savedListing.title,
               description: plainDesc,
               brand: savedListing.brand || "",

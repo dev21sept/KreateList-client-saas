@@ -833,8 +833,36 @@ async function executePoshmarkUpload(productData) {
       throw new Error(`Listing status is not published (current status: ${finalStatus}).`);
     }
     
-    updateStatus("Success! Listing published successfully.", 100);
+    updateStatus("Success! Listing published successfully.", 95);
     overlay.style.border = "1px solid #2ed573";
+
+    // Call eLister backend to update status to 'published'
+    if (productData.listingId && productData.token && productData.backendUrl) {
+      console.log('[Elister Extension] Updating database status to published for ID:', productData.listingId);
+      try {
+        const updateRes = await fetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
+          method: 'PUT',
+          headers: {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${productData.token}`
+          },
+          body: JSON.stringify({
+            status: 'published',
+            poshmarkUrl: `https://poshmark.com/listing/${draftId}`,
+            poshmarkListingId: draftId
+          })
+        });
+        if (updateRes.ok) {
+          console.log('[Elister Extension] Successfully updated listing status in eLister database!');
+        } else {
+          console.error('[Elister Extension] Failed to update eLister database status:', updateRes.status);
+        }
+      } catch (dbErr) {
+        console.error('[Elister Extension] Error updating database:', dbErr);
+      }
+    }
+
     await delay(1800);
     
     // Redirect closet to verify
