@@ -154,7 +154,7 @@ exports.analyzeListing = async (req, res) => {
             type: "image_url",
             image_url: { 
                 url: url,
-                detail: "low"
+                detail: "auto"
             }
         }));
 
