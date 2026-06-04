@@ -143,6 +143,20 @@ exports.analyzeListing = async (req, res) => {
             return res.status(400).json({ error: "No images provided for analysis." });
         }
 
+        // Check for duplicate listing by first image
+        const { findDuplicateListing } = require('../utils/duplicateChecker');
+        const duplicate = await findDuplicateListing(req.user.id, platform, images[0]);
+        if (duplicate) {
+            console.log(`[AI] Duplicate listing found. ID: ${duplicate._id}, Title: "${duplicate.title}"`);
+            return res.status(409).json({
+                success: false,
+                isDuplicate: true,
+                message: "This product has already been imported for eBay.",
+                listingId: duplicate._id,
+                title: duplicate.title
+            });
+        }
+
         // Compress and resize base64 images before sending to OpenAI
         console.log(`[AI] Resizing and compressing ${images.length} images...`);
         const compressedImages = await Promise.all(

@@ -554,7 +554,14 @@ const CreatePoshmarkListing = () => {
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
-      toast.error("Failed to analyze listing with AI. Check console for details.");
+      if (error.response?.status === 409 && error.response.data?.isDuplicate) {
+        toast.warning(`Product already exists: "${error.response.data.title || 'Untitled'}". Redirecting...`);
+        setTimeout(() => {
+          navigate(`/listings?highlight=${error.response.data.listingId}`);
+        }, 1500);
+      } else {
+        toast.error("Failed to analyze listing with AI. Check console for details.");
+      }
     } finally {
       setLoading(false);
     }

@@ -134,6 +134,20 @@ exports.depopAnalyzeListing = async (req, res) => {
             return res.status(400).json({ error: "No images provided for analysis." });
         }
 
+        // Check for duplicate listing by first image
+        const { findDuplicateListing } = require('../utils/duplicateChecker');
+        const duplicate = await findDuplicateListing(req.user.id, 'depop', images[0]);
+        if (duplicate) {
+            console.log(`[Depop AI] Duplicate listing found. ID: ${duplicate._id}, Title: "${duplicate.title}"`);
+            return res.status(409).json({
+                success: false,
+                isDuplicate: true,
+                message: "This product has already been imported for Depop.",
+                listingId: duplicate._id,
+                title: duplicate.title
+            });
+        }
+
         console.log(`[Depop AI] Resizing and compressing ${images.length} images...`);
         const compressedImages = await Promise.all(
             images.map(img => compressImageIfBase64(img))

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -57,6 +57,8 @@ const setCache = (key, data) => {
 
 const Listings = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight');
   const { toast, confirm } = useNotification();
   const [selectedListings, setSelectedListings] = useState([]);
   const [listings, setListings] = useState([]);
@@ -90,6 +92,17 @@ const Listings = () => {
       setActiveImage(null);
     }
   }, [previewListing]);
+
+  useEffect(() => {
+    if (highlightId && listings.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`listing-row-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+    }
+  }, [highlightId, listings]);
 
   const filteredListings = listings.filter((listing) => {
     const term = searchTerm.toLowerCase();
@@ -447,7 +460,15 @@ const Listings = () => {
                   </tr>
                 ) : filteredListings.length > 0 ? (
                   filteredListings.map((listing) => (
-                    <tr key={listing._id} className="hover:bg-slate-50/50 transition-all group">
+                    <tr 
+                      key={listing._id} 
+                      id={`listing-row-${listing._id}`}
+                      className={`transition-all group ${
+                        listing._id === highlightId 
+                          ? 'bg-indigo-50 border-l-4 border-l-indigo-600 ring-1 ring-indigo-100' 
+                          : 'hover:bg-slate-50/50'
+                      }`}
+                    >
                       <td className="px-6 py-4">
                         <input type="checkbox" className="rounded text-indigo-600" />
                       </td>
