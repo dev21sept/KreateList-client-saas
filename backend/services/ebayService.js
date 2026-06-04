@@ -146,7 +146,7 @@ async function createOrReplaceInventoryItem(token, sku, productData) {
         });
         return response.data;
     } catch (error) {
-        console.error(`Error creating inventory item ${sku}:`, error.response?.data || error.message);
+        console.error(`Error creating inventory item ${sku}:`, error.response?.data ? JSON.stringify(error.response.data, null, 2) : error.message);
         throw error;
     }
 }

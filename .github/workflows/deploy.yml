@@ -81,6 +81,10 @@ jobs:
           
           # SSH, extract new backend, npm install, PM2 restart
           ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
+            # Load NVM (Node Version Manager) paths for non-interactive shell
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
             cd ~/elister
             
             # Extract new backend files
