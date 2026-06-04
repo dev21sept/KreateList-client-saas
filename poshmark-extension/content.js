@@ -568,7 +568,7 @@ async function executePoshmarkUpload(productData) {
       filteredColors = productData.colors.filter(c => {
         const norm = typeof c === 'string' ? c.trim() : '';
         return allowedColors.has(norm);
-      });
+      }).slice(0, 2);
     }
 
     // Map and sanitize condition

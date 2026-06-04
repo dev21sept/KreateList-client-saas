@@ -283,7 +283,7 @@ Examples:
  
 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' (MSRP / original retail price when brand new) in USD.
 5. Attribute Extraction:
-   - Identify the primary 'color'(s) of the item.
+   - Identify the primary 'color'(s) of the item. Use ONLY colors from this allowed Poshmark color list: White, Black, Red, Blue, Green, Yellow, Pink, Purple, Brown, Gray, Orange, Beige, Navy, Teal, Maroon, Olive, Gold, Silver. You can select at most 2 colors. Return them as a comma-separated string (e.g., 'Red, Blue').
    - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.
    - Identify the 'size' of the item if visible in the images or estimate it if not.
  
@@ -297,7 +297,7 @@ Response ONLY as JSON: {
   "category": "Poshmark category path (e.g. Women > Shoes > Heels)",
   "selling_price": 0.00,
   "original_price": 0.00,
-  "color": "Primary color(s)",
+  "color": "Primary color(s) (comma-separated, max 2 from allowed list)",
   "style_tag": "style tags (comma-separated)",
   "size": "Size"
 }`
@@ -382,7 +382,21 @@ Response ONLY as JSON: {
                 category_name: normalizedCategory,
                 price: finalData.selling_price || finalData.price,
                 originalPrice: finalData.original_price || '',
-                color: finalData.color || '',
+                color: (() => {
+                    const allowedColors = ['White', 'Black', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Brown', 'Gray', 'Orange', 'Beige', 'Navy', 'Teal', 'Maroon', 'Olive', 'Gold', 'Silver'];
+                    const matchedColors = [];
+                    if (finalData.color) {
+                        const rawColors = String(finalData.color).split(/[\s,]+/);
+                        for (const rc of rawColors) {
+                            const clean = rc.trim().toLowerCase();
+                            const matched = allowedColors.find(ac => ac.toLowerCase() === clean);
+                            if (matched && !matchedColors.includes(matched)) {
+                                matchedColors.push(matched);
+                            }
+                        }
+                    }
+                    return matchedColors.slice(0, 2).join(', ');
+                })(),
                 styleTag: finalData.style_tag || '',
                 size: finalData.size || '',
                 sku: finalData.sku
