@@ -6,7 +6,8 @@ const {
   updateListing,
   deleteListing,
   publishListing,
-  getDashboardStats
+  getDashboardStats,
+  checkDuplicateListing
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -15,6 +16,7 @@ const router = express.Router();
 
 router.use(protect);
 
+router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 
 router.route('/')

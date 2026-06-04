@@ -54,6 +54,7 @@ export const listingService = {
   delete: (id) => API.delete(`/listings/${id}`),
   publish: (id) => API.post(`/listings/${id}/publish`),
   getStats: () => API.get('/listings/stats'),
+  checkDuplicate: (data) => API.post('/listings/check-duplicate', data),
 };
 
 export const ruleService = {

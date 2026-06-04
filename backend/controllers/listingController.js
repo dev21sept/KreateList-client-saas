@@ -542,3 +542,31 @@ exports.publishListing = async (req, res) => {
   }
 };
 
+// @desc    Check for duplicate listing by first image content
+// @route   POST /api/listings/check-duplicate
+// @access  Private
+exports.checkDuplicateListing = async (req, res) => {
+  try {
+    const { image, platform } = req.body;
+    if (!image || !platform) {
+      return res.status(400).json({ success: false, message: 'Image and platform are required.' });
+    }
+
+    const { findDuplicateListing } = require('../utils/duplicateChecker');
+    const duplicate = await findDuplicateListing(req.user.id, platform, image);
+    
+    if (duplicate) {
+      return res.status(200).json({
+        success: true,
+        isDuplicate: true,
+        listingId: duplicate._id,
+        title: duplicate.title
+      });
+    }
+
+    res.status(200).json({ success: true, isDuplicate: false });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+

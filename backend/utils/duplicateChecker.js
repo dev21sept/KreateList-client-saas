@@ -1,12 +1,13 @@
 const Listing = require('../models/Listing');
-const { normalizeSingleImage } = require('./imageProcessor');
+const { normalizeProductImages } = require('./imageProcessor');
 
 async function findDuplicateListing(userId, platform, newFirstImage) {
     if (!newFirstImage) return null;
 
     try {
-        const normalizedNewImg = await normalizeSingleImage(newFirstImage);
-        if (!normalizedNewImg) return null;
+        const normalizedArr = await normalizeProductImages([newFirstImage]);
+        if (normalizedArr.length === 0) return null;
+        const normalizedNewImg = normalizedArr[0];
 
         // Find listings for this user and this platform
         const listings = await Listing.find({ user: userId, platform: platform }).select('images title');

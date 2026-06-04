@@ -519,6 +519,25 @@ const CreatePoshmarkListing = () => {
     }
 
     setLoading(true);
+    
+    // Check for duplicates first before transitioning step or querying OpenAI
+    try {
+      const dupRes = await listingService.checkDuplicate({
+        image: formData.images[0],
+        platform: 'poshmark'
+      });
+      if (dupRes.data?.success && dupRes.data?.isDuplicate) {
+        toast.warning(`Product already exists: "${dupRes.data.title || 'Untitled'}". Redirecting...`);
+        setTimeout(() => {
+          navigate(`/listings?highlight=${dupRes.data.listingId}`);
+        }, 1500);
+        setLoading(false);
+        return;
+      }
+    } catch (dupErr) {
+      console.warn("Duplicate check failed, proceeding to scan:", dupErr);
+    }
+
     setStep(2);
     
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
