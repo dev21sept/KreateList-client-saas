@@ -365,6 +365,104 @@ function detectSite() {
 
 
 
+// Helper: Map Poshmark category paths (e.g. "Men > Shirts > Casual Button Down Shirts") to hex IDs
+function resolvePoshmarkCategory(path) {
+  const defaultRes = {
+    department: '01008c10d97b4e1245005764', // Men
+    category: '07008c10d97b4e1245005764', // Shirts
+    subcategories: []
+  };
+
+  if (!path || typeof path !== 'string') return defaultRes;
+
+  const parts = path.split('>').map(p => p.trim());
+  if (parts.length === 0) return defaultRes;
+
+  // Resolve Department
+  const deptName = parts[0].toLowerCase();
+  const DEPARTMENTS = {
+    'men': '01008c10d97b4e1245005764',
+    'women': '01008c10d97b4e1245005763',
+    'kids': '01008c10d97b4e1245005765',
+    'home': '5c464bf26e4757c3d221aa90',
+    'pets': '60abfaa1a415ff1c2ee1df39',
+    'electronics': '60abfa98bfd32f1465e902b7',
+    'beauty': '5d1cb37951e70e1762c90bc7'
+  };
+  const deptId = DEPARTMENTS[deptName] || DEPARTMENTS['men'];
+
+  if (parts.length < 2) {
+    return { department: deptId, category: '', subcategories: [] };
+  }
+
+  const catName = parts[1];
+  const subcatName = parts[2] || '';
+
+  // 1. Try to find the exact hex IDs dynamically from the Poshmark page's __NEXT_DATA__ taxonomy prop
+  try {
+    const nextDataEl = document.getElementById('__NEXT_DATA__');
+    if (nextDataEl) {
+      const nextData = JSON.parse(nextDataEl.textContent);
+      
+      let foundCategory = null;
+      let foundSubcategory = null;
+      
+      const scanObject = (obj) => {
+        if (!obj || typeof obj !== 'object') return;
+        
+        if (obj.id && obj.display && typeof obj.id === 'string' && obj.id.length === 24) {
+          if (obj.display.toLowerCase() === catName.toLowerCase()) {
+            foundCategory = obj.id;
+          }
+          if (subcatName && obj.display.toLowerCase() === subcatName.toLowerCase()) {
+            foundSubcategory = obj.id;
+          }
+        }
+        
+        for (const key of Object.keys(obj)) {
+          scanObject(obj[key]);
+        }
+      };
+      
+      scanObject(nextData);
+      
+      if (foundCategory) {
+        return {
+          department: deptId,
+          category: foundCategory,
+          subcategories: foundSubcategory ? [foundSubcategory] : []
+        };
+      }
+    }
+  } catch(e) {
+    console.warn("[Elister] Failed to parse __NEXT_DATA__ for category mapping:", e);
+  }
+
+  // 2. Hardcoded fallback list for standard categories if __NEXT_DATA__ search fails
+  const commonCategories = {
+    'shirts': '07008c10d97b4e1245005764',
+    'tops': '07008c10d97b4e1245005764',
+    'shoes': '03008c10d97b4e1245005764',
+    'bags': '02008c10d97b4e1245005764',
+    'jeans': '04008c10d97b4e1245005764',
+    'pants': '05008c10d97b4e1245005764',
+    'shorts': '06008c10d97b4e1245005764',
+    'jackets & coats': '08008c10d97b4e1245005764',
+    'accessories': '09008c10d97b4e1245005764',
+    'dresses': '0b008c10d97b4e1245005764',
+    'skirts': '0c008c10d97b4e1245005764',
+    'sweaters': '0d008c10d97b4e1245005764'
+  };
+  
+  const mappedCatId = commonCategories[catName.toLowerCase()] || defaultRes.category;
+  
+  return {
+    department: deptId,
+    category: mappedCatId,
+    subcategories: []
+  };
+}
+
 // -------------------------------------------------------------
 // Core Publisher: 4-Step High-Speed Poshmark API Uploader
 // -------------------------------------------------------------
@@ -581,6 +679,22 @@ async function executePoshmarkUpload(productData) {
       return 'like_new'; // Default fallback
     };
 
+    // Resolve category/department hex IDs if they are sent as path strings
+    let resolvedDeptId = productData.departmentId;
+    let resolvedCatId = productData.categoryId;
+    let resolvedSubcatIds = productData.subcategoryIds || [];
+
+    const isHex24 = (str) => typeof str === 'string' && /^[a-f0-9]{24}$/i.test(str);
+
+    if (!isHex24(resolvedCatId)) {
+      console.log('[Elister] Category ID is not a hex ID. Resolving category path:', resolvedCatId);
+      const resolved = resolvePoshmarkCategory(resolvedCatId || productData.category);
+      resolvedDeptId = resolved.department;
+      resolvedCatId = resolved.category;
+      resolvedSubcatIds = resolved.subcategories;
+      console.log('[Elister] Resolved category path to:', { resolvedDeptId, resolvedCatId, resolvedSubcatIds });
+    }
+
     const savePayload = {
       post: {
         title: productData.title,
@@ -598,9 +712,9 @@ async function executePoshmarkUpload(productData) {
           currency_symbol: "$"
         },
         catalog: {
-          department: productData.departmentId,
-          category: productData.categoryId,
-          category_features: productData.subcategoryIds || []
+          department: resolvedDeptId,
+          category: resolvedCatId,
+          category_features: resolvedSubcatIds
         },
         colors: filteredColors,
         style_tags: productData.styleTags || [],
