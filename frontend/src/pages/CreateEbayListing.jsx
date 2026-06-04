@@ -231,7 +231,7 @@ const CreateEbayListing = () => {
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
   const [aspects, setAspects] = useState([]);
-  const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [] });
+  const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
   const [formData, setFormData] = useState({
     images: [],
     selectedRule: '',
@@ -250,7 +250,8 @@ const CreateEbayListing = () => {
     packageDimensions: { length: '', width: '', height: '' },
     fulfillmentPolicyId: '',
     paymentPolicyId: '',
-    returnPolicyId: ''
+    returnPolicyId: '',
+    locationKey: ''
   });
 
   const modelOptions = useMemo(() => [
@@ -293,7 +294,8 @@ const CreateEbayListing = () => {
           setEbayPolicies({
             fulfillment: (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name })),
             payment: (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name })),
-            returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name }))
+            returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name })),
+            locations: (response.data.data.locations || []).map(l => ({ id: l.merchantLocationKey, label: `${l.name} (${l.location?.address?.city || ''})` }))
           });
         }
       } catch (error) {
@@ -329,7 +331,8 @@ const CreateEbayListing = () => {
               packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' },
               fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
               paymentPolicyId: listing.paymentPolicyId || '',
-              returnPolicyId: listing.returnPolicyId || ''
+              returnPolicyId: listing.returnPolicyId || '',
+              locationKey: listing.locationKey || ''
             });
 
             if (listing.categoryId) {
@@ -475,6 +478,12 @@ const CreateEbayListing = () => {
     return ebayPolicies.returns.find(p => p.id === policyId)?.label || policyId || 'Default';
   }, [formData.returnPolicyId, formData.selectedRule, rules, ebayPolicies.returns]);
 
+  const selectedLocationLabel = useMemo(() => {
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    const locId = formData.locationKey || selectedRuleObj?.locationKey || '';
+    return ebayPolicies.locations.find(l => l.id === locId)?.label || locId || 'None';
+  }, [formData.locationKey, formData.selectedRule, rules, ebayPolicies.locations]);
+
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
     const newFiles = [...files];
@@ -551,6 +560,7 @@ const CreateEbayListing = () => {
       fulfillmentPolicyId: formData.fulfillmentPolicyId,
       paymentPolicyId: formData.paymentPolicyId,
       returnPolicyId: formData.returnPolicyId,
+      locationKey: formData.locationKey,
       status: 'draft',
       platform
     };
@@ -593,6 +603,7 @@ const CreateEbayListing = () => {
       fulfillmentPolicyId: formData.fulfillmentPolicyId,
       paymentPolicyId: formData.paymentPolicyId,
       returnPolicyId: formData.returnPolicyId,
+      locationKey: formData.locationKey,
       status: 'draft',
       platform
     };
@@ -732,7 +743,8 @@ const CreateEbayListing = () => {
                           packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' },
                           fulfillmentPolicyId: rule?.fulfillmentPolicyId || '',
                           paymentPolicyId: rule?.paymentPolicyId || '',
-                          returnPolicyId: rule?.returnPolicyId || ''
+                          returnPolicyId: rule?.returnPolicyId || '',
+                          locationKey: rule?.locationKey || ''
                         });
                       }}
                       options={ruleOptions}
@@ -1221,6 +1233,15 @@ const CreateEbayListing = () => {
                           onSelect={(opt) => setFormData({ ...formData, returnPolicyId: opt.id })}
                           options={ebayPolicies.returns}
                           placeholder="Select Return Policy..."
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Item Location</span>
+                        <SearchableDropdown
+                          value={selectedLocationLabel}
+                          onSelect={(opt) => setFormData({ ...formData, locationKey: opt.id })}
+                          options={ebayPolicies.locations}
+                          placeholder="Select Item Location..."
                         />
                      </div>
                    </div>

@@ -44,6 +44,7 @@ const listingSchema = new mongoose.Schema({
   fulfillmentPolicyId: String,
   paymentPolicyId: String,
   returnPolicyId: String,
+  locationKey: String,
   itemSpecifics: {
     type: Map,
     of: [String]

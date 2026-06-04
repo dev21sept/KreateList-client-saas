@@ -265,31 +265,34 @@ exports.publishListing = async (req, res) => {
     console.log(`[EBAY PUBLISH] User connected, token resolved. Starting publish for SKU: ${listing.sku}`);
 
     // 2. Ensure merchant location exists on eBay
-    let locationKey = 'default-location';
+    let locationKey = listing.locationKey || 'default-location';
     try {
       const locations = await ebayService.getLocations(token);
-      if (locations && locations.length > 0) {
-        locationKey = locations[0].merchantLocationKey;
-      } else {
-        const defaultLocationData = {
-          location: {
-            address: {
-              addressLine1: '123 Main St',
-              city: 'San Jose',
-              stateOrProvince: 'CA',
-              postalCode: '95125',
-              country: 'US'
-            }
-          },
-          locationWebUrl: 'https://elister.ai',
-          name: 'Default Location',
-          merchantLocationStatus: 'ENABLED',
-          locationTypes: ['STORE']
-        };
-        await ebayService.createOrUpdateLocation(token, locationKey, defaultLocationData);
+      const locationExists = locations && locations.some(l => l.merchantLocationKey === locationKey);
+      if (!locationExists) {
+        if (locations && locations.length > 0) {
+          locationKey = locations[0].merchantLocationKey;
+        } else {
+          const defaultLocationData = {
+            location: {
+              address: {
+                addressLine1: '123 Main St',
+                city: 'San Jose',
+                stateOrProvince: 'CA',
+                postalCode: '95125',
+                country: 'US'
+              }
+            },
+            locationWebUrl: 'https://elister.ai',
+            name: 'Default Location',
+            merchantLocationStatus: 'ENABLED',
+            locationTypes: ['STORE']
+          };
+          await ebayService.createOrUpdateLocation(token, locationKey, defaultLocationData);
+        }
       }
     } catch (locErr) {
-      console.warn('[EBAY PUBLISH] Merchant location check failed, attempting to use default-location key.', locErr.message);
+      console.warn('[EBAY PUBLISH] Merchant location check failed, attempting to use locationKey: ' + locationKey, locErr.message);
     }
 
     // 3. Upload images to eBay Picture Services (EPS)
