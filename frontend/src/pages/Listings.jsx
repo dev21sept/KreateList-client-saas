@@ -812,58 +812,48 @@ const Listings = () => {
                 Close
               </button>
               {previewListing.platform === 'poshmark' && (
-                previewListing.status === 'published' && previewListing.poshmarkUrl ? (
-                  <a 
-                    href={previewListing.poshmarkUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5"
-                  >
-                    View on Poshmark
-                  </a>
-                ) : (
-                  <button 
-                    onClick={() => handlePoshmarkPublish(previewListing)}
-                    disabled={poshmarkPublishingId === previewListing._id}
-                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                  >
-                    {poshmarkPublishingId === previewListing._id ? (
-                      <>
-                        <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                        Listing...
-                      </>
-                    ) : (
-                      'List to Poshmark (API)'
-                    )}
-                  </button>
-                )
+                <button 
+                  onClick={() => {
+                    if (previewListing.status === 'published' && previewListing.poshmarkUrl) {
+                      window.open(previewListing.poshmarkUrl, '_blank');
+                    } else {
+                      handlePoshmarkPublish(previewListing);
+                    }
+                  }}
+                  disabled={poshmarkPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {poshmarkPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to Poshmark (API)'
+                  )}
+                </button>
               )}
               {previewListing.platform === 'ebay' && (
-                previewListing.status === 'published' && previewListing.ebayUrl ? (
-                  <a 
-                    href={previewListing.ebayUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5"
-                  >
-                    View on eBay
-                  </a>
-                ) : (
-                  <button 
-                    onClick={() => handlePublish(previewListing._id)}
-                    disabled={publishingId === previewListing._id}
-                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                  >
-                    {publishingId === previewListing._id ? (
-                      <>
-                        <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                        Listing...
-                      </>
-                    ) : (
-                      'List to eBay (API)'
-                    )}
-                  </button>
-                )
+                <button 
+                  onClick={() => {
+                    if (previewListing.status === 'published' && previewListing.ebayUrl) {
+                      window.open(previewListing.ebayUrl, '_blank');
+                    } else {
+                      handlePublish(previewListing._id);
+                    }
+                  }}
+                  disabled={publishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {publishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to eBay (API)'
+                  )}
+                </button>
               )}
               {previewListing.platform === 'vinted' && previewListing.status === 'published' && previewListing.vintedUrl && (
                 <a 
