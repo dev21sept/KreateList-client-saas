@@ -174,7 +174,13 @@ function mapConditionIdToEnum(conditionId) {
   if (id.startsWith('2750')) {
     return 'LIKE_NEW';
   }
-  if (id.startsWith('3000') || id.startsWith('4000') || id.startsWith('5000')) {
+  if (id.startsWith('3000')) {
+    return 'USED_EXCELLENT';
+  }
+  if (id.startsWith('4000')) {
+    return 'USED_VERY_GOOD';
+  }
+  if (id.startsWith('5000')) {
     return 'USED_GOOD';
   }
   if (id.startsWith('6000')) {
