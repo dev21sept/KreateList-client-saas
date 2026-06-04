@@ -640,9 +640,16 @@ async function executePoshmarkUpload(productData) {
 
     let saveData;
     let saveSuccess = false;
+    let useCondition = true;
     const maxRetries = 5;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`[Elister] Save details attempt ${attempt} of ${maxRetries}...`);
+      
+      const currentPayload = JSON.parse(JSON.stringify(savePayload));
+      if (!useCondition) {
+        delete currentPayload.post.condition;
+      }
+
       const saveRes = await fetch(`/vm-rest/posts/${draftId}?pm_version=2026.23.01`, {
         method: 'POST',
         headers: {
@@ -653,20 +660,25 @@ async function executePoshmarkUpload(productData) {
         },
         credentials: 'include',
         mode: 'cors',
-        body: JSON.stringify(savePayload)
+        body: JSON.stringify(currentPayload)
       });
-      let saveData;
+      let responseData;
       try {
-        saveData = await saveRes.json();
+        responseData = await saveRes.json();
       } catch (parseErr) {
         if (!saveRes.ok) throw new Error(`Failed to save product attributes. Status: ${saveRes.status}`);
         throw new Error(`Failed to parse save details response. Server returned status ${saveRes.status}: ${parseErr.message}`);
       }
-      if (saveData && saveData.error) {
-        const errMsg = saveData.error.errorMessage || saveData.error.userMessage || saveData.error.errorType || "";
+      if (responseData && responseData.error) {
+        const errMsg = responseData.error.errorMessage || responseData.error.userMessage || responseData.error.errorType || "";
         if (errMsg.includes("Error processing image") && attempt < maxRetries) {
           console.warn(`[Elister] Poshmark server still processing images. Retrying in 2.5 seconds...`);
           await delay(2500);
+          continue;
+        }
+        if (errMsg.toLowerCase().includes("invalid condition") && useCondition) {
+          console.warn(`[Elister] Poshmark returned invalid condition error: ${errMsg}. Retrying without condition field...`);
+          useCondition = false;
           continue;
         }
         throw new Error(errMsg || "Failed to save details.");
