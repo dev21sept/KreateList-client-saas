@@ -564,11 +564,11 @@ ${descriptionInstruction}
 5. Attribute Extraction:
    - Identify 'color'.
    - Identify 'size'.
-   - Identify at least 3 materials of the product if possible, formatted as a comma-separated list (e.g. Cotton, Polyester, Elastane).
+   - Identify the materials of the product. Use ONLY materials from this allowed list: Acrylic, Alpaca, Bamboo, Canvas, Cardboard, Cashmere, Ceramic, Chiffon, Corduroy, Cotton, Denim, Down, Elastane, Faux fur, Faux leather, Felt, Flannel, Fleece, Foam, Glass, Gold, Jute, Lace, Latex, Leather, Linen, Merino, Mesh, Metal, Mohair, Neoprene, Nylon, Paper, Patent leather, Plastic, Polyester, Porcelain, Rattan, Rayon, Rubber, Satin, Sequin, Silicone, Silk, Silver, Steel, Stone, Straw, Suede, Tulle, Tweed, Velour, Velvet, Wood, Wool. If the material is not explicitly visible or labeled in the images, you MUST estimate/approximate the most likely materials based on the product type (e.g. Cotton for a t-shirt, Denim for jeans). Return them as a comma-separated list of 1 to 3 materials (e.g., 'Cotton, Polyester'). DO NOT leave this empty.
    - If the product is a book, identify 'isbn', 'author', and 'book_title'.
    - If the product is a video game, identify 'video_game_rating'.
-   - If measurements are relevant (clothing, shoes, bags, etc.), extract 'measurements'.
-
+   - If measurements are relevant (clothing, shoes, bags, accessories, etc.), extract 'measurements'. Carefully check all product images for any measuring tapes, ruler lines, or visible measurements, and extract them accurately (e.g., 'Pit to pit: 21 in, Length: 28 in'). If there are no measurements visible in the images, you MUST estimate/approximate realistic measurements based on the item type and size (e.g., for a Size M shirt: 'Pit to pit: 20 in, Length: 27 in'). DO NOT leave this empty.
+ 
 Context: Gender: ${gender}.
 
 Response ONLY as JSON: {
@@ -583,12 +583,12 @@ Response ONLY as JSON: {
   "original_price": 0.00,
   "color": "Color",
   "size": "Size",
-  "material": "At least 3 primary materials of the product, comma-separated (e.g. Cotton, Polyester, Elastane)",
+  "material": "Primary materials of the product, comma-separated, max 3 from allowed list (e.g. Cotton, Polyester)",
   "isbn": "ISBN code if a book",
   "author": "Author name if a book",
   "book_title": "Book title if a book",
   "video_game_rating": "Rating if a video game (e.g. PEGI 3, ESRB Everyone, etc.)",
-  "measurements": "Measurements details if clothing/shoes/furniture (e.g. Pit to pit: 21 in, Length: 28 in)"
+  "measurements": "Measurements details if clothing/shoes/accessories (e.g. Pit to pit: 21 in, Length: 28 in)"
 }`
                         },
                         ...imageContent
@@ -758,12 +758,63 @@ Response ONLY as JSON:
                 color: finalData.color || '',
                 size: finalData.size || '',
                 sku: finalData.sku,
-                material: finalData.material || '',
+                material: (() => {
+                    const allowedMaterials = [
+                        'Acrylic', 'Alpaca', 'Bamboo', 'Canvas', 'Cardboard', 'Cashmere', 'Ceramic', 'Chiffon', 'Corduroy', 
+                        'Cotton', 'Denim', 'Down', 'Elastane', 'Faux fur', 'Faux leather', 'Felt', 'Flannel', 'Fleece', 
+                        'Foam', 'Glass', 'Gold', 'Jute', 'Lace', 'Latex', 'Leather', 'Linen', 'Merino', 'Mesh', 'Metal', 
+                        'Mohair', 'Neoprene', 'Nylon', 'Paper', 'Patent leather', 'Plastic', 'Polyester', 'Porcelain', 
+                        'Rattan', 'Rayon', 'Rubber', 'Satin', 'Sequin', 'Silicone', 'Silk', 'Silver', 'Steel', 'Stone', 
+                        'Straw', 'Suede', 'Tulle', 'Tweed', 'Velour', 'Velvet', 'Wood', 'Wool'
+                    ];
+                    const matchedMaterials = [];
+                    if (finalData.material) {
+                        const rawMaterials = String(finalData.material).split(/[\s,]+/);
+                        for (const rm of rawMaterials) {
+                            const clean = rm.trim().toLowerCase();
+                            const matched = allowedMaterials.find(am => am.toLowerCase() === clean);
+                            if (matched && !matchedMaterials.includes(matched)) {
+                                matchedMaterials.push(matched);
+                            }
+                        }
+                    }
+                    if (matchedMaterials.length === 0) {
+                        const pType = String(productType || '').toLowerCase();
+                        if (pType.includes('jean') || pType.includes('denim')) {
+                            matchedMaterials.push('Denim');
+                        } else if (pType.includes('jacket') || pType.includes('coat') || pType.includes('sweater')) {
+                            matchedMaterials.push('Polyester');
+                        } else {
+                            matchedMaterials.push('Cotton');
+                        }
+                    }
+                    return matchedMaterials.slice(0, 3).join(', ');
+                })(),
                 isbn: finalData.isbn || '',
                 author: finalData.author || '',
                 bookTitle: finalData.book_title || '',
                 videoGameRating: finalData.video_game_rating || '',
-                measurements: finalData.measurements || '',
+                measurements: (() => {
+                    let m = String(finalData.measurements || '').trim();
+                    if (!m) {
+                        const s = String(finalData.size || '').toUpperCase();
+                        const pType = String(productType || '').toLowerCase();
+                        if (pType.includes('shirt') || pType.includes('top') || pType.includes('hoodie') || pType.includes('sweater')) {
+                            if (s.includes('S')) m = "Pit to pit: 18 in, Length: 26 in";
+                            else if (s.includes('L')) m = "Pit to pit: 22 in, Length: 29 in";
+                            else if (s.includes('XL')) m = "Pit to pit: 24 in, Length: 30 in";
+                            else m = "Pit to pit: 20 in, Length: 27 in"; // Default Medium
+                        } else if (pType.includes('jean') || pType.includes('pant') || pType.includes('trouser')) {
+                            if (s.includes('S')) m = "Waist: 30 in, Inseam: 30 in";
+                            else if (s.includes('L')) m = "Waist: 34 in, Inseam: 32 in";
+                            else if (s.includes('XL')) m = "Waist: 36 in, Inseam: 32 in";
+                            else m = "Waist: 32 in, Inseam: 30 in";
+                        } else {
+                            m = "Standard measurements apply";
+                        }
+                    }
+                    return m;
+                })(),
                 categoryFields: {
                     brand_field_visibility: matchedTaxonomy.brand_field_visibility ?? false,
                     size_field_visibility: matchedTaxonomy.size_field_visibility ?? false,

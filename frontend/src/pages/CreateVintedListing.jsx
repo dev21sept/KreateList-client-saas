@@ -887,12 +887,12 @@ const CreateVintedListing = () => {
           category: result.category_name || result.category || '',
           categoryId: result.categoryId || '',
           sku: result.sku || '',
-          isbn: '', // Category-specific dynamic field, do not fill by AI
-          author: '', // Category-specific dynamic field, do not fill by AI
-          bookTitle: '', // Category-specific dynamic field, do not fill by AI
-          videoGameRating: '', // Category-specific dynamic field, do not fill by AI
-          measurements: '', // Category-specific dynamic field, do not fill by AI
-          material: '' // Fixed dropdown, do not fill by AI
+          isbn: result.isbn || '',
+          author: result.author || '',
+          bookTitle: result.bookTitle || '',
+          videoGameRating: result.videoGameRating || '',
+          measurements: result.measurements || '',
+          material: result.material || ''
         }));
         if (result.categoryFields) {
           setCategoryFields({
