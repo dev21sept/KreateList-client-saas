@@ -575,11 +575,8 @@ async function executePoshmarkUpload(productData) {
     const mapCondition = (cond) => {
       const c = String(cond || '').toLowerCase();
       if (c === 'nwt') return 'nwt';
-      if (c === 'nwot') return 'nwot';
-      if (c === 'like_new' || c === 'like new' || c === 'uln') return 'like_new';
-      if (c === 'euc') return 'euc';
-      if (c === 'vguc') return 'vguc';
-      if (c === 'guc') return 'guc';
+      if (c === 'like_new' || c === 'like new' || c === 'uln' || c === 'nwot') return 'like_new';
+      if (c === 'good' || c === 'euc' || c === 'vguc' || c === 'guc') return 'good';
       if (c === 'fair') return 'fair';
       return 'like_new'; // Default fallback
     };
