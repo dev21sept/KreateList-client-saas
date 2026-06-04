@@ -374,9 +374,11 @@ exports.publishListing = async (req, res) => {
       marketplaceId: 'EBAY_US',
       format: 'FIXED_PRICE',
       availableQuantity: listing.quantity || 1,
-      price: {
-        value: listing.price,
-        currency: 'USD'
+      pricingSummary: {
+        price: {
+          value: String(listing.price),
+          currency: 'USD'
+        }
       },
       listingDescription: listing.description,
       categoryId: listing.categoryId || '26315',
