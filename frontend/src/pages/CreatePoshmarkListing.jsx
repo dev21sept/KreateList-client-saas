@@ -18,7 +18,9 @@ import {
   Search,
   Eye,
   Code,
-  Trash2
+  Trash2,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { ruleService, aiService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -1084,36 +1086,74 @@ const CreatePoshmarkListing = () => {
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.1em]">Manage Image Order</h3>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">{formData.images.length} Photos</span>
                   </div>
-                  <Reorder.Group 
-                    axis="x" 
-                    values={formData.images} 
-                    onReorder={(newOrder) => setFormData(prev => ({ ...prev, images: newOrder }))}
-                    className="grid grid-cols-4 gap-4"
-                  >
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {formData.images.map((img, i) => (
-                      <Reorder.Item 
-                        key={img} 
-                        value={img}
-                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 cursor-grab active:cursor-grabbing"
+                      <div 
+                        key={img.substring(0, 100) + '-' + i} 
+                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 flex flex-col shadow-sm"
                       >
-                        <img src={img} className="w-full h-full object-cover pointer-events-none" alt="Product" />
-                        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteImage(i);
-                          }}
-                          className="absolute top-2 right-2 p-1.5 bg-rose-500/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 shadow-lg z-10"
-                          title="Delete Image"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        <img src={img} className="w-full h-full object-cover" alt={`Product ${i + 1}`} />
+                        
+                        {/* Control overlay */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3 z-10">
+                          <div className="flex justify-between items-start">
+                            <span className="bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[9px] font-bold">
+                              {i === 0 ? 'Cover' : `#${i + 1}`}
+                            </span>
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteImage(i);
+                              }}
+                              className="p-1.5 bg-rose-500/90 rounded-xl text-white hover:bg-rose-600 transition-colors shadow-sm"
+                              title="Delete Image"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          
+                          <div className="flex justify-center gap-2">
+                            <button
+                              type="button"
+                              disabled={i === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveImage(i, 'left');
+                              }}
+                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
+                                i === 0 
+                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
+                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
+                              }`}
+                              title="Move Left"
+                            >
+                              <ArrowLeft size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={i === formData.images.length - 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveImage(i, 'right');
+                              }}
+                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
+                                i === formData.images.length - 1 
+                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
+                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
+                              }`}
+                              title="Move Right"
+                            >
+                              <ArrowRight size={14} />
+                            </button>
+                          </div>
+                        </div>
                         {i === 0 && (
                           <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg pointer-events-none">Main</div>
                         )}
-                      </Reorder.Item>
+                      </div>
                     ))}
-                  </Reorder.Group>
+                  </div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8 space-y-8">
