@@ -239,14 +239,35 @@ exports.publishListing = async (req, res) => {
     // 3. Upload images to eBay Picture Services (EPS)
     const ebayImageUrls = [];
     if (listing.images && listing.images.length > 0) {
-      for (const imgUrl of listing.images) {
+      for (const rawImg of listing.images) {
+        const imgUrl = typeof rawImg === 'string' ? rawImg.trim() : '';
+        if (!imgUrl) continue;
+
+        const isUrl = /^https?:\/\//i.test(imgUrl);
+        const isDataUri = /^data:image\/[a-z0-9.+-]+;base64,/i.test(imgUrl);
+        const looksLikeRawBase64 = !isUrl && !isDataUri && imgUrl.length > 2000 && /^[a-z0-9+/=\r\n]+$/i.test(imgUrl);
+        const isBase64 = isDataUri || looksLikeRawBase64;
+
         try {
-          console.log(`[EBAY PUBLISH] Uploading image: ${imgUrl} to EPS`);
-          const uploadedUrl = await ebayService.uploadPictureFromUrl(token, imgUrl);
-          ebayImageUrls.push(uploadedUrl);
+          let uploadedUrl;
+          if (isUrl) {
+            console.log(`[EBAY PUBLISH] Uploading image from URL: ${imgUrl.substring(0, 100)} to EPS`);
+            uploadedUrl = await ebayService.uploadPictureFromUrl(token, imgUrl);
+          } else if (isBase64) {
+            console.log(`[EBAY PUBLISH] Uploading base64 image to EPS`);
+            uploadedUrl = await ebayService.uploadPicture(token, imgUrl);
+          } else {
+            console.warn(`[EBAY PUBLISH] Unknown image format, skipping.`);
+            continue;
+          }
+          if (uploadedUrl) {
+            ebayImageUrls.push(uploadedUrl);
+          }
         } catch (imgErr) {
-          console.error(`[EBAY PUBLISH] Failed to upload image ${imgUrl} to EPS:`, imgErr.message);
-          ebayImageUrls.push(imgUrl); // Fallback to original URL
+          console.error(`[EBAY PUBLISH] Failed to upload image to EPS:`, imgErr.message);
+          if (isUrl && imgUrl.length < 500) {
+            ebayImageUrls.push(imgUrl);
+          }
         }
       }
     }
@@ -297,7 +318,9 @@ exports.publishListing = async (req, res) => {
     }
 
     // 6. Create/Update Inventory Item
-    const sku = listing.sku || `SKU-${listing._id}`;
+    // FORCE UNIQUE SKU for every attempt to ensure fresh data and prevent caching issues on eBay
+    const timestamp = Date.now().toString().substring(8);
+    const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
     const inventoryItemData = {
       availability: {
         shipToLocationAvailability: {
@@ -319,6 +342,10 @@ exports.publishListing = async (req, res) => {
 
     console.log('[EBAY PUBLISH] Creating inventory item on eBay...');
     await ebayService.createOrReplaceInventoryItem(token, sku, inventoryItemData);
+
+    // Sleep for 2 seconds to allow eBay availability database to propagate and prevent "Availability not found"
+    console.log('[EBAY PUBLISH] Sleeping for 2 seconds for eBay inventory propagation...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 7. Resolve business policies
     let fulfillmentPolicyId, paymentPolicyId, returnPolicyId;
@@ -401,6 +428,7 @@ exports.publishListing = async (req, res) => {
 
     // 11. Save publication details in database
     listing.status = 'published';
+    listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
     listing.errorMessage = null;
