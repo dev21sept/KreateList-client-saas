@@ -7,7 +7,8 @@ const {
   deleteListing,
   publishListing,
   getDashboardStats,
-  checkDuplicateListing
+  checkDuplicateListing,
+  verifyListingLive
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -29,5 +30,6 @@ router.route('/:id')
   .delete(deleteListing);
 
 router.post('/:id/publish', requireActiveSubscription, publishListing);
+router.post('/:id/verify-live', verifyListingLive);
 
 module.exports = router;

@@ -570,3 +570,82 @@ exports.checkDuplicateListing = async (req, res) => {
   }
 };
 
+const axios = require('axios');
+
+async function checkUrlActive(url) {
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 5000,
+      validateStatus: (status) => status < 400
+    });
+
+    const finalUrl = response.request?.res?.responseUrl || url;
+    if (url.includes('/listing/') && !finalUrl.includes('/listing/')) {
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// @desc    Verify if a listing URL is active, and reset to draft if not found
+// @route   POST /api/listings/:id/verify-live
+// @access  Private
+exports.verifyListingLive = async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    let url = '';
+    if (listing.platform === 'poshmark') {
+      url = listing.poshmarkUrl;
+    } else if (listing.platform === 'ebay') {
+      url = listing.ebayUrl;
+    } else if (listing.platform === 'vinted') {
+      url = listing.vintedUrl;
+    } else if (listing.platform === 'depop') {
+      url = listing.depopUrl;
+    }
+
+    if (!url) {
+      listing.status = 'draft';
+      await listing.save();
+      return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
+    }
+
+    const isLive = await checkUrlActive(url);
+    if (!isLive) {
+      listing.status = 'draft';
+      if (listing.platform === 'poshmark') {
+        listing.poshmarkListingId = undefined;
+        listing.poshmarkUrl = undefined;
+      } else if (listing.platform === 'ebay') {
+        listing.ebayListingId = undefined;
+        listing.ebayUrl = undefined;
+      } else if (listing.platform === 'vinted') {
+        listing.vintedListingId = undefined;
+        listing.vintedUrl = undefined;
+      } else if (listing.platform === 'depop') {
+        listing.depopListingId = undefined;
+        listing.depopUrl = undefined;
+      }
+      await listing.save();
+      return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
+    }
+
+    res.status(200).json({ success: true, isLive: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+

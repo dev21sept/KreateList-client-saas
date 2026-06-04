@@ -68,6 +68,7 @@ const Listings = () => {
   const [activeImage, setActiveImage] = useState(null);
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
+  const [verifyingListingId, setVerifyingListingId] = useState(null);
   
   // eBay Sync and display state
   const [isEbayConnected, setIsEbayConnected] = useState(false);
@@ -228,6 +229,37 @@ const Listings = () => {
       toast.error(error.response?.data?.message || "Failed to publish listing to eBay.");
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const handleVerifyAndOpen = async (listing) => {
+    setVerifyingListingId(listing._id);
+    try {
+      const res = await listingService.verifyLive(listing._id);
+      if (res.data?.success) {
+        if (res.data.isLive) {
+          let url = '';
+          if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
+          else if (listing.platform === 'ebay') url = listing.ebayUrl;
+          else if (listing.platform === 'vinted') url = listing.vintedUrl;
+          else if (listing.platform === 'depop') url = listing.depopUrl;
+          window.open(url, '_blank');
+        } else {
+          toast.warning(`Listing was deleted/not found on ${listing.platform}. Status reset to Draft!`);
+          setPreviewListing(res.data.data);
+          setListings(prev => prev.map(l => l._id === listing._id ? res.data.data : l));
+        }
+      }
+    } catch (err) {
+      console.error("Error verifying listing status:", err);
+      let url = '';
+      if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
+      else if (listing.platform === 'ebay') url = listing.ebayUrl;
+      else if (listing.platform === 'vinted') url = listing.vintedUrl;
+      else if (listing.platform === 'depop') url = listing.depopUrl;
+      window.open(url, '_blank');
+    } finally {
+      setVerifyingListingId(null);
     }
   };
 
@@ -844,15 +876,20 @@ const Listings = () => {
                 <button 
                   onClick={() => {
                     if (previewListing.status === 'published' && previewListing.poshmarkUrl) {
-                      window.open(previewListing.poshmarkUrl, '_blank');
+                      handleVerifyAndOpen(previewListing);
                     } else {
                       handlePoshmarkPublish(previewListing);
                     }
                   }}
-                  disabled={poshmarkPublishingId === previewListing._id}
+                  disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
                 >
-                  {poshmarkPublishingId === previewListing._id ? (
+                  {verifyingListingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Verifying...
+                    </>
+                  ) : poshmarkPublishingId === previewListing._id ? (
                     <>
                       <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
                       Listing...
@@ -866,15 +903,20 @@ const Listings = () => {
                 <button 
                   onClick={() => {
                     if (previewListing.status === 'published' && previewListing.ebayUrl) {
-                      window.open(previewListing.ebayUrl, '_blank');
+                      handleVerifyAndOpen(previewListing);
                     } else {
                       handlePublish(previewListing._id);
                     }
                   }}
-                  disabled={publishingId === previewListing._id}
+                  disabled={publishingId === previewListing._id || verifyingListingId === previewListing._id}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
                 >
-                  {publishingId === previewListing._id ? (
+                  {verifyingListingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Verifying...
+                    </>
+                  ) : publishingId === previewListing._id ? (
                     <>
                       <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
                       Listing...
@@ -885,24 +927,36 @@ const Listings = () => {
                 </button>
               )}
               {previewListing.platform === 'vinted' && previewListing.status === 'published' && previewListing.vintedUrl && (
-                <a 
-                  href={previewListing.vintedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5"
+                <button 
+                  onClick={() => handleVerifyAndOpen(previewListing)}
+                  disabled={verifyingListingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  View on Vinted
-                </a>
+                  {verifyingListingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Verifying...
+                    </>
+                  ) : (
+                    'View on Vinted'
+                  )}
+                </button>
               )}
               {previewListing.platform === 'depop' && previewListing.status === 'published' && previewListing.depopUrl && (
-                <a 
-                  href={previewListing.depopUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5"
+                <button 
+                  onClick={() => handleVerifyAndOpen(previewListing)}
+                  disabled={verifyingListingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  View on Depop
-                </a>
+                  {verifyingListingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Verifying...
+                    </>
+                  ) : (
+                    'View on Depop'
+                  )}
+                </button>
               )}
             </div>
           </div>
