@@ -576,20 +576,37 @@ async function checkUrlActive(url) {
   try {
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'
       },
       timeout: 5000,
-      validateStatus: (status) => status < 400
+      maxRedirects: 5
     });
 
     const finalUrl = response.request?.res?.responseUrl || url;
+    
+    // If it's a Poshmark listing URL, and we got redirected to home/closet/member page:
     if (url.includes('/listing/') && !finalUrl.includes('/listing/')) {
+      console.log(`[Verify Live] Poshmark listing URL redirected to: ${finalUrl}`);
+      return false;
+    }
+    // If it's an eBay listing URL, and we got redirected:
+    if (url.includes('/itm/') && !finalUrl.includes('/itm/')) {
+      console.log(`[Verify Live] eBay listing URL redirected to: ${finalUrl}`);
       return false;
     }
 
     return true;
   } catch (err) {
-    return false;
+    // Only mark as dead if we get a definitive 404 Not Found
+    if (err.response && err.response.status === 404) {
+      console.log(`[Verify Live] URL explicitly returned 404: ${url}`);
+      return false;
+    }
+    // If it's a 403 (Forbidden due to Bot protection), 503, 429, or network timeout, assume it's still alive (or we got blocked)
+    console.log(`[Verify Live] Request to ${url} failed with status ${err.response?.status || 'Network Error'}. Assuming still active.`);
+    return true;
   }
 }
 
