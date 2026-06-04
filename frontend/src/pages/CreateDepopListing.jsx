@@ -242,6 +242,25 @@ const CreateDepopListing = () => {
     sku: '',
     selectedModel: 'gpt-4o-mini',
   });
+  const [isConvertingImages, setIsConvertingImages] = useState(false);
+  const [loadedImages, setLoadedImages] = useState({});
+
+  const allImagesLoaded = useMemo(() => {
+    if (!formData.images || formData.images.length === 0) return true;
+    return formData.images.every((_, idx) => loadedImages[idx] !== undefined);
+  }, [formData.images, loadedImages]);
+
+  useEffect(() => {
+    setLoadedImages(prev => {
+      const next = {};
+      formData.images.forEach((_, idx) => {
+        if (prev[idx] !== undefined) {
+          next[idx] = prev[idx];
+        }
+      });
+      return next;
+    });
+  }, [formData.images]);
 
   const modelOptions = useMemo(() => [
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
@@ -325,11 +344,14 @@ const CreateDepopListing = () => {
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
     setFiles([...files, ...uploadedFiles]);
+    setIsConvertingImages(true);
     try {
       const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
       setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
     } catch (err) {
       console.error("Error converting images to base64:", err);
+    } finally {
+      setIsConvertingImages(false);
     }
   };
 
@@ -467,6 +489,17 @@ const CreateDepopListing = () => {
 
   return (
     <div className="max-w-[95%] mx-auto space-y-8 px-4">
+      {/* Hidden image preloader to track loading status */}
+      <div style={{ display: 'none' }}>
+        {formData.images.map((img, idx) => (
+          <img 
+            key={`preload-${idx}-${img.substring(0, 50)}`}
+            src={img}
+            onLoad={() => setLoadedImages(prev => ({ ...prev, [idx]: true }))}
+            onError={() => setLoadedImages(prev => ({ ...prev, [idx]: 'error' }))}
+          />
+        ))}
+      </div>
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
@@ -827,7 +860,7 @@ const CreateDepopListing = () => {
           )}
         </AnimatePresence>
 
-        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between">
+        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
           <button
             type="button"
             disabled={loading || step === 1}
@@ -837,20 +870,28 @@ const CreateDepopListing = () => {
             <ChevronLeft size={16} /> Back
           </button>
 
-          <button
-            type="button"
-            disabled={loading || (step === 1 && formData.images.length === 0)}
-            onClick={nextStep}
-            className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {step === 3 ? (
-              loading ? 'Saving draft...' : 'Save Draft'
-            ) : (
-              <>
-                Next Step <ChevronLeft size={16} className="rotate-180" />
-              </>
+          <div className="flex items-center gap-4">
+            {(isConvertingImages || !allImagesLoaded) && (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
+                <Loader2 size={12} className="animate-spin text-indigo-500" />
+                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
+              </span>
             )}
-          </button>
+            <button
+              type="button"
+              disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && formData.images.length === 0)}
+              onClick={nextStep}
+              className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {step === 3 ? (
+                loading ? 'Saving draft...' : 'Save Draft'
+              ) : (
+                <>
+                  Next Step <ChevronLeft size={16} className="rotate-180" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

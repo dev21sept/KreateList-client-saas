@@ -247,12 +247,28 @@ const CreateEbayListing = () => {
     sku: '',
     selectedModel: 'gpt-4o-mini',
     packageWeight: { lbs: '', oz: '' },
-    packageDimensions: { length: '', width: '', height: '' },
-    fulfillmentPolicyId: '',
-    paymentPolicyId: '',
     returnPolicyId: '',
     locationKey: ''
   });
+  const [isConvertingImages, setIsConvertingImages] = useState(false);
+  const [loadedImages, setLoadedImages] = useState({});
+
+  const allImagesLoaded = useMemo(() => {
+    if (!formData.images || formData.images.length === 0) return true;
+    return formData.images.every((_, idx) => loadedImages[idx] !== undefined);
+  }, [formData.images, loadedImages]);
+
+  useEffect(() => {
+    setLoadedImages(prev => {
+      const next = {};
+      formData.images.forEach((_, idx) => {
+        if (prev[idx] !== undefined) {
+          next[idx] = prev[idx];
+        }
+      });
+      return next;
+    });
+  }, [formData.images]);
 
   const modelOptions = useMemo(() => [
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
@@ -371,11 +387,14 @@ const CreateEbayListing = () => {
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
     setFiles([...files, ...uploadedFiles]);
+    setIsConvertingImages(true);
     try {
       const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
       setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
     } catch (err) {
       console.error("Error converting images to base64:", err);
+    } finally {
+      setIsConvertingImages(false);
     }
   };
 
@@ -672,6 +691,17 @@ const CreateEbayListing = () => {
 
   return (
     <div className="max-w-[95%] mx-auto space-y-8 px-4">
+      {/* Hidden image preloader to track loading status */}
+      <div style={{ display: 'none' }}>
+        {formData.images.map((img, idx) => (
+          <img 
+            key={`preload-${idx}-${img.substring(0, 50)}`}
+            src={img}
+            onLoad={() => setLoadedImages(prev => ({ ...prev, [idx]: true }))}
+            onError={() => setLoadedImages(prev => ({ ...prev, [idx]: 'error' }))}
+          />
+        ))}
+      </div>
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
@@ -1479,10 +1509,17 @@ const CreateEbayListing = () => {
           </button>
           
           <div className="flex items-center gap-4">
+            {(isConvertingImages || !allImagesLoaded) && (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
+                <Loader2 size={12} className="animate-spin text-indigo-500" />
+                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
+              </span>
+            )}
             {step === 4 && (
               <button 
                 onClick={handleSaveDraft}
-                className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm"
+                disabled={loading || isConvertingImages || !allImagesLoaded}
+                className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
               >
                 Save as Draft
               </button>
@@ -1490,8 +1527,8 @@ const CreateEbayListing = () => {
 
             <button 
               onClick={nextStep}
-              disabled={loading || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
-              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+              disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
+              className="flex items-center gap-2 px-8 py-3 bg-indigo-650 text-white rounded-2xl font-bold text-sm hover:bg-indigo-750 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
             >
               {loading ? (
                 <>Working...</>
