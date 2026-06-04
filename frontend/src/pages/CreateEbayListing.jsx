@@ -20,7 +20,9 @@ import {
   List,
   Eye,
   Code,
-  Trash2
+  Trash2,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { ruleService, aiService, ebayService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -229,6 +231,7 @@ const CreateEbayListing = () => {
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
   const [aspects, setAspects] = useState([]);
+  const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [] });
   const [formData, setFormData] = useState({
     images: [],
     selectedRule: '',
@@ -244,7 +247,10 @@ const CreateEbayListing = () => {
     sku: '',
     selectedModel: 'gpt-4o-mini',
     packageWeight: { lbs: '', oz: '' },
-    packageDimensions: { length: '', width: '', height: '' }
+    packageDimensions: { length: '', width: '', height: '' },
+    fulfillmentPolicyId: '',
+    paymentPolicyId: '',
+    returnPolicyId: ''
   });
 
   const modelOptions = useMemo(() => [
@@ -280,6 +286,24 @@ const CreateEbayListing = () => {
   }, [editId]);
 
   useEffect(() => {
+    const fetchEbayPolicies = async () => {
+      try {
+        const response = await ebayService.getPolicies();
+        if (response.data?.success) {
+          setEbayPolicies({
+            fulfillment: (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name })),
+            payment: (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name })),
+            returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name }))
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching eBay policies in CreateEbayListing:", error);
+      }
+    };
+    fetchEbayPolicies();
+  }, []);
+
+  useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
         try {
@@ -302,7 +326,10 @@ const CreateEbayListing = () => {
               sku: listing.sku || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
               packageWeight: listing.packageWeight || { lbs: '', oz: '' },
-              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' }
+              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' },
+              fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
+              paymentPolicyId: listing.paymentPolicyId || '',
+              returnPolicyId: listing.returnPolicyId || ''
             });
 
             if (listing.categoryId) {
@@ -430,6 +457,24 @@ const CreateEbayListing = () => {
     description: c.description
   })), []);
 
+  const selectedFulfillmentLabel = useMemo(() => {
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    const policyId = formData.fulfillmentPolicyId || selectedRuleObj?.fulfillmentPolicyId || '';
+    return ebayPolicies.fulfillment.find(p => p.id === policyId)?.label || policyId || 'Default';
+  }, [formData.fulfillmentPolicyId, formData.selectedRule, rules, ebayPolicies.fulfillment]);
+
+  const selectedPaymentLabel = useMemo(() => {
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    const policyId = formData.paymentPolicyId || selectedRuleObj?.paymentPolicyId || '';
+    return ebayPolicies.payment.find(p => p.id === policyId)?.label || policyId || 'Default';
+  }, [formData.paymentPolicyId, formData.selectedRule, rules, ebayPolicies.payment]);
+
+  const selectedReturnLabel = useMemo(() => {
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    const policyId = formData.returnPolicyId || selectedRuleObj?.returnPolicyId || '';
+    return ebayPolicies.returns.find(p => p.id === policyId)?.label || policyId || 'Default';
+  }, [formData.returnPolicyId, formData.selectedRule, rules, ebayPolicies.returns]);
+
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
     const newFiles = [...files];
@@ -503,6 +548,9 @@ const CreateEbayListing = () => {
       selectedModel: formData.selectedModel || 'gpt-4o-mini',
       packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
       packageDimensions: formData.packageDimensions || { length: 0, width: 0, height: 0 },
+      fulfillmentPolicyId: formData.fulfillmentPolicyId,
+      paymentPolicyId: formData.paymentPolicyId,
+      returnPolicyId: formData.returnPolicyId,
       status: 'draft',
       platform
     };
@@ -542,6 +590,9 @@ const CreateEbayListing = () => {
       selectedModel: formData.selectedModel || 'gpt-4o-mini',
       packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
       packageDimensions: formData.packageDimensions || { length: 0, width: 0, height: 0 },
+      fulfillmentPolicyId: formData.fulfillmentPolicyId,
+      paymentPolicyId: formData.paymentPolicyId,
+      returnPolicyId: formData.returnPolicyId,
       status: 'draft',
       platform
     };
@@ -678,7 +729,10 @@ const CreateEbayListing = () => {
                           ...formData,
                           selectedRule: opt.id,
                           packageWeight: rule?.packageWeight || { lbs: '', oz: '' },
-                          packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' }
+                          packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' },
+                          fulfillmentPolicyId: rule?.fulfillmentPolicyId || '',
+                          paymentPolicyId: rule?.paymentPolicyId || '',
+                          returnPolicyId: rule?.returnPolicyId || ''
                         });
                       }}
                       options={ruleOptions}
@@ -1140,49 +1194,112 @@ const CreateEbayListing = () => {
                 </div>
 
                 <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Applied eBay Policies</h4>
-                   <div className="space-y-3">
-                     <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Shipping</span>
-                        <span className="text-[10px] font-black text-indigo-600 truncate max-w-[120px]">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.fulfillmentPolicyId || 'Default'}
-                        </span>
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Applied eBay Policies</h4>
+                   <div className="space-y-4 text-left">
+                     <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Shipping Policy</span>
+                        <SearchableDropdown
+                          value={selectedFulfillmentLabel}
+                          onSelect={(opt) => setFormData({ ...formData, fulfillmentPolicyId: opt.id })}
+                          options={ebayPolicies.fulfillment}
+                          placeholder="Select Shipping Policy..."
+                        />
                      </div>
-                     <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Payment</span>
-                        <span className="text-[10px] font-black text-indigo-600 truncate max-w-[120px]">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.paymentPolicyId || 'Default'}
-                        </span>
+                     <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Payment Policy</span>
+                        <SearchableDropdown
+                          value={selectedPaymentLabel}
+                          onSelect={(opt) => setFormData({ ...formData, paymentPolicyId: opt.id })}
+                          options={ebayPolicies.payment}
+                          placeholder="Select Payment Policy..."
+                        />
                      </div>
-                     <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Return</span>
-                        <span className="text-[10px] font-black text-indigo-600 truncate max-w-[120px]">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.returnPolicyId || 'Default'}
-                        </span>
-                     </div>
-                     <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                        <span className="text-[10px] font-bold text-indigo-700 uppercase">Item Location</span>
-                        <span className="text-[10px] font-black text-indigo-900 truncate max-w-[120px]">
-                          {rules.find(r => (r._id || r.id) === formData.selectedRule)?.locationKey || 'None'}
-                        </span>
+                     <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Return Policy</span>
+                        <SearchableDropdown
+                          value={selectedReturnLabel}
+                          onSelect={(opt) => setFormData({ ...formData, returnPolicyId: opt.id })}
+                          options={ebayPolicies.returns}
+                          placeholder="Select Return Policy..."
+                        />
                      </div>
                    </div>
                 </div>
 
                 <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Weight & Dimensions</h4>
-                   <div className="grid grid-cols-2 gap-3">
-                     <div className="p-3 bg-white rounded-xl border border-slate-200">
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Weight</p>
-                        <p className="text-[10px] font-black text-slate-700">
-                          {formData.packageWeight?.lbs || 0}lb {formData.packageWeight?.oz || 0}oz
-                        </p>
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Weight & Dimensions</h4>
+                   
+                   <div className="space-y-1.5 text-left">
+                     <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Weight</label>
+                     <div className="flex gap-2">
+                       <div className="relative flex-1">
+                         <input 
+                           type="number"
+                           className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                           value={formData.packageWeight?.lbs ?? ''}
+                           onChange={(e) => setFormData({
+                             ...formData,
+                             packageWeight: { ...formData.packageWeight, lbs: parseFloat(e.target.value) || 0 }
+                           })}
+                           placeholder="lbs"
+                         />
+                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">lbs</span>
+                       </div>
+                       <div className="relative flex-1">
+                         <input 
+                           type="number"
+                           className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                           value={formData.packageWeight?.oz ?? ''}
+                           onChange={(e) => setFormData({
+                             ...formData,
+                             packageWeight: { ...formData.packageWeight, oz: parseFloat(e.target.value) || 0 }
+                           })}
+                           placeholder="oz"
+                         />
+                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">oz</span>
+                       </div>
                      </div>
-                     <div className="p-3 bg-white rounded-xl border border-slate-200">
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Dimensions</p>
-                        <p className="text-[10px] font-black text-slate-700">
-                          {formData.packageDimensions?.length || 0}x{formData.packageDimensions?.width || 0}x{formData.packageDimensions?.height || 0}
-                        </p>
+                   </div>
+
+                   <div className="space-y-1.5 text-left">
+                     <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Dimensions (L x W x H)</label>
+                     <div className="flex gap-2">
+                       <div className="relative flex-1">
+                         <input 
+                           type="number"
+                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                           value={formData.packageDimensions?.length ?? ''}
+                           onChange={(e) => setFormData({
+                             ...formData,
+                             packageDimensions: { ...formData.packageDimensions, length: parseFloat(e.target.value) || 0 }
+                           })}
+                           placeholder="L"
+                         />
+                       </div>
+                       <div className="relative flex-1">
+                         <input 
+                           type="number"
+                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                           value={formData.packageDimensions?.width ?? ''}
+                           onChange={(e) => setFormData({
+                             ...formData,
+                             packageDimensions: { ...formData.packageDimensions, width: parseFloat(e.target.value) || 0 }
+                           })}
+                           placeholder="W"
+                         />
+                       </div>
+                       <div className="relative flex-1">
+                         <input 
+                           type="number"
+                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                           value={formData.packageDimensions?.height ?? ''}
+                           onChange={(e) => setFormData({
+                             ...formData,
+                             packageDimensions: { ...formData.packageDimensions, height: parseFloat(e.target.value) || 0 }
+                           })}
+                           placeholder="H"
+                         />
+                       </div>
                      </div>
                    </div>
                 </div>
@@ -1200,36 +1317,71 @@ const CreateEbayListing = () => {
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.1em]">Manage Image Order</h3>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">{formData.images.length} Photos</span>
                   </div>
-                  <Reorder.Group 
-                    axis="x" 
-                    values={formData.images} 
-                    onReorder={(newOrder) => setFormData(prev => ({ ...prev, images: newOrder }))}
-                    className="grid grid-cols-4 gap-4"
-                  >
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {formData.images.map((img, i) => (
-                      <Reorder.Item 
-                        key={img} 
-                        value={img}
-                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 cursor-grab active:cursor-grabbing"
+                      <div 
+                        key={img.substring(0, 100) + '-' + i} 
+                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 flex flex-col shadow-sm"
                       >
-                        <img src={img} className="w-full h-full object-cover pointer-events-none" alt="Product" />
-                        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteImage(i);
-                          }}
-                          className="absolute top-2 right-2 p-1.5 bg-rose-500/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 shadow-lg z-10"
-                          title="Delete Image"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        <img src={img} className="w-full h-full object-cover" alt={`Product ${i + 1}`} />
+                        
+                        {/* Control overlay */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3 z-10">
+                          <div className="flex justify-between items-start">
+                            <span className="bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[9px] font-bold">
+                              {i === 0 ? 'Cover' : `#${i + 1}`}
+                            </span>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteImage(i);
+                              }}
+                              className="p-1.5 bg-red-650/80 backdrop-blur-sm rounded-xl text-white hover:bg-red-600 transition-colors shadow-sm"
+                              title="Delete Image"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          
+                          <div className="flex justify-center gap-2">
+                            <button
+                              disabled={i === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveImage(i, 'left');
+                              }}
+                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
+                                i === 0 
+                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
+                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
+                              }`}
+                              title="Move Left"
+                            >
+                              <ArrowLeft size={14} />
+                            </button>
+                            <button
+                              disabled={i === formData.images.length - 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveImage(i, 'right');
+                              }}
+                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
+                                i === formData.images.length - 1 
+                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
+                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
+                              }`}
+                              title="Move Right"
+                            >
+                              <ArrowRight size={14} />
+                            </button>
+                          </div>
+                        </div>
                         {i === 0 && (
                           <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg pointer-events-none">Main</div>
                         )}
-                      </Reorder.Item>
+                      </div>
                     ))}
-                  </Reorder.Group>
+                  </div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8 space-y-8">

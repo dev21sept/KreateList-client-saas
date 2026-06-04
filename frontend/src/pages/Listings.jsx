@@ -172,6 +172,18 @@ const Listings = () => {
     }
   };
 
+  const handleOpenPreview = async (listing) => {
+    try {
+      setPreviewListing(listing);
+      const res = await listingService.getOne(listing._id);
+      if (res.data?.success) {
+        setPreviewListing(res.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching full listing details:", error);
+    }
+  };
+
   const handlePoshmarkPublish = (listing) => {
     const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
     if (!isExtensionInstalled) {
@@ -390,7 +402,7 @@ const Listings = () => {
                       <td className="px-6 py-4">
                         <div className="flex space-x-2">
                           <button 
-                            onClick={() => setPreviewListing(listing)}
+                            onClick={() => handleOpenPreview(listing)}
                             className="p-2 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 transition-all"
                             title="Preview Listing"
                           >

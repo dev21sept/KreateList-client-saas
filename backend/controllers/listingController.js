@@ -10,7 +10,10 @@ const { getValidToken } = require('./ebayController');
 // @access  Private
 exports.getListings = async (req, res) => {
   try {
-    const listings = await Listing.find({ user: req.user.id }).sort({ createdAt: -1 });
+    const listings = await Listing.find({ user: req.user.id })
+      .select('-description -itemSpecifics')
+      .select({ images: { $slice: 1 } })
+      .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: listings.length, data: listings });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -31,6 +34,8 @@ exports.getDashboardStats = async (req, res) => {
     const failedListings = await Listing.countDocuments({ user: userId, status: 'failed' });
 
     const recentActivity = await Listing.find({ user: userId })
+      .select('-description -itemSpecifics')
+      .select({ images: { $slice: 1 } })
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -193,6 +198,51 @@ function mapConditionIdToEnum(conditionId) {
   return 'NEW'; // Default fallback
 }
 
+// Helper to resolve the closest supported condition ID for a given category
+function resolveConditionForCategory(conditionId, validIds) {
+  if (!validIds || validIds.length === 0) {
+    return conditionId || '1000';
+  }
+
+  const cleanId = String(conditionId || '1000');
+  const baseId = cleanId.split('_')[0];
+
+  // 1. Exact match (e.g. "1000", "3000", "1000_c" if it exists in validIds)
+  if (validIds.includes(cleanId)) {
+    return cleanId;
+  }
+
+  // 2. Base ID match (e.g. if selected is "1000_c" and category supports "1000")
+  if (validIds.includes(baseId)) {
+    return baseId;
+  }
+
+  // 3. Fallback logic based on condition types
+  const isNewType = baseId.startsWith('1');
+  const isUsedType = baseId.startsWith('2') || baseId.startsWith('3') || baseId.startsWith('4') || baseId.startsWith('5') || baseId.startsWith('6');
+  const isPartsType = baseId.startsWith('7');
+
+  if (isNewType) {
+    if (validIds.includes('1000')) return '1000';
+    // Fallback to any other new-like condition supported
+    const altNew = validIds.find(id => id.startsWith('1'));
+    if (altNew) return altNew;
+  } else if (isUsedType) {
+    if (validIds.includes('3000')) return '3000';
+    // Fallback to any other used-like condition supported
+    const altUsed = validIds.find(id => id.startsWith('2') || id.startsWith('3') || id.startsWith('4') || id.startsWith('5') || id.startsWith('6'));
+    if (altUsed) return altUsed;
+  } else if (isPartsType) {
+    if (validIds.includes('7000')) return '7000';
+    if (validIds.includes('3000')) return '3000';
+    const altUsed = validIds.find(id => id.startsWith('2') || id.startsWith('3') || id.startsWith('4') || id.startsWith('5') || id.startsWith('6'));
+    if (altUsed) return altUsed;
+  }
+
+  // Default fallback to first available or 1000
+  return validIds[0] || '1000';
+}
+
 // @desc    Publish listing to eBay
 // @route   POST /api/listings/:id/publish
 // @access  Private
@@ -327,13 +377,33 @@ exports.publishListing = async (req, res) => {
     // FORCE UNIQUE SKU for every attempt to ensure fresh data and prevent caching issues on eBay
     const timestamp = Date.now().toString().substring(8);
     const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
+
+    // Fetch valid conditions from Taxonomy API for listing.categoryId
+    let validConditionIds = [];
+    if (listing.categoryId) {
+      try {
+        console.log(`[EBAY PUBLISH] Fetching supported conditions for category ${listing.categoryId}...`);
+        const catConditions = await ebayService.getCategoryConditions(token, listing.categoryId);
+        if (catConditions && catConditions.length > 0) {
+          validConditionIds = catConditions.map(c => String(c.id || c.condition_id || ''));
+          console.log(`[EBAY PUBLISH] Supported conditions for category ${listing.categoryId}:`, validConditionIds);
+        }
+      } catch (err) {
+        console.warn(`[EBAY PUBLISH] Failed to fetch category conditions, using static mapping. Error: ${err.message}`);
+      }
+    }
+
+    const resolvedConditionId = resolveConditionForCategory(listing.conditionId, validConditionIds);
+    const ebayConditionEnum = mapConditionIdToEnum(resolvedConditionId);
+    console.log(`[EBAY PUBLISH] Selected ConditionID: ${listing.conditionId}, Resolved ConditionID: ${resolvedConditionId}, Mapped Enum: ${ebayConditionEnum}`);
+
     const inventoryItemData = {
       availability: {
         shipToLocationAvailability: {
           quantity: listing.quantity || 1
         }
       },
-      condition: mapConditionIdToEnum(listing.conditionId || '1000'),
+      condition: ebayConditionEnum,
       product: {
         title: listing.title,
         description: listing.description,
@@ -354,38 +424,48 @@ exports.publishListing = async (req, res) => {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 7. Resolve business policies
-    let fulfillmentPolicyId, paymentPolicyId, returnPolicyId;
+    let fulfillmentPolicyId = listing.fulfillmentPolicyId;
+    let paymentPolicyId = listing.paymentPolicyId;
+    let returnPolicyId = listing.returnPolicyId;
 
-    try {
-      const [fPolicies, pPolicies, rPolicies] = await Promise.all([
-        ebayService.getFulfillmentPolicies(token),
-        ebayService.getPaymentPolicies(token),
-        ebayService.getReturnPolicies(token)
-      ]);
+    if (!fulfillmentPolicyId || !paymentPolicyId || !returnPolicyId) {
+      try {
+        const [fPolicies, pPolicies, rPolicies] = await Promise.all([
+          !fulfillmentPolicyId ? ebayService.getFulfillmentPolicies(token) : null,
+          !paymentPolicyId ? ebayService.getPaymentPolicies(token) : null,
+          !returnPolicyId ? ebayService.getReturnPolicies(token) : null
+        ]);
 
-      if (fPolicies && fPolicies.length > 0) {
-        fulfillmentPolicyId = fPolicies[0].fulfillmentPolicyId;
-      } else {
-        const newPolicy = await ebayService.initDefaultFulfillmentPolicy(token);
-        fulfillmentPolicyId = newPolicy.fulfillmentPolicyId;
+        if (!fulfillmentPolicyId) {
+          if (fPolicies && fPolicies.length > 0) {
+            fulfillmentPolicyId = fPolicies[0].fulfillmentPolicyId;
+          } else {
+            const newPolicy = await ebayService.initDefaultFulfillmentPolicy(token);
+            fulfillmentPolicyId = newPolicy.fulfillmentPolicyId;
+          }
+        }
+
+        if (!paymentPolicyId) {
+          if (pPolicies && pPolicies.length > 0) {
+            paymentPolicyId = pPolicies[0].paymentPolicyId;
+          } else {
+            const newPolicy = await ebayService.initDefaultPaymentPolicy(token);
+            paymentPolicyId = newPolicy.paymentPolicyId;
+          }
+        }
+
+        if (!returnPolicyId) {
+          if (rPolicies && rPolicies.length > 0) {
+            returnPolicyId = rPolicies[0].returnPolicyId;
+          } else {
+            const newPolicy = await ebayService.initDefaultReturnPolicy(token);
+            returnPolicyId = newPolicy.returnPolicyId;
+          }
+        }
+      } catch (policyErr) {
+        console.error('[EBAY PUBLISH] Error resolving policies:', policyErr.message);
+        throw new Error(`Failed to configure shipping/payment policies: ${policyErr.message}`);
       }
-
-      if (pPolicies && pPolicies.length > 0) {
-        paymentPolicyId = pPolicies[0].paymentPolicyId;
-      } else {
-        const newPolicy = await ebayService.initDefaultPaymentPolicy(token);
-        paymentPolicyId = newPolicy.paymentPolicyId;
-      }
-
-      if (rPolicies && rPolicies.length > 0) {
-        returnPolicyId = rPolicies[0].returnPolicyId;
-      } else {
-        const newPolicy = await ebayService.initDefaultReturnPolicy(token);
-        returnPolicyId = newPolicy.returnPolicyId;
-      }
-    } catch (policyErr) {
-      console.error('[EBAY PUBLISH] Error resolving policies:', policyErr.message);
-      throw new Error(`Failed to configure shipping/payment policies: ${policyErr.message}`);
     }
 
     // 8. Handle existing offers (to prevent SKU conflicts)

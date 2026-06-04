@@ -32,8 +32,8 @@ async function toNormalizedJpegDataUri(base64OrDataUri) {
 
     const normalized = await sharp(inputBuffer)
         .rotate()
-        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 92, mozjpeg: true })
+        .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80, mozjpeg: true })
         .toBuffer();
 
     return `data:image/jpeg;base64,${normalized.toString('base64')}`;
