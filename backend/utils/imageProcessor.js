@@ -9,21 +9,28 @@ function isDataUri(value) {
 }
 
 function looksLikeRawBase64(value) {
-    return (
-        value.length > 2000 &&
-        /^[a-z0-9+/=\r\n]+$/i.test(value)
-    );
+    if (typeof value !== 'string') return false;
+    if (value.length < 100) return false;
+    return !/^https?:\/\//i.test(value);
+}
+
+function extractRawBase64(trimmed) {
+    const commaIndex = trimmed.indexOf(';base64,');
+    if (commaIndex !== -1) {
+        return trimmed.substring(commaIndex + 8);
+    }
+    if (trimmed.startsWith('data:')) {
+        const firstComma = trimmed.indexOf(',');
+        if (firstComma !== -1) {
+            return trimmed.substring(firstComma + 1);
+        }
+    }
+    return trimmed;
 }
 
 async function toNormalizedJpegDataUri(base64OrDataUri) {
     const trimmed = String(base64OrDataUri || '').trim();
-    const dataUriMatch = trimmed.match(/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
-    let rawBase64 = dataUriMatch ? dataUriMatch[2] : trimmed;
-    rawBase64 = rawBase64.replace(/[\r\n\t\s]+/g, '');
-
-    if (!/^[a-z0-9+/=]+$/i.test(rawBase64)) {
-        throw new Error('Invalid Base64 image data');
-    }
+    const rawBase64 = extractRawBase64(trimmed);
 
     const inputBuffer = Buffer.from(rawBase64, 'base64');
     if (!inputBuffer.length) {
@@ -84,13 +91,7 @@ async function generateThumbnail(image) {
 
     if (isDataUri(trimmed) || looksLikeRawBase64(trimmed)) {
         try {
-            const dataUriMatch = trimmed.match(/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
-            let rawBase64 = dataUriMatch ? dataUriMatch[2] : trimmed;
-            rawBase64 = rawBase64.replace(/[\r\n\t\s]+/g, '');
-
-            if (!/^[a-z0-9+/=]+$/i.test(rawBase64)) {
-                return null;
-            }
+            const rawBase64 = extractRawBase64(trimmed);
 
             const inputBuffer = Buffer.from(rawBase64, 'base64');
             if (!inputBuffer.length) {
@@ -117,4 +118,3 @@ module.exports = {
     normalizeProductImages,
     generateThumbnail
 };
-
