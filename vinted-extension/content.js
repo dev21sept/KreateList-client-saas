@@ -504,19 +504,7 @@ async function executeVintedUpload(productData) {
     updateStatus("Step 4/4: Publishing listing live on Vinted feed...", 85);
     await delay(1200);
 
-    let descriptionText = productData.description || "";
-    // Remove "This Listing is Created By" branding/template text case-insensitively
-    descriptionText = descriptionText.replace(/This\s+Listing\s+is\s+Created\s+By\s*/gi, '');
-    // Clean up excessive newlines and indentation spacing
-    descriptionText = descriptionText.split('\n')
-      .map(line => line.trim())
-      .filter((line, idx, arr) => line !== "" || (idx > 0 && arr[idx - 1].trim() !== ""))
-      .join('\n')
-      .trim();
-
-    if (productData.measurements) {
-      descriptionText += "\n\nMeasurements:\n" + productData.measurements;
-    }
+    const descriptionText = productData.description + (productData.measurements ? "\n\nMeasurements:\n" + productData.measurements : "");
 
     const itemAttributes = [
       { code: "condition", ids: [conditionId] }

@@ -535,14 +535,21 @@ exports.vintedAnalyzeListing = async (req, res) => {
    "${description_prompt.trim()}"
    
    - STRICT: Replace placeholders like {Brand}, {Size}, etc., with actual data.
-   - If it is a short/general instruction, follow it exactly. Format with HTML tags like <b> and <br> for spacing.`
-            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE:
+   - If it is a short/general instruction, follow it exactly. Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`
+            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
    - Write a detailed and professional summary of the item shown.
-   - Use HTML <b> for section headers and <br><br> for spacing.
+   - Do NOT use HTML tags (like <b>, <br>).
+   - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\\n\\n) for clear, readable spacing.
+   - Use bullet points (• or -) for key features and design details.
    - Include these sections:
-     - <b>The Ultimate Look / Perfect Upgrade:</b> {Engaging hook about the item}.<br><br>
-     - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
-     - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>`;
+     THE ULTIMATE LOOK / PERFECT UPGRADE: {Engaging hook about the item}
+     
+     KEY FEATURES & DESIGN:
+     - {Key feature 1}
+     - {Key feature 2}
+     - {Key feature 3}
+     
+     CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,
@@ -589,7 +596,7 @@ Response ONLY as JSON: {
   "brand": "Company Name",
   "title": "A descriptive title",
   "title_parts": { "AttributeName": "Value", ... },
-  "description": "HTML content",
+  "description": "Clean formatted plain text description (NO HTML tags)",
   "detected_gender": "Target demographic (e.g. Men, Women, Kids, Baby)",
   "product_type": "Product type (e.g. T-Shirt, Jeans, Dress, Sneakers)",
   "sub_type": "Sub-type / style (e.g. Plain T-Shirt, Skinny Jeans)",
@@ -744,7 +751,11 @@ Response ONLY as JSON:
             .trim();
 
         const finalTitle = titleString || finalData.title || 'New Vinted Listing';
-        const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
+        let templatedDescription = finalData.description || '';
+        // In case the AI still generated HTML tags, clean them up for Vinted
+        templatedDescription = templatedDescription
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]*>/g, '');
 
         if (req.user) {
             await logActivity({

@@ -921,9 +921,10 @@ const Listings = () => {
 
                 {/* Description Template */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">HTML Description</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Description</h4>
                   <div 
                     className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[300px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
+                    style={{ whiteSpace: 'pre-wrap' }}
                     dangerouslySetInnerHTML={{ __html: previewListing.description }}
                   />
                 </div>

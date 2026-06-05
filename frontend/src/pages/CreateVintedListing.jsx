@@ -1509,9 +1509,10 @@ const CreateVintedListing = () => {
                       ) : (
                         <div 
                           className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-[13px] font-medium leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
-                          dangerouslySetInnerHTML={{ __html: formData.description }}
-                          style={{ wordBreak: 'break-word' }}
-                        />
+                          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                        >
+                          {formData.description}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1718,9 +1719,10 @@ const CreateVintedListing = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description Preview</label>
                     <div 
                       className="text-xs text-slate-650 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
-                      dangerouslySetInnerHTML={{ __html: formData.description }}
-                      style={{ wordBreak: 'break-word' }}
-                    />
+                      style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                    >
+                      {formData.description}
+                    </div>
                   </div>
                 </div>
               </div>
