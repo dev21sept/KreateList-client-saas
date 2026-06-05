@@ -361,10 +361,9 @@ async function executeVintedUpload(productData) {
 
       const uploadPhoto = async () => {
         const formData = new FormData();
-        formData.append('photo[file]', processedBlob, `file${i}.jpg`);
-        formData.append('photo[temp_uuid]', tempUuid);
+        formData.append('file', processedBlob, `file${i}.jpg`);
 
-        return await fetch(`${window.location.origin}/api/v2/item_upload/photos`, {
+        return await fetch(`${window.location.origin}/api/v2/temporary_photos`, {
           method: 'POST',
           headers: {
             'accept': 'application/json,text/plain,*/*',
