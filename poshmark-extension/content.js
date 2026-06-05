@@ -855,6 +855,7 @@ async function executePoshmarkUpload(productData) {
         });
         if (updateRes.ok) {
           console.log('[Elister Extension] Successfully updated listing status in eLister database!');
+          chrome.runtime.sendMessage({ action: 'RELOAD_ELISTER_TABS' }).catch(() => {});
         } else {
           console.error('[Elister Extension] Failed to update eLister database status:', updateRes.status);
         }

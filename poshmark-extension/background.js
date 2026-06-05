@@ -56,6 +56,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Silently catch error if popup is closed
     });
   }
+
+  else if (message.action === 'RELOAD_ELISTER_TABS') {
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        if (tab.url && (tab.url.includes('elister.ai') || tab.url.includes('localhost') || tab.url.includes('127.0.0.1'))) {
+          console.log('Reloading tab:', tab.id, tab.url);
+          chrome.tabs.reload(tab.id);
+        }
+      });
+    });
+    sendResponse({ success: true });
+  }
   
   return true; // Keep channel open
 });
