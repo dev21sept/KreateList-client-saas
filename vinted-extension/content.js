@@ -8,6 +8,12 @@ function getCookie(name) {
 
 // Helper: Extract CSRF Token from Vinted DOM / Cookies
 function getCsrfToken() {
+  // 0. Check Session Storage (often captured by interceptor early on)
+  const sessionToken = sessionStorage.getItem('elister_captured_csrf_token');
+  if (sessionToken && sessionToken.length > 20) {
+    return sessionToken;
+  }
+
   // 1. Check Meta tags
   const metas = document.querySelectorAll('meta');
   for (let meta of metas) {
@@ -336,6 +342,94 @@ async function executeVintedUpload(productData) {
     const assignedPhotos = [];
     const images = productData.images || [];
 
+    let successfulUploadConfig = null;
+
+    const uploadPhotoWithFallback = async (blob, index) => {
+      const candidates = [
+        { url: '/api/v2/photos', key: 'file' },
+        { url: '/api/v2/photos', key: 'photo' },
+        { url: '/api/v2/photos', key: 'photos' },
+        { url: '/api/v2/temporary_photos', key: 'file' },
+        { url: '/api/v2/item_upload/photos', key: 'photo[file]' },
+        { url: '/api/v2/item_upload/photos', key: 'file' }
+      ];
+
+      // Use cached config if available
+      if (successfulUploadConfig) {
+        try {
+          const formData = new FormData();
+          formData.append(successfulUploadConfig.key, blob, `file${index}.jpg`);
+          const res = await fetch(`${window.location.origin}${successfulUploadConfig.url}`, {
+            method: 'POST',
+            headers: {
+              'accept': 'application/json,text/plain,*/*',
+              'x-csrf-token': csrfToken,
+              'x-anon-id': anonId
+            },
+            credentials: 'include',
+            body: formData
+          });
+          if (res.ok) {
+            return res;
+          }
+          console.warn(`[Elister Vinted] Cached upload config failed. Status: ${res.status}. Re-probing candidates...`);
+          successfulUploadConfig = null;
+        } catch (err) {
+          console.warn(`[Elister Vinted] Cached upload request errored: ${err.message}. Re-probing candidates...`);
+          successfulUploadConfig = null;
+        }
+      }
+
+      let lastStatus = 0;
+      let lastErrorText = '';
+
+      for (const candidate of candidates) {
+        try {
+          console.log(`[Elister Vinted] Probing upload endpoint: ${candidate.url} with key: ${candidate.key}`);
+          const formData = new FormData();
+          formData.append(candidate.key, blob, `file${index}.jpg`);
+
+          const res = await fetch(`${window.location.origin}${candidate.url}`, {
+            method: 'POST',
+            headers: {
+              'accept': 'application/json,text/plain,*/*',
+              'x-csrf-token': csrfToken,
+              'x-anon-id': anonId
+            },
+            credentials: 'include',
+            body: formData
+          });
+
+          lastStatus = res.status;
+          if (res.ok) {
+            const resClone = res.clone();
+            try {
+              const data = await resClone.json();
+              const photoId = data.id || (data.photo && data.photo.id) || (data.data && data.data.id);
+              if (photoId) {
+                successfulUploadConfig = candidate;
+                console.log(`[Elister Vinted] Successfully matched uploader config: URL=${candidate.url}, key=${candidate.key}`);
+                return res;
+              }
+            } catch (e) {
+              console.warn(`[Elister Vinted] Endpoint ${candidate.url} returned ok but JSON parse failed or had no ID.`, e);
+            }
+          } else {
+            lastErrorText = await res.text();
+            console.warn(`[Elister Vinted] Endpoint ${candidate.url} failed with status: ${res.status}. Error: ${lastErrorText}`);
+          }
+        } catch (err) {
+          console.warn(`[Elister Vinted] Failed to request ${candidate.url}:`, err);
+          lastErrorText = err.message;
+        }
+      }
+
+      const err = new Error(`All photo upload candidate endpoints failed.`);
+      err.status = lastStatus;
+      err.details = lastErrorText;
+      throw err;
+    };
+
     for (let i = 0; i < images.length; i++) {
       updateStatus(`Uploading image ${i+1} of ${images.length}...`, 30 + Math.floor((i / images.length) * 35));
       await delay(1200); // Account safety rate-limit padding
@@ -359,34 +453,21 @@ async function executeVintedUpload(productData) {
       // Process image size limits and format checks
       const processedBlob = await processImageBlob(imgBlob);
 
-      const uploadPhoto = async () => {
-        const formData = new FormData();
-        formData.append('file', processedBlob, `file${i}.jpg`);
-
-        return await fetch(`${window.location.origin}/api/v2/temporary_photos`, {
-          method: 'POST',
-          headers: {
-            'accept': 'application/json,text/plain,*/*',
-            'x-csrf-token': csrfToken,
-            'x-anon-id': anonId
-          },
-          credentials: 'include',
-          body: formData
-        });
-      };
-
-      let uploadRes = await uploadPhoto();
-      if (!uploadRes.ok) {
-        console.warn(`[Elister Vinted] Upload photo error, retrying...`);
+      let uploadRes;
+      try {
+        uploadRes = await uploadPhotoWithFallback(processedBlob, i);
+      } catch (uploadErr) {
+        console.warn(`[Elister Vinted] First upload attempt failed: ${uploadErr.message}. Retrying after delay...`);
         await delay(2000);
-        uploadRes = await uploadPhoto();
-        if (!uploadRes.ok) {
-          throw new Error(`Vinted image upload rejected for photo ${i+1}. Status: ${uploadRes.status}`);
+        try {
+          uploadRes = await uploadPhotoWithFallback(processedBlob, i);
+        } catch (retryErr) {
+          throw new Error(`Vinted image upload rejected for photo ${i+1}. Status: ${retryErr.status || 'unknown'}. Details: ${retryErr.details || retryErr.message}`);
         }
       }
 
       const uploadData = await uploadRes.json();
-      const photoId = uploadData.id || (uploadData.photo && uploadData.photo.id);
+      const photoId = uploadData.id || (uploadData.photo && uploadData.photo.id) || (uploadData.data && uploadData.data.id);
       if (!photoId) {
         throw new Error(`No image ID returned for uploaded photo ${i+1}.`);
       }

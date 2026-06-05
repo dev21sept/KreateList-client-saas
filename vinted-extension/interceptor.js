@@ -21,7 +21,12 @@
         }
       }
 
+      if (!token && window.csrfToken) token = window.csrfToken;
+      if (!token && window.CSRF_TOKEN) token = window.CSRF_TOKEN;
+      if (!token && window.Vinted && window.Vinted.csrfToken) token = window.Vinted.csrfToken;
+
       if (token) {
+        sessionStorage.setItem('elister_captured_csrf_token', token);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: token }
         }));
@@ -80,6 +85,7 @@
       }
 
       if (csrfToken) {
+        sessionStorage.setItem('elister_captured_csrf_token', csrfToken);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken }
         }));
@@ -93,7 +99,20 @@
       const method = options.method || 'GET';
       
       const isVintedApi = url.includes('/api/v') || url.includes('/offline_verification/') || url.includes('/item_upload/');
+      const isInteresting = url.includes('/api/') || url.includes('photo') || url.includes('image') || url.includes('upload') || url.includes('items');
       
+      if (isInteresting && (method === 'POST' || method === 'PUT')) {
+        console.log(`%c[Elister Intercepted API Request] ${method} ${url}`, 'background: #222; color: #00ffd0; font-weight: bold; font-size: 12px; padding: 2px 5px;');
+        if (options.body) {
+          console.log('[Elister Intercepted Body keys/content]:', typeof options.body === 'string' ? options.body.substring(0, 300) : (options.body instanceof FormData ? Array.from(options.body.keys()) : options.body));
+        }
+        try {
+          const responseClone = response.clone();
+          const responseText = await responseClone.text();
+          console.log('[Elister Intercepted Response Preview]:', responseText.substring(0, 300));
+        } catch (err) {}
+      }
+
       if (isVintedApi && (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('brands') || url.includes('colors'))) {
         const responseClone = response.clone();
         const responseText = await responseClone.text();
@@ -122,6 +141,7 @@
   XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
     try {
       if (name.toLowerCase() === 'x-csrf-token') {
+        sessionStorage.setItem('elister_captured_csrf_token', value);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: value }
         }));
@@ -137,18 +157,30 @@
   };
 
   XMLHttpRequest.prototype.send = function(body, ...rest) {
-    this.addEventListener('load', function() {
+    const xhr = this;
+    xhr.addEventListener('load', function() {
       try {
-        const isVintedApi = this._url.includes('/api/v') || this._url.includes('/offline_verification/') || this._url.includes('/item_upload/');
+        const isVintedApi = xhr._url.includes('/api/v') || xhr._url.includes('/offline_verification/') || xhr._url.includes('/item_upload/');
+        const isInteresting = xhr._url.includes('/api/') || xhr._url.includes('photo') || xhr._url.includes('image') || xhr._url.includes('upload') || xhr._url.includes('items');
         
-        if (isVintedApi && (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('brands') || this._url.includes('colors'))) {
+        if (isInteresting && (xhr._method === 'POST' || xhr._method === 'PUT')) {
+          console.log(`%c[Elister Intercepted API Request (XHR)] ${xhr._method} ${xhr._url}`, 'background: #222; color: #00ffd0; font-weight: bold; font-size: 12px; padding: 2px 5px;');
+          if (body) {
+            console.log('[Elister Intercepted Body keys/content]:', typeof body === 'string' ? body.substring(0, 300) : (body instanceof FormData ? Array.from(body.keys()) : body));
+          }
+          if (xhr.responseText) {
+            console.log('[Elister Intercepted Response Preview]:', xhr.responseText.substring(0, 300));
+          }
+        }
+
+        if (isVintedApi && (xhr._method === 'POST' || xhr._method === 'PUT' || xhr._url.includes('size') || xhr._url.includes('brands') || xhr._url.includes('colors'))) {
           window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
             detail: {
-              url: this._url,
-              method: this._method,
+              url: xhr._url,
+              method: xhr._method,
               headers: {},
               body: body || null,
-              response: this.responseText
+              response: xhr.responseText
             }
           }));
         }
