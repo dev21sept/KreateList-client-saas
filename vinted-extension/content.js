@@ -504,7 +504,19 @@ async function executeVintedUpload(productData) {
     updateStatus("Step 4/4: Publishing listing live on Vinted feed...", 85);
     await delay(1200);
 
-    const descriptionText = productData.description + (productData.measurements ? "\n\nMeasurements:\n" + productData.measurements : "");
+    let cleanDescriptionText = productData.description || "";
+    if (cleanDescriptionText.includes('<') && cleanDescriptionText.includes('>')) {
+      cleanDescriptionText = cleanDescriptionText
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/h\d>/gi, '\n')
+        .replace(/<li>/gi, '• ')
+        .replace(/<\/li>/gi, '\n');
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(cleanDescriptionText, 'text/html');
+      cleanDescriptionText = doc.body.textContent || "";
+    }
+    const descriptionText = cleanDescriptionText + (productData.measurements ? "\n\nMeasurements:\n" + productData.measurements : "");
 
     const itemAttributes = [
       { code: "condition", ids: [conditionId] }
@@ -560,6 +572,8 @@ async function executeVintedUpload(productData) {
       upload_session_id: tempUuid
     };
 
+    console.log('[Elister Vinted] Submitting payload to Vinted:', JSON.stringify(payload, null, 2));
+
     const publishRes = await fetch(`${window.location.origin}/api/v2/item_upload/items`, {
       method: 'POST',
       headers: {
@@ -578,6 +592,7 @@ async function executeVintedUpload(productData) {
 
     if (!publishRes.ok) {
       const errText = await publishRes.text();
+      console.error('[Elister Vinted] Final upload request failed. Status:', publishRes.status, 'Body:', errText);
       throw new Error(`Failed to save listing attributes. Status: ${publishRes.status}. Details: ${errText}`);
     }
 
