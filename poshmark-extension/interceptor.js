@@ -241,9 +241,8 @@
       const method = options.method || 'GET';
       
       const isPoshmarkApi = url.includes('/vm-rest/') || url.includes('/api/');
-      const isVintedApi = url.includes('/api/v');
       
-      if ((isPoshmarkApi || isVintedApi) && (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts'))) {
+      if (isPoshmarkApi && (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts'))) {
         const responseClone = response.clone();
         const responseText = await responseClone.text();
         
@@ -322,9 +321,8 @@
     this.addEventListener('load', function() {
       try {
         const isPoshmarkApi = this._url.includes('/vm-rest/') || this._url.includes('/api/');
-        const isVintedApi = this._url.includes('/api/v');
         
-        if ((isPoshmarkApi || isVintedApi) && (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts'))) {
+        if (isPoshmarkApi && (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts'))) {
           window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
             detail: {
               url: this._url,

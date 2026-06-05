@@ -1,0 +1,85 @@
+{
+  "manifest_version": 3,
+  "name": "Elister Vinted Fast Automator",
+  "version": "1.0.0",
+  "description": "Supercharge your Vinted listing, sharing, and management tasks using high-speed direct API automation.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.vinted.com/*",
+    "*://*.vinted.co.uk/*",
+    "*://*.vinted.fr/*",
+    "*://*.vinted.de/*",
+    "*://*.vinted.it/*",
+    "*://*.vinted.es/*",
+    "*://*.vinted.nl/*",
+    "*://*.vinted.be/*",
+    "*://*.vinted.pl/*",
+    "*://*.vinted.cz/*",
+    "*://*.vinted.se/*",
+    "*://*.vinted.ro/*",
+    "*://*.vinted.hu/*",
+    "*://*.vinted.sk/*",
+    "*://*.vinted.at/*",
+    "*://app.elister.ai/*",
+    "*://localhost/*",
+    "*://127.0.0.1/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.vinted.com/*",
+        "*://*.vinted.co.uk/*",
+        "*://*.vinted.fr/*",
+        "*://*.vinted.de/*",
+        "*://*.vinted.it/*",
+        "*://*.vinted.es/*",
+        "*://*.vinted.nl/*",
+        "*://*.vinted.be/*",
+        "*://*.vinted.pl/*",
+        "*://*.vinted.cz/*",
+        "*://*.vinted.se/*",
+        "*://*.vinted.ro/*",
+        "*://*.vinted.hu/*",
+        "*://*.vinted.sk/*",
+        "*://*.vinted.at/*",
+        "*://app.elister.ai/*",
+        "*://localhost/*",
+        "*://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.vinted.com/*",
+        "*://*.vinted.co.uk/*",
+        "*://*.vinted.fr/*",
+        "*://*.vinted.de/*",
+        "*://*.vinted.it/*",
+        "*://*.vinted.es/*",
+        "*://*.vinted.nl/*",
+        "*://*.vinted.be/*",
+        "*://*.vinted.pl/*",
+        "*://*.vinted.cz/*",
+        "*://*.vinted.se/*",
+        "*://*.vinted.ro/*",
+        "*://*.vinted.hu/*",
+        "*://*.vinted.sk/*",
+        "*://*.vinted.at/*"
+      ],
+      "js": ["interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

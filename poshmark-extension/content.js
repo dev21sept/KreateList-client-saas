@@ -57,9 +57,6 @@ function getCsrfToken(site) {
   if (site === 'poshmark') {
     const pmCookie = getCookie('_csrf_token') || getCookie('csrf_token') || getCookie('xsrf-token');
     if (pmCookie) return pmCookie;
-  } else if (site === 'vinted') {
-    const scriptCsrf = document.querySelector('script[data-name="csrf-token"]');
-    if (scriptCsrf) return scriptCsrf.textContent.trim();
   }
 
   const generalCsrf = getCookie('csrf_token') || getCookie('authenticity_token');
@@ -336,19 +333,6 @@ function getUsernameFromDOM(site) {
     // 3. Try meta author fallback
     const metaAuthor = document.querySelector('meta[name="author"]');
     if (metaAuthor) return metaAuthor.getAttribute('content');
-  } else if (site === 'vinted') {
-    const userProfileLink = document.querySelector('a[href^="/member/"], a[href^="/users/"]');
-    if (userProfileLink) {
-      const href = userProfileLink.getAttribute('href');
-      const parts = href.split('/');
-      const lastPart = parts[parts.length - 1];
-      if (lastPart) {
-        const subparts = lastPart.split('-');
-        return subparts.slice(1).join('-') || subparts[0];
-      }
-    }
-    const userSpan = document.querySelector('.sidebar-user-info__title, .menu-item__title');
-    if (userSpan) return userSpan.textContent.trim();
   }
 
   return 'Guest';
@@ -358,7 +342,6 @@ function getUsernameFromDOM(site) {
 function detectSite() {
   const hostname = window.location.hostname;
   if (hostname.includes('poshmark')) return 'poshmark';
-  if (hostname.includes('vinted')) return 'vinted';
   if (hostname.includes('elister') || hostname.includes('localhost') || hostname.includes('127.0.0.1')) return 'elister';
   return 'unknown';
 }
@@ -936,7 +919,7 @@ async function executePoshmarkUpload(productData) {
 // -------------------------------------------------------------
 const currentSite = detectSite();
 
-if (currentSite === 'poshmark' || currentSite === 'vinted') {
+if (currentSite === 'poshmark') {
 
   // Forward captured events to background service worker
   window.addEventListener('ELISTER_API_CAPTURED', (event) => {
@@ -1011,15 +994,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'GET_SESSION_STATUS') {
     const csrfToken = getCsrfToken(currentSite);
     const username = getUsernameFromDOM(currentSite);
-    const anonId = currentSite === 'vinted' ? getCookie('anon_id') : null;
-
     sendResponse({
       success: true,
       data: {
         site: currentSite,
         username,
         csrfToken: csrfToken ? `${csrfToken.substring(0, 8)}...` : null,
-        anonId: anonId ? `${anonId.substring(0, 8)}...` : null
+        anonId: null
       }
     });
   }
@@ -1038,20 +1019,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then(res => res.json())
       .then(data => {
         sendResponse({ success: true, data: { status: 'Authorized', username: data.username } });
-      })
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    } 
-    else if (currentSite === 'vinted') {
-      const csrf = getCsrfToken('vinted');
-      const anonId = getCookie('anon_id');
-      const headers = { 'Accept': 'application/json,text/plain,*/*', 'locale': 'en-US' };
-      if (csrf) headers['x-csrf-token'] = csrf;
-      if (anonId) headers['x-anon-id'] = anonId;
-
-      fetch(`${window.location.origin}/api/v2/item_upload/size_groups?catalog_ids=1773`, { headers, credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        sendResponse({ success: true, data: { status: 'Authorized', details: `Size Groups count: ${data.size_groups?.length || 0}` } });
       })
       .catch(err => sendResponse({ success: false, error: err.message }));
     }
@@ -1093,20 +1060,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   }
 
-  else if (request.action === 'FETCH_VINTED_SIZES') {
-    if (currentSite !== 'vinted') return;
-    const catalogId = request.catalogId || 1773;
-    const csrf = getCsrfToken('vinted');
-    const anonId = getCookie('anon_id');
-    const headers = { 'Accept': 'application/json,text/plain,*/*', 'locale': 'en-US' };
-    if (csrf) headers['x-csrf-token'] = csrf;
-    if (anonId) headers['x-anon-id'] = anonId;
 
-    fetch(`${window.location.origin}/api/v2/item_upload/size_groups?catalog_ids=${catalogId}`, { headers, credentials: 'include' })
-    .then(res => res.json())
-    .then(data => sendResponse({ success: true, data }))
-    .catch(err => sendResponse({ success: false, error: err.message }));
-  }
 
   return true; 
 });

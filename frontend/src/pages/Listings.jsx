@@ -68,6 +68,7 @@ const Listings = () => {
   const [activeImage, setActiveImage] = useState(null);
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
+  const [vintedPublishingId, setVintedPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
   
   // eBay Sync and display state
@@ -341,6 +342,71 @@ const Listings = () => {
     }
   };
 
+  const handleVintedPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Vinted Chrome Extension to list automatically!");
+      return;
+    }
+
+    setVintedPublishingId(listing._id);
+    try {
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
+      }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        return;
+      }
+
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: fullListing.brand || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "",
+          color: fullListing.color || "",
+          material: fullListing.material || "",
+          conditionId: fullListing.conditionId || "very_good",
+          categoryId: fullListing.categoryId || "1807",
+          isbn: fullListing.isbn || "",
+          author: fullListing.author || "",
+          bookTitle: fullListing.bookTitle || "",
+          videoGameRating: fullListing.videoGameRating || "",
+          measurements: fullListing.measurements || "",
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Opening Vinted and launching publisher queue...");
+      setPreviewListing(null);
+    } catch (err) {
+      console.error("Error publishing to Vinted:", err);
+      toast.error("Failed to load listing details. Please try again.");
+    } finally {
+      setVintedPublishingId(null);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'published':
@@ -539,7 +605,7 @@ const Listings = () => {
                             <Eye size={16} />
                           </button>
                           <button 
-                            onClick={() => navigate(`/create-listing?edit=${listing._id}`)}
+                            onClick={() => navigate(listing.platform === 'vinted' ? `/create-vinted-listing?edit=${listing._id}` : `/create-listing?edit=${listing._id}`)}
                             className="p-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-400 transition-all"
                             title="Edit Listing"
                           >
@@ -926,19 +992,32 @@ const Listings = () => {
                   )}
                 </button>
               )}
-              {previewListing.platform === 'vinted' && previewListing.status === 'published' && previewListing.vintedUrl && (
+              {previewListing.platform === 'vinted' && (
                 <button 
-                  onClick={() => handleVerifyAndOpen(previewListing)}
-                  disabled={verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  onClick={() => {
+                    if (previewListing.status === 'published' && previewListing.vintedUrl) {
+                      handleVerifyAndOpen(previewListing);
+                    } else {
+                      handleVintedPublish(previewListing);
+                    }
+                  }}
+                  disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {verifyingListingId === previewListing._id ? (
                     <>
                       <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       Verifying...
                     </>
-                  ) : (
+                  ) : vintedPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Listing...
+                    </>
+                  ) : previewListing.status === 'published' && previewListing.vintedUrl ? (
                     'View on Vinted'
+                  ) : (
+                    'List to Vinted (API)'
                   )}
                 </button>
               )}
