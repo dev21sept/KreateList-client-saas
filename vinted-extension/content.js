@@ -353,7 +353,7 @@ async function executeVintedUpload(productData) {
         { url: '/api/v2/item_upload/photos', key: 'photo[file]' },
         { url: '/api/v2/item_upload/photos', key: 'file' }
       ];
-
+ 
       // Use cached config if available
       if (successfulUploadConfig) {
         try {
@@ -379,16 +379,16 @@ async function executeVintedUpload(productData) {
           successfulUploadConfig = null;
         }
       }
-
+ 
       let lastStatus = 0;
       let lastErrorText = '';
-
+ 
       for (const candidate of candidates) {
         try {
           console.log(`[Elister Vinted] Probing upload endpoint: ${candidate.url} with key: ${candidate.key}`);
           const formData = new FormData();
           formData.append(candidate.key, blob, `file${index}.jpg`);
-
+ 
           const res = await fetch(`${window.location.origin}${candidate.url}`, {
             method: 'POST',
             headers: {
@@ -399,7 +399,7 @@ async function executeVintedUpload(productData) {
             credentials: 'include',
             body: formData
           });
-
+ 
           lastStatus = res.status;
           if (res.ok) {
             const resClone = res.clone();
@@ -423,7 +423,7 @@ async function executeVintedUpload(productData) {
           lastErrorText = err.message;
         }
       }
-
+ 
       const err = new Error(`All photo upload candidate endpoints failed.`);
       err.status = lastStatus;
       err.details = lastErrorText;
@@ -504,19 +504,19 @@ async function executeVintedUpload(productData) {
     updateStatus("Step 4/4: Publishing listing live on Vinted feed...", 85);
     await delay(1200);
 
-    let cleanDescriptionText = productData.description || "";
-    if (cleanDescriptionText.includes('<') && cleanDescriptionText.includes('>')) {
-      cleanDescriptionText = cleanDescriptionText
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n')
-        .replace(/<\/h\d>/gi, '\n')
-        .replace(/<li>/gi, '• ')
-        .replace(/<\/li>/gi, '\n');
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(cleanDescriptionText, 'text/html');
-      cleanDescriptionText = doc.body.textContent || "";
+    let descriptionText = productData.description || "";
+    // Remove "This Listing is Created By" branding/template text case-insensitively
+    descriptionText = descriptionText.replace(/This\s+Listing\s+is\s+Created\s+By\s*/gi, '');
+    // Clean up excessive newlines and indentation spacing
+    descriptionText = descriptionText.split('\n')
+      .map(line => line.trim())
+      .filter((line, idx, arr) => line !== "" || (idx > 0 && arr[idx - 1].trim() !== ""))
+      .join('\n')
+      .trim();
+
+    if (productData.measurements) {
+      descriptionText += "\n\nMeasurements:\n" + productData.measurements;
     }
-    const descriptionText = cleanDescriptionText + (productData.measurements ? "\n\nMeasurements:\n" + productData.measurements : "");
 
     const itemAttributes = [
       { code: "condition", ids: [conditionId] }
@@ -572,8 +572,6 @@ async function executeVintedUpload(productData) {
       upload_session_id: tempUuid
     };
 
-    console.log('[Elister Vinted] Submitting payload to Vinted:', JSON.stringify(payload, null, 2));
-
     const publishRes = await fetch(`${window.location.origin}/api/v2/item_upload/items`, {
       method: 'POST',
       headers: {
@@ -592,7 +590,6 @@ async function executeVintedUpload(productData) {
 
     if (!publishRes.ok) {
       const errText = await publishRes.text();
-      console.error('[Elister Vinted] Final upload request failed. Status:', publishRes.status, 'Body:', errText);
       throw new Error(`Failed to save listing attributes. Status: ${publishRes.status}. Details: ${errText}`);
     }
 
