@@ -346,18 +346,22 @@ async function executeVintedUpload(productData) {
 
     const uploadPhotoWithFallback = async (blob, index) => {
       const candidates = [
-        { url: '/api/v2/photos', key: 'file' },
-        { url: '/api/v2/photos', key: 'photo' },
-        { url: '/api/v2/photos', key: 'photos' },
-        { url: '/api/v2/temporary_photos', key: 'file' },
-        { url: '/api/v2/item_upload/photos', key: 'photo[file]' },
-        { url: '/api/v2/item_upload/photos', key: 'file' }
+        { url: '/api/v2/photos', key: 'photo[file]', type: 'item' },
+        { url: '/api/v2/photos', key: 'file', type: 'item' },
+        { url: '/api/v2/photos', key: 'photo', type: 'item' },
+        { url: '/api/v2/photos', key: 'photos', type: 'item' },
+        { url: '/api/v2/temporary_photos', key: 'file', type: 'item' },
+        { url: '/api/v2/item_upload/photos', key: 'photo[file]', type: 'item' },
+        { url: '/api/v2/item_upload/photos', key: 'file', type: 'item' }
       ];
  
       // Use cached config if available
       if (successfulUploadConfig) {
         try {
           const formData = new FormData();
+          if (successfulUploadConfig.type) {
+            formData.append('photo[type]', successfulUploadConfig.type);
+          }
           formData.append(successfulUploadConfig.key, blob, `file${index}.jpg`);
           const res = await fetch(`${window.location.origin}${successfulUploadConfig.url}`, {
             method: 'POST',
@@ -387,6 +391,9 @@ async function executeVintedUpload(productData) {
         try {
           console.log(`[Elister Vinted] Probing upload endpoint: ${candidate.url} with key: ${candidate.key}`);
           const formData = new FormData();
+          if (candidate.type) {
+            formData.append('photo[type]', candidate.type);
+          }
           formData.append(candidate.key, blob, `file${index}.jpg`);
  
           const res = await fetch(`${window.location.origin}${candidate.url}`, {
