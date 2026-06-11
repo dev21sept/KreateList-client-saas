@@ -310,7 +310,12 @@ const CreateEbayListing = () => {
             fulfillment: (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name })),
             payment: (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name })),
             returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name })),
-            locations: (response.data.data.locations || []).map(l => ({ id: l.merchantLocationKey, label: `${l.name} (${l.location?.address?.city || ''})` }))
+            locations: (response.data.data.locations || []).map(l => ({
+              id: l.merchantLocationKey,
+              label: l.name 
+                ? `${l.name}${l.location?.address?.city ? ` (${l.location.address.city})` : ''}` 
+                : l.merchantLocationKey
+            }))
           });
         }
       } catch (error) {

@@ -311,7 +311,12 @@ const BulkListingEbay = () => {
             fulfillment: (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name })),
             payment: (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name })),
             returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name })),
-            locations: (response.data.data.locations || []).map(l => ({ id: l.merchantLocationKey, label: `${l.name} (${l.location?.address?.city || ''})` }))
+            locations: (response.data.data.locations || []).map(l => ({
+              id: l.merchantLocationKey,
+              label: l.name 
+                ? `${l.name}${l.location?.address?.city ? ` (${l.location.address.city})` : ''}` 
+                : l.merchantLocationKey
+            }))
           });
         }
       } catch (error) {
@@ -456,12 +461,15 @@ const BulkListingEbay = () => {
     const selectedRuleObj = rules.find(r => (r._id || r.id) === globalRule);
 
     try {
+      const existingSkus = items.map(it => it.sku).filter(Boolean);
+
       const res = await bulkListingEbayService.analyze({
         images: sourcePhotos,
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         condition_name: globalCondition,
-        model: globalModel
+        model: globalModel,
+        existing_skus: existingSkus
       });
 
       if (res.data.success) {

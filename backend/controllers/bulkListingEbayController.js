@@ -140,7 +140,8 @@ exports.analyzeBulk = async (req, res) => {
       description_prompt = '',
       condition_name = 'Pre-owned',
       condition_note = '',
-      model = 'gpt-4o-mini'
+      model = 'gpt-4o-mini',
+      existing_skus = []
     } = req.body;
 
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -419,7 +420,9 @@ Response ONLY as JSON: {
       while (!isUnique) {
         skuCode = `KL${currentNum}A`;
         const existingListing = await Listing.findOne({ sku: skuCode });
-        if (!existingListing) {
+        const isAssignedInMemory = resolvedProducts.some(p => p.sku === skuCode);
+        const isAlreadyInTable = (existing_skus || []).includes(skuCode);
+        if (!existingListing && !isAssignedInMemory && !isAlreadyInTable) {
           isUnique = true;
         } else {
           currentNum++;
