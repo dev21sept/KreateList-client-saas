@@ -209,6 +209,7 @@ Response format: Return ONLY a JSON object matching this structure:
     const groupingRes = await callOpenAiWithRetry(aiClient, {
       model: finalModel,
       temperature: 0,
+      max_tokens: 1000,
       messages: [
         { role: "system", content: "You are a precise eBay grouping assistant. You return valid JSON." },
         { role: "user", content: [{ type: "text", text: groupingPrompt }, ...imageContent] }
@@ -339,6 +340,7 @@ Response ONLY as JSON: {
       const detailRes = await callOpenAiWithRetry(aiClient, {
         model: finalModel,
         temperature: 0,
+        max_tokens: 2000,
         messages: [
           { role: "system", content: "You are a precise eBay listing analyzer. You strictly output JSON." },
           { role: "user", content: [{ type: "text", text: promptDetails }, ...prodImageContent] }
