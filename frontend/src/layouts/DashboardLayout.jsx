@@ -33,6 +33,17 @@ const DashboardLayout = ({ isAdmin = false }) => {
   );
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef(null);
+  
+  const [openNestedMenus, setOpenNestedMenus] = useState({
+    'eBay Listing': location.pathname.startsWith('/create-ebay')
+  });
+
+  const toggleNestedMenu = (name) => {
+    setOpenNestedMenus(prev => ({
+      ...prev,
+      [name]: !prev[name]
+    }));
+  };
 
   const handleLogout = () => {
     logout();
@@ -63,7 +74,14 @@ const DashboardLayout = ({ isAdmin = false }) => {
       name: 'Create Listing', 
       icon: <PlusCircle size={20} />, 
       subItems: [
-        { name: 'eBay Listing', path: '/create-ebay-listing', logo: '/ebay.png' },
+        { 
+          name: 'eBay Listing', 
+          logo: '/ebay.png',
+          nestedItems: [
+            { name: 'Single Listing', path: '/create-ebay-listing' },
+            { name: 'Bulk Listing', path: '/create-ebay-bulk-listing' }
+          ]
+        },
         { name: 'Poshmark Listing', path: '/create-poshmark-listing', logo: '/poshmark.png' },
         { name: 'Vinted Listing', path: '/create-vinted-listing', logo: '/vinted.jpg' },
         { name: 'Depop Listing', path: '/create-depop-listing', logo: '/depop.png' }
@@ -122,7 +140,12 @@ const DashboardLayout = ({ isAdmin = false }) => {
           <nav className="flex-grow px-3 space-y-1">
             {menuItems.map((item) => {
               if (item.subItems) {
-                const isSubActive = item.subItems.some(sub => location.pathname === sub.path.split('?')[0]);
+                const isSubActive = item.subItems.some(sub => {
+                  if (sub.nestedItems) {
+                    return sub.nestedItems.some(n => location.pathname === n.path.split('?')[0]);
+                  }
+                  return location.pathname === sub.path.split('?')[0];
+                });
                 return (
                   <div key={item.name} className="space-y-1">
                     <button
@@ -157,6 +180,59 @@ const DashboardLayout = ({ isAdmin = false }) => {
                     {isCreateDropdownOpen && isSidebarOpen && (
                       <div className="pl-9 space-y-1">
                         {item.subItems.map((sub) => {
+                          if (sub.nestedItems) {
+                            const isNestedActive = sub.nestedItems.some(n => location.pathname === n.path);
+                            const isNestedOpen = !!openNestedMenus[sub.name];
+                            return (
+                              <div key={sub.name} className="space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleNestedMenu(sub.name)}
+                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                                    isNestedActive
+                                      ? 'bg-indigo-50/30 text-indigo-600 font-bold'
+                                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    {sub.logo && (
+                                      <img 
+                                        src={sub.logo} 
+                                        alt={sub.name} 
+                                        className="w-4 h-4 object-contain rounded" 
+                                      />
+                                    )}
+                                    <span>{sub.name}</span>
+                                  </div>
+                                  <ChevronDown 
+                                    size={12} 
+                                    className={`text-slate-400 transition-transform duration-200 ${isNestedOpen ? 'rotate-180' : ''}`} 
+                                  />
+                                </button>
+                                {isNestedOpen && (
+                                  <div className="pl-6 space-y-1 border-l border-slate-100 ml-4">
+                                    {sub.nestedItems.map((nested) => {
+                                      const isCurrentNestedActive = location.pathname === nested.path;
+                                      return (
+                                        <Link
+                                          key={nested.name}
+                                          to={nested.path}
+                                          className={`flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-[10px] transition-all ${
+                                            isCurrentNestedActive
+                                              ? 'bg-indigo-50 text-indigo-600 font-bold'
+                                              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                          }`}
+                                        >
+                                          <span>{nested.name}</span>
+                                        </Link>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
                           const isCurrentSubActive = location.pathname === sub.path;
                           return (
                             <Link

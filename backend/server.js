@@ -41,6 +41,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', require('./routes/authRoutes'));
 // eBay Routes
 app.use('/api/ebay', require('./routes/ebayRoutes'));
+// eBay Bulk Listing Routes
+app.use('/api/bulklistingebay', require('./routes/bulkListingEbayRoutes'));
 // Listing Routes
 app.use('/api/listings', require('./routes/listingRoutes'));
 // Rule Routes

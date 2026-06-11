@@ -46,6 +46,12 @@ export const ebayService = {
   syncInventory: () => API.post('/ebay/sync/inventory'),
 };
 
+export const bulkListingEbayService = {
+  analyze: (data) => API.post('/bulklistingebay/analyze', data),
+  saveDrafts: (data) => API.post('/bulklistingebay/save-drafts', data),
+  publish: (data) => API.post('/bulklistingebay/publish', data),
+};
+
 export const listingService = {
   getAll: () => API.get('/listings'),
   getOne: (id) => API.get(`/listings/${id}`),
@@ -77,6 +83,7 @@ export const aiService = {
   vintedGetCategorySizes: (catalogIds) => API.get(`/ai/vinted-sizes?catalog_ids=${catalogIds}`),
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
+  depopGetCategoryDetails: (params) => API.get('/ai/depop-category-details', { params }),
 };
 
 export const adminService = {

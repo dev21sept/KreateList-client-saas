@@ -188,10 +188,11 @@ exports.analyzeListing = async (req, res) => {
                         {
                             type: "text",
                             text: `1. Analyze ALL provided images thoroughly.
-2. Carefully read ALL visible tags, brand logos, model numbers, and text on the product/box.
+2. Carefully read ALL visible tags, brand logos, model numbers, size labels, and text on the product/box.
 3. Use this deep visual and textual evidence to determine the exact product identity.
-4. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level). (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
-5. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206).`
+4. If the product is clothing, footwear/shoes, or a fashion accessory, you MUST explicitly identify the target department/gender (e.g., Men's, Women's, Unisex, Kids', Boys', Girls') from the tags, styling, or labels, and you MUST prefix or include this department/gender explicitly in your 'category_query' (e.g. 'Mens Puffer Jacket' or 'Womens Athletic Shoes' instead of a generic 'Puffer Jacket' or 'Athletic Shoes').
+5. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level) on eBay. (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
+6. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206).`
                         },
                         ...imageContent
                     ]

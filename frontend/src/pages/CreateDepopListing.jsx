@@ -21,6 +21,20 @@ import {
 import { ruleService, aiService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
+import { DEPOP_COLOURS } from '../constants/depopColours';
+import { DEPOP_STYLES } from '../constants/depopStyles';
+import { DEPOP_AGES } from '../constants/depopAges';
+import { DEPOP_SOURCES } from '../constants/depopSources';
+import { DEPOP_BRANDS } from '../constants/depopBrands';
+import { DEPOP_MATERIALS } from '../constants/depopMaterials';
+import { DEPOP_BODY_FITS } from '../constants/depopBodyFits';
+import { DEPOP_COUNTRIES } from '../constants/depopCountries';
+import { DEPOP_OCCASIONS } from '../constants/depopOccasions';
+import { DEPOP_FASTENINGS } from '../constants/depopFastenings';
+import { DEPOP_FITS } from '../constants/depopFits';
+import { DEPOP_TYPES } from '../constants/depopTypes';
+import { DEPOP_ATTRIBUTE_OPTIONS } from '../constants/depopCategoryAttributes';
+import { DEPOP_KIDS_APPAREL_SIZES, DEPOP_KIDS_SHOE_SIZES, DEPOP_WOMENS_TOPS_SIZES, DEPOP_WOMENS_BOTTOMS_SIZES } from '../constants/depopSizes';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -232,6 +246,17 @@ const CreateDepopListing = () => {
     originalPrice: '',
     color: '',
     styleTag: '',
+    age: '',
+    source: '',
+    material: '',
+    bodyFit: '',
+    occasion: '',
+    depopType: '',
+    fastening: '',
+    fit: '',
+    country: 'India',
+    shippingPrice: '0.00',
+    worldwideShipping: false,
     quantity: 1,
     size: '',
     category: '',
@@ -242,6 +267,113 @@ const CreateDepopListing = () => {
     sku: '',
     selectedModel: 'gpt-4o-mini',
   });
+  const [activeAttributesState, setActiveAttributesState] = useState([]);
+
+  useEffect(() => {
+    if (formData.categoryId) {
+      aiService.depopGetCategoryDetails({ id: formData.categoryId })
+        .then(res => {
+          if (res.data?.success && res.data?.data) {
+            setActiveAttributesState(res.data.data.attribute_ids || []);
+          }
+        })
+        .catch(err => console.error("Error loading category details:", err));
+    }
+  }, [formData.categoryId]);
+
+  const [kidsSizeScale, setKidsSizeScale] = useState('US');
+
+  // Resolve size dataset dynamically based on category
+  const activeSizeDataset = useMemo(() => {
+    if (!formData.category) return null;
+    
+    if (formData.category.startsWith('Kids >')) {
+      const isShoe = formData.category.includes('Footwear');
+      return isShoe ? DEPOP_KIDS_SHOE_SIZES : DEPOP_KIDS_APPAREL_SIZES;
+    }
+    
+    if (formData.category.startsWith('Women >')) {
+      const isBottom = formData.category.includes('Bottoms') || formData.category.includes('Jeans') || formData.category.includes('Skirts');
+      return isBottom ? DEPOP_WOMENS_BOTTOMS_SIZES : DEPOP_WOMENS_TOPS_SIZES;
+    }
+    
+    return null;
+  }, [formData.category]);
+
+  // Handle empty scale selection when switching categories
+  useEffect(() => {
+    if (activeSizeDataset) {
+      const currentScaleEmpty = (activeSizeDataset[kidsSizeScale] || []).length === 0;
+      if (currentScaleEmpty) {
+        // Find first non-empty scale
+        for (const scale of ['US', 'UK', 'EUR', 'AU']) {
+          if ((activeSizeDataset[scale] || []).length > 0) {
+            setKidsSizeScale(scale);
+            break;
+          }
+        }
+      }
+    }
+  }, [activeSizeDataset, kidsSizeScale]);
+
+  useEffect(() => {
+    if (!activeSizeDataset || !formData.size) return;
+    
+    // 1. Check if composite ID format (e.g. 101.8-EUR)
+    const compositeMatch = formData.size.match(/^(\d+\.\d+)-(EUR|AU|UK|US)$/);
+    if (compositeMatch) {
+      const scale = compositeMatch[2];
+      setKidsSizeScale(scale);
+      return;
+    }
+    
+    // 2. Otherwise try to match plain name to composite_id
+    const currentScaleSizes = activeSizeDataset[kidsSizeScale] || [];
+    const foundInCurrent = currentScaleSizes.find(s => s.name.toLowerCase() === formData.size.toLowerCase());
+    if (foundInCurrent) {
+      setFormData(prev => ({ ...prev, size: foundInCurrent.composite_id }));
+      return;
+    }
+    
+    for (const scale of ['US', 'UK', 'EUR', 'AU']) {
+      const found = (activeSizeDataset[scale] || []).find(s => s.name.toLowerCase() === formData.size.toLowerCase());
+      if (found) {
+        setKidsSizeScale(scale);
+        setFormData(prev => ({ ...prev, size: found.composite_id }));
+        return;
+      }
+    }
+  }, [formData.size, activeSizeDataset, kidsSizeScale]);
+
+  const getDisplaySize = useMemo(() => {
+    const sizeValue = formData.size;
+    if (!sizeValue) return 'None';
+    if (activeSizeDataset) {
+      for (const scale of ['US', 'UK', 'EUR', 'AU']) {
+        const found = (activeSizeDataset[scale] || []).find(s => s.composite_id === sizeValue);
+        if (found) {
+          return `${found.name} (${scale})`;
+        }
+      }
+    }
+    return sizeValue;
+  }, [formData.size, activeSizeDataset]);
+
+  const kidsSizesOptions = useMemo(() => {
+    if (!activeSizeDataset) return [];
+    return (activeSizeDataset[kidsSizeScale] || []).map(s => ({
+      id: s.composite_id,
+      label: s.name
+    }));
+  }, [activeSizeDataset, kidsSizeScale]);
+
+  const kidsSizeLabel = useMemo(() => {
+    if (!formData.size || !activeSizeDataset) return '';
+    const currentScaleSizes = activeSizeDataset[kidsSizeScale] || [];
+    const found = currentScaleSizes.find(s => s.composite_id === formData.size);
+    return found ? found.name : '';
+  }, [formData.size, activeSizeDataset, kidsSizeScale]);
+
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
 
@@ -309,6 +441,17 @@ const CreateDepopListing = () => {
               originalPrice: listing.originalPrice || '',
               color: listing.color || '',
               styleTag: listing.styleTag || '',
+              age: listing.age || '',
+              source: listing.source || '',
+              material: listing.material || '',
+              bodyFit: listing.bodyFit || '',
+              occasion: listing.occasion || '',
+              depopType: listing.depopType || '',
+              fastening: listing.fastening || '',
+              fit: listing.fit || '',
+              country: listing.country || 'India',
+              shippingPrice: listing.shippingPrice || '0.00',
+              worldwideShipping: listing.worldwideShipping !== undefined ? listing.worldwideShipping : false,
               quantity: listing.quantity || 1,
               size: listing.size || '',
               category: listing.category || '',
@@ -405,22 +548,67 @@ const CreateDepopListing = () => {
 
       if (response.data.success) {
         const result = response.data.data;
+        
+        // Find closest matches in our official lists
+        const findClosestMatch = (val, list) => {
+          if (!val) return '';
+          const clean = String(val).toLowerCase().trim();
+          const found = list.find(item => 
+            item.label.toLowerCase() === clean || 
+            item.id.toLowerCase() === clean ||
+            clean.includes(item.label.toLowerCase()) ||
+            clean.includes(item.id.toLowerCase())
+          );
+          return found ? found.label : '';
+        };
+
+        const resolvedBrand = findClosestMatch(result.brand, DEPOP_BRANDS) || result.brand || '';
+        const resolvedColor = findClosestMatch(result.color, DEPOP_COLOURS) || '';
+        const resolvedStyle = findClosestMatch(result.styleTag, DEPOP_STYLES) || '';
+        const resolvedAge = findClosestMatch(result.age, DEPOP_AGES) || '';
+        const resolvedSource = findClosestMatch(result.source, DEPOP_SOURCES) || '';
+        const resolvedMaterial = findClosestMatch(result.material, DEPOP_MATERIALS) || '';
+        const resolvedBodyFit = findClosestMatch(result.bodyFit, DEPOP_BODY_FITS) || '';
+        const resolvedOccasion = findClosestMatch(result.occasion, DEPOP_OCCASIONS) || '';
+        const resolvedFastening = findClosestMatch(result.fastening, DEPOP_FASTENINGS) || '';
+        const allTypesList = [
+          ...DEPOP_TYPES.footwear, 
+          ...DEPOP_TYPES.bottoms, 
+          ...DEPOP_TYPES.beauty,
+          ...Object.values(DEPOP_ATTRIBUTE_OPTIONS).flat()
+        ];
+        const allFitsList = [
+          ...DEPOP_FITS,
+          ...Object.values(DEPOP_ATTRIBUTE_OPTIONS).flat()
+        ];
+        const resolvedFit = findClosestMatch(result.fit, allFitsList) || result.fit || '';
+        const resolvedDepopType = findClosestMatch(result.depopType, allTypesList) || result.depopType || '';
+
         setFormData(prev => ({
           ...prev,
           title: result.title,
-          brand: result.brand || '',
+          brand: resolvedBrand,
           originalPrice: result.originalPrice || '',
-          color: result.color || '',
-          styleTag: result.styleTag || '',
+          color: resolvedColor,
+          styleTag: resolvedStyle,
+          age: resolvedAge,
+          source: resolvedSource,
+          material: resolvedMaterial,
+          bodyFit: resolvedBodyFit,
+          occasion: resolvedOccasion,
+          depopType: resolvedDepopType,
+          fastening: resolvedFastening,
+          fit: resolvedFit,
           quantity: 1,
           size: result.size || '',
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
           category: result.category_name || result.category || '',
-          categoryId: '',
+          categoryId: result.categoryId || '',
           sku: result.sku || ''
         }));
+        setActiveAttributesState(result.attribute_ids || []);
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
@@ -449,6 +637,173 @@ const CreateDepopListing = () => {
     description: c.description
   })), []);
 
+  const brandOptions = useMemo(() => DEPOP_BRANDS.map(b => ({
+    id: b.id,
+    label: b.label
+  })), []);
+
+  const colorOptions = useMemo(() => DEPOP_COLOURS.map(c => ({
+    id: c.id,
+    label: c.label
+  })), []);
+
+  const styleOptions = useMemo(() => DEPOP_STYLES.map(s => ({
+    id: s.id,
+    label: s.label
+  })), []);
+
+  const ageOptions = useMemo(() => DEPOP_AGES.map(a => ({
+    id: a.id,
+    label: a.label
+  })), []);
+
+  const sourceOptions = useMemo(() => DEPOP_SOURCES.map(s => ({
+    id: s.id,
+    label: s.label
+  })), []);
+
+  const materialOptions = useMemo(() => DEPOP_MATERIALS.map(m => ({
+    id: m.id,
+    label: m.label
+  })), []);
+
+  const bodyFitOptions = useMemo(() => DEPOP_BODY_FITS.map(bf => ({
+    id: bf.id,
+    label: bf.label
+  })), []);
+
+  const countryOptions = useMemo(() => DEPOP_COUNTRIES.map(c => ({
+    id: c.id,
+    label: c.label
+  })), []);
+
+  const occasionOptions = useMemo(() => DEPOP_OCCASIONS.map(o => ({
+    id: o.id,
+    label: o.label
+  })), []);
+
+  const activeAttributes = useMemo(() => {
+    if (activeAttributesState && activeAttributesState.length > 0) {
+      return activeAttributesState;
+    }
+    
+    // Default fallback based on category text matching
+    const cat = String(formData.category || '').toLowerCase();
+    const isBeauty = cat.includes('beauty') || cat.includes('skincare');
+    const isFootwear = cat.includes('footwear');
+    const isBottoms = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('trousers');
+    const isTops = cat.includes('tops') || cat.includes('hoodies') || cat.includes('sweatshirts') || cat.includes('jumpers') || cat.includes('cardigans') || cat.includes('shirts') || cat.includes('polo shirts') || cat.includes('blouses') || cat.includes('crop tops') || cat.includes('vests') || cat.includes('corsets') || cat.includes('bodysuits') || cat.includes('dresses') || cat.includes('jumpsuits') || cat.includes('playsuits') || cat.includes('suits');
+    
+    const attrs = [];
+    if (!isBeauty) {
+      attrs.push("material", "size-fit");
+      if (isFootwear || isBottoms || isTops) {
+        attrs.push("occasion");
+      }
+      if (isBottoms || isTops) {
+        attrs.push("body-fit");
+      }
+      if (isFootwear) {
+        attrs.push("shoe-type");
+        attrs.push("fastening");
+      } else if (isBottoms) {
+        attrs.push("bottom-style");
+        attrs.push("bottom-fit");
+      }
+    } else {
+      attrs.push("beauty-type");
+    }
+    return attrs;
+  }, [activeAttributesState, formData.category]);
+
+  const activeTypeAttribute = useMemo(() => {
+    const typeAttrs = [
+      "bottom-style", "dress-type", "coat-type", "jacket-type", 
+      "jumpssuit-type", "dungarees-type", "trainers-type", 
+      "shoe-type", "boot-type", "beauty-type"
+    ];
+    return activeAttributes.find(attr => typeAttrs.includes(attr)) || null;
+  }, [activeAttributes]);
+
+  const activeFitAttribute = useMemo(() => {
+    const fitAttrs = ["bottom-fit", "dress-length", "heel-type"];
+    return activeAttributes.find(attr => fitAttrs.includes(attr)) || null;
+  }, [activeAttributes]);
+
+  const typeFieldLabel = useMemo(() => {
+    if (!activeTypeAttribute) return "Type";
+    const labels = {
+      "bottom-style": "Bottom Style",
+      "dress-type": "Dress Type",
+      "coat-type": "Coat Type",
+      "jacket-type": "Jacket Type",
+      "jumpssuit-type": "Jumpsuit Type",
+      "dungarees-type": "Dungarees Type",
+      "trainers-type": "Trainer Type",
+      "shoe-type": "Shoe Type",
+      "boot-type": "Boot Type",
+      "beauty-type": "Beauty Type"
+    };
+    return labels[activeTypeAttribute] || "Type";
+  }, [activeTypeAttribute]);
+
+  const fitFieldLabel = useMemo(() => {
+    if (!activeFitAttribute) return "Fit";
+    const labels = {
+      "bottom-fit": "Bottom Fit",
+      "dress-length": "Dress Length",
+      "heel-type": "Heel Type"
+    };
+    return labels[activeFitAttribute] || "Fit";
+  }, [activeFitAttribute]);
+
+  const typeOptions = useMemo(() => {
+    if (!activeTypeAttribute) return [];
+    if (DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute]) {
+      return DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute];
+    }
+    if (activeTypeAttribute === "bottom-style") {
+      return DEPOP_TYPES.bottoms;
+    }
+    if (activeTypeAttribute === "beauty-type") {
+      return DEPOP_TYPES.beauty;
+    }
+    if (activeTypeAttribute === "trainers-type" || activeTypeAttribute === "shoe-type") {
+      return DEPOP_TYPES.footwear;
+    }
+    return [];
+  }, [activeTypeAttribute]);
+
+  const fasteningOptions = useMemo(() => DEPOP_FASTENINGS.map(f => ({
+    id: f.id,
+    label: f.label
+  })), []);
+
+  const fitOptions = useMemo(() => {
+    if (!activeFitAttribute) return [];
+    if (DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute]) {
+      return DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute];
+    }
+    if (activeFitAttribute === "bottom-fit") {
+      return DEPOP_FITS.map(f => ({ id: f.id, label: f.label }));
+    }
+    return [];
+  }, [activeFitAttribute]);
+
+  const categoryVisibilities = useMemo(() => {
+    const isBeauty = activeAttributes.includes("beauty-type");
+    return {
+      type: activeTypeAttribute !== null,
+      fastening: activeAttributes.includes("fastening"),
+      fit: activeFitAttribute !== null,
+      bodyFit: activeAttributes.includes("body-fit"),
+      occasion: activeAttributes.includes("occasion"),
+      material: activeAttributes.includes("material"),
+      size: activeAttributes.includes("size-fit"),
+      enhanceAttrs: !isBeauty
+    };
+  }, [activeAttributes, activeTypeAttribute, activeFitAttribute]);
+
   const deleteImage = (index) => {
     const newImages = formData.images.filter((_, idx) => idx !== index);
     const newFiles = files.filter((_, idx) => idx !== index);
@@ -466,6 +821,17 @@ const CreateDepopListing = () => {
       originalPrice: formData.originalPrice,
       color: formData.color,
       styleTag: formData.styleTag,
+      age: formData.age,
+      source: formData.source,
+      material: formData.material,
+      bodyFit: formData.bodyFit,
+      occasion: formData.occasion,
+      depopType: formData.depopType,
+      fastening: formData.fastening,
+      fit: formData.fit,
+      country: formData.country,
+      shippingPrice: formData.shippingPrice,
+      worldwideShipping: formData.worldwideShipping,
       quantity: formData.quantity,
       size: formData.size,
       description: formData.description,
@@ -696,18 +1062,21 @@ const CreateDepopListing = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                        <SearchableDropdown 
                           value={formData.brand}
-                          onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                          placeholder="Enter brand name..."
+                          onSelect={(opt) => setFormData({...formData, brand: opt.label})}
+                          options={brandOptions}
+                          placeholder="Select brand..."
                         />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Depop Category</label>
                         <CategorySearchDropdown 
                           value={formData.category}
-                          onSelect={(opt) => setFormData({...formData, category: opt.fullName, categoryId: opt.id})}
+                          onSelect={(opt) => {
+                            setFormData({...formData, category: opt.fullName, categoryId: opt.id});
+                            setActiveAttributesState(opt.attribute_ids || []);
+                          }}
                           placeholder="Search and edit category..."
                         />
                       </div>
@@ -745,33 +1114,238 @@ const CreateDepopListing = () => {
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
+                        <SearchableDropdown 
                           value={formData.color}
-                          onChange={(e) => setFormData({...formData, color: e.target.value})}
-                          placeholder="Color..."
+                          onSelect={(opt) => setFormData({...formData, color: opt.label})}
+                          options={colorOptions}
+                          placeholder="Select color..."
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.size}
-                          onChange={(e) => setFormData({...formData, size: e.target.value})}
-                          placeholder="Size..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (aesthetic tags)</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.styleTag}
-                          onChange={(e) => setFormData({...formData, styleTag: e.target.value})}
-                          placeholder="e.g. vintage, grunge, retro..."
-                        />
+                    {/* Dynamic Fields Section */}
+                    <AnimatePresence>
+                      {/* Row: Type, Fastening, Fit */}
+                      {(categoryVisibilities.type || categoryVisibilities.fastening || categoryVisibilities.fit) && (
+                        <motion.div 
+                          key="depop-type-fastening-fit"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                        >
+                          {categoryVisibilities.type && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{typeFieldLabel}</label>
+                              <SearchableDropdown 
+                                value={formData.depopType}
+                                onSelect={(opt) => setFormData({...formData, depopType: opt.label})}
+                                options={typeOptions}
+                                placeholder={`Select ${typeFieldLabel.toLowerCase()}...`}
+                              />
+                            </div>
+                          )}
+                          {categoryVisibilities.fastening && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Fastening</label>
+                              <SearchableDropdown 
+                                value={formData.fastening}
+                                onSelect={(opt) => setFormData({...formData, fastening: opt.label})}
+                                options={fasteningOptions}
+                                placeholder="Select fastening..."
+                              />
+                            </div>
+                          )}
+                          {categoryVisibilities.fit && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{fitFieldLabel}</label>
+                              <SearchableDropdown 
+                                value={formData.fit}
+                                onSelect={(opt) => setFormData({...formData, fit: opt.label})}
+                                options={fitOptions}
+                                placeholder={`Select ${fitFieldLabel.toLowerCase()}...`}
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* Row: Size, Style tags */}
+                      {(categoryVisibilities.size || categoryVisibilities.enhanceAttrs) && (
+                        <motion.div 
+                          key="depop-size-style"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                        >
+                          {categoryVisibilities.size && (
+                            <div className="space-y-3">
+                              {activeSizeDataset ? (
+                                <>
+                                  <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size Region / Scale</label>
+                                    <div className="flex gap-1.5 flex-wrap">
+                                      {['US', 'UK', 'EUR', 'AU'].map((scale) => {
+                                        const isEmpty = (activeSizeDataset[scale] || []).length === 0;
+                                        if (isEmpty) return null;
+                                        
+                                        return (
+                                          <button
+                                            key={scale}
+                                            type="button"
+                                            onClick={() => {
+                                              setKidsSizeScale(scale);
+                                              const currentSizeObj = (activeSizeDataset[kidsSizeScale] || []).find(s => s.composite_id === formData.size);
+                                              if (currentSizeObj) {
+                                                const nextSizeObj = (activeSizeDataset[scale] || []).find(s => s.name === currentSizeObj.name);
+                                                if (nextSizeObj) {
+                                                  setFormData(prev => ({ ...prev, size: nextSizeObj.composite_id }));
+                                                  return;
+                                                }
+                                              }
+                                              setFormData(prev => ({ ...prev, size: '' }));
+                                            }}
+                                            className={`px-3.5 py-1.5 text-xs font-black rounded-xl border transition-all ${
+                                              kidsSizeScale === scale
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
+                                            }`}
+                                          >
+                                            {scale}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
+                                    <SearchableDropdown
+                                      value={kidsSizeLabel}
+                                      onSelect={(opt) => setFormData({...formData, size: opt.id})}
+                                      options={kidsSizesOptions}
+                                      placeholder="Select size..."
+                                    />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
+                                  <input 
+                                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all h-12"
+                                    value={formData.size}
+                                    onChange={(e) => setFormData({...formData, size: e.target.value})}
+                                    placeholder="Size..."
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {categoryVisibilities.enhanceAttrs && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (aesthetic tags)</label>
+                              <SearchableDropdown 
+                                value={formData.styleTag}
+                                onSelect={(opt) => setFormData({...formData, styleTag: opt.label})}
+                                options={styleOptions}
+                                placeholder="Select style..."
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* Row: Age, Source */}
+                      {categoryVisibilities.enhanceAttrs && (
+                        <motion.div 
+                          key="depop-age-source"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                        >
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Age</label>
+                            <SearchableDropdown 
+                              value={formData.age}
+                              onSelect={(opt) => setFormData({...formData, age: opt.label})}
+                              options={ageOptions}
+                              placeholder="Select age..."
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Source</label>
+                            <SearchableDropdown 
+                              value={formData.source}
+                              onSelect={(opt) => setFormData({...formData, source: opt.label})}
+                              options={sourceOptions}
+                              placeholder="Select source..."
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Row: Material, Body Fit, Occasion */}
+                      {(categoryVisibilities.material || categoryVisibilities.bodyFit || categoryVisibilities.occasion) && (
+                        <motion.div 
+                          key="depop-material-bodyfit-occasion"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                        >
+                          {categoryVisibilities.material && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Material</label>
+                              <SearchableDropdown 
+                                value={formData.material}
+                                onSelect={(opt) => setFormData({...formData, material: opt.label})}
+                                options={materialOptions}
+                                placeholder="Select material..."
+                              />
+                            </div>
+                          )}
+                          {categoryVisibilities.bodyFit && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Body Fit</label>
+                              <SearchableDropdown 
+                                value={formData.bodyFit}
+                                onSelect={(opt) => setFormData({...formData, bodyFit: opt.label})}
+                                options={bodyFitOptions}
+                                placeholder="Select body fit..."
+                              />
+                            </div>
+                          )}
+                          {categoryVisibilities.occasion && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Occasion</label>
+                              <SearchableDropdown 
+                                value={formData.occasion}
+                                onSelect={(opt) => setFormData({...formData, occasion: opt.label})}
+                                options={occasionOptions}
+                                placeholder="Select occasion..."
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 space-y-6">
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Shipping</h3>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1.5 max-w-xs">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Shipping Price</label>
+                          <div className="relative">
+                            <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input 
+                              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                              value={formData.shippingPrice}
+                              onChange={(e) => setFormData({...formData, shippingPrice: e.target.value})}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -784,23 +1358,22 @@ const CreateDepopListing = () => {
                             onClick={() => setDescriptionMode('preview')}
                             className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                           >
-                            Preview HTML
+                            Preview Text
                           </button>
                           <button 
                             type="button"
                             onClick={() => setDescriptionMode('edit')}
                             className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                           >
-                            Edit Source
+                            Edit Text
                           </button>
                         </div>
                       </div>
                       
                       {descriptionMode === 'preview' ? (
-                        <div 
-                          className="w-full min-h-[160px] p-4 bg-slate-50 border border-slate-250 rounded-2xl text-slate-700 text-xs leading-relaxed overflow-y-auto max-h-[300px]"
-                          dangerouslySetInnerHTML={{ __html: formData.description }}
-                        />
+                        <div className="w-full min-h-[160px] p-4 bg-slate-50 border border-slate-250 rounded-2xl text-slate-700 text-xs leading-relaxed overflow-y-auto max-h-[300px] whitespace-pre-wrap">
+                          {formData.description}
+                        </div>
                       ) : (
                         <textarea 
                           rows={6}
@@ -856,7 +1429,7 @@ const CreateDepopListing = () => {
                         </div>
                         <div>
                           <p className="text-slate-400">Size</p>
-                          <p className="font-bold text-slate-700">{formData.size || 'None'}</p>
+                          <p className="font-bold text-slate-700">{getDisplaySize}</p>
                         </div>
                         <div>
                           <p className="text-slate-400">Color</p>
@@ -866,17 +1439,71 @@ const CreateDepopListing = () => {
                           <p className="text-slate-400">Style Tags</p>
                           <p className="font-bold text-slate-700">{formData.styleTag || 'None'}</p>
                         </div>
+                        <div>
+                          <p className="text-slate-400">Age</p>
+                          <p className="font-bold text-slate-700">{formData.age || 'None'}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Source</p>
+                          <p className="font-bold text-slate-700">{formData.source || 'None'}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Material</p>
+                          <p className="font-bold text-slate-700">{formData.material || 'None'}</p>
+                        </div>
+                        {categoryVisibilities.bodyFit && formData.bodyFit && (
+                          <div>
+                            <p className="text-slate-400">Body Fit</p>
+                            <p className="font-bold text-slate-700">{formData.bodyFit}</p>
+                          </div>
+                        )}
+                        {categoryVisibilities.occasion && formData.occasion && (
+                          <div>
+                            <p className="text-slate-400">Occasion</p>
+                            <p className="font-bold text-slate-700">{formData.occasion}</p>
+                          </div>
+                        )}
+                        {categoryVisibilities.type && formData.depopType && (
+                          <div>
+                            <p className="text-slate-400">{typeFieldLabel}</p>
+                            <p className="font-bold text-slate-700">{formData.depopType}</p>
+                          </div>
+                        )}
+                        {categoryVisibilities.fastening && formData.fastening && (
+                          <div>
+                            <p className="text-slate-400">Fastening</p>
+                            <p className="font-bold text-slate-700">{formData.fastening}</p>
+                          </div>
+                        )}
+                        {categoryVisibilities.fit && formData.fit && (
+                          <div>
+                            <p className="text-slate-400">{fitFieldLabel}</p>
+                            <p className="font-bold text-slate-700">{formData.fit}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Product Images</h4>
-                      <div className="flex gap-2">
-                        {formData.images.slice(0, 4).map((img, i) => (
-                          <div key={i} className="w-14 h-14 rounded-lg overflow-hidden border border-slate-100">
-                            <img src={img} className="w-full h-full object-cover" alt="Preview Thumbnail" />
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Product Images</h4>
+                        <div className="flex gap-2">
+                          {formData.images.slice(0, 4).map((img, i) => (
+                            <div key={i} className="w-14 h-14 rounded-lg overflow-hidden border border-slate-100">
+                              <img src={img} className="w-full h-full object-cover" alt="Preview Thumbnail" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Shipping</h4>
+                        <div className="grid grid-cols-1 gap-4 text-xs">
+                          <div>
+                            <p className="text-slate-400">Shipping Price</p>
+                            <p className="font-bold text-slate-700">${formData.shippingPrice || '0.00'}</p>
                           </div>
-                        ))}
+                        </div>
                       </div>
                     </div>
                   </div>

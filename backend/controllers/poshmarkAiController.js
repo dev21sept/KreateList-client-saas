@@ -301,7 +301,7 @@ Examples:
    - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.
    - Identify the 'size' of the item if visible in the images or estimate it if not.
  
-Context: Gender: ${gender}.
+Context: Gender: ${gender === 'Unisex' ? 'Unisex (Identify the correct Men/Women/Kids category root based on the item design/styling)' : gender}.
  
 Response ONLY as JSON: {
   "brand": "Company Name",

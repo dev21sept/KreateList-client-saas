@@ -75,6 +75,8 @@ const listingSchema = new mongoose.Schema({
   originalPrice: String,
   color: String,
   styleTag: String,
+  age: String,
+  source: String,
   quantity: {
     type: Number,
     default: 1
@@ -86,6 +88,23 @@ const listingSchema = new mongoose.Schema({
   videoGameRating: String,
   measurements: String,
   material: String,
+  bodyFit: String,
+  occasion: String,
+  depopType: String,
+  fastening: String,
+  fit: String,
+  country: {
+    type: String,
+    default: 'India'
+  },
+  shippingPrice: {
+    type: String,
+    default: '0.00'
+  },
+  worldwideShipping: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

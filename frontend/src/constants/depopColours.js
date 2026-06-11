@@ -1,0 +1,21 @@
+export const DEPOP_COLOURS = [
+    { id: "black", label: "Black", hex: "#000000" },
+    { id: "grey", label: "Grey", hex: "#DCDCDC" },
+    { id: "white", label: "White", hex: "#FFFFFF" },
+    { id: "brown", label: "Brown", hex: "#5E3F32" },
+    { id: "tan", label: "Tan", hex: "#F0BB7F" },
+    { id: "cream", label: "Cream", hex: "#F1E6B2" },
+    { id: "yellow", label: "Yellow", hex: "#FBE122" },
+    { id: "red", label: "Red", hex: "#E10600" },
+    { id: "burgundy", label: "Burgundy", hex: "#8A2B2B" },
+    { id: "orange", label: "Orange", hex: "#FA6400" },
+    { id: "pink", label: "Pink", hex: "#F564B3" },
+    { id: "purple", label: "Purple", hex: "#5F18D1" },
+    { id: "blue", label: "Blue", hex: "#046AB7" },
+    { id: "navy", label: "Navy", hex: "#002555" },
+    { id: "green", label: "Green", hex: "#5EAF07" },
+    { id: "khaki", label: "Khaki", hex: "#8D7F1F" },
+    { id: "multi", label: "Multi", hex: "#FFFFFF" },
+    { id: "silver", label: "Silver", hex: "#CDCDCD" },
+    { id: "gold", label: "Gold", hex: "#D6C478" }
+];

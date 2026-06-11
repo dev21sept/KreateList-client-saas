@@ -23,6 +23,7 @@ import Dashboard from './pages/Dashboard';
 import Listings from './pages/Listings';
 import CreateListing from './pages/CreateListing';
 import CreateEbayListing from './pages/CreateEbayListing';
+import BulkListingEbay from './pages/BulkListingEbay';
 import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
 import CreateVintedListing from './pages/CreateVintedListing';
 import CreateDepopListing from './pages/CreateDepopListing';
@@ -71,6 +72,7 @@ const DomainRedirect = ({ children }) => {
       '/listings',
       '/create-listing',
       '/create-ebay-listing',
+      '/create-ebay-bulk-listing',
       '/create-poshmark-listing',
       '/create-vinted-listing',
       '/create-depop-listing',
@@ -143,6 +145,7 @@ const App = () => {
               <Route path="/listings" element={<Listings />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
+              <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />
               <Route path="/create-poshmark-listing" element={<CreatePoshmarkListing />} />
               <Route path="/create-vinted-listing" element={<CreateVintedListing />} />
               <Route path="/create-depop-listing" element={<CreateDepopListing />} />

@@ -92,7 +92,7 @@ function scoreCategory(categoryPath, queryStr) {
     });
 
     // Gender matching logic
-    const rootCategory = pathParts[0] || '';
+    const rootLower = (pathParts[0] || '').trim().toLowerCase();
     const queryLower = queryStr.toLowerCase();
     
     const isQueryMen = queryLower.includes('men') && !queryLower.includes('women');
@@ -100,21 +100,21 @@ function scoreCategory(categoryPath, queryStr) {
     const isQueryKids = queryLower.includes('kids') || queryLower.includes('boy') || queryLower.includes('girl') || queryLower.includes('baby');
 
     if (isQueryMen) {
-        if (rootCategory.includes('men')) {
+        if (rootLower === 'men') {
             score += 30; // Strong boost for correct root
-        } else if (rootCategory.includes('women') || rootCategory.includes('kids')) {
+        } else if (rootLower === 'women' || rootLower === 'kids') {
             score -= 30; // Penalty for mismatch
         }
     } else if (isQueryWomen) {
-        if (rootCategory.includes('women')) {
+        if (rootLower === 'women') {
             score += 30;
-        } else if (rootCategory.includes('men') || rootCategory.includes('kids')) {
+        } else if (rootLower === 'men' || rootLower === 'kids') {
             score -= 30;
         }
     } else if (isQueryKids) {
-        if (rootCategory.includes('kids')) {
+        if (rootLower === 'kids') {
             score += 30;
-        } else if (rootCategory.includes('men') || rootCategory.includes('women')) {
+        } else if (rootLower === 'men' || rootLower === 'women') {
             score -= 20;
         }
     }
@@ -590,7 +590,7 @@ ${descriptionInstruction}
    - If the product is a video game, identify 'video_game_rating'.
    - If measurements are relevant (clothing, shoes, bags, accessories, etc.), extract 'measurements'. Carefully check all product images for any measuring tapes, ruler lines, or visible measurements, and extract them accurately (e.g., 'Pit to pit: 21 in, Length: 28 in'). If there are no measurements visible in the images, you MUST estimate/approximate realistic measurements based on the item type and size (e.g., for a Size M shirt: 'Pit to pit: 20 in, Length: 27 in'). DO NOT leave this empty.
  
-Context: Gender: ${gender}.
+Context: Gender: ${gender === 'Unisex' ? 'Unisex (Identify the correct target Men/Women/Kids demographic based on the item design/styling)' : gender}.
 
 Response ONLY as JSON: {
   "brand": "Company Name",

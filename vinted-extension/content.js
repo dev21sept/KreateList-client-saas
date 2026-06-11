@@ -265,16 +265,59 @@ async function executeVintedUpload(productData) {
         if (sizesRes.ok) {
           const sizesData = await sizesRes.json();
           const groups = sizesData.size_groups || [];
-          const userSize = productData.size.trim().toLowerCase();
+          
+          let userSize = productData.size.trim().toLowerCase();
+          if (userSize.startsWith('size ')) {
+            userSize = userSize.replace('size ', '').trim();
+          }
+          const sizeMap = {
+            'small': 's',
+            'medium': 'm',
+            'large': 'l',
+            'extra large': 'xl',
+            'x-large': 'xl',
+            'xx-large': 'xxl',
+            'double xl': 'xxl',
+            'xxl': 'xxl'
+          };
+          if (sizeMap[userSize]) {
+            userSize = sizeMap[userSize];
+          }
           
           let matchedSize = null;
           for (let g of groups) {
             const sizes = g.sizes || [];
-            matchedSize = sizes.find(s => (s.name || s.title || '').toLowerCase() === userSize || (s.equivalent_sizes && s.equivalent_sizes.us && s.equivalent_sizes.us.toLowerCase() === userSize));
+            
+            // Try 1: Exact match
+            matchedSize = sizes.find(s => {
+              const nameLower = (s.name || s.title || '').trim().toLowerCase();
+              const usLower = (s.equivalent_sizes && s.equivalent_sizes.us || '').trim().toLowerCase();
+              return nameLower === userSize || usLower === userSize;
+            });
+            if (matchedSize) break;
+
+            // Try 2: Slash/hyphen token check (e.g. matching "L" with "L / 40 / 12")
+            matchedSize = sizes.find(s => {
+              const nameParts = (s.name || s.title || '').split(/[\/\-]+/).map(p => p.trim().toLowerCase());
+              const usParts = (s.equivalent_sizes && s.equivalent_sizes.us || '').split(/[\/\-]+/).map(p => p.trim().toLowerCase());
+              return nameParts.includes(userSize) || usParts.includes(userSize);
+            });
+            if (matchedSize) break;
+            
+            // Try 3: Prefix space check (e.g. "L (US 10)" starts with "l")
+            matchedSize = sizes.find(s => {
+              const nameLower = (s.name || s.title || '').trim().toLowerCase();
+              const usLower = (s.equivalent_sizes && s.equivalent_sizes.us || '').trim().toLowerCase();
+              return nameLower.startsWith(userSize + ' ') || usLower.startsWith(userSize + ' ');
+            });
             if (matchedSize) break;
           }
+          
           if (matchedSize) {
             sizeId = matchedSize.id;
+            console.log(`[Elister Vinted] Successfully resolved size "${productData.size}" to Vinted size ID ${sizeId} (${matchedSize.name})`);
+          } else {
+            console.warn(`[Elister Vinted] Failed to resolve size "${productData.size}" to any Vinted size ID.`);
           }
         }
       } catch (err) {
