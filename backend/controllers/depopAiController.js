@@ -266,11 +266,11 @@ ${descriptionInstruction}
     - Identify 'age' (e.g. 'Modern', '00s', '90s', '80s', '70s', '60s', '50s', 'Antique').
     - Identify 'source' (e.g. 'Vintage', 'Preloved', 'Reworked / Upcycled', 'Custom', 'Handmade', 'Deadstock', 'Designer', 'Repaired').
     - Identify 'material' (e.g. 'Cotton', 'Polyester', 'Denim', 'Wool', 'Silk', 'Leather', 'Nylon', 'Linen', 'Acrylic', 'Canvas', 'Cashmere', 'Corduroy', 'Fleece', 'Satin', 'Suede', 'Velvet', 'Viscose').
-    - Identify 'body_fit' (e.g. 'Slim', 'Regular', 'Relaxed', 'Oversized', 'Loose', 'Fitted', 'Skinny', 'Straight', 'Cropped', 'Tight', 'Wide leg').
+    - Identify 'body_fit' (e.g. 'Maternity', 'Petite', 'Plus size', 'Tall'. Else empty string).
     - Identify 'occasion' (e.g. 'Casual', 'Party', 'Formal', 'Sports', 'Business', 'Wedding', 'Festival', 'Vacation').
     - Identify 'depop_type' (for footwear, bottoms, and beauty categories. E.g. 'Trainers', 'Boots', 'Sandals', 'Slides', 'Heels' for footwear; 'Jeans', 'Trousers', 'Joggers', 'Shorts', 'Leggings', 'Skirts' for bottoms; 'Cleanser', 'Moisturizer', 'Serum', 'Face mask' for skincare/beauty. Else empty string).
     - Identify 'fastening' (for footwear categories. E.g. 'Lace up', 'Slip on', 'Zip', 'Buckle', 'Hook and loop', 'Button', 'Strap', 'Pull on'. Else empty string).
-    - Identify 'fit' (for bottoms/jeans categories. E.g. 'Straight leg', 'Slim', 'Skinny', 'Wide leg', 'Bootcut', 'Boyfriend', 'Flare', 'Loose', 'Relaxed', 'Tapered', 'Mom jeans', 'Cargo'. Else empty string).
+    - Identify 'fit' (e.g. 'Slim', 'Regular', 'Relaxed', 'Oversized', 'Loose', 'Fitted', 'Skinny', 'Straight', 'Cropped', 'Tight', 'Wide leg', 'Bootcut', 'Boyfriend', 'Flare', 'Tapered', 'Mom jeans', 'Cargo'. Else empty string).
 
 Context: Gender: ${gender === 'Unisex' ? 'Unisex (Identify the correct Men/Women/Kids category root based on the item design/styling)' : gender}.
 

@@ -180,37 +180,32 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
     { id: "ankle_length", label: "Ankle length" }
   ],
   "dress-type": [
-    { id: "a-line", label: "A-line" },
-    { id: "babydoll", label: "Babydoll" },
-    { id: "blazer", label: "Blazer" },
-    { id: "bodycon", label: "Bodycon" },
-    { id: "fishtail", label: "Fishtail" },
-    { id: "pencil", label: "Pencil" },
-    { id: "pleated", label: "Pleated" },
-    { id: "shirt", label: "Shirt" },
-    { id: "slip", label: "Slip" }
+    { id: "slip", label: "Slip dress" },
+    { id: "wrap", label: "Wrap dress" },
+    { id: "babydoll", label: "Babydoll dress" },
+    { id: "bodycon", label: "Bodycon dress" },
+    { id: "shirt_dress", label: "Shirt dress" },
+    { id: "shift", label: "Shift dress" },
+    { id: "prom", label: "Prom dress" },
+    { id: "summer", label: "Summer dress" }
   ],
   "coat-type": [
-    { id: "dufflecoat", label: "Duffle" },
-    { id: "overcoat", label: "Overcoat" },
+    { id: "trench", label: "Trench coat" },
+    { id: "puffer", label: "Puffer coat" },
+    { id: "bomber", label: "Bomber jacket" },
     { id: "parka", label: "Parka" },
-    { id: "peacoat", label: "Peacoat" },
-    { id: "puffer", label: "Puffer" },
-    { id: "raincoat", label: "Raincoat" },
-    { id: "teddy", label: "Sherpa" },
-    { id: "trench", label: "Trench" }
+    { id: "overcoat", label: "Overcoat" },
+    { id: "windbreaker", label: "Windbreaker" },
+    { id: "blazer", label: "Blazer" }
   ],
   "jacket-type": [
+    { id: "bomber", label: "Bomber jacket" },
+    { id: "puffer", label: "Puffer jacket" },
+    { id: "denim", label: "Denim jacket" },
+    { id: "leather", label: "Leather jacket" },
+    { id: "windbreaker", label: "Windbreaker" },
     { id: "blazer", label: "Blazer" },
-    { id: "bomber", label: "Bomber" },
-    { id: "capes", label: "Cape" },
-    { id: "duster", label: "Duster" },
-    { id: "lightweight", label: "Lightweight" },
-    { id: "ponchos", label: "Poncho" },
-    { id: "puffer", label: "Puffer" },
-    { id: "shacket", label: "Shacket" },
-    { id: "varsity", label: "Varsity" },
-    { id: "windbreaker", label: "Windbreaker" }
+    { id: "varsity", label: "Varsity jacket" }
   ],
   "jumpssuit-type": [
     { id: "boilersuit", label: "Boilersuit" },
@@ -247,80 +242,5 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
     { id: "knee_high", label: "Knee high boots" },
     { id: "cowboy", label: "Cowboy boots" },
     { id: "platform", label: "Platform boots" }
-  ],
-  "bottom-fit": [
-    { id: "acid-washed", label: "Acid-washed" },
-    { id: "bleached", label: "Bleached" },
-    { id: "capris", label: "Capri" },
-    { id: "cargo", label: "Cargo" },
-    { id: "chino", label: "Chino" },
-    { id: "distressed", label: "Distressed" },
-    { id: "embellished", label: "Embellished" },
-    { id: "embroided", label: "Embroidered" },
-    { id: "faded", label: "Faded" },
-    { id: "painted", label: "Painted" },
-    { id: "patched", label: "Patched" },
-    { id: "printed", label: "Printed" },
-    { id: "ripped", label: "Ripped" },
-    { id: "stone-washed", label: "Stone-washed" }
-  ],
-  "hair-accesories-type": [
-    { id: "hair-accessories", label: "Hair accessories" },
-    { id: "hair-extensions-wigs", label: "Hair extensions and wigs" }
-  ],
-  "watches-type": [
-    { id: "analogue", label: "Analogue" },
-    { id: "digital", label: "Digital" }
-  ],
-  "gloves-and-mittens-type": [
-    { id: "gloves", label: "Gloves" },
-    { id: "mittens", label: "Mittens" }
-  ],
-  "hat-type": [
-    { id: "beanie", label: "Beanies" },
-    { id: "beret", label: "Berets" },
-    { id: "bucket-hat", label: "Bucket hats" },
-    { id: "caps-snapbacks", label: "Caps" },
-    { id: "panamas-straw", label: "Straw hats" }
-  ],
-  "jewellery-type": [
-    { id: "body-jewellery", label: "Body jewelry" },
-    { id: "bracelet-anklets", label: "Bracelets and anklets" },
-    { id: "brooches-pins", label: "Brooches and pins" },
-    { id: "earrings-and-ear-cuffs", label: "Earrings and ear cuffs" },
-    { id: "necklace", label: "Necklaces" },
-    { id: "rings", label: "Rings" }
-  ],
-  "bag-type": [
-    { id: "backpacks-rucksacks", label: "Backpacks" },
-    { id: "beach-bag", label: "Beach bags" },
-    { id: "clutch-bag", label: "Clutch bags" },
-    { id: "crossbody-bag", label: "Crossbody bags" },
-    { id: "diaper-bag", label: "Diaper bags" },
-    { id: "bum-bag", label: "Fanny packs and belt bags" },
-    { id: "luggage-travel", label: "Luggage and travel" },
-    { id: "makeup-toiletry-bag", label: "Makeup and toiletry bags" },
-    { id: "pencil-case", label: "Pencil cases" },
-    { id: "satchel", label: "Satchels" },
-    { id: "shoulder-bag", label: "Shoulder bags" },
-    { id: "tote-bag", label: "Tote bags" }
-  ],
-  "bra-type": [
-    { id: "balconette", label: "Balconette" },
-    { id: "bralette", label: "Bralette" },
-    { id: "padded", label: "Padded" },
-    { id: "racerback", label: "Racerback" },
-    { id: "sports", label: "Sports" },
-    { id: "strapless", label: "Strapless" },
-    { id: "t-shirt", label: "T-shirt" },
-    { id: "wireless", label: "Wireless" }
-  ],
-  "panties-type": [
-    { id: "bikini", label: "Bikini" },
-    { id: "boyshorts", label: "Boyshort" },
-    { id: "g-string", label: "G-string" },
-    { id: "high-waisted", label: "High waisted" },
-    { id: "hipster", label: "Hipster" },
-    { id: "thong", label: "Thong" }
   ]
 };

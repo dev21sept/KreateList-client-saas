@@ -311,18 +311,7 @@ async function executeDepopUpload(productData) {
     if (productData.material) attributesPayload["material"] = [productData.material.toLowerCase()];
     if (productData.bodyFit) attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
     if (productData.fastening) attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
-    
-    // Dynamic Fit Attribute (bottom-fit, dress-length, heel-type, etc.)
-    if (productData.fit) {
-      const fitKey = productData.activeFitAttribute || "fit";
-      attributesPayload[fitKey] = [productData.fit.toLowerCase()];
-    }
-
-    // Dynamic Type Attribute (bottom-style, dress-type, watches-type, bag-type, etc.)
-    if (productData.depopType) {
-      const typeKey = productData.activeTypeAttribute || "type";
-      attributesPayload[typeKey] = [productData.depopType.toLowerCase()];
-    }
+    if (productData.fit) attributesPayload["fit"] = [productData.fit.toLowerCase()];
 
     const listingLifecycleId = generateUUID();
     const persistentId = generateUUID();
