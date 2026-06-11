@@ -113,12 +113,30 @@
         const responseClone = response.clone();
         const responseText = await responseClone.text();
         
+        let bodyText = null;
+        if (options.body) {
+          if (typeof options.body === 'string') {
+            bodyText = options.body;
+          } else if (options.body instanceof FormData) {
+            try {
+              const obj = {};
+              options.body.forEach((value, key) => {
+                obj[key] = typeof value === 'string' ? value : '[Binary/Blob]';
+              });
+              bodyText = JSON.stringify(obj);
+            } catch (e) {
+              bodyText = '[FormData]';
+            }
+          } else {
+            bodyText = '[Complex Body]';
+          }
+        }
+
         window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_API_CAPTURED', {
           detail: {
-            url,
-            method,
-            headers: options.headers || {},
-            body: options.body || null,
+            url: url,
+            method: method,
+            body: bodyText,
             response: responseText
           }
         }));
@@ -170,12 +188,30 @@
         }
 
         if (isDepopApi && (xhr._method === 'POST' || xhr._method === 'PUT' || xhr._url.includes('category') || xhr._url.includes('brand') || xhr._url.includes('color'))) {
+          let bodyText = null;
+          if (body) {
+            if (typeof body === 'string') {
+              bodyText = body;
+            } else if (body instanceof FormData) {
+              try {
+                const obj = {};
+                body.forEach((value, key) => {
+                  obj[key] = typeof value === 'string' ? value : '[Binary/Blob]';
+                });
+                bodyText = JSON.stringify(obj);
+              } catch (e) {
+                bodyText = '[FormData]';
+              }
+            } else {
+              bodyText = '[Complex Body]';
+            }
+          }
+
           window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_API_CAPTURED', {
             detail: {
               url: xhr._url,
               method: xhr._method,
-              headers: {},
-              body: body || null,
+              body: bodyText,
               response: xhr.responseText
             }
           }));

@@ -11,6 +11,43 @@ function getAuthToken() {
   return sessionStorage.getItem('elister_captured_depop_token');
 }
 
+function backgroundFetch(url, options = {}, responseType = 'json') {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: 'BACKGROUND_DEPOP_REQUEST',
+      data: {
+        url,
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: options.body || null,
+        responseType
+      }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        return reject(new Error(chrome.runtime.lastError.message));
+      }
+      if (!response || !response.success) {
+        return reject(new Error(response?.error || 'Unknown background fetch error'));
+      }
+      resolve({
+        ok: response.ok,
+        status: response.status,
+        json: async () => response.data,
+        text: async () => response.data
+      });
+    });
+  });
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 // Process image Blob (resize and pad to 1:1 square ratio)
 async function processImageBlob(originalBlob) {
   const maxDim = 1024;
@@ -167,7 +204,7 @@ async function executeDepopUpload(productData) {
 
     const uploadPhoto = async (blob, index) => {
       console.log(`[Elister Depop] Initializing image upload ${index + 1}...`);
-      const initRes = await fetch("https://webapi.depop.com/api/v4/pictures/", {
+      const initRes = await backgroundFetch("https://webapi.depop.com/api/v4/pictures/", {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -179,7 +216,7 @@ async function executeDepopUpload(productData) {
           extension: "jpg",
           dimensions: { width: 1280, height: 1280 }
         })
-      });
+      }, 'json');
 
       if (!initRes.ok) {
         const errText = await initRes.text();
@@ -195,13 +232,14 @@ async function executeDepopUpload(productData) {
       }
 
       console.log(`[Elister Depop] Uploading binary to S3 for image ${index + 1}...`);
-      const putRes = await fetch(uploadUrl, {
+      const base64String = await blobToBase64(blob);
+      const putRes = await backgroundFetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'image/jpeg'
         },
-        body: blob
-      });
+        body: { type: 'base64', data: base64String }
+      }, 'text');
 
       if (!putRes.ok) {
         throw new Error(`Failed to PUT binary image to S3. Status: ${putRes.status}`);
@@ -224,11 +262,15 @@ async function executeDepopUpload(productData) {
         for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
         imgBlob = new Blob([ab], { type: mimeString });
       } else {
-        const imgResponse = await fetch(images[i], { mode: 'cors' });
+        const imgResponse = await backgroundFetch(images[i], { method: 'GET' }, 'base64');
         if (!imgResponse.ok) {
           throw new Error(`Failed to fetch image ${i+1}. Status: ${imgResponse.status}`);
         }
-        imgBlob = await imgResponse.blob();
+        const byteString = atob(imgResponse.data);
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
+        imgBlob = new Blob([ab], { type: 'image/jpeg' });
       }
 
       const processedBlob = await processImageBlob(imgBlob);
@@ -347,16 +389,15 @@ async function executeDepopUpload(productData) {
 
     console.log('[Elister Depop] Saving product with payload:', JSON.stringify(savePayload));
 
-    const saveRes = await fetch("https://webapi.depop.com/presentation/api/v1/listing/products/", {
+    const saveRes = await backgroundFetch("https://webapi.depop.com/presentation/api/v1/listing/products/", {
       method: 'POST',
       headers: {
         'accept': 'application/json',
         'content-type': 'application/json',
         'authorization': authToken
       },
-      credentials: 'include',
       body: JSON.stringify(savePayload)
-    });
+    }, 'json');
 
     if (!saveRes.ok) {
       const errText = await saveRes.text();
@@ -372,14 +413,14 @@ async function executeDepopUpload(productData) {
     
     // Log Activity to backend
     if (productData.backendUrl && productData.token) {
-      fetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
+      backgroundFetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
         method: 'PUT',
         headers: {
           'content-type': 'application/json',
           'authorization': `Bearer ${productData.token}`
         },
         body: JSON.stringify({ status: 'published', platform: 'depop' })
-      }).catch(err => console.warn('Activity log failed:', err));
+      }, 'json').catch(err => console.warn('Activity log failed:', err));
     }
 
     overlay.innerHTML = `
@@ -424,6 +465,7 @@ if (currentHostname.includes('depop.com')) {
 if (currentSite === 'depop') {
   // Listen for captured API details from interceptor
   window.addEventListener('ELISTER_DEPOP_API_CAPTURED', (event) => {
+    if (!event || !event.detail) return;
     chrome.runtime.sendMessage({
       action: 'LOG_CAPTURED_API',
       data: {

@@ -57,6 +57,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
   }
 
+  else if (message.action === 'BACKGROUND_DEPOP_REQUEST') {
+    const { url, method, headers, body, responseType } = message.data;
+    const fetchOptions = {
+      method: method || 'GET',
+      headers: headers || {}
+    };
+
+    if (body) {
+      if (typeof body === 'string') {
+        fetchOptions.body = body;
+      } else if (body.type === 'base64') {
+        try {
+          const binaryString = atob(body.data);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          fetchOptions.body = bytes;
+        } catch (e) {
+          console.error("Failed to decode base64 body:", e);
+        }
+      }
+    }
+
+    fetch(url, fetchOptions)
+      .then(async (res) => {
+        const ok = res.ok;
+        const status = res.status;
+        let resData = null;
+
+        if (responseType === 'json') {
+          resData = await res.json().catch(() => null);
+        } else if (responseType === 'blob' || responseType === 'base64') {
+          const arrayBuffer = await res.arrayBuffer().catch(() => new ArrayBuffer(0));
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          resData = btoa(binary);
+        } else {
+          resData = await res.text().catch(() => null);
+        }
+
+        sendResponse({ success: true, ok, status, data: resData });
+      })
+      .catch((err) => {
+        console.error('Background fetch failed:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+
+    return true; // Keep channel open
+  }
+
   else if (message.action === 'RELOAD_ELISTER_TABS') {
     chrome.tabs.query({}, (tabs) => {
       tabs.forEach((tab) => {
