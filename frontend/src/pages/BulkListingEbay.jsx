@@ -699,7 +699,7 @@ const BulkListingEbay = () => {
         const resolvedConditionObj = EBAY_CONDITIONS.find(c => c.label === itemCondition) || EBAY_CONDITIONS[0];
         
         return {
-          _id: it.ebayListingId || undefined,
+          _id: it._id || (it.id && !it.id.startsWith('item-') ? it.id : (it.ebayListingId && it.ebayListingId.length === 24 ? it.ebayListingId : undefined)),
           title: it.title,
           description: it.description,
           price: it.price,
@@ -741,8 +741,9 @@ const BulkListingEbay = () => {
               successCount++;
               return {
                 ...it,
+                id: batchRes.listing?._id || batchRes.listing?.id || it.id,
+                _id: batchRes.listing?._id || batchRes.listing?.id || it._id,
                 status: 'saved',
-                ebayListingId: batchRes.listing?._id || batchRes.listing?.id,
                 error: ''
               };
             } else {
@@ -784,7 +785,7 @@ const BulkListingEbay = () => {
         const resolvedConditionObj = EBAY_CONDITIONS.find(c => c.label === itemCondition) || EBAY_CONDITIONS[0];
 
         return {
-          _id: it.ebayListingId || undefined,
+          _id: it._id || (it.id && !it.id.startsWith('item-') ? it.id : (it.ebayListingId && it.ebayListingId.length === 24 ? it.ebayListingId : undefined)),
           title: it.title,
           description: it.description,
           price: it.price,

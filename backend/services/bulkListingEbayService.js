@@ -98,7 +98,20 @@ exports.bulkSaveDrafts = async (userId, listingsData, baseUrl) => {
         item.sku = skuCode;
       }
 
-      const listing = await Listing.create(item);
+      let listing;
+      if (item._id || item.id) {
+        const id = item._id || item.id;
+        listing = await Listing.findById(id);
+        if (listing) {
+          Object.assign(listing, item);
+          await listing.save();
+        } else {
+          listing = await Listing.create(item);
+        }
+      } else {
+        listing = await Listing.create(item);
+      }
+
       savedListings.push({ success: true, listing });
     } catch (err) {
       console.error('[BULK SAVE DRAFT ERROR]', err);
