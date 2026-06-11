@@ -180,32 +180,37 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
     { id: "ankle_length", label: "Ankle length" }
   ],
   "dress-type": [
-    { id: "slip", label: "Slip dress" },
-    { id: "wrap", label: "Wrap dress" },
-    { id: "babydoll", label: "Babydoll dress" },
-    { id: "bodycon", label: "Bodycon dress" },
-    { id: "shirt_dress", label: "Shirt dress" },
-    { id: "shift", label: "Shift dress" },
-    { id: "prom", label: "Prom dress" },
-    { id: "summer", label: "Summer dress" }
+    { id: "a-line", label: "A-line" },
+    { id: "babydoll", label: "Babydoll" },
+    { id: "blazer", label: "Blazer" },
+    { id: "bodycon", label: "Bodycon" },
+    { id: "fishtail", label: "Fishtail" },
+    { id: "pencil", label: "Pencil" },
+    { id: "pleated", label: "Pleated" },
+    { id: "shirt", label: "Shirt" },
+    { id: "slip", label: "Slip" }
   ],
   "coat-type": [
-    { id: "trench", label: "Trench coat" },
-    { id: "puffer", label: "Puffer coat" },
-    { id: "bomber", label: "Bomber jacket" },
-    { id: "parka", label: "Parka" },
+    { id: "dufflecoat", label: "Duffle" },
     { id: "overcoat", label: "Overcoat" },
-    { id: "windbreaker", label: "Windbreaker" },
-    { id: "blazer", label: "Blazer" }
+    { id: "parka", label: "Parka" },
+    { id: "peacoat", label: "Peacoat" },
+    { id: "puffer", label: "Puffer" },
+    { id: "raincoat", label: "Raincoat" },
+    { id: "teddy", label: "Sherpa" },
+    { id: "trench", label: "Trench" }
   ],
   "jacket-type": [
-    { id: "bomber", label: "Bomber jacket" },
-    { id: "puffer", label: "Puffer jacket" },
-    { id: "denim", label: "Denim jacket" },
-    { id: "leather", label: "Leather jacket" },
-    { id: "windbreaker", label: "Windbreaker" },
     { id: "blazer", label: "Blazer" },
-    { id: "varsity", label: "Varsity jacket" }
+    { id: "bomber", label: "Bomber" },
+    { id: "capes", label: "Cape" },
+    { id: "duster", label: "Duster" },
+    { id: "lightweight", label: "Lightweight" },
+    { id: "ponchos", label: "Poncho" },
+    { id: "puffer", label: "Puffer" },
+    { id: "shacket", label: "Shacket" },
+    { id: "varsity", label: "Varsity" },
+    { id: "windbreaker", label: "Windbreaker" }
   ],
   "jumpssuit-type": [
     { id: "boilersuit", label: "Boilersuit" },
@@ -265,11 +270,7 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
   ],
   "watches-type": [
     { id: "analogue", label: "Analogue" },
-    { id: "automatic", label: "Automatic" },
-    { id: "digital", label: "Digital" },
-    { id: "manual-winding", label: "Manual winding" },
-    { id: "quartz-shows-cell", label: "Quartz (shows cell)" },
-    { id: "smartwatch", label: "Smartwatch" }
+    { id: "digital", label: "Digital" }
   ],
   "gloves-and-mittens-type": [
     { id: "gloves", label: "Gloves" },
@@ -321,12 +322,5 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
     { id: "high-waisted", label: "High waisted" },
     { id: "hipster", label: "Hipster" },
     { id: "thong", label: "Thong" }
-  ],
-  "shapewear-type": [
-    { id: "bodysuits", label: "Bodysuits" },
-    { id: "corsets", label: "Corsets" },
-    { id: "slips", label: "Slips" },
-    { id: "waist-cinchers", label: "Waist cinchers" },
-    { id: "other", label: "Other" }
   ]
 };

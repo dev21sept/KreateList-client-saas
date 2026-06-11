@@ -723,7 +723,7 @@ const CreateDepopListing = () => {
       "shoe-type", "boot-type", "beauty-type",
       "hair-accesories-type", "watches-type", "gloves-and-mittens-type",
       "hat-type", "jewellery-type", "bag-type", "bra-type", 
-      "panties-type", "shapewear-type"
+      "panties-type"
     ];
     return activeAttributes.find(attr => typeAttrs.includes(attr)) || null;
   }, [activeAttributes]);
