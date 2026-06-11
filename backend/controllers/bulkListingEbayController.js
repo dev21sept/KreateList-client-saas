@@ -35,6 +35,40 @@ async function compressImageIfBase64(base64Str) {
     return base64Str;
   }
 }
+async function callOpenAiWithRetry(aiClient, params, maxRetries = 5, delayMs = 2000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await aiClient.chat.completions.create(params);
+    } catch (error) {
+      const isRateLimit = error.status === 429 || 
+                          error.code === 'rate_limit_exceeded' || 
+                          (error.message && error.message.toLowerCase().includes('rate limit'));
+      if (isRateLimit && attempt < maxRetries) {
+        let retryAfterMs = delayMs * attempt;
+        if (error.headers) {
+          // Headers object might support headers.get or just key access
+          const getHeader = (name) => {
+            if (typeof error.headers.get === 'function') return error.headers.get(name);
+            return error.headers[name] || error.headers[name.toLowerCase()];
+          };
+          const retryHeader = getHeader('retry-after-ms') || getHeader('retry-after');
+          if (retryHeader) {
+            const parsed = parseInt(retryHeader, 10);
+            if (!isNaN(parsed)) {
+              retryAfterMs = parsed * (String(retryHeader).includes('ms') ? 1 : 1000);
+            }
+          }
+        }
+        console.warn(`[AI] Rate limit hit. Retrying attempt ${attempt}/${maxRetries} after ${retryAfterMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryAfterMs));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+
 
 // @desc    Bulk save listings as drafts
 // @route   POST /api/bulklistingebay/save-drafts
@@ -148,7 +182,7 @@ exports.analyzeBulk = async (req, res) => {
       });
       imageContent.push({
         type: "image_url",
-        image_url: { url: url }
+        image_url: { url: url, detail: "low" }
       });
     });
 
@@ -171,7 +205,7 @@ Response format: Return ONLY a JSON object matching this structure:
   ]
 }`;
 
-    const groupingRes = await aiClient.chat.completions.create({
+    const groupingRes = await callOpenAiWithRetry(aiClient, {
       model: finalModel,
       temperature: 0,
       messages: [
@@ -301,7 +335,7 @@ Response ONLY as JSON: {
   "selling_price": 0.00
 }`;
 
-      const detailRes = await aiClient.chat.completions.create({
+      const detailRes = await callOpenAiWithRetry(aiClient, {
         model: finalModel,
         temperature: 0,
         messages: [
