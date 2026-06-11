@@ -69,6 +69,7 @@ const Listings = () => {
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
   const [vintedPublishingId, setVintedPublishingId] = useState(null);
+  const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
   
   // eBay Sync and display state
@@ -404,6 +405,77 @@ const Listings = () => {
       toast.error("Failed to load listing details. Please try again.");
     } finally {
       setVintedPublishingId(null);
+    }
+  };
+
+  const handleDepopPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterDepopExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Depop Chrome Extension to list automatically!");
+      return;
+    }
+
+    setDepopPublishingId(listing._id);
+    try {
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
+      }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        return;
+      }
+
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: fullListing.brand || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "",
+          color: fullListing.color || "",
+          material: fullListing.material || "",
+          conditionId: fullListing.conditionId || "3000",
+          categoryId: fullListing.categoryId || "",
+          age: fullListing.age || "",
+          source: fullListing.source || "",
+          bodyFit: fullListing.bodyFit || "",
+          occasion: fullListing.occasion || "",
+          depopType: fullListing.depopType || "",
+          fastening: fullListing.fastening || "",
+          fit: fullListing.fit || "",
+          country: fullListing.country || "US",
+          shippingPrice: parseFloat(fullListing.shippingPrice) || 0.0,
+          worldwideShipping: !!fullListing.worldwideShipping,
+          quantity: parseInt(fullListing.quantity) || 1,
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Opening Depop and launching publisher queue...");
+      setPreviewListing(null);
+    } catch (err) {
+      console.error("Error publishing to Depop:", err);
+      toast.error("Failed to load listing details. Please try again.");
+    } finally {
+      setDepopPublishingId(null);
     }
   };
 
@@ -1022,19 +1094,32 @@ const Listings = () => {
                   )}
                 </button>
               )}
-              {previewListing.platform === 'depop' && previewListing.status === 'published' && previewListing.depopUrl && (
+              {previewListing.platform === 'depop' && (
                 <button 
-                  onClick={() => handleVerifyAndOpen(previewListing)}
-                  disabled={verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  onClick={() => {
+                    if (previewListing.status === 'published' && previewListing.depopUrl) {
+                      handleVerifyAndOpen(previewListing);
+                    } else {
+                      handleDepopPublish(previewListing);
+                    }
+                  }}
+                  disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {verifyingListingId === previewListing._id ? (
                     <>
                       <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       Verifying...
                     </>
-                  ) : (
+                  ) : depopPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Listing...
+                    </>
+                  ) : previewListing.status === 'published' && previewListing.depopUrl ? (
                     'View on Depop'
+                  ) : (
+                    'List to Depop (API)'
                   )}
                 </button>
               )}
