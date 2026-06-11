@@ -811,7 +811,15 @@ const CreateDepopListing = () => {
     setFiles(newFiles);
   };
 
-  const handleSaveListing = async () => {
+  const handleSaveListing = async (publish = false) => {
+    if (publish) {
+      const isExtensionInstalled = document.body.dataset.elisterDepopExtensionInstalled === "true";
+      if (!isExtensionInstalled) {
+        toast.warning("Please install and reload the Elister Depop Chrome Extension to list automatically!");
+        return;
+      }
+    }
+
     setLoading(true);
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -856,7 +864,48 @@ const CreateDepopListing = () => {
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
+        const savedListing = response.data.data;
         toast.success(editId ? 'Depop Listing updated successfully!' : 'Depop Listing saved successfully!');
+        
+        if (publish) {
+          const token = localStorage.getItem('token');
+          const backendUrl = import.meta.env.MODE === 'production'
+            ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+            : 'http://localhost:5000/api';
+
+          window.postMessage({
+            action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
+            data: {
+              listingId: savedListing._id,
+              token,
+              backendUrl,
+              title: savedListing.title,
+              description: savedListing.description,
+              brand: savedListing.brand || "",
+              price: parseFloat(savedListing.price) || 0.0,
+              originalPrice: parseFloat(savedListing.originalPrice) || 0.0,
+              size: savedListing.size || "",
+              color: savedListing.color || "",
+              material: savedListing.material || "",
+              conditionId: savedListing.conditionId || "3000",
+              categoryId: savedListing.categoryId || "",
+              age: savedListing.age || "",
+              source: savedListing.source || "",
+              bodyFit: savedListing.bodyFit || "",
+              occasion: savedListing.occasion || "",
+              depopType: savedListing.depopType || "",
+              fastening: savedListing.fastening || "",
+              fit: savedListing.fit || "",
+              country: savedListing.country || "US",
+              shippingPrice: parseFloat(savedListing.shippingPrice) || 0.0,
+              worldwideShipping: !!savedListing.worldwideShipping,
+              quantity: parseInt(savedListing.quantity) || 1,
+              images: savedListing.images || []
+            }
+          }, "*");
+
+          toast.success("Opening Depop and launching publisher queue...");
+        }
         navigate('/listings');
       }
     } catch (error) {
@@ -873,7 +922,7 @@ const CreateDepopListing = () => {
     } else if (step === 2) {
       setStep(3);
     } else if (step === 3) {
-      handleSaveListing();
+      handleSaveListing(false);
     }
   };
   
@@ -1530,20 +1579,35 @@ const CreateDepopListing = () => {
                 {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
               </span>
             )}
-            <button
-              type="button"
-              disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && formData.images.length === 0)}
-              onClick={nextStep}
-              className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {step === 3 ? (
-                loading ? 'Saving draft...' : 'Save Draft'
-              ) : (
+            {step === 3 ? (
+              <>
+                <button 
+                  onClick={() => handleSaveListing(false)}
+                  disabled={loading || isConvertingImages || !allImagesLoaded}
+                  className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  Save Draft
+                </button>
+                <button 
+                  onClick={() => handleSaveListing(true)}
+                  disabled={loading || isConvertingImages || !allImagesLoaded}
+                  className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? 'Working...' : 'Save & Publish to Depop'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && formData.images.length === 0)}
+                onClick={nextStep}
+                className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
                 <>
                   Next Step <ChevronLeft size={16} className="rotate-180" />
                 </>
-              )}
-            </button>
+              </button>
+            )}
           </div>
         </div>
       </div>
