@@ -165,79 +165,50 @@ async function executeDepopUpload(productData) {
     const assignedPhotos = [];
     const images = productData.images || [];
 
-    let successfulUploadConfig = null;
+    const uploadPhoto = async (blob, index) => {
+      console.log(`[Elister Depop] Initializing image upload ${index + 1}...`);
+      const initRes = await fetch("https://webapi.depop.com/api/v4/pictures/", {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': authToken
+        },
+        body: JSON.stringify({
+          type: "product",
+          extension: "jpg",
+          dimensions: { width: 1280, height: 1280 }
+        })
+      });
 
-    const uploadPhotoWithFallback = async (blob, index) => {
-      const candidates = [
-        { url: '/api/v1/photos/', key: 'photo', type: 'item' },
-        { url: '/api/v1/assets/', key: 'file', type: 'item' },
-        { url: '/api/v2/photos/', key: 'file', type: 'item' },
-        { url: '/api/v1/media/', key: 'file', type: 'item' }
-      ];
- 
-      if (successfulUploadConfig) {
-        try {
-          const formData = new FormData();
-          formData.append(successfulUploadConfig.key, blob, `file${index}.jpg`);
-          const res = await fetch(`${window.location.origin}${successfulUploadConfig.url}`, {
-            method: 'POST',
-            headers: {
-              'accept': 'application/json',
-              'authorization': authToken
-            },
-            credentials: 'include',
-            body: formData
-          });
-          if (res.ok) return res;
-          successfulUploadConfig = null;
-        } catch (err) {
-          successfulUploadConfig = null;
-        }
+      if (!initRes.ok) {
+        const errText = await initRes.text();
+        throw new Error(`Failed to initialize image upload. Status: ${initRes.status}. Details: ${errText}`);
       }
- 
-      let lastStatus = 0;
-      let lastErrorText = '';
- 
-      for (const candidate of candidates) {
-        try {
-          console.log(`[Elister Depop] Probing upload endpoint: ${candidate.url} with key: ${candidate.key}`);
-          const formData = new FormData();
-          formData.append(candidate.key, blob, `file${index}.jpg`);
- 
-          const res = await fetch(`${window.location.origin}${candidate.url}`, {
-            method: 'POST',
-            headers: {
-              'accept': 'application/json',
-              'authorization': authToken
-            },
-            credentials: 'include',
-            body: formData
-          });
- 
-          lastStatus = res.status;
-          if (res.ok) {
-            const resClone = res.clone();
-            try {
-              const data = await resClone.json();
-              const photoId = data.id || (data.photo && data.photo.id) || (data.data && data.data.id) || data.photo_id;
-              if (photoId) {
-                successfulUploadConfig = candidate;
-                console.log(`[Elister Depop] Successfully matched uploader config: URL=${candidate.url}, key=${candidate.key}`);
-                return res;
-              }
-            } catch (e) {}
-          } else {
-            lastErrorText = await res.text();
-          }
-        } catch (err) {
-          lastErrorText = err.message;
-        }
+
+      const initData = await initRes.json();
+      const photoId = initData.id || initData.picture_id || initData.pictureId;
+      const uploadUrl = initData.upload_url || initData.uploadUrl;
+
+      if (!photoId || !uploadUrl) {
+        throw new Error(`Invalid response from pictures API: ${JSON.stringify(initData)}`);
       }
- 
-      const err = new Error(`All photo upload candidate endpoints failed.`);
-      err.status = lastStatus;
-      err.details = lastErrorText;
-      throw err;
+
+      console.log(`[Elister Depop] Uploading binary to S3 for image ${index + 1}...`);
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'image/jpeg'
+        },
+        body: blob
+      });
+
+      if (!putRes.ok) {
+        throw new Error(`Failed to PUT binary image to S3. Status: ${putRes.status}`);
+      }
+
+      console.log(`[Elister Depop] Successfully uploaded image ${index + 1}. Photo ID: ${photoId}`);
+      return photoId;
     };
 
     for (let i = 0; i < images.length; i++) {
@@ -261,10 +232,7 @@ async function executeDepopUpload(productData) {
       }
 
       const processedBlob = await processImageBlob(imgBlob);
-      const uploadRes = await uploadPhotoWithFallback(processedBlob, i);
-      const uploadData = await uploadRes.json();
-      const photoId = uploadData.id || (uploadData.photo && uploadData.photo.id) || (uploadData.data && uploadData.data.id) || uploadData.photo_id;
-      
+      const photoId = await uploadPhoto(processedBlob, i);
       if (photoId) {
         assignedPhotos.push(photoId);
       }
@@ -278,65 +246,125 @@ async function executeDepopUpload(productData) {
     updateStatus("Step 3/4: Saving listing details & categories...", 75);
     await delay(1500);
 
-    const priceCents = Math.round((parseFloat(productData.price) || 0) * 100);
-    const savePayload = {
-      description: productData.description || '',
-      price: priceCents,
-      currency: "USD",
-      categoryId: parseInt(productData.categoryId) || 1, // Fallback default category
-      conditionId: conditionId,
-      photos: assignedPhotos,
-      brand: productData.brand || '',
-      sizeId: parseInt(productData.size) || null,
-      colorIds: productData.color ? [parseInt(productData.color)] : [],
-      countryCode: productData.country || "US",
-      shipping: {
-        price: Math.round((parseFloat(productData.shippingPrice) || 0) * 100),
-        national: true,
-        international: !!productData.worldwideShipping
-      },
-      status: "active"
+    const getCountryCode = (countryName) => {
+      const c = String(countryName).toLowerCase();
+      if (c === 'india' || c === 'in') return 'IN';
+      if (c === 'united kingdom' || c === 'uk' || c === 'gb') return 'GB';
+      if (c === 'united states' || c === 'us' || c === 'usa') return 'US';
+      if (c === 'australia' || c === 'au') return 'AU';
+      return 'US';
     };
 
-    // Try standard Depop listing creation endpoints
-    const saveCandidates = [
-      { url: '/api/v1/products/', method: 'POST' },
-      { url: '/api/v2/products/', method: 'POST' },
-      { url: '/api/v1/listings/', method: 'POST' }
-    ];
+    const getCountryName = (code) => {
+      if (code === 'IN') return 'India';
+      if (code === 'GB') return 'United Kingdom';
+      if (code === 'AU') return 'Australia';
+      return 'United States';
+    };
 
-    let saveSuccess = false;
-    let savedProductData = null;
+    const mapCondition = (cond) => {
+      const c = String(cond).toLowerCase();
+      if (c.includes('brand_new') || c.includes('brand new') || c.includes('nwt')) return 'brand_new';
+      if (c.includes('like_new') || c.includes('like new') || c.includes('nwot') || c.includes('used_like_new')) return 'used_like_new';
+      if (c.includes('excellent')) return 'used_excellent';
+      if (c.includes('good') || c.includes('very_good') || c.includes('very good') || c.includes('used_good')) return 'used_good';
+      if (c.includes('fair') || c.includes('used_fair')) return 'used_fair';
+      return 'used_excellent';
+    };
 
-    for (const cand of saveCandidates) {
-      try {
-        console.log(`[Elister Depop] Trying save endpoint: ${cand.url}`);
-        const res = await fetch(`${window.location.origin}${cand.url}`, {
-          method: cand.method,
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'authorization': authToken
-          },
-          credentials: 'include',
-          body: JSON.stringify(savePayload)
-        });
+    const getGender = (categoryPath) => {
+      const p = String(categoryPath).toLowerCase();
+      if (p.includes('women')) return 'female';
+      if (p.includes('men')) return 'male';
+      return 'unisex';
+    };
 
-        if (res.ok) {
-          savedProductData = await res.json();
-          saveSuccess = true;
-          break;
-        } else {
-          console.warn(`[Elister Depop] Save endpoint ${cand.url} failed. Status: ${res.status}`);
-        }
-      } catch (err) {
-        console.warn(`[Elister Depop] Error saving to ${cand.url}:`, err.message);
+    const isKids = (categoryPath) => {
+      return String(categoryPath).toLowerCase().includes('kids');
+    };
+
+    const getGeo = (countryCode) => {
+      if (countryCode === 'IN') return { lat: 22.1991660760527, lng: 78.476681027237 };
+      return { lat: 37.09024, lng: -95.712891 };
+    };
+
+    const countryCode = getCountryCode(productData.country);
+    const countryName = getCountryName(countryCode);
+    const geo = getGeo(countryCode);
+    const condition = mapCondition(productData.conditionId || productData.selectedCondition);
+
+    let variantSet = 54; // default
+    let variantsPayload = { "5": 1 }; // default
+    
+    if (productData.size) {
+      const match = String(productData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+      if (match) {
+        variantSet = parseInt(match[1]);
+        const sizeId = match[2];
+        variantsPayload = {};
+        variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
       }
     }
 
-    if (!saveSuccess) {
-      throw new Error("Failed to save product details on Depop. Check connection and try again.");
+    const attributesPayload = {};
+    if (productData.occasion) attributesPayload["occasion"] = [productData.occasion.toLowerCase()];
+    if (productData.material) attributesPayload["material"] = [productData.material.toLowerCase()];
+    if (productData.bodyFit) attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
+    if (productData.fastening) attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
+    if (productData.fit) attributesPayload["fit"] = [productData.fit.toLowerCase()];
+
+    const listingLifecycleId = generateUUID();
+    const persistentId = generateUUID();
+
+    const savePayload = {
+      age: productData.age ? [productData.age.toLowerCase()] : ["modern"],
+      address: countryName,
+      attributes: attributesPayload,
+      brand: (productData.brand || '').toLowerCase(),
+      colour: productData.color ? [productData.color.toLowerCase()] : [],
+      condition: condition,
+      country: countryCode,
+      description: productData.description || '',
+      gender: getGender(productData.category),
+      geo_position_lat: geo.lat,
+      geo_position_lng: geo.lng,
+      is_kids: isKids(productData.category),
+      listing_lifecycle_id: listingLifecycleId,
+      national_shipping_cost: parseFloat(productData.shippingPrice || 0).toFixed(2),
+      picture_ids: assignedPhotos,
+      price_amount: parseFloat(productData.price || 0).toFixed(2),
+      price_currency: "USD",
+      product_type: productData.categoryId || "shirts",
+      shipping_methods: [],
+      sku: productData.sku || `KL${Date.now()}`,
+      source: productData.source ? [productData.source.toLowerCase()] : ["preloved"],
+      style: productData.styleTag ? productData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
+      variant_set: variantSet,
+      variants: variantsPayload,
+      persistent_id: persistentId,
+      quantity: null
+    };
+
+    console.log('[Elister Depop] Saving product with payload:', JSON.stringify(savePayload));
+
+    const saveRes = await fetch("https://webapi.depop.com/presentation/api/v1/listing/products/", {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'authorization': authToken
+      },
+      credentials: 'include',
+      body: JSON.stringify(savePayload)
+    });
+
+    if (!saveRes.ok) {
+      const errText = await saveRes.text();
+      throw new Error(`Failed to save product details on Depop. Status: ${saveRes.status}. Details: ${errText}`);
     }
+
+    const savedProductData = await saveRes.json();
+    console.log('[Elister Depop] Save successful! Response:', savedProductData);
 
     // Step 4: Finalize & Success Notification
     updateStatus("Step 4/4: Listing successfully published!", 100);
