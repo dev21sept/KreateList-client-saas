@@ -239,6 +239,11 @@ async function executeDepopUpload(productData) {
       }, 'json');
 
       if (!initRes.ok) {
+        if (initRes.status === 403) {
+          sessionStorage.removeItem('elister_captured_depop_token');
+          chrome.runtime.sendMessage({ action: 'CACHE_CSRF_TOKEN', data: { site: 'depop', token: null } }).catch(() => {});
+          throw new Error("Depop authorization session expired (403 Forbidden). Please open Depop, log out and log back in, and then try again.");
+        }
         const errText = await initRes.text();
         throw new Error(`Failed to initialize image upload. Status: ${initRes.status}. Details: ${errText}`);
       }
@@ -420,6 +425,11 @@ async function executeDepopUpload(productData) {
     }, 'json');
 
     if (!saveRes.ok) {
+      if (saveRes.status === 403) {
+        sessionStorage.removeItem('elister_captured_depop_token');
+        chrome.runtime.sendMessage({ action: 'CACHE_CSRF_TOKEN', data: { site: 'depop', token: null } }).catch(() => {});
+        throw new Error("Depop authorization session expired (403 Forbidden). Please open Depop, log out and log back in, and then try again.");
+      }
       const errText = await saveRes.text();
       throw new Error(`Failed to save product details on Depop. Status: ${saveRes.status}. Details: ${errText}`);
     }

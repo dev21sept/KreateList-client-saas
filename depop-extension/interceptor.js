@@ -1,4 +1,14 @@
 (function() {
+  const isValidTokenFormat = (str) => {
+    if (!str || typeof str !== 'string') return false;
+    const val = str.startsWith('Bearer ') ? str.substring(7) : str;
+    // Check 40-char hex
+    if (/^[0-9a-f]{40}$/i.test(val)) return true;
+    // Check JWT
+    if (val.startsWith('ey') && val.includes('.') && val.split('.').length === 3) return true;
+    return false;
+  };
+
   // Helper: Try to extract auth details from sessionStorage/localStorage if available in DOM context
   const checkGlobalToken = () => {
     try {
@@ -11,16 +21,22 @@
           const val = storage.getItem(key);
           if (!val || typeof val !== 'string') continue;
           
-          // Case 1: Already has Bearer
-          if (val.startsWith('Bearer ')) {
-            return val;
+          // If the top-level value itself is a token
+          if (isValidTokenFormat(val)) {
+            return val.startsWith('Bearer ') ? val : `Bearer ${val}`;
           }
-          // Case 2: Clean JWT token (ey...)
-          if (val.startsWith('ey') && val.includes('.') && val.split('.').length === 3) {
-            return `Bearer ${val}`;
-          }
-          // Case 3: JSON object containing a token or authorization key
-          if (val.startsWith('{') || val.startsWith('[')) {
+          
+          // Otherwise, scan nested objects if key suggests it is auth-related
+          const keyLower = key.toLowerCase();
+          const isAuthKey = keyLower.includes('token') || 
+                            keyLower.includes('auth') || 
+                            keyLower.includes('access') || 
+                            keyLower.includes('session') || 
+                            keyLower.includes('user') || 
+                            keyLower.includes('persist') ||
+                            keyLower.includes('login');
+                            
+          if (isAuthKey && (val.startsWith('{') || val.startsWith('['))) {
             try {
               const parsed = JSON.parse(val);
               const searchObj = (obj) => {
@@ -28,9 +44,8 @@
                 for (const k in obj) {
                   const v = obj[k];
                   if (typeof v === 'string') {
-                    if (v.startsWith('Bearer ')) return v;
-                    if (v.startsWith('ey') && v.includes('.') && v.split('.').length === 3) {
-                      return `Bearer ${v}`;
+                    if (isValidTokenFormat(v)) {
+                      return v.startsWith('Bearer ') ? v : `Bearer ${v}`;
                     }
                   } else if (typeof v === 'object') {
                     const found = searchObj(v);
@@ -47,7 +62,7 @@
         return null;
       };
 
-      token = scanStorage(localStorage) || scanStorage(sessionStorage);
+      token = scanStorage(localStorage) || scanStorage(sessionStorage); // scan sessionStorage too
 
       if (token) {
         sessionStorage.setItem('elister_captured_depop_token', token);
