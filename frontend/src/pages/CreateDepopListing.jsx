@@ -720,7 +720,10 @@ const CreateDepopListing = () => {
     const typeAttrs = [
       "bottom-style", "dress-type", "coat-type", "jacket-type", 
       "jumpssuit-type", "dungarees-type", "trainers-type", 
-      "shoe-type", "boot-type", "beauty-type"
+      "shoe-type", "boot-type", "beauty-type",
+      "hair-accesories-type", "watches-type", "gloves-and-mittens-type",
+      "hat-type", "jewellery-type", "bag-type", "bra-type", 
+      "panties-type", "shapewear-type"
     ];
     return activeAttributes.find(attr => typeAttrs.includes(attr)) || null;
   }, [activeAttributes]);
@@ -873,6 +876,9 @@ const CreateDepopListing = () => {
             ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
             : 'http://localhost:5000/api';
 
+          const selectedTypeOption = typeOptions.find(opt => opt.label === savedListing.depopType);
+          const selectedFitOption = fitOptions.find(opt => opt.label === savedListing.fit);
+
           window.postMessage({
             action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
             data: {
@@ -893,9 +899,11 @@ const CreateDepopListing = () => {
               source: savedListing.source || "",
               bodyFit: savedListing.bodyFit || "",
               occasion: savedListing.occasion || "",
-              depopType: savedListing.depopType || "",
+              depopType: selectedTypeOption ? selectedTypeOption.id : (savedListing.depopType || ""),
               fastening: savedListing.fastening || "",
-              fit: savedListing.fit || "",
+              fit: selectedFitOption ? selectedFitOption.id : (savedListing.fit || ""),
+              activeTypeAttribute: activeTypeAttribute || "",
+              activeFitAttribute: activeFitAttribute || "",
               country: savedListing.country || "US",
               shippingPrice: parseFloat(savedListing.shippingPrice) || 0.0,
               worldwideShipping: !!savedListing.worldwideShipping,

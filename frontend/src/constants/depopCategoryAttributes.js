@@ -242,5 +242,91 @@ export const DEPOP_ATTRIBUTE_OPTIONS = {
     { id: "knee_high", label: "Knee high boots" },
     { id: "cowboy", label: "Cowboy boots" },
     { id: "platform", label: "Platform boots" }
+  ],
+  "bottom-fit": [
+    { id: "acid-washed", label: "Acid-washed" },
+    { id: "bleached", label: "Bleached" },
+    { id: "capris", label: "Capri" },
+    { id: "cargo", label: "Cargo" },
+    { id: "chino", label: "Chino" },
+    { id: "distressed", label: "Distressed" },
+    { id: "embellished", label: "Embellished" },
+    { id: "embroided", label: "Embroidered" },
+    { id: "faded", label: "Faded" },
+    { id: "painted", label: "Painted" },
+    { id: "patched", label: "Patched" },
+    { id: "printed", label: "Printed" },
+    { id: "ripped", label: "Ripped" },
+    { id: "stone-washed", label: "Stone-washed" }
+  ],
+  "hair-accesories-type": [
+    { id: "hair-accessories", label: "Hair accessories" },
+    { id: "hair-extensions-wigs", label: "Hair extensions and wigs" }
+  ],
+  "watches-type": [
+    { id: "analogue", label: "Analogue" },
+    { id: "automatic", label: "Automatic" },
+    { id: "digital", label: "Digital" },
+    { id: "manual-winding", label: "Manual winding" },
+    { id: "quartz-shows-cell", label: "Quartz (shows cell)" },
+    { id: "smartwatch", label: "Smartwatch" }
+  ],
+  "gloves-and-mittens-type": [
+    { id: "gloves", label: "Gloves" },
+    { id: "mittens", label: "Mittens" }
+  ],
+  "hat-type": [
+    { id: "beanie", label: "Beanies" },
+    { id: "beret", label: "Berets" },
+    { id: "bucket-hat", label: "Bucket hats" },
+    { id: "caps-snapbacks", label: "Caps" },
+    { id: "panamas-straw", label: "Straw hats" }
+  ],
+  "jewellery-type": [
+    { id: "body-jewellery", label: "Body jewelry" },
+    { id: "bracelet-anklets", label: "Bracelets and anklets" },
+    { id: "brooches-pins", label: "Brooches and pins" },
+    { id: "earrings-and-ear-cuffs", label: "Earrings and ear cuffs" },
+    { id: "necklace", label: "Necklaces" },
+    { id: "rings", label: "Rings" }
+  ],
+  "bag-type": [
+    { id: "backpacks-rucksacks", label: "Backpacks" },
+    { id: "beach-bag", label: "Beach bags" },
+    { id: "clutch-bag", label: "Clutch bags" },
+    { id: "crossbody-bag", label: "Crossbody bags" },
+    { id: "diaper-bag", label: "Diaper bags" },
+    { id: "bum-bag", label: "Fanny packs and belt bags" },
+    { id: "luggage-travel", label: "Luggage and travel" },
+    { id: "makeup-toiletry-bag", label: "Makeup and toiletry bags" },
+    { id: "pencil-case", label: "Pencil cases" },
+    { id: "satchel", label: "Satchels" },
+    { id: "shoulder-bag", label: "Shoulder bags" },
+    { id: "tote-bag", label: "Tote bags" }
+  ],
+  "bra-type": [
+    { id: "balconette", label: "Balconette" },
+    { id: "bralette", label: "Bralette" },
+    { id: "padded", label: "Padded" },
+    { id: "racerback", label: "Racerback" },
+    { id: "sports", label: "Sports" },
+    { id: "strapless", label: "Strapless" },
+    { id: "t-shirt", label: "T-shirt" },
+    { id: "wireless", label: "Wireless" }
+  ],
+  "panties-type": [
+    { id: "bikini", label: "Bikini" },
+    { id: "boyshorts", label: "Boyshort" },
+    { id: "g-string", label: "G-string" },
+    { id: "high-waisted", label: "High waisted" },
+    { id: "hipster", label: "Hipster" },
+    { id: "thong", label: "Thong" }
+  ],
+  "shapewear-type": [
+    { id: "bodysuits", label: "Bodysuits" },
+    { id: "corsets", label: "Corsets" },
+    { id: "slips", label: "Slips" },
+    { id: "waist-cinchers", label: "Waist cinchers" },
+    { id: "other", label: "Other" }
   ]
 };
