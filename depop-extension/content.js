@@ -33,9 +33,56 @@ function backgroundFetch(url, options = {}, responseType = 'json') {
         ok: response.ok,
         status: response.status,
         json: async () => response.data,
-        text: async () => response.data
+        text: async () => typeof response.data === 'object' && response.data !== null && response.data.type === 'base64' ? response.data.data : response.data
       });
     });
+  });
+}
+
+let fetchRequestIdCounter = 0;
+const pendingFetchRequests = new Map();
+
+window.addEventListener('ELISTER_DEPOP_FETCH_RESPONSE', (event) => {
+  if (!event || !event.detail) return;
+  const { requestId, success, ok, status, data, error } = event.detail;
+  const promise = pendingFetchRequests.get(requestId);
+  if (promise) {
+    pendingFetchRequests.delete(requestId);
+    if (success) {
+      promise.resolve({
+        ok,
+        status,
+        json: async () => data,
+        text: async () => typeof data === 'object' && data !== null && data.type === 'base64' ? data.data : data
+      });
+    } else {
+      promise.reject(new Error(error || 'Fetch failed in page context'));
+    }
+  }
+});
+
+function pageContextFetch(url, options = {}, responseType = 'json') {
+  return new Promise((resolve, reject) => {
+    const requestId = ++fetchRequestIdCounter;
+    pendingFetchRequests.set(requestId, { resolve, reject });
+    
+    window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_EXECUTE_FETCH', {
+      detail: {
+        requestId,
+        url,
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: options.body || null,
+        responseType
+      }
+    }));
+    
+    setTimeout(() => {
+      if (pendingFetchRequests.has(requestId)) {
+        pendingFetchRequests.delete(requestId);
+        reject(new Error('Page context fetch timed out'));
+      }
+    }, 45000);
   });
 }
 
@@ -224,7 +271,7 @@ async function executeDepopUpload(productData) {
 
     const uploadPhoto = async (blob, index) => {
       console.log(`[Elister Depop] Initializing image upload ${index + 1}...`);
-      const initRes = await backgroundFetch("https://webapi.depop.com/api/v4/pictures/", {
+      const initRes = await pageContextFetch("https://webapi.depop.com/api/v4/pictures/", {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -258,7 +305,7 @@ async function executeDepopUpload(productData) {
 
       console.log(`[Elister Depop] Uploading binary to S3 for image ${index + 1}...`);
       const base64String = await blobToBase64(blob);
-      const putRes = await backgroundFetch(uploadUrl, {
+      const putRes = await pageContextFetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'image/jpeg'
@@ -414,7 +461,7 @@ async function executeDepopUpload(productData) {
 
     console.log('[Elister Depop] Saving product with payload:', JSON.stringify(savePayload));
 
-    const saveRes = await backgroundFetch("https://webapi.depop.com/presentation/api/v1/listing/products/", {
+    const saveRes = await pageContextFetch("https://webapi.depop.com/presentation/api/v1/listing/products/", {
       method: 'POST',
       headers: {
         'accept': 'application/json',

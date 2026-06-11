@@ -266,4 +266,75 @@
     });
     return originalSend.apply(this, [body, ...rest]);
   };
+
+  // Listen for fetch execution requests from Content Script (runs in MAIN world context)
+  window.addEventListener('ELISTER_DEPOP_EXECUTE_FETCH', async (event) => {
+    if (!event || !event.detail) return;
+    const { requestId, url, method, headers, body, responseType } = event.detail;
+    
+    try {
+      const fetchOptions = {
+        method: method || 'GET',
+        headers: {
+          'accept': '*/*',
+          'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
+          ...headers
+        }
+      };
+
+      if (body) {
+        if (typeof body === 'string') {
+          fetchOptions.body = body;
+        } else if (body.type === 'base64') {
+          const binaryString = atob(body.data);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          fetchOptions.body = new Blob([bytes], { type: headers['Content-Type'] || 'image/jpeg' });
+        }
+      }
+
+      // Execute using the page's original native fetch
+      const res = await originalFetch(url, fetchOptions);
+      const ok = res.ok;
+      const status = res.status;
+      let resData = null;
+
+      if (responseType === 'json') {
+        resData = await res.json().catch(() => null);
+      } else if (responseType === 'blob' || responseType === 'base64') {
+        const arrayBuffer = await res.arrayBuffer().catch(() => new ArrayBuffer(0));
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        resData = { type: 'base64', data: btoa(binary) };
+      } else {
+        resData = await res.text().catch(() => null);
+      }
+
+      window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_FETCH_RESPONSE', {
+        detail: {
+          requestId,
+          success: true,
+          ok,
+          status,
+          data: resData
+        }
+      }));
+    } catch (err) {
+      console.error('[Elister Depop Page Fetch Error]', err);
+      window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_FETCH_RESPONSE', {
+        detail: {
+          requestId,
+          success: false,
+          error: err.message
+        }
+      }));
+    }
+  });
 })();
