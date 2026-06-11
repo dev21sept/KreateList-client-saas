@@ -3,20 +3,51 @@
   const checkGlobalToken = () => {
     try {
       let token = null;
-      // Scrape potential tokens from local/session storage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.toLowerCase().includes('token') || key.toLowerCase().includes('auth'))) {
-          const val = localStorage.getItem(key);
-          if (val && val.startsWith('Bearer ')) {
-            token = val;
-            break;
-          } else if (val && val.length > 50 && val.includes('.')) { // potential JWT
-            token = `Bearer ${val}`;
-            break;
+      const scanStorage = (storage) => {
+        if (!storage) return null;
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (!key) continue;
+          const val = storage.getItem(key);
+          if (!val || typeof val !== 'string') continue;
+          
+          // Case 1: Already has Bearer
+          if (val.startsWith('Bearer ')) {
+            return val;
+          }
+          // Case 2: Clean JWT token (ey...)
+          if (val.startsWith('ey') && val.includes('.') && val.split('.').length === 3) {
+            return `Bearer ${val}`;
+          }
+          // Case 3: JSON object containing a token or authorization key
+          if (val.startsWith('{') || val.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(val);
+              const searchObj = (obj) => {
+                if (!obj || typeof obj !== 'object') return null;
+                for (const k in obj) {
+                  const v = obj[k];
+                  if (typeof v === 'string') {
+                    if (v.startsWith('Bearer ')) return v;
+                    if (v.startsWith('ey') && v.includes('.') && v.split('.').length === 3) {
+                      return `Bearer ${v}`;
+                    }
+                  } else if (typeof v === 'object') {
+                    const found = searchObj(v);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+              const found = searchObj(parsed);
+              if (found) return found;
+            } catch(e) {}
           }
         }
-      }
+        return null;
+      };
+
+      token = scanStorage(localStorage) || scanStorage(sessionStorage);
 
       if (token) {
         sessionStorage.setItem('elister_captured_depop_token', token);

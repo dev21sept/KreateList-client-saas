@@ -175,6 +175,26 @@ async function executeDepopUpload(productData) {
         authToken = bgResponse.token;
       }
     }
+
+    if (!authToken) {
+      updateStatus("Waiting for Depop authentication session (up to 10s)...", 5);
+      for (let attempt = 0; attempt < 50; attempt++) {
+        await delay(200);
+        authToken = getAuthToken();
+        if (!authToken) {
+          const bgResponse = await new Promise(resolve => {
+            chrome.runtime.sendMessage({ action: 'GET_CACHED_CSRF_TOKEN', site: 'depop' }, resolve);
+          });
+          if (bgResponse && bgResponse.token) {
+            authToken = bgResponse.token;
+          }
+        }
+        if (authToken) {
+          break;
+        }
+      }
+    }
+
     if (!authToken) {
       throw new Error("Authorization Bearer Token not found. Please log into Depop or open your Depop profile.");
     }
