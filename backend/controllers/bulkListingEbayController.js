@@ -210,13 +210,14 @@ Response format: Return ONLY a JSON object matching this structure:
                           EBAY_CONDITIONS[1];
     const resolvedConditionId = matchedOption ? matchedOption.id : '3000';
 
-    // --- STEP 2: RESOLVE CATEGORY, FETCH ASPECTS & GENERATE DETAILED LISTING FOR EACH GROUP ---
-    for (let i = 0; i < groupResult.products.length; i++) {
-      const group = groupResult.products[i];
+    // --- STEP 2: RESOLVE CATEGORY, FETCH ASPECTS & GENERATE DETAILED LISTING FOR EACH GROUP IN PARALLEL ---
+    console.log(`[BULK AI] Starting parallel processing for ${groupResult.products.length} products...`);
+    
+    const analysisPromises = groupResult.products.map(async (group, i) => {
       const prodImages = (group.image_indices || []).map(idx => images[idx]).filter(Boolean);
       const prodCompressedImages = (group.image_indices || []).map(idx => compressedImages[idx]).filter(Boolean);
 
-      if (prodImages.length === 0) continue;
+      if (prodImages.length === 0) return null;
 
       let categoryId = '';
       let categoryPath = group.category_query || 'General';
@@ -312,6 +313,25 @@ Response ONLY as JSON: {
 
       const prodData = JSON.parse(detailRes.choices[0].message.content);
 
+      return {
+        index: i,
+        prodImages,
+        prodData,
+        categoryId,
+        categoryPath,
+        officialAspects
+      };
+    });
+
+    const analysisResults = await Promise.all(analysisPromises);
+
+    // --- STEP 3: POST-PROCESS RESULTS AND GENERATE SKUS SEQUENTIALLY ---
+    for (let i = 0; i < analysisResults.length; i++) {
+      const resData = analysisResults[i];
+      if (!resData) continue;
+
+      const { index, prodImages, prodData, categoryId, categoryPath, officialAspects } = resData;
+
       // Re-construct structured title
       let finalTitle = prodData.title || '';
       if (prodData.title_parts) {
@@ -373,7 +393,7 @@ Response ONLY as JSON: {
       }
 
       resolvedProducts.push({
-        id: `item-${Date.now()}-${i}`,
+        id: `item-${Date.now()}-${index}`,
         images: prodImages,
         brand: prodData.brand || '',
         title: finalTitle,
