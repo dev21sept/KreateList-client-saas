@@ -15,9 +15,16 @@ async function compressImageIfBase64(base64Str) {
     return base64Str;
   }
   try {
-    const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) return base64Str;
-    const buffer = Buffer.from(matches[2], 'base64');
+    const commaIdx = base64Str.indexOf(',');
+    if (commaIdx === -1) return base64Str;
+    
+    const prefix = base64Str.substring(0, commaIdx);
+    if (!prefix.includes(';base64')) {
+      return base64Str;
+    }
+
+    const base64Data = base64Str.substring(commaIdx + 1);
+    const buffer = Buffer.from(base64Data, 'base64');
     const compressedBuffer = await sharp(buffer)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })
