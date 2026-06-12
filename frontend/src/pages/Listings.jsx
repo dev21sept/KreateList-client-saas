@@ -912,9 +912,7 @@ const Listings = () => {
                       ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
                     </p>
                   </div>
-                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
-                    <>
-                      {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted') && (
+                      {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
                           <p className="text-base font-black text-slate-500 mt-1">
@@ -946,15 +944,113 @@ const Listings = () => {
                           </div>
                         </>
                       )}
-                      {previewListing.platform === 'vinted' && previewListing.material && (
+                      {(previewListing.platform === 'vinted' || previewListing.platform === 'depop') && previewListing.material && (
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
                           <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
                         </div>
                       )}
-                    </>
-                  )}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      {previewListing.platform === 'depop' && previewListing.age && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Age</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.age}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.source && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Source</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.source}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.bodyFit && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Body Fit</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bodyFit}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.occasion && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Occasion</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.occasion}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.depopType && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Depop Type</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.depopType}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.fastening && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fastening</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fastening}</p>
+                        </div>
+                      )}
+                      {previewListing.platform === 'depop' && previewListing.fit && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fit</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fit}</p>
+                        </div>
+                      )}
+                      {previewListing.measurements && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Measurements</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.measurements}</p>
+                        </div>
+                      )}
+                      {previewListing.isbn && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ISBN</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.isbn}</p>
+                        </div>
+                      )}
+                      {previewListing.author && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Author</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.author}</p>
+                        </div>
+                      )}
+                      {previewListing.bookTitle && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Title</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bookTitle}</p>
+                        </div>
+                      )}
+                      {previewListing.videoGameRating && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Video Game Rating</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.videoGameRating}</p>
+                        </div>
+                      )}
+                      {previewListing.selectedCondition && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.selectedCondition}</p>
+                        </div>
+                      )}
+                      {previewListing.shippingPrice && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Shipping Price</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">
+                            ${parseFloat(previewListing.shippingPrice || 0).toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                      {previewListing.worldwideShipping !== undefined && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Worldwide Shipping</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">
+                            {previewListing.worldwideShipping ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                      )}
+                      {previewListing.country && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Country/Location</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.country}</p>
+                        </div>
+                      )}
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
                     <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.sku || '-'}</p>
                   </div>
