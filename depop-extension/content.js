@@ -185,6 +185,13 @@ function generateUUID() {
 // Core Publisher: Dedicated Depop API Uploader
 // -------------------------------------------------------------
 async function executeDepopUpload(productData) {
+  if (!document.body) {
+    await new Promise(resolve => {
+      if (document.body) return resolve();
+      window.addEventListener('DOMContentLoaded', resolve, { once: true });
+    });
+  }
+
   // Render floating status overlay card on page
   const overlay = document.createElement('div');
   overlay.style.cssText = `
@@ -212,8 +219,14 @@ async function executeDepopUpload(productData) {
   document.body.appendChild(overlay);
   
   const updateStatus = (text, percent) => {
-    document.getElementById('elister-status').textContent = text;
-    document.getElementById('elister-progress').style.width = `${percent}%`;
+    if (!document.body.contains(overlay)) {
+      console.log('[Elister Depop] Overlay was removed from DOM. Re-appending...');
+      document.body.appendChild(overlay);
+    }
+    const statusEl = document.getElementById('elister-status');
+    const progressEl = document.getElementById('elister-progress');
+    if (statusEl) statusEl.textContent = text;
+    if (progressEl) progressEl.style.width = `${percent}%`;
   };
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
