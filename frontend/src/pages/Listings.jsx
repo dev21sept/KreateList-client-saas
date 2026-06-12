@@ -534,12 +534,21 @@ const Listings = () => {
               )}
             </button>
           )}
-          <button 
-            onClick={() => navigate('/create-listing')}
-            className="btn-primary"
-          >
-            Create Listing
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => navigate('/create-ebay-bulk-listing')}
+              className="px-6 py-2.5 bg-indigo-50 border border-indigo-105 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm text-sm"
+            >
+              <Sparkles size={16} className="text-indigo-650" />
+              eBay Bulk Listing
+            </button>
+            <button 
+              onClick={() => navigate('/create-listing')}
+              className="btn-primary"
+            >
+              Create Listing
+            </button>
+          </div>
         </div>
       </div>
 

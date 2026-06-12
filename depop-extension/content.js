@@ -570,7 +570,7 @@ async function executeDepopUpload(productData) {
     if (productData.backendUrl && productData.token && productData.listingId) {
       console.log('[Elister Depop] Updating database status and live URL for ID:', productData.listingId);
       try {
-        const updateRes = await backgroundFetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
+        const updateRes = await fetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
           method: 'PUT',
           headers: {
             'accept': 'application/json',
@@ -583,9 +583,9 @@ async function executeDepopUpload(productData) {
             depopUrl: depopUrl,
             depopListingId: String(depopId)
           })
-        }, 'json');
+        });
         
-        console.log('[Elister Depop] Database update response:', updateRes);
+        console.log('[Elister Depop] Database update response status:', updateRes.status);
         // Reload elister tabs to show status updates on frontend
         chrome.runtime.sendMessage({ action: 'RELOAD_ELISTER_TABS' }).catch(() => {});
       } catch (updateErr) {
