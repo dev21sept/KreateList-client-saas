@@ -33,7 +33,7 @@ import { DEPOP_OCCASIONS } from '../constants/depopOccasions';
 import { DEPOP_FASTENINGS } from '../constants/depopFastenings';
 import { DEPOP_FITS } from '../constants/depopFits';
 import { DEPOP_TYPES } from '../constants/depopTypes';
-import { DEPOP_ATTRIBUTE_OPTIONS } from '../constants/depopCategoryAttributes';
+import { DEPOP_ATTRIBUTE_OPTIONS, DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 import { DEPOP_KIDS_APPAREL_SIZES, DEPOP_KIDS_SHOE_SIZES, DEPOP_WOMENS_TOPS_SIZES, DEPOP_WOMENS_BOTTOMS_SIZES } from '../constants/depopSizes';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -889,6 +889,7 @@ const CreateDepopListing = () => {
               material: savedListing.material || "",
               conditionId: savedListing.conditionId || "3000",
               categoryId: savedListing.categoryId || "",
+              allowedAttributes: DEPOP_CATEGORY_MAPPING[savedListing.categoryId] || [],
               age: savedListing.age || "",
               source: savedListing.source || "",
               bodyFit: savedListing.bodyFit || "",

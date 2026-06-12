@@ -53,7 +53,13 @@ window.addEventListener('ELISTER_DEPOP_FETCH_RESPONSE', (event) => {
         ok,
         status,
         json: async () => data,
-        text: async () => typeof data === 'object' && data !== null && data.type === 'base64' ? data.data : data
+        text: async () => {
+          if (typeof data === 'object' && data !== null) {
+            if (data.type === 'base64') return data.data;
+            return JSON.stringify(data);
+          }
+          return data;
+        }
       });
     } else {
       promise.reject(new Error(error || 'Fetch failed in page context'));
@@ -420,12 +426,71 @@ async function executeDepopUpload(productData) {
       }
     }
 
+    // Resolve allowed attributes for the selected category
+    let allowedAttributes = productData.allowedAttributes;
+    if (!allowedAttributes || allowedAttributes.length === 0) {
+      // Fallback: guess allowed attributes based on categoryId
+      const catId = (productData.categoryId || '').toLowerCase();
+      const isBottoms = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('skirt') || catId.includes('shorts') || catId.includes('jogger');
+      const isFootwear = catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('sandals') || catId.includes('boots');
+      const isBeauty = catId.includes('beauty') || catId.includes('skincare') || catId.includes('makeup');
+      
+      allowedAttributes = ["occasion", "material"];
+      if (isBottoms) {
+        allowedAttributes.push("bottom-fit", "bottom-style", "body-fit", "size-fit");
+      } else if (isFootwear) {
+        allowedAttributes.push("trainers-type", "heel-type", "shoe-type", "fastening", "size-fit");
+      } else if (isBeauty) {
+        allowedAttributes = ["beauty-type"];
+      } else {
+        // Tops / dresses / general apparel
+        allowedAttributes.push("body-fit", "size-fit");
+      }
+    }
+
     const attributesPayload = {};
-    if (productData.occasion) attributesPayload["occasion"] = [productData.occasion.toLowerCase()];
-    if (productData.material) attributesPayload["material"] = [productData.material.toLowerCase()];
-    if (productData.bodyFit) attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
-    if (productData.fastening) attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
-    if (productData.fit) attributesPayload["fit"] = [productData.fit.toLowerCase()];
+    if (productData.occasion && allowedAttributes.includes("occasion")) {
+      attributesPayload["occasion"] = [productData.occasion.toLowerCase()];
+    }
+    if (productData.material && allowedAttributes.includes("material")) {
+      attributesPayload["material"] = [productData.material.toLowerCase()];
+    }
+    if (productData.bodyFit && allowedAttributes.includes("body-fit")) {
+      attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
+    }
+    if (productData.fastening && allowedAttributes.includes("fastening")) {
+      attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
+    }
+
+    // Dynamic mapping for 'fit' based on what key the category supports
+    if (productData.fit) {
+      const normalizedFit = productData.fit.toLowerCase();
+      if (allowedAttributes.includes("bottom-fit")) {
+        attributesPayload["bottom-fit"] = [normalizedFit];
+      } else if (allowedAttributes.includes("size-fit")) {
+        attributesPayload["size-fit"] = [normalizedFit];
+      } else if (allowedAttributes.includes("dress-length")) {
+        attributesPayload["dress-length"] = [normalizedFit];
+      } else if (allowedAttributes.includes("heel-type")) {
+        attributesPayload["heel-type"] = [normalizedFit];
+      } else if (allowedAttributes.includes("fit")) {
+        attributesPayload["fit"] = [normalizedFit];
+      }
+    }
+
+    // Dynamic mapping for 'depopType' based on what key the category supports
+    if (productData.depopType) {
+      const normalizedType = productData.depopType.toLowerCase();
+      const typeAttrs = [
+        "bottom-style", "dress-type", "coat-type", "jacket-type", 
+        "jumpssuit-type", "dungarees-type", "trainers-type", 
+        "shoe-type", "boot-type", "beauty-type"
+      ];
+      const matchedAttr = allowedAttributes.find(attr => typeAttrs.includes(attr));
+      if (matchedAttr) {
+        attributesPayload[matchedAttr] = [normalizedType];
+      }
+    }
 
     const listingLifecycleId = generateUUID();
     const persistentId = generateUUID();
