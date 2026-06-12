@@ -889,6 +889,7 @@ const CreateDepopListing = () => {
               material: savedListing.material || "",
               conditionId: savedListing.conditionId || "3000",
               categoryId: savedListing.categoryId || "",
+              category: savedListing.category || "",
               allowedAttributes: DEPOP_CATEGORY_MAPPING[savedListing.categoryId] || [],
               age: savedListing.age || "",
               source: savedListing.source || "",

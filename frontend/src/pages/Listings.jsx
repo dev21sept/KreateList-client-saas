@@ -455,6 +455,7 @@ const Listings = () => {
           material: fullListing.material || "",
           conditionId: fullListing.conditionId || "3000",
           categoryId: fullListing.categoryId || "",
+          category: fullListing.category || "",
           allowedAttributes: DEPOP_CATEGORY_MAPPING[fullListing.categoryId] || [],
           age: fullListing.age || "",
           source: fullListing.source || "",
