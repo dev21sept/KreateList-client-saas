@@ -296,8 +296,8 @@ async function executeDepopUpload(productData) {
       }
 
       const initData = await initRes.json();
-      const photoId = initData.id || initData.picture_id || initData.pictureId;
-      const uploadUrl = initData.upload_url || initData.uploadUrl;
+      const photoId = initData.id || initData.picture_id || initData.pictureId || initData.sid;
+      const uploadUrl = initData.url || initData.upload_url || initData.uploadUrl;
 
       if (!photoId || !uploadUrl) {
         throw new Error(`Invalid response from pictures API: ${JSON.stringify(initData)}`);
