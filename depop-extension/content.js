@@ -562,31 +562,50 @@ async function executeDepopUpload(productData) {
     const savedProductData = await saveRes.json();
     console.log('[Elister Depop] Save successful! Response:', savedProductData);
 
-    // Step 4: Finalize & Success Notification
-    updateStatus("Step 4/4: Listing successfully published!", 100);
-    await delay(2000);
-    
-    // Log Activity to backend
-    if (productData.backendUrl && productData.token) {
-      backgroundFetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
-        method: 'PUT',
-        headers: {
-          'content-type': 'application/json',
-          'authorization': `Bearer ${productData.token}`
-        },
-        body: JSON.stringify({ status: 'published', platform: 'depop' })
-      }, 'json').catch(err => console.warn('Activity log failed:', err));
+    const depopId = savedProductData.id || '';
+    const depopSlug = savedProductData.slug || '';
+    const depopUrl = depopSlug ? `https://www.depop.com/products/${depopSlug}/` : (depopId ? `https://www.depop.com/products/${depopId}/` : 'https://www.depop.com/');
+
+    // Log Activity & save live ID/URL to backend
+    if (productData.backendUrl && productData.token && productData.listingId) {
+      console.log('[Elister Depop] Updating database status and live URL for ID:', productData.listingId);
+      try {
+        const updateRes = await backgroundFetch(`${productData.backendUrl}/listings/${productData.listingId}`, {
+          method: 'PUT',
+          headers: {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${productData.token}`
+          },
+          body: JSON.stringify({
+            status: 'published',
+            platform: 'depop',
+            depopUrl: depopUrl,
+            depopListingId: String(depopId)
+          })
+        }, 'json');
+        
+        console.log('[Elister Depop] Database update response:', updateRes);
+        // Reload elister tabs to show status updates on frontend
+        chrome.runtime.sendMessage({ action: 'RELOAD_ELISTER_TABS' }).catch(() => {});
+      } catch (updateErr) {
+        console.error('[Elister Depop] Database update failed:', updateErr);
+      }
     }
 
+    // Step 4: Finalize & Success Notification
+    updateStatus("Step 4/4: Listing successfully published!", 100);
+    await delay(1200);
+
+    overlay.style.border = '1px solid #2ed573';
     overlay.innerHTML = `
       <h3 style="margin-top:0;font-size:13px;font-weight:700;color:#2ed573;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;margin-bottom:12px;">Success!</h3>
-      <div style="font-size:11px;margin-bottom:10px;font-weight:500;color:#f5f6fa;">Your listing has been published to Depop!</div>
-      <button id="elister-close-overlay" style="background:#2ed573;color:white;border:none;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">Close</button>
+      <div style="font-size:11px;margin-bottom:10px;font-weight:500;color:#f5f6fa;">Your listing has been published to Depop! Redirecting...</div>
     `;
     
-    document.getElementById('elister-close-overlay').addEventListener('click', () => {
-      overlay.remove();
-    });
+    await delay(1500);
+    overlay.remove();
+    window.location.href = depopUrl;
 
   } catch (err) {
     console.error('[Elister Depop Auto-Publisher Error]', err);
