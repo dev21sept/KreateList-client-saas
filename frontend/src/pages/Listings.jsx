@@ -83,10 +83,12 @@ const Listings = () => {
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [platformFilter, setPlatformFilter] = useState('all');
 
   useEffect(() => {
     setSearchTerm('');
     setStatusFilter('all');
+    setPlatformFilter('all');
   }, [activeTab]);
 
   useEffect(() => {
@@ -116,7 +118,8 @@ const Listings = () => {
       (listing.sku && listing.sku.toLowerCase().includes(term)) ||
       (listing.ebayListingId && listing.ebayListingId.toLowerCase().includes(term));
     const matchesStatus = statusFilter === 'all' || listing.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesPlatform = platformFilter === 'all' || listing.platform === platformFilter;
+    return matchesSearch && matchesStatus && matchesPlatform;
   });
 
   const filteredEbayProducts = ebayProducts.filter((product) => {
@@ -614,6 +617,22 @@ const Listings = () => {
             </select>
             <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
+          {activeTab === 'local' && (
+            <div className="relative w-full md:w-auto">
+              <select
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                className="w-full md:w-48 pl-10 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none"
+              >
+                <option value="all">All Platforms</option>
+                <option value="ebay">eBay</option>
+                <option value="poshmark">Poshmark</option>
+                <option value="vinted">Vinted</option>
+                <option value="depop">Depop</option>
+              </select>
+              <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          )}
         </div>
       </div>
 
