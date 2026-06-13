@@ -20,7 +20,7 @@ import {
   ExternalLink,
   ChevronRight
 } from 'lucide-react';
-import { ruleService, aiService, ebayService, bulkListingEbayService } from '../services/api';
+import { ruleService, aiService, ebayService, bulkListingEbayService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
@@ -229,6 +229,8 @@ const BulkListingEbay = () => {
   const [rules, setRules] = useState([]);
   const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
   
+  const [fetchingDetails, setFetchingDetails] = useState(false);
+  
   // Table queue state
   const [items, setItems] = useState([
     {
@@ -330,7 +332,72 @@ const BulkListingEbay = () => {
 
   // Load preselected bulk listings from Listings page session storage
   useEffect(() => {
+    const queueIdsStr = sessionStorage.getItem('elister_ebay_bulk_ids');
     const queueStr = sessionStorage.getItem('elister_ebay_bulk_queue');
+
+    const loadFromIds = async (ids) => {
+      setFetchingDetails(true);
+      try {
+        const responses = await Promise.all(
+          ids.map(id => listingService.getOne(id))
+        );
+        const fullListings = responses
+          .map(res => res.data?.success ? res.data.data : null)
+          .filter(Boolean);
+
+        if (fullListings.length > 0) {
+          const mappedItems = fullListings.map((listing, index) => {
+            return {
+              id: listing._id || listing.id || `item-bulk-${index}-${Date.now()}`,
+              _id: listing._id || listing.id,
+              images: listing.images || [],
+              title: listing.title || '',
+              sku: listing.sku || '',
+              price: listing.price || '',
+              category: listing.category || '',
+              categoryId: listing.categoryId || '',
+              description: listing.description || '',
+              selectedAspects: listing.itemSpecifics || {},
+              conditionNote: listing.conditionNote || '',
+              selectedCondition: listing.selectedCondition || '',
+              conditionId: listing.conditionId || '',
+              status: 'analyzed',
+              error: '',
+              ebayUrl: listing.ebayUrl || '',
+              ebayListingId: listing.ebayListingId || '',
+              aspects: [],
+              packageWeight: listing.packageWeight || { lbs: '', oz: '' },
+              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' },
+              fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
+              paymentPolicyId: listing.paymentPolicyId || '',
+              returnPolicyId: listing.returnPolicyId || '',
+              locationKey: listing.locationKey || '',
+              selected: true
+            };
+          });
+          setItems(mappedItems);
+        }
+      } catch (err) {
+        console.error("Error fetching bulk details from IDs:", err);
+      } finally {
+        setFetchingDetails(false);
+        sessionStorage.removeItem('elister_ebay_bulk_ids');
+      }
+    };
+
+    if (queueIdsStr) {
+      try {
+        const ids = JSON.parse(queueIdsStr);
+        if (Array.isArray(ids) && ids.length > 0) {
+          loadFromIds(ids);
+          return;
+        }
+      } catch (err) {
+        console.error("Error parsing bulk IDs from session storage:", err);
+        sessionStorage.removeItem('elister_ebay_bulk_ids');
+      }
+    }
+
     if (queueStr) {
       try {
         const parsed = JSON.parse(queueStr);
@@ -1069,8 +1136,24 @@ const BulkListingEbay = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => {
-                const isUploading = item.status === 'uploading';
+              {fetchingDetails ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-500 font-semibold">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <Loader2 size={24} className="animate-spin text-indigo-600" />
+                      <span>Fetching full details for selected listings...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs font-semibold">
+                    No items in queue. Upload images or select drafts to get started.
+                  </td>
+                </tr>
+              ) : (
+                items.map((item) => {
+                  const isUploading = item.status === 'uploading';
                 const isAnalyzing = item.status === 'analyzing';
                 const isSaving = item.status === 'saving';
                 const isPublishing = item.status === 'publishing';
@@ -1262,7 +1345,7 @@ const BulkListingEbay = () => {
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
