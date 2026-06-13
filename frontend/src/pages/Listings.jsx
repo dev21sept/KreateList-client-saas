@@ -15,7 +15,8 @@ import {
   Eye, 
   X,
   RefreshCw,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { listingService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -540,9 +541,9 @@ const Listings = () => {
           <div className="flex gap-3">
             <button 
               onClick={() => navigate('/create-ebay-bulk-listing')}
-              className="px-6 py-2.5 bg-indigo-50 border border-indigo-105 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm text-sm"
+              className="px-6 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm text-sm"
             >
-              <Sparkles size={16} className="text-indigo-650" />
+              <Sparkles size={16} className="text-indigo-600" />
               eBay Bulk Listing
             </button>
             <button 
