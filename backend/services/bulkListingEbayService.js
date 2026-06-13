@@ -4,6 +4,16 @@ const { normalizeProductImages, generateThumbnail } = require('../utils/imagePro
 const ebayService = require('./ebayService');
 const { getValidToken } = require('../controllers/ebayController');
 
+const isAspectValueInvalid = (val) => {
+  if (typeof val !== 'string') return true;
+  const clean = val.trim().toLowerCase();
+  if (!clean || clean === '' || clean === '-' || clean === 'none' || clean === 'n/a' || clean === 'not applicable') {
+    return true;
+  }
+  const isZero = /^(0+(\.0+)?)\s*(oz|gsm|g|lbs|lb|kg|ml|oz\.)?$/i.test(clean);
+  return isZero;
+};
+
 // Helper to map eBay condition IDs to Inventory API enum strings
 function mapConditionIdToEnum(conditionId) {
   const id = String(conditionId || '1000').toLowerCase();
@@ -196,16 +206,21 @@ async function publishSingleEbayListing(listing, token) {
     if (listing.itemSpecifics) {
       const specsObj = listing.itemSpecifics instanceof Map ? Object.fromEntries(listing.itemSpecifics) : listing.itemSpecifics;
       for (const [key, value] of Object.entries(specsObj)) {
-        if (value && value.length > 0 && value[0]) {
-          aspects[key] = Array.isArray(value) ? value : [value];
+        if (value && value.length > 0) {
+          const filtered = (Array.isArray(value) ? value : [value])
+            .map(v => String(v || ''))
+            .filter(v => !isAspectValueInvalid(v));
+          if (filtered.length > 0) {
+            aspects[key] = filtered;
+          }
         }
       }
     }
 
-    if (listing.brand && !aspects['Brand']) aspects['Brand'] = [listing.brand];
-    if (listing.color && !aspects['Color']) aspects['Color'] = [listing.color];
-    if (listing.size && !aspects['Size']) aspects['Size'] = [listing.size];
-    if (listing.material && !aspects['Material']) aspects['Material'] = [listing.material];
+    if (listing.brand && !isAspectValueInvalid(listing.brand) && !aspects['Brand']) aspects['Brand'] = [listing.brand];
+    if (listing.color && !isAspectValueInvalid(listing.color) && !aspects['Color']) aspects['Color'] = [listing.color];
+    if (listing.size && !isAspectValueInvalid(listing.size) && !aspects['Size']) aspects['Size'] = [listing.size];
+    if (listing.material && !isAspectValueInvalid(listing.material) && !aspects['Material']) aspects['Material'] = [listing.material];
 
     // 4. Structure weight and dimensions
     const packageWeightAndSize = {};
