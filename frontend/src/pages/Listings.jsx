@@ -86,6 +86,7 @@ const Listings = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [selectedListingIds, setSelectedListingIds] = useState([]);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   useEffect(() => {
     setSearchTerm('');
@@ -118,10 +119,31 @@ const Listings = () => {
     }
   };
 
-  const handleBulkListSelected = () => {
-    const selectedListings = listings.filter(l => selectedListingIds.includes(l._id));
-    sessionStorage.setItem('elister_ebay_bulk_queue', JSON.stringify(selectedListings));
-    navigate('/create-ebay-bulk-listing');
+  const handleBulkListSelected = async () => {
+    if (isBulkLoading) return;
+    setIsBulkLoading(true);
+    try {
+      const responses = await Promise.all(
+        selectedListingIds.map(id => listingService.getOne(id))
+      );
+      const fullListings = responses
+        .map(res => res.data?.success ? res.data.data : null)
+        .filter(Boolean);
+
+      if (fullListings.length === 0) {
+        toast.error("Failed to fetch details for selected listings.");
+        setIsBulkLoading(false);
+        return;
+      }
+
+      sessionStorage.setItem('elister_ebay_bulk_queue', JSON.stringify(fullListings));
+      navigate('/create-ebay-bulk-listing');
+    } catch (error) {
+      console.error("Error fetching full details for bulk listing:", error);
+      toast.error("An error occurred while preparing bulk listings.");
+    } finally {
+      setIsBulkLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -574,10 +596,20 @@ const Listings = () => {
             {activeTab === 'local' && platformFilter === 'ebay' && selectedListingIds.length > 0 && (
               <button 
                 onClick={handleBulkListSelected}
-                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200"
+                disabled={isBulkLoading}
+                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200"
               >
-                <Sparkles size={16} className="text-white animate-pulse" />
-                Bulk List Selected to eBay ({selectedListingIds.length})
+                {isBulkLoading ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin text-white" />
+                    Loading Details ({selectedListingIds.length})...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} className="text-white animate-pulse" />
+                    Bulk List Selected to eBay ({selectedListingIds.length})
+                  </>
+                )}
               </button>
             )}
             <button 
