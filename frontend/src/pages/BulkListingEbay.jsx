@@ -328,6 +328,71 @@ const BulkListingEbay = () => {
     fetchEbayPolicies();
   }, []);
 
+  // Load preselected bulk listings from Listings page session storage
+  useEffect(() => {
+    const queueStr = sessionStorage.getItem('elister_ebay_bulk_queue');
+    if (queueStr) {
+      try {
+        const parsed = JSON.parse(queueStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mappedItems = parsed.map((listing, index) => {
+            return {
+              id: listing._id || listing.id || `item-bulk-${index}-${Date.now()}`,
+              _id: listing._id || listing.id,
+              images: listing.images || [],
+              title: listing.title || '',
+              sku: listing.sku || '',
+              price: listing.price || '',
+              category: listing.category || '',
+              categoryId: listing.categoryId || '',
+              description: listing.description || '',
+              selectedAspects: listing.itemSpecifics || {},
+              conditionNote: listing.conditionNote || '',
+              selectedCondition: listing.selectedCondition || '',
+              conditionId: listing.conditionId || '',
+              status: 'analyzed',
+              error: '',
+              ebayUrl: listing.ebayUrl || '',
+              ebayListingId: listing.ebayListingId || '',
+              aspects: [],
+              packageWeight: listing.packageWeight || { lbs: '', oz: '' },
+              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' },
+              fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
+              paymentPolicyId: listing.paymentPolicyId || '',
+              returnPolicyId: listing.returnPolicyId || '',
+              locationKey: listing.locationKey || '',
+              selected: true
+            };
+          });
+          setItems(mappedItems);
+        }
+      } catch (err) {
+        console.error("Error parsing bulk queue from session storage:", err);
+      } finally {
+        sessionStorage.removeItem('elister_ebay_bulk_queue');
+      }
+    }
+  }, []);
+
+  // Fetch aspects for active item if category is selected but aspects are empty
+  useEffect(() => {
+    if (!activeEditItemId) return;
+    const it = items.find(i => i.id === activeEditItemId);
+    if (!it || !it.categoryId || (it.aspects && it.aspects.length > 0)) return;
+
+    const fetchAspects = async () => {
+      try {
+        const response = await ebayService.getCategoryAspects(it.categoryId);
+        if (response.data.success) {
+          setItems(prev => prev.map(item => item.id === activeEditItemId ? { ...item, aspects: response.data.data || [] } : item));
+        }
+      } catch (err) {
+        console.error("Error loading aspects for active item:", err);
+      }
+    };
+    fetchAspects();
+  }, [activeEditItemId, items]);
+
   // Update default policies on items when global rule changes
   useEffect(() => {
     if (!globalRule) return;

@@ -85,12 +85,44 @@ const Listings = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
+  const [selectedListingIds, setSelectedListingIds] = useState([]);
 
   useEffect(() => {
     setSearchTerm('');
     setStatusFilter('all');
     setPlatformFilter('all');
+    setSelectedListingIds([]);
   }, [activeTab]);
+
+  useEffect(() => {
+    setSelectedListingIds([]);
+  }, [platformFilter, statusFilter, searchTerm]);
+
+  const handleToggleSelectListing = (id) => {
+    setSelectedListingIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAllListings = () => {
+    const allIds = filteredListings.map(l => l._id);
+    const allSelected = allIds.length > 0 && allIds.every(id => selectedListingIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedListingIds(prev => prev.filter(id => !allIds.includes(id)));
+    } else {
+      setSelectedListingIds(prev => {
+        const unique = new Set([...prev, ...allIds]);
+        return Array.from(unique);
+      });
+    }
+  };
+
+  const handleBulkListSelected = () => {
+    const selectedListings = listings.filter(l => selectedListingIds.includes(l._id));
+    sessionStorage.setItem('elister_ebay_bulk_queue', JSON.stringify(selectedListings));
+    navigate('/create-ebay-bulk-listing');
+  };
 
   useEffect(() => {
     if (previewListing && previewListing.images && previewListing.images.length > 0) {
@@ -539,13 +571,15 @@ const Listings = () => {
             </button>
           )}
           <div className="flex gap-3">
-            <button 
-              onClick={() => navigate('/create-ebay-bulk-listing')}
-              className="px-6 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm text-sm"
-            >
-              <Sparkles size={16} className="text-indigo-600" />
-              eBay Bulk Listing
-            </button>
+            {activeTab === 'local' && platformFilter === 'ebay' && selectedListingIds.length > 0 && (
+              <button 
+                onClick={handleBulkListSelected}
+                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200"
+              >
+                <Sparkles size={16} className="text-white animate-pulse" />
+                Bulk List Selected to eBay ({selectedListingIds.length})
+              </button>
+            )}
             <button 
               onClick={() => navigate('/create-listing')}
               className="btn-primary"
@@ -645,7 +679,12 @@ const Listings = () => {
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-100">
                   <th className="px-6 py-4">
-                    <input type="checkbox" className="rounded text-indigo-600" />
+                    <input 
+                      type="checkbox" 
+                      className="rounded text-indigo-600 cursor-pointer" 
+                      checked={filteredListings.length > 0 && filteredListings.every(l => selectedListingIds.includes(l._id))}
+                      onChange={handleToggleSelectAllListings}
+                    />
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Product</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
@@ -672,7 +711,12 @@ const Listings = () => {
                       }`}
                     >
                       <td className="px-6 py-4">
-                        <input type="checkbox" className="rounded text-indigo-600" />
+                        <input 
+                          type="checkbox" 
+                          className="rounded text-indigo-600 cursor-pointer" 
+                          checked={selectedListingIds.includes(listing._id)}
+                          onChange={() => handleToggleSelectListing(listing._id)}
+                        />
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
