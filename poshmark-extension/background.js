@@ -1,5 +1,6 @@
 let pendingListingData = null;
 let cachedCsrfTokens = {};
+let cachedConnectionDetails = {};
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Fast Automator Service Worker installed!');
@@ -20,6 +21,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log(`Cached CSRF Token for ${site}:`, token);
     }
     sendResponse({ success: true });
+  }
+  
+  else if (message.action === 'CACHE_CONNECTION_DETAILS') {
+    const { platform, data } = message;
+    if (platform && data) {
+      cachedConnectionDetails[platform] = data;
+      console.log(`Cached Connection Details for ${platform}:`, data);
+    }
+    sendResponse({ success: true });
+  }
+
+  else if (message.action === 'GET_CONNECTION_DETAILS') {
+    sendResponse({ success: true, data: cachedConnectionDetails[message.platform] });
   }
   
   else if (message.action === 'GET_CACHED_CSRF_TOKEN') {

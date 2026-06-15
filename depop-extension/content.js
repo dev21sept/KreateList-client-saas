@@ -661,6 +661,24 @@ if (currentSite === 'depop') {
         action: 'CACHE_CSRF_TOKEN',
         data: { site: currentSite, token }
       }).catch(() => {});
+
+      // Parse username from pathname if on profile
+      let username = 'depop_user';
+      try {
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0 && !['products', 'create', 'settings', 'search', 'category'].includes(pathParts[0])) {
+          username = pathParts[0];
+        }
+      } catch (e) {}
+
+      chrome.runtime.sendMessage({
+        action: 'CACHE_CONNECTION_DETAILS',
+        platform: 'depop',
+        data: {
+          username,
+          accessToken: token
+        }
+      }).catch(() => {});
     }
   });
 
@@ -692,6 +710,32 @@ else if (currentSite === 'elister') {
         data: event.data.data
       }, (response) => {
         console.log('[Elister Depop] Background worker acknowledged listing start:', response);
+      });
+    }
+
+    // Capture automatic connection trigger from settings
+    else if (event.data && event.data.action === 'ELISTER_GET_CONNECTION_DETAILS' && event.data.platform === 'depop') {
+      console.log('[Elister Depop] Fetching cached Depop connection details...');
+      chrome.runtime.sendMessage({
+        action: 'GET_CONNECTION_DETAILS',
+        platform: 'depop'
+      }, (response) => {
+        if (response && response.success && response.data) {
+          console.log('[Elister Depop] Sending connection details back to app...');
+          window.postMessage({
+            action: 'ELISTER_CONNECTION_DETAILS_RESPONSE',
+            platform: 'depop',
+            success: true,
+            data: response.data
+          }, '*');
+        } else {
+          window.postMessage({
+            action: 'ELISTER_CONNECTION_DETAILS_RESPONSE',
+            platform: 'depop',
+            success: false,
+            error: 'Session details not found in extension cache. Please login/open Depop tab.'
+          }, '*');
+        }
       });
     }
   });

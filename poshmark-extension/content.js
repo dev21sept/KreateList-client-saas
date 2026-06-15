@@ -944,6 +944,21 @@ if (currentSite === 'poshmark') {
         action: 'CACHE_CSRF_TOKEN',
         data: { site: currentSite, token }
       }).catch(() => {});
+
+      // Cache full Poshmark connection details
+      const username = getUsernameFromDOM('poshmark');
+      const sessionCookieVal = getCookie('_poshmark_session');
+      if (username && username !== 'Guest' && sessionCookieVal) {
+        chrome.runtime.sendMessage({
+          action: 'CACHE_CONNECTION_DETAILS',
+          platform: 'poshmark',
+          data: {
+            username: username,
+            sessionCookie: `_poshmark_session=${sessionCookieVal}`,
+            csrfToken: token
+          }
+        }).catch(() => {});
+      }
     }
   });
 
@@ -984,6 +999,32 @@ else if (currentSite === 'elister') {
         data: event.data.data
       }, (response) => {
         console.log('[Elister Extension] Background script acknowledged queue:', response);
+      });
+    }
+
+    // Capture automatic connection trigger from settings
+    else if (event.data && event.data.action === 'ELISTER_GET_CONNECTION_DETAILS' && event.data.platform === 'poshmark') {
+      console.log('[Elister Extension] Fetching cached Poshmark connection details...');
+      chrome.runtime.sendMessage({
+        action: 'GET_CONNECTION_DETAILS',
+        platform: 'poshmark'
+      }, (response) => {
+        if (response && response.success && response.data) {
+          console.log('[Elister Extension] Sending connection details back to app...');
+          window.postMessage({
+            action: 'ELISTER_CONNECTION_DETAILS_RESPONSE',
+            platform: 'poshmark',
+            success: true,
+            data: response.data
+          }, '*');
+        } else {
+          window.postMessage({
+            action: 'ELISTER_CONNECTION_DETAILS_RESPONSE',
+            platform: 'poshmark',
+            success: false,
+            error: 'Session details not found in extension cache. Please login/open Poshmark tab.'
+          }, '*');
+        }
       });
     }
   });

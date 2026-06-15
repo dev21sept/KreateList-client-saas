@@ -52,6 +52,65 @@ const EbayAccounts = () => {
   const navigate = useNavigate();
   const called = useRef(false);
 
+  // Window event listener to receive captured tokens/cookies from the Chrome Extension
+  useEffect(() => {
+    const handleExtensionResponse = async (event) => {
+      const isAllowedOrigin = event.origin.includes('elister.ai') || event.origin.includes('localhost') || event.origin.includes('127.0.0.1');
+      if (!isAllowedOrigin) return;
+
+      if (event.data && event.data.action === 'ELISTER_CONNECTION_DETAILS_RESPONSE') {
+        const { platform, success, data, error } = event.data;
+        console.log(`[Integrations] Received extension details for ${platform}:`, { success, error });
+
+        if (success && data) {
+          toast.success(`Successfully captured ${platform} credentials from Extension! Connecting...`);
+          try {
+            if (platform === 'poshmark') {
+              setPoshLoading(true);
+              const res = await externalImportService.connect({
+                platform: 'poshmark',
+                username: data.username,
+                sessionCookie: data.sessionCookie,
+                csrfToken: data.csrfToken
+              });
+              if (res.data?.success) {
+                toast.success('Poshmark Connected Successfully via Extension!');
+                await loadUser();
+              }
+            } else if (platform === 'depop') {
+              setDepopLoading(true);
+              const res = await externalImportService.connect({
+                platform: 'depop',
+                username: data.username,
+                accessToken: data.accessToken
+              });
+              if (res.data?.success) {
+                toast.success('Depop Connected Successfully via Extension!');
+                await loadUser();
+              }
+            }
+          } catch (err) {
+            toast.error(err.response?.data?.message || `Failed to connect ${platform} automatically.`);
+          } finally {
+            setPoshLoading(false);
+            setDepopLoading(false);
+          }
+        } else {
+          // Credentials not cached in extension
+          toast.warning(`${platform} session details not cached. Opening login tab...`);
+          if (platform === 'poshmark') {
+            window.open('https://poshmark.com/login', '_blank');
+          } else if (platform === 'depop') {
+            window.open('https://www.depop.com/login/', '_blank');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleExtensionResponse);
+    return () => window.removeEventListener('message', handleExtensionResponse);
+  }, [loadUser, toast]);
+
   useEffect(() => {
     const error = searchParams.get('error');
     const success = searchParams.get('success');
@@ -82,17 +141,10 @@ const EbayAccounts = () => {
       
       await loadUser();
       toast.success('eBay Account Connected Successfully!');
-      
-      // Clean up the URL
       navigate('/ebay-accounts', { replace: true });
     } catch (error) {
       console.error('================ EBAY CALLBACK ERROR ================');
-      console.error('Error Object:', error);
-      if (error.response) {
-        console.error('Error Status:', error.response.status);
-        console.error('Error Response Data:', JSON.stringify(error.response.data, null, 2));
-      }
-      toast.error('eBay Connection Failed! Check console for details.');
+      toast.error('eBay Connection Failed!');
     } finally {
       setLoading(false);
       setStatusMsg('');
@@ -102,7 +154,6 @@ const EbayAccounts = () => {
   const handleConnect = async () => {
     try {
       setLoading(true);
-      console.log('Fetching eBay Auth URL from backend...');
       const response = await ebayService.connect();
       if (response.data.url) {
         window.location.href = response.data.url;
@@ -130,6 +181,18 @@ const EbayAccounts = () => {
         setLoading(false);
       }
     }
+  };
+
+  // Trigger Automatic Connection via Extension
+  const triggerAutoConnect = (platform) => {
+    const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true" ||
+                                 document.body.dataset.elisterDepopExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning('Please install and enable the eLister Chrome Extension to connect automatically!');
+      return;
+    }
+    console.log(`[Integrations] Requesting connection details from Extension for: ${platform}`);
+    window.postMessage({ action: 'ELISTER_GET_CONNECTION_DETAILS', platform }, '*');
   };
 
   // Poshmark Connect/Disconnect
@@ -347,10 +410,25 @@ const EbayAccounts = () => {
               </motion.div>
             ) : (
               <div className="space-y-4">
-                <div className="text-center py-2">
+                <div className="text-center py-2 flex flex-col items-center gap-2">
                   <h4 className="text-md font-bold text-slate-900">Connect Poshmark Channel</h4>
-                  <p className="text-slate-500 text-xs">Enter your session details to enable direct server listing.</p>
+                  <p className="text-slate-500 text-xs">Sync Poshmark instantly with 1-click using the Chrome Extension.</p>
+                  
+                  {/* One-Click Automatic Connect Button */}
+                  <button 
+                    onClick={() => triggerAutoConnect('poshmark')}
+                    disabled={poshLoading}
+                    className="mt-2 px-8 py-3 bg-indigo-650 text-white rounded-xl font-black text-xs hover:bg-indigo-750 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                  >
+                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                  </button>
                 </div>
+                
+                <div className="relative my-4 flex items-center justify-center">
+                  <div className="border-t border-slate-100 w-full absolute" />
+                  <span className="bg-white px-3 text-[10px] font-bold text-slate-400 relative">OR CONNECT MANUALLY</span>
+                </div>
+
                 <form onSubmit={handlePoshmarkConnect} className="space-y-3 max-w-md mx-auto">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Username</label>
@@ -387,7 +465,7 @@ const EbayAccounts = () => {
                     disabled={poshLoading}
                     className="w-full py-2.5 bg-rose-500 text-white rounded-xl font-black text-xs hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
                   >
-                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
+                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark Manually'}
                   </button>
                 </form>
               </div>
@@ -404,7 +482,7 @@ const EbayAccounts = () => {
                 className="relative overflow-hidden"
               >
                 <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
+                  <div className="w-16 h-16 bg-red-650 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
                     <span className="text-white text-xl font-black">{depop.username?.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="flex-1 space-y-3">
@@ -433,10 +511,25 @@ const EbayAccounts = () => {
               </motion.div>
             ) : (
               <div className="space-y-4">
-                <div className="text-center py-2">
+                <div className="text-center py-2 flex flex-col items-center gap-2">
                   <h4 className="text-md font-bold text-slate-900">Connect Depop Channel</h4>
-                  <p className="text-slate-500 text-xs">Enter your authorization access token to enable direct server listing.</p>
+                  <p className="text-slate-500 text-xs">Sync Depop instantly with 1-click using the Chrome Extension.</p>
+                  
+                  {/* One-Click Automatic Connect Button */}
+                  <button 
+                    onClick={() => triggerAutoConnect('depop')}
+                    disabled={depopLoading}
+                    className="mt-2 px-8 py-3 bg-indigo-650 text-white rounded-xl font-black text-xs hover:bg-indigo-750 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                  >
+                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                  </button>
                 </div>
+                
+                <div className="relative my-4 flex items-center justify-center">
+                  <div className="border-t border-slate-100 w-full absolute" />
+                  <span className="bg-white px-3 text-[10px] font-bold text-slate-400 relative">OR CONNECT MANUALLY</span>
+                </div>
+
                 <form onSubmit={handleDepopConnect} className="space-y-3 max-w-md mx-auto">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Depop Username</label>
@@ -463,7 +556,7 @@ const EbayAccounts = () => {
                     disabled={depopLoading}
                     className="w-full py-2.5 bg-red-650 text-white rounded-xl font-black text-xs hover:bg-red-750 transition-all flex items-center justify-center gap-2"
                   >
-                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop'}
+                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop Manually'}
                   </button>
                 </form>
               </div>
