@@ -33,7 +33,8 @@ exports.importExternalCloset = async (req, res) => {
     if (normalizedPlatform === 'depop') {
       scrapedListings = await scrapeDepopShop(cleanUsername);
     } else {
-      scrapedListings = await scrapePoshmarkCloset(cleanUsername);
+      const user = await User.findById(req.user.id);
+      scrapedListings = await scrapePoshmarkCloset(cleanUsername, user?.poshmarkAccount);
     }
 
     let importCount = 0;
@@ -331,7 +332,7 @@ exports.getLiveChannelInventory = async (req, res) => {
     if (normalizedPlatform === 'depop') {
       liveListings = await scrapeDepopShop(username);
     } else {
-      liveListings = await scrapePoshmarkCloset(username);
+      liveListings = await scrapePoshmarkCloset(username, user.poshmarkAccount);
     }
     
     res.status(200).json({
@@ -340,6 +341,6 @@ exports.getLiveChannelInventory = async (req, res) => {
     });
   } catch (err) {
     console.error(`[Import Controller] Error getting live inventory:`, err.message);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(200).json({ success: false, message: err.message, data: [] });
   }
 };

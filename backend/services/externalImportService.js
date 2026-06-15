@@ -227,11 +227,80 @@ async function scrapeDepopShop(username) {
 /**
  * Scrapes Poshmark closet products list
  * @param {string} username Poshmark username
+ * @param {Object} [credentials] Poshmark connection credentials (sessionCookie, csrfToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
-async function scrapePoshmarkCloset(username) {
-  const targetUrl = `https://poshmark.com/closet/${username.trim().toLowerCase()}`;
-  console.log(`[Import Scraper] Fetching Poshmark closet for ${username} at ${targetUrl}`);
+async function scrapePoshmarkCloset(username, credentials = {}) {
+  const cleanUsername = username.trim().toLowerCase();
+  
+  // 1. Try using the API with credentials first if available
+  if (credentials && credentials.sessionCookie) {
+    const { sessionCookie, csrfToken } = credentials;
+    const apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
+    console.log(`[Import Scraper] Fetching Poshmark closet via REST API for ${username} at ${apiUrl}`);
+    
+    try {
+      const apiResponse = await axios.get(apiUrl, {
+        headers: {
+          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
+          'x-csrf-token': csrfToken || '',
+          'accept': 'application/json',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 15000
+      });
+
+      const posts = apiResponse.data?.data || [];
+      console.log(`[Import Scraper] API call successful. Found ${posts.length} posts.`);
+      
+      if (posts.length > 0) {
+        const listings = [];
+        for (const post of posts) {
+          const title = post.title || '';
+          const description = post.description || title;
+          const priceVal = String(post.price || '0.00');
+          
+          let imgUrl = '';
+          if (post.cover_shot && post.cover_shot.url) {
+            imgUrl = post.cover_shot.url;
+          } else if (post.pictures && post.pictures.length > 0) {
+            imgUrl = post.pictures[0].url || post.pictures[0].src || '';
+          }
+          
+          const imgUrls = post.pictures && Array.isArray(post.pictures)
+            ? post.pictures.map(p => p.url).filter(Boolean)
+            : (imgUrl ? [imgUrl] : []);
+
+          const fullUrl = post.share_url || `https://poshmark.com/listing/${post.id}`;
+          const generatedSku = `P-${post.id}`;
+          
+          listings.push({
+            title: title.trim(),
+            description: description.trim(),
+            price: parseFloat(priceVal).toFixed(2),
+            sku: generatedSku,
+            category: 'Tops',
+            images: imgUrls,
+            thumbnail: imgUrl || '',
+            platform: 'poshmark',
+            poshmarkListingId: post.id,
+            poshmarkUrl: fullUrl,
+            brand: post.brand || '',
+            size: post.size || '',
+            quantity: 1,
+            status: 'draft'
+          });
+        }
+        return listings;
+      }
+    } catch (apiErr) {
+      console.warn(`[Import Scraper] Poshmark API closet fetch failed: ${apiErr.message}. Falling back to public page scraping.`);
+    }
+  }
+
+  // 2. Fallback to public page scraping
+  const targetUrl = `https://poshmark.com/closet/${cleanUsername}`;
+  console.log(`[Import Scraper] Fetching public Poshmark closet for ${username} at ${targetUrl}`);
   
   const config = getRequestConfig(targetUrl);
   
