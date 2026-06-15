@@ -76,6 +76,25 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  poshmarkAccount: {
+    connected: {
+      type: Boolean,
+      default: false
+    },
+    username: String,
+    sessionCookie: String,
+    csrfToken: String,
+    connectedAt: Date
+  },
+  depopAccount: {
+    connected: {
+      type: Boolean,
+      default: false
+    },
+    username: String,
+    accessToken: String,
+    connectedAt: Date
+  },
   currency: {
     type: String,
     default: 'USD'
