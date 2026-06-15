@@ -570,7 +570,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       catalog: {
         department: resolvedDept,
         category: resolvedCat,
-        category_features: resolvedSubcats
+        category_features: resolvedSubcats.map(id => ({ id }))
       },
       colors: listing.color ? [listing.color.split(',')[0].trim()] : [],
       style_tags: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim()) : [],

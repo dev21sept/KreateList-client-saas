@@ -932,7 +932,7 @@ async function executePoshmarkUpload(productData) {
         catalog: {
           department: resolvedDeptId,
           category: resolvedCatId,
-          category_features: resolvedSubcatIds
+          category_features: resolvedSubcatIds.map(id => ({ id }))
         },
         colors: filteredColors,
         style_tags: productData.styleTags || [],
