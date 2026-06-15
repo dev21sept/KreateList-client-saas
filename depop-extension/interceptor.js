@@ -65,6 +65,7 @@
       token = scanStorage(localStorage) || scanStorage(sessionStorage); // scan sessionStorage too
 
       if (token) {
+        document.documentElement.setAttribute('data-elister-auth-token', token);
         sessionStorage.setItem('elister_captured_depop_token', token);
         window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_TOKEN_CAPTURED', {
           detail: { token }
@@ -127,6 +128,7 @@
       }
 
       if (authToken) {
+        document.documentElement.setAttribute('data-elister-auth-token', authToken);
         sessionStorage.setItem('elister_captured_depop_token', authToken);
         window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_TOKEN_CAPTURED', {
           detail: { token: authToken }
@@ -201,6 +203,7 @@
   XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
     try {
       if (name.toLowerCase() === 'authorization') {
+        document.documentElement.setAttribute('data-elister-auth-token', value);
         sessionStorage.setItem('elister_captured_depop_token', value);
         window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_TOKEN_CAPTURED', {
           detail: { token: value }

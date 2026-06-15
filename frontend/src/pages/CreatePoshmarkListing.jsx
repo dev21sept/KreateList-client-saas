@@ -26,6 +26,31 @@ import { ruleService, aiService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 
+const POSHMARK_COLORS = [
+  'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
+];
+
+const POSHMARK_STYLE_TAGS = [
+  "70s", "80s", "90s", "Activewear", "Animal Print", "Athleisure", "Avant Garde", "Baggy", 
+  "Balletcore", "Beach", "Beaded", "Bikercore", "Blokecore", "Bodycon", "Bohemian", "Bow", 
+  "Bridal", "Bridesmaid", "Business Casual", "Cable Knit", "Cashmere", "Casual", "Chunky", 
+  "Collegiate", "Colorblock", "Colorful", "Contemporary", "Coord Sets", "Coquette Girl", 
+  "Corduroy", "Cottagecore", "Cozy", "Crochet", "Cropped", "Cruelty-Free", "Cut Out", 
+  "Denim", "Distressed", "DIY", "Drop Waist", "Eclectic Grandpa", "Embroidered", "Fall", 
+  "Faux Fur", "Feminine", "Festival", "Festive", "Flannel", "Flare", "Floral", "Formal", 
+  "Fringe", "Gingham", "Girlhoodcore", "Gorpcore", "Goth", "Grunge", "Hand Knit", 
+  "Handmade", "Herringbone", "Houndstooth", "Indie Sleeze", "Knit", "Lace", "Leather", 
+  "Leopard Print", "Lightweight", "Linen", "Luxury", "Maximalism", "Mesh", "Metallic", 
+  "Minimalist", "Monochrome", "Monogram", "Moto", "Neon", "Neutral", "Nylon", "Office", 
+  "Oversized", "Paisley", "Party", "Pastel", "Patchwork", "Peplum", "Plaid", "Platform", 
+  "Pleated", "Polka Dot", "Preppy", "Punk", "Quiet Luxury", "Quilted", "Relaxed Fit", 
+  "Resortwear", "Retro", "Rosette", "Ruffle", "Satin", "Sequins", "Sheer", "Sherpa", 
+  "Silk", "Sporty", "Strapless", "Streetwear", "Stripes", "Suede", "Tailored", 
+  "Tennis Prep", "Travel", "Tropical", "Tweed", "Two-Tone", "Unisex", "Upcycled", 
+  "Utility", "Vacation", "Vegan", "Velour", "Vintage", "Waterproof", "Wedding", 
+  "Western", "Whimsigoth", "Winter", "Wool", "Woven", "Y2K"
+];
+
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -221,10 +246,6 @@ const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select color
   const wrapperRef = React.useRef(null);
   const { toast } = useNotification();
 
-  const POSHMARK_COLORS = [
-    'White', 'Black', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Brown', 'Gray', 'Orange', 'Beige', 'Navy', 'Teal', 'Maroon', 'Olive', 'Gold', 'Silver'
-  ];
-
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
@@ -382,6 +403,8 @@ const CreatePoshmarkListing = () => {
     size: '',
     category: '',
     categoryId: '',
+    departmentId: '',
+    subcategoryIds: [],
     price: '',
     description: '',
     conditionNote: '',
@@ -459,6 +482,8 @@ const CreatePoshmarkListing = () => {
               size: listing.size || '',
               category: listing.category || '',
               categoryId: listing.categoryId || '',
+              departmentId: listing.departmentId || '',
+              subcategoryIds: listing.subcategoryIds || [],
               price: listing.price || '',
               description: listing.description || '',
               conditionNote: listing.conditionNote || '',
@@ -566,7 +591,9 @@ const CreatePoshmarkListing = () => {
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
           category: result.category_name || result.category || '',
-          categoryId: '',
+          categoryId: result.categoryId || '',
+          departmentId: result.departmentId || '',
+          subcategoryIds: result.subcategoryIds || [],
           sku: result.sku || ''
         }));
       }
@@ -645,6 +672,8 @@ const CreatePoshmarkListing = () => {
       sku: formData.sku,
       category: formData.category,
       categoryId: formData.categoryId,
+      departmentId: formData.departmentId,
+      subcategoryIds: formData.subcategoryIds,
       images: formData.images,
       conditionNote: formData.conditionNote,
       selectedRule: formData.selectedRule,
@@ -983,7 +1012,13 @@ const CreatePoshmarkListing = () => {
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Category</label>
                         <CategorySearchDropdown 
                           value={formData.category}
-                          onSelect={(opt) => setFormData({...formData, category: opt.fullName, categoryId: opt.id})}
+                          onSelect={(opt) => setFormData({
+                            ...formData, 
+                            category: opt.fullName, 
+                            categoryId: opt.categoryId || opt.id,
+                            departmentId: opt.departmentId || '',
+                            subcategoryIds: opt.subcategoryIds || []
+                          })}
                           placeholder="Search and edit category..."
                         />
                       </div>
@@ -1068,7 +1103,13 @@ const CreatePoshmarkListing = () => {
                           value={formData.styleTag}
                           onChange={(e) => setFormData({...formData, styleTag: e.target.value})}
                           placeholder="e.g. Vintage, Boho..."
+                          list="poshmark-style-tags"
                         />
+                        <datalist id="poshmark-style-tags">
+                          {POSHMARK_STYLE_TAGS.map(tag => (
+                            <option key={tag} value={tag} />
+                          ))}
+                        </datalist>
                       </div>
                     </div>
 

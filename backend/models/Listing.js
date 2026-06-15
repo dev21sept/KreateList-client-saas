@@ -28,6 +28,8 @@ const listingSchema = new mongoose.Schema({
     required: true
   },
   categoryId: String,
+  departmentId: String,
+  subcategoryIds: [String],
   images: [String],
   thumbnail: String,
   status: {

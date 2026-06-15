@@ -95,7 +95,8 @@ export const adminService = {
 export const externalImportService = {
   importCloset: (data) => API.post('/external-import/import', data),
   connect: (data) => API.post('/external-import/connect', data),
-  publish: (id, data) => API.post(`/external-import/publish/${id}`, data)
+  publish: (id, data) => API.post(`/external-import/publish/${id}`, data),
+  getLive: (platform) => API.get(`/external-import/live?platform=${platform}`)
 };
 
 export default API;

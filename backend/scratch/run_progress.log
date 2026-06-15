@@ -1,0 +1,13 @@
+﻿Starting execution of parse_poshmark.ps1 at 06/16/2026 02:55:08
+Reading Poshmark catalog from: d:\Project\elister\backend\poshmark_initializers.json
+Loaded JSON content, length: 5089952 characters. Parsing JSON...
+JSON parsed successfully. Catalog ID: 55b966335632a0146f000001
+Processing department: Women (000e8975d97b4e80ef00a955)
+Processing department: Men (01008c10d97b4e1245005764)
+Processing department: Kids (20008c10d97b4e1245005764)
+Processing department: Home (5b3b13d30640fd0aeb9c5cb6)
+Processing department: Pets (af08bf904024037d7a7b5fad)
+Processing department: Electronics (583c7d134024035188906153)
+Total Poshmark category paths found: 673
+Writing generated JavaScript to d:\Project\elister\backend\constants\poshmarkTaxonomy.js...
+Successfully generated and updated: d:\Project\elister\backend\constants\poshmarkTaxonomy.js

@@ -1,6 +1,7 @@
 let pendingListingData = null;
 let cachedCsrfTokens = {};
 let cachedConnectionDetails = {};
+let activeConnectFlow = null;
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Depop Fast Automator Service Worker installed!');
@@ -10,7 +11,79 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Depop Background received message:', message);
   
-  if (message.action === 'PING_BACKGROUND') {
+  if (message.action === 'START_DEPOP_CONNECT_FLOW') {
+    const { token, backendUrl, frontendUrl } = message.data;
+    const tabId = sender.tab ? sender.tab.id : null;
+    if (tabId) {
+      chrome.tabs.update(tabId, { url: 'https://www.depop.com/login/' }, (tab) => {
+        activeConnectFlow = {
+          tabId: tab.id,
+          token,
+          backendUrl,
+          frontendUrl
+        };
+        console.log('Redirecting same tab for Depop Connect Flow:', tab.id);
+        sendResponse({ success: true });
+      });
+    } else {
+      sendResponse({ success: false, message: 'No sender tab found' });
+    }
+    return true;
+  }
+  
+  else if (message.action === 'GET_CONNECT_FLOW') {
+    const tabId = sender.tab ? sender.tab.id : null;
+    if (activeConnectFlow && activeConnectFlow.tabId === tabId) {
+      sendResponse({ success: true, flow: activeConnectFlow });
+    } else {
+      sendResponse({ success: false });
+    }
+  }
+  
+  else if (message.action === 'COMPLETE_DEPOP_CONNECT') {
+    const { username, accessToken } = message.data;
+    if (!activeConnectFlow) {
+      sendResponse({ success: false, message: 'No active connect flow found' });
+      return true;
+    }
+    const { token, backendUrl, frontendUrl } = activeConnectFlow;
+    
+    console.log('Submitting captured Depop credentials to backend:', backendUrl);
+    fetch(`${backendUrl}/external-import/connect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        platform: 'depop',
+        username,
+        accessToken
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log('Backend connect response:', data);
+      if (data.success) {
+        cachedConnectionDetails['depop'] = {
+          username,
+          accessToken
+        };
+        chrome.tabs.update(activeConnectFlow.tabId, { url: `${frontendUrl}/ebay-accounts?success=depop` });
+        activeConnectFlow = null;
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, message: data.message || 'Backend connection failed' });
+      }
+    })
+    .catch(err => {
+      console.error('Error connecting Depop to backend:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+  
+  else if (message.action === 'PING_BACKGROUND') {
     sendResponse({ success: true, message: 'Background worker is active' });
   }
   

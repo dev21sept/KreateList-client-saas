@@ -48,6 +48,25 @@ const EbayAccounts = () => {
   const [depopToken, setDepopToken] = useState('');
   const [depopLoading, setDepopLoading] = useState(false);
 
+  // Sync state
+  const [syncingPlatform, setSyncingPlatform] = useState(null);
+
+  const handleSyncCloset = async (platform, username) => {
+    try {
+      setSyncingPlatform(platform);
+      toast.success(`Starting sync for your ${platform} closet...`);
+      const res = await externalImportService.importCloset({ platform, username });
+      if (res.data?.success) {
+        toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${platform}!`);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || `Failed to sync ${platform} closet.`);
+    } finally {
+      setSyncingPlatform(null);
+    }
+  };
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const called = useRef(false);
@@ -125,10 +144,17 @@ const EbayAccounts = () => {
       navigate('/ebay-accounts', { replace: true });
     } else if (success && !called.current) {
       called.current = true;
+      if (success === 'poshmark') {
+        toast.success('Poshmark Account Connected Successfully!');
+      } else if (success === 'depop') {
+        toast.success('Depop Account Connected Successfully!');
+      } else {
+        toast.success('Account Connected Successfully!');
+      }
       loadUser();
       navigate('/ebay-accounts', { replace: true });
     }
-  }, [searchParams, navigate, loadUser]);
+  }, [searchParams, navigate, loadUser, toast]);
 
   const handleCallback = async (code) => {
     try {
@@ -191,8 +217,20 @@ const EbayAccounts = () => {
       toast.warning('Please install and enable the eLister Chrome Extension to connect automatically!');
       return;
     }
-    console.log(`[Integrations] Requesting connection details from Extension for: ${platform}`);
-    window.postMessage({ action: 'ELISTER_GET_CONNECTION_DETAILS', platform }, '*');
+    const backendUrl = import.meta.env.MODE === 'production'
+      ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+      : 'http://localhost:5000/api';
+    const token = localStorage.getItem('token');
+    const frontendUrl = window.location.origin;
+
+    console.log(`[Integrations] Starting redirect connection flow for: ${platform}`);
+    window.postMessage({
+      action: 'ELISTER_START_CONNECT_FLOW',
+      platform,
+      backendUrl,
+      token,
+      frontendUrl
+    }, '*');
   };
 
   // Poshmark Connect/Disconnect
@@ -397,6 +435,16 @@ const EbayAccounts = () => {
                     </div>
                     <div className="flex justify-between items-center pt-2">
                       <span className="text-[10px] text-slate-400">Connected at {poshmark.connectedAt ? new Date(poshmark.connectedAt).toLocaleDateString() : 'Active'}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">
+                      <button
+                        onClick={() => handleSyncCloset('poshmark', poshmark.username)}
+                        disabled={syncingPlatform === 'poshmark'}
+                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {syncingPlatform === 'poshmark' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                        Sync Poshmark Closet
+                      </button>
                       <button 
                         onClick={handlePoshmarkDisconnect}
                         disabled={poshLoading}
@@ -498,6 +546,16 @@ const EbayAccounts = () => {
                     </div>
                     <div className="flex justify-between items-center pt-2">
                       <span className="text-[10px] text-slate-400">Connected at {depop.connectedAt ? new Date(depop.connectedAt).toLocaleDateString() : 'Active'}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">
+                      <button
+                        onClick={() => handleSyncCloset('depop', depop.username)}
+                        disabled={syncingPlatform === 'depop'}
+                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {syncingPlatform === 'depop' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                        Sync Depop Shop
+                      </button>
                       <button 
                         onClick={handleDepopDisconnect}
                         disabled={depopLoading}

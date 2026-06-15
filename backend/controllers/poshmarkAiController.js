@@ -69,8 +69,8 @@ function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
     }
 
     // 2. Direct exact match check
-    let directMatch = POSHMARK_TAXONOMY.find(cat => cat.toLowerCase() === cleanAi);
-    if (directMatch) return directMatch;
+    let directMatch = POSHMARK_TAXONOMY.find(cat => cat.path.toLowerCase() === cleanAi);
+    if (directMatch) return directMatch.path;
 
     // 3. Token overlap check to find the closest official taxonomy path
     const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(Boolean);
@@ -78,7 +78,7 @@ function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
     let maxOverlap = 0;
 
     for (const cat of POSHMARK_TAXONOMY) {
-        const catTokens = cat.toLowerCase().replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+        const catTokens = cat.path.toLowerCase().replace(/>/g, ' ').split(/\s+/).filter(Boolean);
         let overlap = 0;
         
         for (const token of aiTokens) {
@@ -94,7 +94,7 @@ function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
 
         if (overlap > maxOverlap) {
             maxOverlap = overlap;
-            bestMatch = cat;
+            bestMatch = cat.path;
         }
     }
 
@@ -300,8 +300,8 @@ Examples:
  
 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' (MSRP / original retail price when brand new) in USD.
 5. Attribute Extraction:
-   - Identify the primary 'color'(s) of the item. Use ONLY colors from this allowed Poshmark color list: White, Black, Red, Blue, Green, Yellow, Pink, Purple, Brown, Gray, Orange, Beige, Navy, Teal, Maroon, Olive, Gold, Silver. You can select at most 2 colors. Return them as a comma-separated string (e.g., 'Red, Blue').
-   - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.
+   - Identify the primary 'color'(s) of the item. Use ONLY colors from this allowed Poshmark color list: Red, Pink, Orange, Yellow, Green, Blue, Purple, Gold, Silver, Black, Gray, White, Cream, Brown, Tan. You can select at most 2 colors. Return them as a comma-separated string (e.g., 'Red, Pink').
+   - Extract up to 3 style tags or keywords as comma-separated values. You MUST choose ONLY from this allowed Poshmark style tags list: 70s, 80s, 90s, Activewear, Animal Print, Athleisure, Avant Garde, Baggy, Balletcore, Beach, Beaded, Bikercore, Blokecore, Bodycon, Bohemian, Bow, Bridal, Bridesmaid, Business Casual, Cable Knit, Cashmere, Casual, Chunky, Collegiate, Colorblock, Colorful, Contemporary, Coord Sets, Coquette Girl, Corduroy, Cottagecore, Cozy, Crochet, Cropped, Cruelty-Free, Cut Out, Denim, Distressed, DIY, Drop Waist, Eclectic Grandpa, Embroidered, Fall, Faux Fur, Feminine, Festival, Festive, Flannel, Flare, Floral, Formal, Fringe, Gingham, Girlhoodcore, Gorpcore, Goth, Grunge, Hand Knit, Handmade, Herringbone, Houndstooth, Indie Sleeze, Knit, Lace, Leather, Leopard Print, Lightweight, Linen, Luxury, Maximalism, Mesh, Metallic, Minimalist, Monochrome, Monogram, Moto, Neon, Neutral, Nylon, Office, Oversized, Paisley, Party, Pastel, Patchwork, Peplum, Plaid, Platform, Pleated, Polka Dot, Preppy, Punk, Quiet Luxury, Quilted, Relaxed Fit, Resortwear, Retro, Rosette, Ruffle, Satin, Sequins, Sheer, Sherpa, Silk, Sporty, Strapless, Streetwear, Stripes, Suede, Tailored, Tennis Prep, Travel, Tropical, Tweed, Two-Tone, Unisex, Upcycled, Utility, Vacation, Vegan, Velour, Vintage, Waterproof, Wedding, Western, Whimsigoth, Winter, Wool, Woven, Y2K. Return them as a comma-separated string (e.g. 'Vintage, Streetwear, Y2K') in 'style_tag'.
    - Identify the 'size' of the item if visible in the images or estimate it if not.
  
 Context: Gender: ${gender === 'Unisex' ? 'Unisex (Identify the correct Men/Women/Kids category root based on the item design/styling)' : gender}.
@@ -387,6 +387,7 @@ Response ONLY as JSON: {
         }
 
         const normalizedCategory = normalizePoshmarkCategory(finalData.category, gender);
+        const matchedTaxonomy = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase() === normalizedCategory.toLowerCase()) || {};
 
         return res.json({
             success: true,
@@ -397,10 +398,13 @@ Response ONLY as JSON: {
                 title_parts: standardizedParts,
                 category: normalizedCategory,
                 category_name: normalizedCategory,
+                categoryId: matchedTaxonomy.categoryId || '',
+                departmentId: matchedTaxonomy.departmentId || '',
+                subcategoryIds: matchedTaxonomy.id && matchedTaxonomy.id !== matchedTaxonomy.categoryId ? [matchedTaxonomy.id] : [],
                 price: finalData.selling_price || finalData.price,
                 originalPrice: finalData.original_price || '',
                 color: (() => {
-                    const allowedColors = ['White', 'Black', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Brown', 'Gray', 'Orange', 'Beige', 'Navy', 'Teal', 'Maroon', 'Olive', 'Gold', 'Silver'];
+                    const allowedColors = ['Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'];
                     const matchedColors = [];
                     if (finalData.color) {
                         const rawColors = String(finalData.color).split(/[\s,]+/);
@@ -414,7 +418,40 @@ Response ONLY as JSON: {
                     }
                     return matchedColors.slice(0, 2).join(', ');
                 })(),
-                styleTag: finalData.style_tag || '',
+                styleTag: (() => {
+                    const allowedTags = [
+                        "70s", "80s", "90s", "Activewear", "Animal Print", "Athleisure", "Avant Garde", "Baggy", 
+                        "Balletcore", "Beach", "Beaded", "Bikercore", "Blokecore", "Bodycon", "Bohemian", "Bow", 
+                        "Bridal", "Bridesmaid", "Business Casual", "Cable Knit", "Cashmere", "Casual", "Chunky", 
+                        "Collegiate", "Colorblock", "Colorful", "Contemporary", "Coord Sets", "Coquette Girl", 
+                        "Corduroy", "Cottagecore", "Cozy", "Crochet", "Cropped", "Cruelty-Free", "Cut Out", 
+                        "Denim", "Distressed", "DIY", "Drop Waist", "Eclectic Grandpa", "Embroidered", "Fall", 
+                        "Faux Fur", "Feminine", "Festival", "Festive", "Flannel", "Flare", "Floral", "Formal", 
+                        "Fringe", "Gingham", "Girlhoodcore", "Gorpcore", "Goth", "Grunge", "Hand Knit", 
+                        "Handmade", "Herringbone", "Houndstooth", "Indie Sleeze", "Knit", "Lace", "Leather", 
+                        "Leopard Print", "Lightweight", "Linen", "Luxury", "Maximalism", "Mesh", "Metallic", 
+                        "Minimalist", "Monochrome", "Monogram", "Moto", "Neon", "Neutral", "Nylon", "Office", 
+                        "Oversized", "Paisley", "Party", "Pastel", "Patchwork", "Peplum", "Plaid", "Platform", 
+                        "Pleated", "Polka Dot", "Preppy", "Punk", "Quiet Luxury", "Quilted", "Relaxed Fit", 
+                        "Resortwear", "Retro", "Rosette", "Ruffle", "Satin", "Sequins", "Sheer", "Sherpa", 
+                        "Silk", "Sporty", "Strapless", "Streetwear", "Stripes", "Suede", "Tailored", 
+                        "Tennis Prep", "Travel", "Tropical", "Tweed", "Two-Tone", "Unisex", "Upcycled", 
+                        "Utility", "Vacation", "Vegan", "Velour", "Vintage", "Waterproof", "Wedding", 
+                        "Western", "Whimsigoth", "Winter", "Wool", "Woven", "Y2K"
+                    ];
+                    const matchedTags = [];
+                    if (finalData.style_tag) {
+                        const rawTags = String(finalData.style_tag).split(/[\s,]+/);
+                        for (const rt of rawTags) {
+                            const clean = rt.trim().toLowerCase();
+                            const matched = allowedTags.find(at => at.toLowerCase() === clean);
+                            if (matched && !matchedTags.includes(matched)) {
+                                matchedTags.push(matched);
+                            }
+                        }
+                    }
+                    return matchedTags.slice(0, 3).join(', ');
+                })(),
                 size: finalData.size || '',
                 sku: finalData.sku
             }
@@ -432,17 +469,20 @@ exports.searchPoshmarkCategories = async (req, res) => {
         if (!query) return res.json([]);
 
         const lowerQuery = String(query).toLowerCase().trim();
-        const matches = POSHMARK_TAXONOMY.filter(cat => cat.toLowerCase().includes(lowerQuery));
+        const matches = POSHMARK_TAXONOMY.filter(cat => cat.path.toLowerCase().includes(lowerQuery));
 
         const formatted = matches.slice(0, 20).map(cat => {
-            const parts = cat.split(' > ');
+            const parts = cat.path.split(' > ');
             const name = parts[parts.length - 1];
             const path = parts.slice(0, -1).join(' > ');
             return {
-                id: cat,
+                id: cat.id,
                 name: name,
                 path: path,
-                fullName: cat
+                fullName: cat.path,
+                categoryId: cat.categoryId,
+                departmentId: cat.departmentId,
+                subcategoryIds: cat.id !== cat.categoryId ? [cat.id] : []
             };
         });
 

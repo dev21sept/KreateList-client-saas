@@ -24,6 +24,7 @@
       }
 
       if (token) {
+        document.documentElement.setAttribute('data-elister-csrf-token', token);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: token }
         }));
@@ -228,6 +229,7 @@
       }
 
       if (csrfToken) {
+        document.documentElement.setAttribute('data-elister-csrf-token', csrfToken);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken }
         }));
@@ -303,6 +305,7 @@
   XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
     try {
       if (name.toLowerCase() === 'x-xsrf-token' || name.toLowerCase() === 'x-csrf-token') {
+        document.documentElement.setAttribute('data-elister-csrf-token', value);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: value }
         }));

@@ -20,20 +20,33 @@ try {
 
   for (const dept of departments) {
     const deptName = dept.display; // e.g., "Women"
+    const deptId = dept.id;
     const categories = dept.categories || [];
     
     for (const cat of categories) {
       const catName = cat.display; // e.g., "Bags"
+      const catId = cat.id;
       const subcats = cat.category_features || [];
       
       if (subcats.length > 0) {
         for (const sub of subcats) {
           const subName = sub.display; // e.g., "Backpacks"
-          paths.push(`${deptName} > ${catName} > ${subName}`);
+          const subId = sub.id;
+          paths.push({
+            id: subId,
+            path: `${deptName} > ${catName} > ${subName}`,
+            categoryId: catId,
+            departmentId: deptId
+          });
         }
       } else {
         // Fallback if there are no subcategories
-        paths.push(`${deptName} > ${catName}`);
+        paths.push({
+          id: catId,
+          path: `${deptName} > ${catName}`,
+          categoryId: catId,
+          departmentId: deptId
+        });
       }
     }
   }

@@ -8,6 +8,10 @@ function getCookie(name) {
 
 // Helper: Extract CSRF Token from Poshmark or Vinted DOM / Cookies
 function getCsrfToken(site) {
+  // Check DOM attribute set by interceptor first to prevent race conditions
+  const domCsrf = document.documentElement.getAttribute('data-elister-csrf-token');
+  if (domCsrf) return domCsrf;
+
   // 1. Check sessionStorage cache first
   const cached = sessionStorage.getItem('elister_captured_csrf_token');
   if (cached) return cached;
@@ -348,6 +352,84 @@ function detectSite() {
 
 
 
+// Helper: Translate legacy/mismatched Poshmark category and department IDs to actual Poshmark IDs
+function normalizePoshmarkIds(deptId, catId) {
+  let resolvedDeptId = deptId;
+  let resolvedCatId = catId;
+
+  // 1. Normalize department ID
+  if (resolvedDeptId === '01008c10d97b4e1245005763') {
+    resolvedDeptId = '000e8975d97b4e80ef00a955'; // Women
+  } else if (resolvedDeptId === '01008c10d97b4e1245005765') {
+    resolvedDeptId = '20008c10d97b4e1245005764'; // Kids
+  } else if (resolvedDeptId === '5c464bf26e4757c3d221aa90') {
+    resolvedDeptId = '5b3b13d30640fd0aeb9c5cb6'; // Home
+  } else if (resolvedDeptId === '60abfaa1a415ff1c2ee1df39') {
+    resolvedDeptId = 'af08bf904024037d7a7b5fad'; // Pets
+  } else if (resolvedDeptId === '60abfa98bfd32f1465e902b7') {
+    resolvedDeptId = '583c7d134024035188906153'; // Electronics
+  }
+
+  // 2. Map legacy category IDs
+  if (resolvedCatId && typeof resolvedCatId === 'string') {
+    const catPrefix = resolvedCatId.substring(0, 8);
+    
+    // Women department
+    if (resolvedDeptId === '000e8975d97b4e80ef00a955') {
+      const womenMap = {
+        '02008c10': '00248975d97b4e80ef00a955', // Bags
+        '09008c10': '002a8975d97b4e80ef00a955', // Accessories
+        '0b008c10': '00108975d97b4e80ef00a955', // Dresses
+        '08008c10': '00148975d97b4e80ef00a955', // Jackets & Coats
+        '04008c10': '001a8975d97b4e80ef00a955', // Jeans
+        '05008c10': '001c8975d97b4e80ef00a955', // Pants
+        '03008c10': '00268975d97b4e80ef00a955', // Shoes
+        '06008c10': '001e8975d97b4e80ef00a955', // Shorts
+        '0c008c10': '00128975d97b4e80ef00a955', // Skirts
+        '0d008c10': '00168975d97b4e80ef00a955', // Sweaters
+        '07008c10': '00188975d97b4e80ef00a955'  // Tops
+      };
+      if (womenMap[catPrefix]) {
+        resolvedCatId = womenMap[catPrefix];
+      }
+    }
+    
+    // Kids department
+    else if (resolvedDeptId === '20008c10d97b4e1245005764') {
+      const kidsMap = {
+        '09008c10': '21008c10d97b4e1245005764', // Accessories
+        '0b008c10': '22008c10d97b4e1245005764', // Dresses
+        '08008c10': '23008c10d97b4e1245005764', // Jackets & Coats
+        '03008c10': '29008c10d97b4e1245005764', // Shoes
+        '07008c10': '2e008c10d97b4e1245005764'  // Shirts & Tops
+      };
+      if (kidsMap[catPrefix]) {
+        resolvedCatId = kidsMap[catPrefix];
+      }
+    }
+    
+    // Men department
+    else if (resolvedDeptId === '01008c10d97b4e1245005764') {
+      const menMap = {
+        '02008c10': '03008c10d97b4e1245005764', // Bags (mapped 02 to 03)
+        '09008c10': '02008c10d97b4e1245005764', // Accessories (mapped 09 to 02)
+        '08008c10': '04008c10d97b4e1245005764', // Jackets & Coats (mapped 08 to 04)
+        '04008c10': '05008c10d97b4e1245005764', // Jeans (mapped 04 to 05)
+        '05008c10': '06008c10d97b4e1245005764', // Pants (mapped 05 to 06)
+        '07008c10': '07008c10d97b4e1245005764', // Shirts
+        '03008c10': '08008c10d97b4e1245005764', // Shoes (mapped 03 to 08)
+        '06008c10': '09008c10d97b4e1245005764', // Shorts (mapped 06 to 09)
+        '0d008c10': '0b008c10d97b4e1245005764'  // Sweaters (mapped 0d to 0b)
+      };
+      if (menMap[catPrefix]) {
+        resolvedCatId = menMap[catPrefix];
+      }
+    }
+  }
+
+  return { departmentId: resolvedDeptId, categoryId: resolvedCatId };
+}
+
 // Helper: Map Poshmark category paths (e.g. "Men > Shirts > Casual Button Down Shirts") to hex IDs
 function resolvePoshmarkCategory(path) {
   const defaultRes = {
@@ -365,14 +447,27 @@ function resolvePoshmarkCategory(path) {
   const deptName = parts[0].toLowerCase();
   const DEPARTMENTS = {
     'men': '01008c10d97b4e1245005764',
-    'women': '01008c10d97b4e1245005763',
-    'kids': '01008c10d97b4e1245005765',
-    'home': '5c464bf26e4757c3d221aa90',
-    'pets': '60abfaa1a415ff1c2ee1df39',
-    'electronics': '60abfa98bfd32f1465e902b7',
+    'women': '000e8975d97b4e80ef00a955',
+    'kids': '20008c10d97b4e1245005764',
+    'home': '5b3b13d30640fd0aeb9c5cb6',
+    'pets': 'af08bf904024037d7a7b5fad',
+    'electronics': '583c7d134024035188906153',
     'beauty': '5d1cb37951e70e1762c90bc7'
   };
-  const deptId = DEPARTMENTS[deptName] || DEPARTMENTS['men'];
+  
+  // Support matching by name or by legacy ID strings
+  let deptId = DEPARTMENTS[deptName] || DEPARTMENTS['men'];
+  if (deptName.includes('women') || deptName === '01008c10d97b4e1245005763') {
+    deptId = '000e8975d97b4e80ef00a955';
+  } else if (deptName.includes('kids') || deptName === '01008c10d97b4e1245005765') {
+    deptId = '20008c10d97b4e1245005764';
+  } else if (deptName.includes('home') || deptName === '5c464bf26e4757c3d221aa90') {
+    deptId = '5b3b13d30640fd0aeb9c5cb6';
+  } else if (deptName.includes('pets') || deptName === '60abfaa1a415ff1c2ee1df39') {
+    deptId = 'af08bf904024037d7a7b5fad';
+  } else if (deptName.includes('electronics') || deptName === '60abfa98bfd32f1465e902b7') {
+    deptId = '583c7d134024035188906153';
+  }
 
   if (parts.length < 2) {
     return { department: deptId, category: '', subcategories: [] };
@@ -381,64 +476,191 @@ function resolvePoshmarkCategory(path) {
   const catName = parts[1];
   const subcatName = parts[2] || '';
 
-  // 1. Try to find the exact hex IDs dynamically from the Poshmark page's __NEXT_DATA__ taxonomy prop
+  // 1. Try to find the exact hex IDs recursively from __NEXT_DATA__ or script tags
   try {
     const nextDataEl = document.getElementById('__NEXT_DATA__');
     if (nextDataEl) {
       const nextData = JSON.parse(nextDataEl.textContent);
       
-      let foundCategory = null;
-      let foundSubcategory = null;
-      
-      const scanObject = (obj) => {
-        if (!obj || typeof obj !== 'object') return;
+      const findCategoryIdsFromObject = (obj, deptName, catName, subcatName) => {
+        if (!obj || typeof obj !== 'object') return null;
         
-        if (obj.id && obj.display && typeof obj.id === 'string' && obj.id.length === 24) {
-          if (obj.display.toLowerCase() === catName.toLowerCase()) {
-            foundCategory = obj.id;
+        if (Array.isArray(obj)) {
+          for (const item of obj) {
+            const res = findCategoryIdsFromObject(item, deptName, catName, subcatName);
+            if (res) return res;
           }
-          if (subcatName && obj.display.toLowerCase() === subcatName.toLowerCase()) {
-            foundSubcategory = obj.id;
+        } else {
+          if (Array.isArray(obj.departments) && obj.departments.length > 0 && obj.departments[0].categories) {
+            const depts = obj.departments;
+            const dName = String(deptName || '').toLowerCase();
+            const dept = depts.find(d => String(d.display || d.name || '').toLowerCase() === dName);
+            if (dept) {
+              const cName = String(catName || '').toLowerCase();
+              const cat = (dept.categories || []).find(c => String(c.display || c.name || '').toLowerCase() === cName);
+              if (cat) {
+                let subcatId = null;
+                if (subcatName) {
+                  const sName = String(subcatName || '').toLowerCase();
+                  const sub = (cat.category_features || cat.features || []).find(s => String(s.display || s.name || '').toLowerCase() === sName);
+                  if (sub) {
+                    subcatId = sub.id;
+                  }
+                }
+                return {
+                  department: dept.id,
+                  category: cat.id,
+                  subcategories: subcatId ? [subcatId] : []
+                };
+              }
+            }
+          }
+          
+          for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+              const val = obj[key];
+              if (val && typeof val === 'object') {
+                const res = findCategoryIdsFromObject(val, deptName, catName, subcatName);
+                if (res) return res;
+              }
+            }
           }
         }
-        
-        for (const key of Object.keys(obj)) {
-          scanObject(obj[key]);
-        }
+        return null;
       };
-      
-      scanObject(nextData);
-      
-      if (foundCategory) {
-        return {
-          department: deptId,
-          category: foundCategory,
-          subcategories: foundSubcategory ? [foundSubcategory] : []
-        };
+
+      const result = findCategoryIdsFromObject(nextData, parts[0], parts[1], parts[2] || '');
+      if (result && result.category) {
+        console.log('[Elister] Matched category/subcategory directly from __NEXT_DATA__ catalog object:', result);
+        return result;
       }
     }
-  } catch(e) {
-    console.warn("[Elister] Failed to parse __NEXT_DATA__ for category mapping:", e);
+  } catch (e) {
+    console.warn('[Elister] Failed to parse and scan __NEXT_DATA__ directly:', e);
   }
 
-  // 2. Hardcoded fallback list for standard categories if __NEXT_DATA__ search fails
-  const commonCategories = {
-    'shirts': '07008c10d97b4e1245005764',
-    'tops': '07008c10d97b4e1245005764',
-    'shoes': '03008c10d97b4e1245005764',
-    'bags': '02008c10d97b4e1245005764',
-    'jeans': '04008c10d97b4e1245005764',
-    'pants': '05008c10d97b4e1245005764',
-    'shorts': '06008c10d97b4e1245005764',
-    'jackets & coats': '08008c10d97b4e1245005764',
-    'accessories': '09008c10d97b4e1245005764',
-    'dresses': '0b008c10d97b4e1245005764',
-    'skirts': '0c008c10d97b4e1245005764',
-    'sweaters': '0d008c10d97b4e1245005764'
+  // 1.b Fallback to raw text scan of scripts for name strings if structured scan failed
+  try {
+    const scanTextForName = (text, name, dId) => {
+      const deptSuffix = dId ? dId.slice(-12).toLowerCase() : null;
+      const searchStr = `"${name.toLowerCase()}"`;
+      let idx = -1;
+      
+      while ((idx = text.toLowerCase().indexOf(searchStr, idx + 1)) !== -1) {
+        const start = Math.max(0, idx - 150);
+        const end = Math.min(text.length, idx + 150);
+        const windowText = text.substring(start, end);
+        
+        const matches = windowText.match(/"id"\s*:\s*"([a-f0-9]{24})"/gi);
+        if (matches) {
+          for (const m of matches) {
+            const id = m.match(/"id"\s*:\s*"([a-f0-9]{24})"/i)[1];
+            if (!deptSuffix || id.toLowerCase().endsWith(deptSuffix)) {
+              return id;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const scripts = document.querySelectorAll('script');
+    let dynamicCatId = null;
+    let dynamicSubcatId = null;
+
+    for (const script of scripts) {
+      if (!script.src && script.textContent) {
+        const text = script.textContent;
+        if (!dynamicCatId) {
+          dynamicCatId = scanTextForName(text, catName, deptId);
+        }
+        if (subcatName && !dynamicSubcatId) {
+          dynamicSubcatId = scanTextForName(text, subcatName, deptId);
+        }
+        if (dynamicCatId && (!subcatName || dynamicSubcatId)) {
+          break;
+        }
+      }
+    }
+
+    if (dynamicCatId) {
+      console.log('[Elister] Dynamically matched category and subcategory from script tags:', { dynamicCatId, dynamicSubcatId });
+      return {
+        department: deptId,
+        category: dynamicCatId,
+        subcategories: dynamicSubcatId ? [dynamicSubcatId] : []
+      };
+    }
+  } catch(e) {
+    console.warn("[Elister] Failed to scan script tags for category mapping:", e);
+  }
+
+  // 2. Hardcoded fallback list for standard categories if dynamic scan fails
+  const getFallbackCategory = (dId, cName) => {
+    const normName = String(cName || '').toLowerCase();
+    
+    const womenCategories = {
+      'accessories': '002a8975d97b4e80ef00a955',
+      'bags': '00248975d97b4e80ef00a955',
+      'dresses': '00108975d97b4e80ef00a955',
+      'intimates & sleepwear': '00208975d97b4e80ef00a955',
+      'jackets & coats': '00148975d97b4e80ef00a955',
+      'jeans': '001a8975d97b4e80ef00a955',
+      'jewelry': '00288975d97b4e80ef00a955',
+      'makeup': '002c8975d97b4e80ef00a955',
+      'pants & jumpsuits': '001c8975d97b4e80ef00a955',
+      'pants': '001c8975d97b4e80ef00a955',
+      'shoes': '00268975d97b4e80ef00a955',
+      'shorts': '001e8975d97b4e80ef00a955',
+      'skirts': '00128975d97b4e80ef00a955',
+      'sweaters': '00168975d97b4e80ef00a955',
+      'swim': '00228975d97b4e80ef00a955',
+      'tops': '00188975d97b4e80ef00a955',
+      'shirts': '00188975d97b4e80ef00a955'
+    };
+
+    const menCategories = {
+      'accessories': '02008c10d97b4e1245005764',
+      'bags': '03008c10d97b4e1245005764',
+      'jackets & coats': '04008c10d97b4e1245005764',
+      'jeans': '05008c10d97b4e1245005764',
+      'pants': '06008c10d97b4e1245005764',
+      'shirts': '07008c10d97b4e1245005764',
+      'tops': '07008c10d97b4e1245005764',
+      'shoes': '08008c10d97b4e1245005764',
+      'shorts': '09008c10d97b4e1245005764',
+      'suits & blazers': '0a008c10d97b4e1245005764',
+      'sweaters': '0b008c10d97b4e1245005764',
+      'swim': '0d008c10d97b4e1245005764',
+      'underwear & socks': '0e008c10d97b4e1245005764'
+    };
+
+    const kidsCategories = {
+      'accessories': '21008c10d97b4e1245005764',
+      'dresses': '22008c10d97b4e1245005764',
+      'jackets & coats': '23008c10d97b4e1245005764',
+      'one pieces': '25008c10d97b4e1245005764',
+      'matching sets': '26008c10d97b4e1245005764',
+      'pajamas': '27008c10d97b4e1245005764',
+      'shoes': '29008c10d97b4e1245005764',
+      'swim': '2d008c10d97b4e1245005764',
+      'shirts & tops': '2e008c10d97b4e1245005764',
+      'tops': '2e008c10d97b4e1245005764',
+      'shirts': '2e008c10d97b4e1245005764',
+      'costumes': '30008c10d97b4e1245005764'
+    };
+
+    if (dId === '000e8975d97b4e80ef00a955') {
+      return womenCategories[normName] || womenCategories['shirts'];
+    } else if (dId === '20008c10d97b4e1245005764') {
+      return kidsCategories[normName] || kidsCategories['shirts'];
+    } else {
+      return menCategories[normName] || menCategories['shirts'];
+    }
   };
-  
-  const mappedCatId = commonCategories[catName.toLowerCase()] || defaultRes.category;
-  
+
+  const mappedCatId = getFallbackCategory(deptId, catName);
+
   return {
     department: deptId,
     category: mappedCatId,
@@ -641,7 +863,7 @@ async function executePoshmarkUpload(productData) {
     
     // Validate colors against allowed Poshmark color list
     const allowedColors = new Set([
-      'White', 'Black', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Brown', 'Gray', 'Orange', 'Beige', 'Navy', 'Teal', 'Maroon', 'Olive', 'Gold', 'Silver'
+      'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
     ]);
     // Normalize and filter colors
     let filteredColors = [];
@@ -656,16 +878,23 @@ async function executePoshmarkUpload(productData) {
     const mapCondition = (cond) => {
       const c = String(cond || '').toLowerCase();
       if (c === 'nwt') return 'nwt';
-      if (c === 'like_new' || c === 'like new' || c === 'uln' || c === 'nwot') return 'like_new';
-      if (c === 'good' || c === 'euc' || c === 'vguc' || c === 'guc') return 'good';
-      if (c === 'fair') return 'fair';
-      return 'like_new'; // Default fallback
+      if (c === 'like_new' || c === 'like new' || c === 'uln' || c === 'nwot') return 'uln';
+      if (c === 'good' || c === 'euc' || c === 'vguc' || c === 'guc' || c === 'ug') return 'ug';
+      if (c === 'fair' || c === 'uf') return 'uf';
+      return 'uln'; // Default fallback
     };
 
     // Resolve category/department hex IDs if they are sent as path strings
     let resolvedDeptId = productData.departmentId;
     let resolvedCatId = productData.categoryId;
-    let resolvedSubcatIds = productData.subcategoryIds || [];
+    let resolvedSubcatIds = productData.subcategoryIds;
+    if (resolvedSubcatIds) {
+      if (!Array.isArray(resolvedSubcatIds)) {
+        resolvedSubcatIds = [resolvedSubcatIds];
+      }
+    } else {
+      resolvedSubcatIds = [];
+    }
 
     const isHex24 = (str) => typeof str === 'string' && /^[a-f0-9]{24}$/i.test(str);
 
@@ -674,9 +903,15 @@ async function executePoshmarkUpload(productData) {
       const resolved = resolvePoshmarkCategory(resolvedCatId || productData.category);
       resolvedDeptId = resolved.department;
       resolvedCatId = resolved.category;
-      resolvedSubcatIds = resolved.subcategories;
+      resolvedSubcatIds = resolved.subcategories || [];
       console.log('[Elister] Resolved category path to:', { resolvedDeptId, resolvedCatId, resolvedSubcatIds });
     }
+
+    // Always run resolved IDs through normalizePoshmarkIds to map legacy or incorrect IDs
+    const normalized = normalizePoshmarkIds(resolvedDeptId, resolvedCatId);
+    resolvedDeptId = normalized.departmentId;
+    resolvedCatId = normalized.categoryId;
+    console.log('[Elister] Normalized category mapping to Poshmark native IDs:', { resolvedDeptId, resolvedCatId });
 
     const savePayload = {
       post: {
@@ -919,7 +1154,34 @@ async function executePoshmarkUpload(productData) {
 // -------------------------------------------------------------
 const currentSite = detectSite();
 
+// Helper: check if we are in connection flow and successfully logged in
+function checkAndCompleteConnection() {
+  const csrfToken = getCsrfToken('poshmark');
+  const username = getUsernameFromDOM('poshmark');
+
+  console.log('[Elister Extension] Checking connection status:', { username, hasCsrf: !!csrfToken });
+
+  if (username && username !== 'Guest' && csrfToken) {
+    chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
+      if (response && response.success && response.flow) {
+        console.log('[Elister Extension] Active Poshmark connection flow detected! Syncing with backend...');
+        chrome.runtime.sendMessage({
+          action: 'COMPLETE_POSHMARK_CONNECT',
+          data: {
+            username: username,
+            csrfToken: csrfToken
+          }
+        }, (res) => {
+          console.log('[Elister Extension] COMPLETE_POSHMARK_CONNECT response:', res);
+        });
+      }
+    });
+  }
+}
+
 if (currentSite === 'poshmark') {
+  // Check immediately on load
+  setTimeout(checkAndCompleteConnection, 1000);
 
   // Forward captured events to background service worker
   window.addEventListener('ELISTER_API_CAPTURED', (event) => {
@@ -947,18 +1209,19 @@ if (currentSite === 'poshmark') {
 
       // Cache full Poshmark connection details
       const username = getUsernameFromDOM('poshmark');
-      const sessionCookieVal = getCookie('_poshmark_session');
-      if (username && username !== 'Guest' && sessionCookieVal) {
+      if (username && username !== 'Guest') {
         chrome.runtime.sendMessage({
           action: 'CACHE_CONNECTION_DETAILS',
           platform: 'poshmark',
           data: {
             username: username,
-            sessionCookie: `_poshmark_session=${sessionCookieVal}`,
             csrfToken: token
           }
         }).catch(() => {});
       }
+
+      // Check and sync credentials if redirect oauth connect flow is active
+      checkAndCompleteConnection();
     }
   });
 
@@ -999,6 +1262,15 @@ else if (currentSite === 'elister') {
         data: event.data.data
       }, (response) => {
         console.log('[Elister Extension] Background script acknowledged queue:', response);
+      });
+    }
+
+    else if (event.data && event.data.action === 'ELISTER_START_CONNECT_FLOW' && event.data.platform === 'poshmark') {
+      console.log('[Elister Extension] Initiating Poshmark Connect Flow with credentials...');
+      const { token, backendUrl, frontendUrl } = event.data;
+      chrome.runtime.sendMessage({
+        action: 'START_POSHMARK_CONNECT_FLOW',
+        data: { token, backendUrl, frontendUrl }
       });
     }
 

@@ -18,7 +18,8 @@ import {
   Zap,
   Sparkles
 } from 'lucide-react';
-import { listingService, ebayService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { listingService, ebayService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 
@@ -74,11 +75,13 @@ const Listings = () => {
   const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
   
-  // eBay Sync and display state
+  // Auth and Channel Sync state
+  const { user } = useAuth();
   const [isEbayConnected, setIsEbayConnected] = useState(false);
-  const [activeTab, setActiveTab] = useState('local'); // 'local' or 'ebay'
-  const [ebayProducts, setEbayProducts] = useState([]);
-  const [ebayLoading, setEbayLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('local'); // 'local' or 'channel'
+  const [selectedChannel, setSelectedChannel] = useState('ebay');
+  const [channelProducts, setChannelProducts] = useState([]);
+  const [channelLoading, setChannelLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   // Search & Filter State
@@ -154,48 +157,131 @@ const Listings = () => {
     return matchesSearch && matchesStatus && matchesPlatform;
   });
 
-  const filteredEbayProducts = ebayProducts.filter((product) => {
+  const filteredChannelProducts = channelProducts.filter((product) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = 
       !searchTerm ||
       (product.title && product.title.toLowerCase().includes(term)) ||
       (product.sku && product.sku.toLowerCase().includes(term)) ||
-      (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term));
+      (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
+      (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
+      (product.depopListingId && product.depopListingId.toLowerCase().includes(term));
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const fetchEbayInventory = async () => {
-    setEbayLoading(true);
+  const isChannelConnected = () => {
+    if (selectedChannel === 'ebay') return isEbayConnected || user?.ebayAccount?.connected;
+    if (selectedChannel === 'poshmark') return !!user?.poshmarkAccount?.connected;
+    if (selectedChannel === 'depop') return !!user?.depopAccount?.connected;
+    return false;
+  };
+
+  const getProductDetails = (product) => {
+    const isEbay = selectedChannel === 'ebay';
+    const isPoshmark = selectedChannel === 'poshmark';
+    const isDepop = selectedChannel === 'depop';
+
+    const title = product.title || '';
+    const brand = product.brand || '';
+    const sku = product.sku || '-';
+    const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
+    
+    // Status
+    const status = isEbay ? (product.status || 'draft') : 'live';
+
+    // Price
+    const price = isEbay ? product.selling_price : product.price;
+    const parsedPrice = typeof price === 'number' ? price : parseFloat(price) || 0;
+
+    // Live ID and URL
+    let liveId = '-';
+    let url = '';
+    if (isEbay) {
+      liveId = product.ebayListingId || '-';
+      url = product.ebayUrl || '';
+    } else if (isPoshmark) {
+      liveId = product.poshmarkListingId || '-';
+      url = product.poshmarkUrl || '';
+    } else if (isDepop) {
+      liveId = product.depopListingId || '-';
+      url = product.depopUrl || '';
+    }
+
+    // Last Synced Date / Scraped Date
+    let dateText = 'Live';
+    if (isEbay && product.updated_at) {
+      dateText = new Date(product.updated_at).toLocaleDateString();
+    } else if (product.createdAt) {
+      dateText = new Date(product.createdAt).toLocaleDateString();
+    }
+
+    return { title, brand, sku, thumbnail, status, price: parsedPrice, liveId, url, dateText };
+  };
+
+  const fetchChannelInventory = async () => {
+    if (!isChannelConnected()) {
+      setChannelProducts([]);
+      return;
+    }
+    setChannelLoading(true);
     try {
-      const res = await ebayService.getInventory();
-      if (res.data.success) {
-        setEbayProducts(res.data.data);
+      if (selectedChannel === 'ebay') {
+        const res = await ebayService.getInventory();
+        if (res.data.success) {
+          setChannelProducts(res.data.data);
+        }
+      } else {
+        const res = await externalImportService.getLive(selectedChannel);
+        if (res.data.success) {
+          setChannelProducts(res.data.data);
+        }
       }
     } catch (error) {
-      console.error("Error fetching eBay inventory:", error);
+      console.error(`Error fetching ${selectedChannel} inventory:`, error);
     } finally {
-      setEbayLoading(false);
+      setChannelLoading(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === 'ebay') {
-      fetchEbayInventory();
+    if (activeTab === 'channel') {
+      fetchChannelInventory();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedChannel]);
+
+  useEffect(() => {
+    if (user?.ebayAccount?.connected) setSelectedChannel('ebay');
+    else if (user?.poshmarkAccount?.connected) setSelectedChannel('poshmark');
+    else if (user?.depopAccount?.connected) setSelectedChannel('depop');
+  }, [user]);
 
   const handleSyncInventory = async () => {
     setSyncing(true);
     try {
-      const res = await ebayService.syncInventory();
-      if (res.data.success) {
-        toast.success(`Successfully synced ${res.data.count} items from eBay!`);
-        fetchEbayInventory();
+      if (selectedChannel === 'ebay') {
+        const res = await ebayService.syncInventory();
+        if (res.data.success) {
+          toast.success(`Successfully synced ${res.data.count} items from eBay!`);
+          fetchChannelInventory();
+        }
+      } else {
+        const username = selectedChannel === 'poshmark' ? user?.poshmarkAccount?.username : user?.depopAccount?.username;
+        if (!username) {
+          toast.error(`No connected username found for ${selectedChannel}.`);
+          return;
+        }
+        toast.success(`Syncing ${selectedChannel} closet...`);
+        const res = await externalImportService.importCloset({ platform: selectedChannel, username });
+        if (res.data?.success) {
+          toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${selectedChannel}!`);
+          fetchChannelInventory();
+          fetchListings(false); // reload local listings in background too
+        }
       }
     } catch (error) {
-      console.error("Error syncing eBay inventory:", error);
-      toast.error("Failed to sync inventory from eBay.");
+      console.error(`Error syncing ${selectedChannel} inventory:`, error);
+      toast.error(`Failed to sync inventory from ${selectedChannel}.`);
     } finally {
       setSyncing(false);
     }
@@ -542,6 +628,209 @@ const Listings = () => {
     }
   };
 
+  const renderChannelRow = (product) => {
+    const details = getProductDetails(product);
+    return (
+      <tr key={product._id || details.liveId} className="hover:bg-slate-50/50 transition-all group">
+        <td className="px-6 py-4">
+          <input type="checkbox" className="rounded text-indigo-600 cursor-pointer" />
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 overflow-hidden">
+              <img src={getImageSrc(details.thumbnail)} alt="" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <span className="font-bold text-slate-900 text-sm line-clamp-1">{details.title}</span>
+              {details.brand && <span className="text-[10px] text-slate-400 block font-semibold">{details.brand}</span>}
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          {details.status === 'live' ? (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+              <CheckCircle2 size={12} className="mr-1" /> Live
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200">
+              <Clock size={12} className="mr-1" /> Draft
+            </span>
+          )}
+        </td>
+        <td className="px-6 py-4 font-mono text-xs text-slate-500">{details.liveId}</td>
+        <td className="px-6 py-4 font-mono text-xs text-slate-500">{details.sku}</td>
+        <td className="px-6 py-4 font-bold text-slate-900 text-sm">
+          ${details.price.toFixed(2)}
+        </td>
+        <td className="px-6 py-4 text-sm text-slate-500">{details.dateText}</td>
+        <td className="px-6 py-4">
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => setPreviewListing({
+                ...product,
+                price: details.price,
+                status: details.status === 'live' ? 'published' : 'draft',
+                platform: selectedChannel,
+                isChannelProduct: true,
+                url: details.url,
+                ebayListingId: product.ebayListingId,
+                ebayUrl: product.ebayUrl,
+                poshmarkListingId: product.poshmarkListingId,
+                poshmarkUrl: product.poshmarkUrl,
+                depopListingId: product.depopListingId,
+                depopUrl: product.depopUrl,
+                createdAt: product.updated_at || product.createdAt || Date.now()
+              })}
+              className="p-2 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 transition-all"
+              title="Preview Detail"
+            >
+              <Eye size={16} />
+            </button>
+            {details.url && (
+              <a href={details.url} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title={`View on ${selectedChannel}`}>
+                <ExternalLink size={16} />
+              </a>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderModalFooter = () => {
+    if (previewListing.isChannelProduct) {
+      if (!previewListing.url) return null;
+      return (
+        <a 
+          href={previewListing.url}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5"
+        >
+          <ExternalLink size={16} />
+          View on {previewListing.platform === 'ebay' ? 'eBay' : previewListing.platform === 'poshmark' ? 'Poshmark' : 'Depop'}
+        </a>
+      );
+    }
+
+    return (
+      <>
+        {previewListing.platform === 'poshmark' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status === 'published' && previewListing.poshmarkUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handlePoshmarkPublish(previewListing);
+              }
+            }}
+            disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Verifying...
+              </>
+            ) : poshmarkPublishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Listing...
+              </>
+            ) : (
+              'List to Poshmark (API)'
+            )}
+          </button>
+        )}
+        {previewListing.platform === 'ebay' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status === 'published' && previewListing.ebayUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handlePublish(previewListing._id);
+              }
+            }}
+            disabled={publishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Verifying...
+              </>
+            ) : publishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Listing...
+              </>
+            ) : (
+              'List to eBay (API)'
+            )}
+          </button>
+        )}
+        {previewListing.platform === 'vinted' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status === 'published' && previewListing.vintedUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handleVintedPublish(previewListing);
+              }
+            }}
+            disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Verifying...
+              </>
+            ) : vintedPublishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Listing...
+              </>
+            ) : previewListing.status === 'published' && previewListing.vintedUrl ? (
+              'View on Vinted'
+            ) : (
+              'List to Vinted (API)'
+            )}
+          </button>
+        )}
+        {previewListing.platform === 'depop' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status === 'published' && previewListing.depopUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handleDepopPublish(previewListing);
+              }
+            }}
+            disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Verifying...
+              </>
+            ) : depopPublishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Listing...
+              </>
+            ) : previewListing.status === 'published' && previewListing.depopUrl ? (
+              'View on Depop'
+            ) : (
+              'List to Depop (API)'
+            )}
+          </button>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -550,7 +839,7 @@ const Listings = () => {
           <p className="text-slate-500">Manage and track your eBay inventory.</p>
         </div>
         <div className="flex space-x-3">
-          {activeTab === 'ebay' && (
+          {activeTab === 'channel' && (
             <button 
               onClick={handleSyncInventory}
               disabled={syncing}
@@ -564,7 +853,7 @@ const Listings = () => {
               ) : (
                 <>
                   <RefreshCw size={16} className="text-slate-500" />
-                  Sync with eBay
+                  Sync {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}
                 </>
               )}
             </button>
@@ -573,7 +862,7 @@ const Listings = () => {
             {activeTab === 'local' && platformFilter === 'ebay' && selectedListingIds.length > 0 && (
               <button 
                 onClick={handleBulkListSelected}
-                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200"
+                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-750 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200"
               >
                 <Sparkles size={16} className="text-white animate-pulse" />
                 Bulk List Selected to eBay ({selectedListingIds.length})
@@ -590,30 +879,28 @@ const Listings = () => {
       </div>
 
       {/* Tabs Toggle */}
-      {isEbayConnected && (
-        <div className="flex border-b border-slate-100 bg-white px-6 rounded-3xl py-1 shadow-sm border border-slate-50 gap-4">
-          <button
-            onClick={() => setActiveTab('local')}
-            className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
-              activeTab === 'local' 
-                ? 'border-indigo-600 text-indigo-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            Local Database
-          </button>
-          <button
-            onClick={() => setActiveTab('ebay')}
-            className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
-              activeTab === 'ebay' 
-                ? 'border-indigo-600 text-indigo-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            eBay Inventory
-          </button>
-        </div>
-      )}
+      <div className="flex border-b border-slate-100 bg-white px-6 rounded-3xl py-1 shadow-sm border border-slate-50 gap-4">
+        <button
+          onClick={() => setActiveTab('local')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
+            activeTab === 'local' 
+              ? 'border-indigo-600 text-indigo-600' 
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Local Database
+        </button>
+        <button
+          onClick={() => setActiveTab('channel')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
+            activeTab === 'channel' 
+              ? 'border-indigo-600 text-indigo-600' 
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Channel Inventory
+        </button>
+      </div>
 
       {/* Filters & Search */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
@@ -628,29 +915,35 @@ const Listings = () => {
           />
         </div>
         <div className="flex space-x-2 w-full md:w-auto items-center">
-          <div className="relative w-full md:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full md:w-48 pl-10 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none"
-            >
-              <option value="all">All Statuses</option>
-              {activeTab === 'local' ? (
-                <>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="failed">Failed</option>
-                </>
-              ) : (
-                <>
-                  <option value="draft">eBay Draft</option>
-                  <option value="live">eBay Live</option>
-                </>
-              )}
-            </select>
-            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          </div>
+          {activeTab === 'local' ? (
+            <div className="relative w-full md:w-auto">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full md:w-48 pl-10 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none"
+              >
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="failed">Failed</option>
+              </select>
+              <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          ) : (
+            <div className="relative w-full md:w-auto">
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value)}
+                className="w-full md:w-48 pl-10 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none"
+              >
+                <option value="ebay">eBay Channel</option>
+                <option value="poshmark">Poshmark Channel</option>
+                <option value="depop">Depop Channel</option>
+              </select>
+              <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          )}
           {activeTab === 'local' && (
             <div className="relative w-full md:w-auto">
               <select
@@ -796,79 +1089,52 @@ const Listings = () => {
                 )}
               </tbody>
             </table>
+          ) : !isChannelConnected() ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100 animate-pulse">
+                <AlertCircle className="w-8 h-8 text-amber-500" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">
+                {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'} Channel Not Connected
+              </h3>
+              <p className="text-sm text-slate-500 max-w-sm mb-6 leading-relaxed">
+                Connect your {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'} account to view and sync your live channel inventory.
+              </p>
+              <button 
+                onClick={() => navigate('/ebay-accounts')}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white font-bold rounded-xl shadow-md shadow-indigo-100 transition-all text-sm animate-pulse hover:animate-none"
+              >
+                Connect {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}
+              </button>
+            </div>
           ) : (
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-100">
                   <th className="px-6 py-4">
-                    <input type="checkbox" className="rounded text-indigo-600" />
+                    <input type="checkbox" className="rounded text-indigo-600 cursor-pointer" />
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Product</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Live ID</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">SKU</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Last Synced</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Last Synced / Live</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {ebayLoading ? (
+                {channelLoading ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-10 text-center text-slate-400">Loading eBay inventory...</td>
+                    <td colSpan="8" className="px-6 py-10 text-center text-slate-400">Loading {selectedChannel} inventory...</td>
                   </tr>
-                ) : filteredEbayProducts.length > 0 ? (
-                  filteredEbayProducts.map((product) => (
-                    <tr key={product._id} className="hover:bg-slate-50/50 transition-all group">
-                      <td className="px-6 py-4">
-                        <input type="checkbox" className="rounded text-indigo-600" />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 overflow-hidden">
-                            <img src={getImageSrc(product.thumbnail || (product.images && product.images[0]))} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-900 text-sm line-clamp-1">{product.title}</span>
-                            {product.brand && <span className="text-[10px] text-slate-400 block font-semibold">{product.brand}</span>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {getEbayStatusBadge(product.status)}
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500">{product.sku || '-'}</td>
-                      <td className="px-6 py-4 font-bold text-slate-900 text-sm">
-                        ${(typeof product.selling_price === 'number' ? product.selling_price : parseFloat(product.selling_price) || 0).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{new Date(product.updated_at).toLocaleDateString()}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => setPreviewListing({
-                              ...product,
-                              price: product.selling_price || 0,
-                              status: product.status === 'live' ? 'published' : 'draft',
-                              ebayListingId: product.ebayListingId,
-                              ebayUrl: product.ebayUrl,
-                              createdAt: product.updated_at
-                            })}
-                            className="p-2 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 transition-all"
-                            title="Preview Sync Detail"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          {product.ebayUrl && (
-                            <a href={product.ebayUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on eBay">
-                              <ExternalLink size={16} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                ) : filteredChannelProducts.length > 0 ? (
+                  filteredChannelProducts.map((product) => renderChannelRow(product))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-10 text-center text-slate-400">No synced products found. Click "Sync with eBay" to sync.</td>
+                    <td colSpan="8" className="px-6 py-10 text-center text-slate-400">
+                      No live products found on this channel. Click &quot;Sync {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}&quot; to fetch your items.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -879,7 +1145,7 @@ const Listings = () => {
           <p className="text-xs font-bold text-slate-500 uppercase">
             {activeTab === 'local' 
               ? `Showing ${filteredListings.length} of ${stats?.total || 0} listings` 
-              : `Showing ${filteredEbayProducts.length} synced products`}
+              : `Showing ${filteredChannelProducts.length} live products`}
           </p>
           <div className="flex space-x-2">
             <button className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold disabled:opacity-50">Prev</button>
@@ -1182,118 +1448,7 @@ const Listings = () => {
               >
                 Close
               </button>
-              {previewListing.platform === 'poshmark' && (
-                <button 
-                  onClick={() => {
-                    if (previewListing.status === 'published' && previewListing.poshmarkUrl) {
-                      handleVerifyAndOpen(previewListing);
-                    } else {
-                      handlePoshmarkPublish(previewListing);
-                    }
-                  }}
-                  disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                >
-                  {verifyingListingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Verifying...
-                    </>
-                  ) : poshmarkPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing...
-                    </>
-                  ) : (
-                    'List to Poshmark (API)'
-                  )}
-                </button>
-              )}
-              {previewListing.platform === 'ebay' && (
-                <button 
-                  onClick={() => {
-                    if (previewListing.status === 'published' && previewListing.ebayUrl) {
-                      handleVerifyAndOpen(previewListing);
-                    } else {
-                      handlePublish(previewListing._id);
-                    }
-                  }}
-                  disabled={publishingId === previewListing._id || verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                >
-                  {verifyingListingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Verifying...
-                    </>
-                  ) : publishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing...
-                    </>
-                  ) : (
-                    'List to eBay (API)'
-                  )}
-                </button>
-              )}
-              {previewListing.platform === 'vinted' && (
-                <button 
-                  onClick={() => {
-                    if (previewListing.status === 'published' && previewListing.vintedUrl) {
-                      handleVerifyAndOpen(previewListing);
-                    } else {
-                      handleVintedPublish(previewListing);
-                    }
-                  }}
-                  disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {verifyingListingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Verifying...
-                    </>
-                  ) : vintedPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Listing...
-                    </>
-                  ) : previewListing.status === 'published' && previewListing.vintedUrl ? (
-                    'View on Vinted'
-                  ) : (
-                    'List to Vinted (API)'
-                  )}
-                </button>
-              )}
-              {previewListing.platform === 'depop' && (
-                <button 
-                  onClick={() => {
-                    if (previewListing.status === 'published' && previewListing.depopUrl) {
-                      handleVerifyAndOpen(previewListing);
-                    } else {
-                      handleDepopPublish(previewListing);
-                    }
-                  }}
-                  disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {verifyingListingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Verifying...
-                    </>
-                  ) : depopPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Listing...
-                    </>
-                  ) : previewListing.status === 'published' && previewListing.depopUrl ? (
-                    'View on Depop'
-                  ) : (
-                    'List to Depop (API)'
-                  )}
-                </button>
-              )}
+              {renderModalFooter()}
             </div>
           </div>
         </div>

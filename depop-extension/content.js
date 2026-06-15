@@ -8,6 +8,8 @@ function getCookie(name) {
 
 // Helper: Extract Depop Bearer Token from Session Storage
 function getAuthToken() {
+  const domToken = document.documentElement.getAttribute('data-elister-auth-token');
+  if (domToken) return domToken;
   return sessionStorage.getItem('elister_captured_depop_token');
 }
 
@@ -636,7 +638,109 @@ if (currentHostname.includes('depop.com')) {
   currentSite = 'elister';
 }
 
+function getUsernameFromToken(token) {
+  try {
+    const cleanToken = token.replace(/^Bearer\s+/i, '');
+    const parts = cleanToken.split('.');
+    if (parts.length === 3) {
+      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decodedPayload = atob(payloadBase64);
+      const payloadObj = JSON.parse(decodedPayload);
+      console.log('[Elister Depop] Decoded JWT Token payload:', payloadObj);
+      if (payloadObj.username) return payloadObj.username;
+      if (payloadObj.username_canonical) return payloadObj.username_canonical;
+      if (payloadObj.sub) return payloadObj.sub;
+    }
+  } catch (e) {
+    console.error('[Elister Depop] Error decoding JWT token:', e);
+  }
+  return null;
+}
+
+function getDepopUsername() {
+  const token = getAuthToken();
+  if (token) {
+    const usernameFromToken = getUsernameFromToken(token);
+    if (usernameFromToken && isNaN(usernameFromToken)) {
+      return usernameFromToken;
+    }
+  }
+
+  // Check localStorage
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('user') || key.includes('session') || key.includes('persist'))) {
+        const val = localStorage.getItem(key);
+        if (val && val.includes('username')) {
+          const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-]+)"/i);
+          if (match && match[1]) return match[1];
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Parse pathname if on profile
+  try {
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    if (pathParts.length > 0 && !['products', 'create', 'settings', 'search', 'category', 'login', 'register'].includes(pathParts[0])) {
+      return pathParts[0];
+    }
+  } catch (e) {}
+
+  return 'depop_user';
+}
+
+async function resolveUsernameFromApi(token) {
+  try {
+    const res = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
+      headers: {
+        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.username) return data.username;
+    }
+  } catch (err) {
+    console.error('[Elister Depop] Failed to fetch session from Depop API:', err);
+  }
+  return null;
+}
+
+async function checkAndCompleteConnection() {
+  const token = getAuthToken();
+  if (!token) return;
+
+  let username = getDepopUsername();
+  if (username === 'depop_user') {
+    const apiUsername = await resolveUsernameFromApi(token);
+    if (apiUsername) username = apiUsername;
+  }
+
+  console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
+
+  chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
+    if (response && response.success && response.flow) {
+      console.log('[Elister Depop] Active Depop connection flow detected! Syncing with backend...');
+      chrome.runtime.sendMessage({
+        action: 'COMPLETE_DEPOP_CONNECT',
+        data: {
+          username: username || 'depop_user',
+          accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        }
+      }, (res) => {
+        console.log('[Elister Depop] COMPLETE_DEPOP_CONNECT response:', res);
+      });
+    }
+  });
+}
+
 if (currentSite === 'depop') {
+  // Check immediately on load
+  setTimeout(checkAndCompleteConnection, 1000);
+
   // Listen for captured API details from interceptor
   window.addEventListener('ELISTER_DEPOP_API_CAPTURED', (event) => {
     if (!event || !event.detail) return;
@@ -663,22 +767,19 @@ if (currentSite === 'depop') {
       }).catch(() => {});
 
       // Parse username from pathname if on profile
-      let username = 'depop_user';
-      try {
-        const pathParts = window.location.pathname.split('/').filter(Boolean);
-        if (pathParts.length > 0 && !['products', 'create', 'settings', 'search', 'category'].includes(pathParts[0])) {
-          username = pathParts[0];
-        }
-      } catch (e) {}
+      let username = getDepopUsername();
 
       chrome.runtime.sendMessage({
         action: 'CACHE_CONNECTION_DETAILS',
         platform: 'depop',
         data: {
           username,
-          accessToken: token
+          accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
         }
       }).catch(() => {});
+
+      // Check and complete connection if redirect flow is active
+      checkAndCompleteConnection();
     }
   });
 
@@ -710,6 +811,15 @@ else if (currentSite === 'elister') {
         data: event.data.data
       }, (response) => {
         console.log('[Elister Depop] Background worker acknowledged listing start:', response);
+      });
+    }
+
+    else if (event.data && event.data.action === 'ELISTER_START_CONNECT_FLOW' && event.data.platform === 'depop') {
+      console.log('[Elister Depop] Initiating Depop Connect Flow with credentials...');
+      const { token, backendUrl, frontendUrl } = event.data;
+      chrome.runtime.sendMessage({
+        action: 'START_DEPOP_CONNECT_FLOW',
+        data: { token, backendUrl, frontendUrl }
       });
     }
 

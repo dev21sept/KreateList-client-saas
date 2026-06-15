@@ -293,3 +293,53 @@ exports.publishListingToPlatform = async (req, res) => {
     });
   }
 };
+
+// @desc    Get live channel inventory (scraped on the fly)
+// @route   GET /api/external-import/live
+// @access  Private
+exports.getLiveChannelInventory = async (req, res) => {
+  try {
+    const { platform } = req.query;
+    if (!platform) {
+      return res.status(400).json({ success: false, message: 'Platform query parameter is required.' });
+    }
+    
+    const normalizedPlatform = platform.trim().toLowerCase();
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    let username = '';
+    if (normalizedPlatform === 'poshmark') {
+      if (!user.poshmarkAccount?.connected || !user.poshmarkAccount?.username) {
+        return res.status(400).json({ success: false, message: 'Poshmark account is not connected.' });
+      }
+      username = user.poshmarkAccount.username;
+    } else if (normalizedPlatform === 'depop') {
+      if (!user.depopAccount?.connected || !user.depopAccount?.username) {
+        return res.status(400).json({ success: false, message: 'Depop account is not connected.' });
+      }
+      username = user.depopAccount.username;
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid platform. Only depop or poshmark are supported.' });
+    }
+    
+    console.log(`[Import Controller] Fetching live inventory for ${normalizedPlatform} (${username})`);
+    
+    let liveListings = [];
+    if (normalizedPlatform === 'depop') {
+      liveListings = await scrapeDepopShop(username);
+    } else {
+      liveListings = await scrapePoshmarkCloset(username);
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: liveListings
+    });
+  } catch (err) {
+    console.error(`[Import Controller] Error getting live inventory:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
