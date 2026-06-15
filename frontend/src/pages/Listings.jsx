@@ -658,11 +658,11 @@ const Listings = () => {
                 onChange={(e) => setPlatformFilter(e.target.value)}
                 className="w-full md:w-48 pl-10 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none"
               >
-                <option value="all">All Platforms</option>
-                <option value="ebay">eBay</option>
-                <option value="poshmark">Poshmark</option>
-                <option value="vinted">Vinted</option>
-                <option value="depop">Depop</option>
+                <option value="all">All Inventory</option>
+                <option value="ebay">eBay Inventory</option>
+                <option value="poshmark">Poshmark Inventory</option>
+                <option value="vinted">Vinted Inventory</option>
+                <option value="depop">Depop Inventory</option>
               </select>
               <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>

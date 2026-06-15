@@ -125,12 +125,12 @@ exports.importExternalCloset = async (req, res) => {
 // @access  Private
 exports.connectPlatform = async (req, res) => {
   try {
-    const { platform, username, accessToken, sessionCookie, csrfToken } = req.body;
+    const { platform, username, accessToken, sessionCookie, csrfToken, disconnect } = req.body;
 
-    if (!platform || !username) {
+    if (!platform) {
       return res.status(400).json({
         success: false,
-        message: 'Platform and username are required.'
+        message: 'Platform name is required.'
       });
     }
 
@@ -138,6 +138,29 @@ exports.connectPlatform = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (disconnect) {
+      if (normalizedPlatform === 'depop') {
+        user.depopAccount = { connected: false };
+      } else if (normalizedPlatform === 'poshmark') {
+        user.poshmarkAccount = { connected: false };
+      } else {
+        return res.status(400).json({ success: false, message: 'Supported platforms are depop or poshmark only.' });
+      }
+      await user.save();
+      return res.status(200).json({
+        success: true,
+        message: `${platform} account disconnected successfully.`,
+        data: normalizedPlatform === 'depop' ? user.depopAccount : user.poshmarkAccount
+      });
+    }
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required to connect.'
+      });
     }
 
     if (normalizedPlatform === 'depop') {

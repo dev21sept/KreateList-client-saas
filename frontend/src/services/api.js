@@ -92,4 +92,10 @@ export const adminService = {
   updateUser: (id, data) => API.put(`/admin/users/${id}`, data),
 };
 
+export const externalImportService = {
+  importCloset: (data) => API.post('/external-import/import', data),
+  connect: (data) => API.post('/external-import/connect', data),
+  publish: (id, data) => API.post(`/external-import/publish/${id}`, data)
+};
+
 export default API;

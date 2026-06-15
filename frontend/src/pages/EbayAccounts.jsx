@@ -24,16 +24,30 @@ import {
   Settings
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ebayService } from '../services/api';
+import { ebayService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 
 const EbayAccounts = () => {
   const { user, loadUser } = useAuth();
   const { toast, confirm } = useNotification();
   const ebay = user?.ebayAccount;
+  const poshmark = user?.poshmarkAccount;
+  const depop = user?.depopAccount;
+  
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   
+  // Poshmark Form state
+  const [poshUsername, setPoshUsername] = useState('');
+  const [poshCookie, setPoshCookie] = useState('');
+  const [poshCsrf, setPoshCsrf] = useState('');
+  const [poshLoading, setPoshLoading] = useState(false);
+
+  // Depop Form state
+  const [depopUsername, setDepopUsername] = useState('');
+  const [depopToken, setDepopToken] = useState('');
+  const [depopLoading, setDepopLoading] = useState(false);
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const called = useRef(false);
@@ -77,13 +91,8 @@ const EbayAccounts = () => {
       if (error.response) {
         console.error('Error Status:', error.response.status);
         console.error('Error Response Data:', JSON.stringify(error.response.data, null, 2));
-      } else if (error.request) {
-        console.error('No Response Received. Request:', error.request);
-      } else {
-        console.error('Error Message:', error.message);
       }
-      console.error('=====================================================');
-      toast.error('eBay Connection Failed! Check the console for detailed error logs.');
+      toast.error('eBay Connection Failed! Check console for details.');
     } finally {
       setLoading(false);
       setStatusMsg('');
@@ -95,16 +104,14 @@ const EbayAccounts = () => {
       setLoading(true);
       console.log('Fetching eBay Auth URL from backend...');
       const response = await ebayService.connect();
-      console.log('Auth URL Response:', response.data);
       if (response.data.url) {
-        console.log('Redirecting to:', response.data.url);
         window.location.href = response.data.url;
       } else {
         toast.error('Error: Backend did not return a valid URL.');
       }
     } catch (error) {
-      console.error('Error connecting eBay (Fetching Auth URL):', error);
-      toast.error('Failed to connect to backend to get eBay URL! Check console for details. Error: ' + error.message);
+      console.error('Error connecting eBay:', error);
+      toast.error('Failed to connect to backend to get eBay URL!');
       setLoading(false);
     }
   };
@@ -125,12 +132,109 @@ const EbayAccounts = () => {
     }
   };
 
+  // Poshmark Connect/Disconnect
+  const handlePoshmarkConnect = async (e) => {
+    e.preventDefault();
+    if (!poshUsername || !poshCookie || !poshCsrf) {
+      toast.warning('Please fill in all Poshmark fields.');
+      return;
+    }
+    try {
+      setPoshLoading(true);
+      const res = await externalImportService.connect({
+        platform: 'poshmark',
+        username: poshUsername,
+        sessionCookie: poshCookie,
+        csrfToken: poshCsrf
+      });
+      if (res.data?.success) {
+        toast.success('Poshmark Connected Successfully!');
+        await loadUser();
+        setPoshUsername('');
+        setPoshCookie('');
+        setPoshCsrf('');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to connect Poshmark.');
+    } finally {
+      setPoshLoading(false);
+    }
+  };
+
+  const handlePoshmarkDisconnect = async () => {
+    if (await confirm('Disconnect Poshmark Account?', { title: 'Disconnect Poshmark', destructive: true })) {
+      try {
+        setPoshLoading(true);
+        const res = await externalImportService.connect({
+          platform: 'poshmark',
+          disconnect: true
+        });
+        if (res.data?.success) {
+          toast.success('Poshmark disconnected successfully.');
+          await loadUser();
+        }
+      } catch (err) {
+        toast.error('Failed to disconnect Poshmark.');
+      } finally {
+        setPoshLoading(false);
+      }
+    }
+  };
+
+  // Depop Connect/Disconnect
+  const handleDepopConnect = async (e) => {
+    e.preventDefault();
+    if (!depopUsername || !depopToken) {
+      toast.warning('Please fill in all Depop fields.');
+      return;
+    }
+    try {
+      setDepopLoading(true);
+      const res = await externalImportService.connect({
+        platform: 'depop',
+        username: depopUsername,
+        accessToken: depopToken
+      });
+      if (res.data?.success) {
+        toast.success('Depop Connected Successfully!');
+        await loadUser();
+        setDepopUsername('');
+        setDepopToken('');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to connect Depop.');
+    } finally {
+      setDepopLoading(false);
+    }
+  };
+
+  const handleDepopDisconnect = async () => {
+    if (await confirm('Disconnect Depop Account?', { title: 'Disconnect Depop', destructive: true })) {
+      try {
+        setDepopLoading(true);
+        const res = await externalImportService.connect({
+          platform: 'depop',
+          disconnect: true
+        });
+        if (res.data?.success) {
+          toast.success('Depop disconnected successfully.');
+          await loadUser();
+        }
+      } catch (err) {
+        toast.error('Failed to disconnect Depop.');
+      } finally {
+        setDepopLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto py-2">
-      {/* Page Header - Compact */}
+      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full -mr-32 -mt-32 blur-2xl transition-all duration-700" />
-        
         <div className="relative">
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Integrations</h1>
@@ -143,168 +247,248 @@ const EbayAccounts = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Profile & Main Stats Card */}
+        {/* Main Integrations Column */}
         <div className="lg:col-span-8 space-y-6">
-          {ebay?.connected ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden"
-            >
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50/40 rounded-full -ml-32 -mb-32 blur-3xl pointer-events-none" />
-
-              <div className="relative flex flex-col md:flex-row gap-8">
-                <div className="w-24 h-24 bg-slate-900 rounded-3xl flex items-center justify-center shrink-0 shadow-xl shadow-slate-100 border-4 border-white overflow-hidden">
-                  {ebay.username ? (
-                    <div className="text-white text-3xl font-black">{ebay.username.charAt(0).toUpperCase()}</div>
-                  ) : (
-                    <User size={40} className="text-white" />
-                  )}
-                </div>
-                
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-3xl font-black text-slate-900 tracking-tight">{ebay.username}</h2>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Globe size={12} className="text-slate-400" />
-                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">{ebay.name || 'Merchant Account'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      <span className="text-[10px] font-black text-emerald-700 uppercase">Sync Healthy</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100">
-                      <Mail size={18} className="text-slate-400" />
-                      <div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Business Email</p>
-                        <p className="text-xs font-bold text-slate-900">{ebay.email || 'Not available'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100">
-                      <Phone size={18} className="text-slate-400" />
-                      <div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Support Line</p>
-                        <p className="text-xs font-bold text-slate-900">{ebay.phone || 'Private'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Advanced Stats Grid */}
-              <div className="grid grid-cols-3 gap-4 mt-8 pt-8 border-t border-slate-100">
-                <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-center">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Health</p>
-                  <p className="text-lg font-black text-emerald-600">100%</p>
-                </div>
-                <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-center">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Capacity</p>
-                  <p className="text-lg font-black text-slate-900">MAX</p>
-                </div>
-                <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-center">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">API Status</p>
-                  <p className="text-lg font-black text-indigo-600">LIVE</p>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center mt-8">
-                <button className="flex items-center gap-2 text-xs font-black text-slate-900 hover:text-indigo-600 transition-all">
-                  <RefreshCw size={14} /> Resync Metadata
-                </button>
-                <button 
-                  onClick={handleDisconnect}
-                  disabled={loading}
-                  className="text-rose-500 hover:text-rose-600 font-bold text-xs"
-                >
-                  Disconnect Account
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="bg-white p-12 rounded-[2.5rem] border border-dashed border-slate-200 text-center space-y-6 shadow-sm">
-              <div className="w-24 h-24 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto border border-slate-100">
-                <LinkIcon size={40} className="text-slate-300" />
-              </div>
-              <div className="max-w-sm mx-auto space-y-2">
-                <h3 className="text-2xl font-black text-slate-900">Connect eBay Production</h3>
-                <p className="text-slate-500 font-medium text-xs">Unlock automated listing generation and real-time merchant sync.</p>
-              </div>
-              <button 
-                onClick={handleConnect}
-                disabled={loading}
-                className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center gap-2 mx-auto disabled:opacity-50"
+          
+          {/* 1. eBay Integration Card */}
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">eBay Channel</h3>
+            {ebay?.connected ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative overflow-hidden"
               >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <>Connect eBay <ChevronRight size={18} /></>}
-              </button>
-              {statusMsg && (
-                <p className="text-indigo-600 font-bold text-sm animate-pulse mt-4">{statusMsg}</p>
-              )}
-            </div>
-          )}
-
-          {/* Business Tools - More Compact */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
-                <BarChart3 size={20} />
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
+                    <span className="text-white text-xl font-black">{ebay.username?.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{ebay.username}</h2>
+                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">{ebay.name || 'Merchant Account'}</p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-[10px] text-slate-400">Connected at {ebay.connectedAt ? new Date(ebay.connectedAt).toLocaleDateString() : 'Active'}</span>
+                      <button 
+                        onClick={handleDisconnect}
+                        disabled={loading}
+                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
+                      >
+                        Disconnect eBay
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="text-center py-6 space-y-4">
+                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto border border-slate-100">
+                  <LinkIcon size={24} className="text-slate-300" />
+                </div>
+                <div>
+                  <h4 className="text-md font-bold text-slate-900">Connect eBay Channel</h4>
+                  <p className="text-slate-500 text-xs">Authorize eLister to publish directly and manage your eBay stock.</p>
+                </div>
+                <button 
+                  onClick={handleConnect}
+                  disabled={loading}
+                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={14} /> : <>Connect eBay <ChevronRight size={14} /></>}
+                </button>
+                {statusMsg && <p className="text-indigo-600 font-bold text-xs animate-pulse">{statusMsg}</p>}
               </div>
-              <h4 className="text-xs font-black text-slate-900 uppercase">Insights</h4>
-              <p className="text-slate-500 text-[10px] font-medium leading-relaxed line-clamp-2">AI-powered suggestions for pricing and listing optimizations.</p>
-            </div>
+            )}
+          </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                <Activity size={20} />
+          {/* 2. Poshmark Integration Card */}
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Poshmark Channel</h3>
+            {poshmark?.connected ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative overflow-hidden"
+              >
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="w-16 h-16 bg-rose-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
+                    <span className="text-white text-xl font-black">{poshmark.username?.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{poshmark.username}</h2>
+                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">Poshmark Closet</p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-[10px] text-slate-400">Connected at {poshmark.connectedAt ? new Date(poshmark.connectedAt).toLocaleDateString() : 'Active'}</span>
+                      <button 
+                        onClick={handlePoshmarkDisconnect}
+                        disabled={poshLoading}
+                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
+                      >
+                        Disconnect Poshmark
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-center py-2">
+                  <h4 className="text-md font-bold text-slate-900">Connect Poshmark Channel</h4>
+                  <p className="text-slate-500 text-xs">Enter your session details to enable direct server listing.</p>
+                </div>
+                <form onSubmit={handlePoshmarkConnect} className="space-y-3 max-w-md mx-auto">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Username</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. posh_seller" 
+                      value={poshUsername}
+                      onChange={(e) => setPoshUsername(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Session Cookie (_poshmark_session)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Paste complete _poshmark_session cookie value" 
+                      value={poshCookie}
+                      onChange={(e) => setPoshCookie(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">CSRF Token (x-xsrf-token / x-csrf-token)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Paste csrf token value" 
+                      value={poshCsrf}
+                      onChange={(e) => setPoshCsrf(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={poshLoading}
+                    className="w-full py-2.5 bg-rose-500 text-white rounded-xl font-black text-xs hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
+                  </button>
+                </form>
               </div>
-              <h4 className="text-xs font-black text-slate-900 uppercase">Inventory</h4>
-              <p className="text-slate-500 text-[10px] font-medium leading-relaxed line-clamp-2">Real-time monitoring and out-of-stock protection.</p>
-            </div>
+            )}
+          </div>
+
+          {/* 3. Depop Integration Card */}
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Depop Channel</h3>
+            {depop?.connected ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative overflow-hidden"
+              >
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
+                    <span className="text-white text-xl font-black">{depop.username?.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{depop.username}</h2>
+                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">Depop Closet</p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-[10px] text-slate-400">Connected at {depop.connectedAt ? new Date(depop.connectedAt).toLocaleDateString() : 'Active'}</span>
+                      <button 
+                        onClick={handleDepopDisconnect}
+                        disabled={depopLoading}
+                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
+                      >
+                        Disconnect Depop
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-center py-2">
+                  <h4 className="text-md font-bold text-slate-900">Connect Depop Channel</h4>
+                  <p className="text-slate-500 text-xs">Enter your authorization access token to enable direct server listing.</p>
+                </div>
+                <form onSubmit={handleDepopConnect} className="space-y-3 max-w-md mx-auto">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Depop Username</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. depop_seller" 
+                      value={depopUsername}
+                      onChange={(e) => setDepopUsername(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Access Token (Bearer token)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Paste complete authorization Bearer token" 
+                      value={depopToken}
+                      onChange={(e) => setDepopToken(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={depopLoading}
+                    className="w-full py-2.5 bg-red-650 text-white rounded-xl font-black text-xs hover:bg-red-750 transition-all flex items-center justify-center gap-2"
+                  >
+                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop'}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Sidebar Info Column - Compact */}
+        {/* Sidebar Info Column */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white space-y-6 relative overflow-hidden">
             <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-white/10">
               <ShieldCheck size={24} />
             </div>
             <div className="space-y-2">
-              <h4 className="text-lg font-black tracking-tight">Secure Protocol</h4>
+              <h4 className="text-lg font-black tracking-tight">Secure Connection</h4>
               <p className="text-slate-400 text-[10px] leading-relaxed font-medium">
-                Official <span className="text-white font-black">OAuth 2.0 Auth Code Grant</span>. Secure and encrypted.
+                Authorization tokens and cookies are encrypted using AES-256 standard and used solely to route direct api queries.
               </p>
             </div>
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-[10px] font-bold text-slate-300">
-                <Lock size={14} className="text-emerald-400" /> AES-256 Encryption
+                <Lock size={14} className="text-emerald-400" /> Secure Storage
               </div>
               <div className="flex items-center gap-3 text-[10px] font-bold text-slate-300">
-                <Lock size={14} className="text-emerald-400" /> SOC2 Compliant
-              </div>
-            </div>
-          </div>
-
-          <div className="p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-            <div className="flex items-center justify-between">
-              <h5 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Config</h5>
-              <Settings size={14} className="text-slate-400" />
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-900">Production</span>
-                <div className="w-8 h-4 bg-emerald-500 rounded-full relative">
-                  <div className="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100 opacity-50">
-                <span className="text-[10px] font-bold text-slate-400">Inventory Sync</span>
-                <span className="text-[8px] font-black bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">PRO</span>
+                <Lock size={14} className="text-emerald-400" /> Direct API listing
               </div>
             </div>
           </div>
@@ -315,5 +499,3 @@ const EbayAccounts = () => {
 };
 
 export default EbayAccounts;
-
-
