@@ -1270,8 +1270,8 @@ async function checkAndCompleteConnection() {
         console.log('[Elister Extension] Active Poshmark connection flow detected! Refreshing session cookie via same-origin fetch...');
         
         try {
-          // Trigger same-origin fetch to ensure _poshmark_session is set/refreshed in the browser
-          await fetch('/');
+          // Trigger same-origin fetch to /vm-rest/users/self (bypasses Service Worker cache) to ensure _poshmark_session is set
+          await fetch('/vm-rest/users/self');
           console.log('[Elister Extension] Same-origin session recovery fetch completed successfully.');
         } catch (e) {
           console.error('[Elister Extension] Same-origin session fetch failed:', e);
@@ -1327,7 +1327,7 @@ if (currentSite === 'poshmark') {
       if (username && username !== 'Guest') {
         console.log('[Elister Extension] Token captured. Ensuring Poshmark session is active...');
         try {
-          await fetch('/');
+          await fetch('/vm-rest/users/self');
         } catch (e) {
           console.error('[Elister Extension] Failed to capture session cookie via fetch:', e);
         }

@@ -53,8 +53,8 @@ function getPoshmarkCookiesWithSessionCheck(sender, callback) {
 
     if (!hasSessionCookie && hasJwt && attempt === 1) {
       console.log(`[Background] _poshmark_session not found on ${baseDomain} but jwt is present. Establishing session via fetch...`);
-      // Fetch the base domain root to trigger Rails session cookie setup
-      fetch(`https://www.${baseDomain}/`)
+      // Fetch the API endpoint to trigger Rails session cookie setup
+      fetch(`https://www.${baseDomain}/vm-rest/users/self`)
         .then(() => {
           // Wait 1.5 seconds for the browser to receive and apply Set-Cookie, then query again
           setTimeout(() => queryAndCheck(2), 1500);
