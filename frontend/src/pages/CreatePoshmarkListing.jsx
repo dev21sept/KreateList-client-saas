@@ -22,7 +22,7 @@ import {
   ArrowLeft,
   ArrowRight
 } from 'lucide-react';
-import { ruleService, aiService, listingService } from '../services/api';
+import { ruleService, aiService, listingService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 
@@ -648,14 +648,6 @@ const CreatePoshmarkListing = () => {
   };
 
   const handleSaveListing = async (publish = false) => {
-    if (publish) {
-      const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
-      if (!isExtensionInstalled) {
-        toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
-        return;
-      }
-    }
-
     setLoading(true);
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -692,44 +684,18 @@ const CreatePoshmarkListing = () => {
         : await listingService.create(listingData);
       if (response.data.success) {
         const savedListing = response.data.data;
-        toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
+        const listingId = editId || savedListing._id || savedListing.id;
         
         if (publish) {
-          // Strip HTML tags for Poshmark's text-only description box
-          const plainDesc = savedListing.description 
-            ? savedListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
-            : '';
-
-          const token = localStorage.getItem('token');
-          const backendUrl = import.meta.env.MODE === 'production'
-            ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-            : 'http://localhost:5000/api';
-
-          window.postMessage({
-            action: 'ELISTER_LIST_ITEM_TRIGGER',
-            data: {
-              listingId: savedListing._id,
-              token,
-              backendUrl,
-              title: savedListing.title,
-              description: plainDesc,
-              brand: savedListing.brand || "",
-              price: parseFloat(savedListing.price) || 0.0,
-              originalPrice: parseFloat(savedListing.originalPrice) || 0.0,
-              size: savedListing.size || "OS",
-              colors: savedListing.color 
-                ? savedListing.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
-                : [],
-              condition: savedListing.conditionId || "uln",
-              styleTags: savedListing.styleTag ? savedListing.styleTag.split(',').map(t => t.trim()) : [],
-              departmentId: savedListing.departmentId || "01008c10d97b4e1245005764", // Default Men
-              categoryId: savedListing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
-              subcategoryIds: savedListing.subcategoryIds ? (Array.isArray(savedListing.subcategoryIds) ? savedListing.subcategoryIds : [savedListing.subcategoryIds]) : [],
-              images: savedListing.images || []
-            }
-          }, "*");
-
-          toast.success("Opening Poshmark and launching publisher queue...");
+          toast.success("Publishing listing to Poshmark...");
+          const publishResponse = await externalImportService.publish(listingId, { platform: 'poshmark' });
+          if (publishResponse.data.success) {
+            toast.success('Listing published to Poshmark successfully!');
+          } else {
+            toast.warning('Listing saved, but failed to publish to Poshmark: ' + (publishResponse.data.message || 'Unknown error'));
+          }
+        } else {
+          toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
         }
         navigate('/listings');
       }

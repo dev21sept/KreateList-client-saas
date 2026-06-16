@@ -400,66 +400,20 @@ const Listings = () => {
   };
 
   const handlePoshmarkPublish = async (listing) => {
-    const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
-    if (!isExtensionInstalled) {
-      toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
-      return;
-    }
-
     setPoshmarkPublishingId(listing._id);
     try {
-      // Fetch full listing details with images and description since list view excludes them
-      const res = await listingService.getOne(listing._id);
-      if (!res.data?.success || !res.data?.data) {
-        throw new Error("Failed to fetch full listing details from server.");
+      toast.success("Publishing listing to Poshmark...");
+      const res = await externalImportService.publish(listing._id, { platform: 'poshmark' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Poshmark!");
+        fetchListings();
+        setPreviewListing(null);
+      } else {
+        throw new Error(res.data?.message || "Failed to publish listing.");
       }
-      
-      const fullListing = res.data.data;
-      
-      if (!fullListing.images || fullListing.images.length === 0) {
-        toast.warning("Listing has no images. Please add images before publishing!");
-        return;
-      }
-
-      // Strip HTML tags for Poshmark's text-only description box
-      const plainDesc = fullListing.description 
-        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
-        : '';
-
-      const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.MODE === 'production'
-        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-        : 'http://localhost:5000/api';
-
-      window.postMessage({
-        action: 'ELISTER_LIST_ITEM_TRIGGER',
-        data: {
-          listingId: fullListing._id,
-          token,
-          backendUrl,
-          title: fullListing.title,
-          description: plainDesc,
-          brand: fullListing.brand || "",
-          price: parseFloat(fullListing.price) || 0.0,
-          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
-          size: fullListing.size || "OS",
-          colors: fullListing.color 
-            ? fullListing.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
-            : [],
-          condition: fullListing.conditionId || "uln",
-          styleTags: fullListing.styleTag ? fullListing.styleTag.split(',').map(t => t.trim()) : [],
-          departmentId: fullListing.departmentId || "01008c10d97b4e1245005764", // Default Men
-          categoryId: fullListing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
-          subcategoryIds: fullListing.subcategoryIds ? (Array.isArray(fullListing.subcategoryIds) ? fullListing.subcategoryIds : [fullListing.subcategoryIds]) : [],
-          images: fullListing.images || []
-        }
-      }, "*");
-
-      toast.success("Opening Poshmark and launching publisher queue...");
-      setPreviewListing(null);
     } catch (err) {
       console.error("Error publishing to Poshmark:", err);
-      toast.error("Failed to load listing details. Please try again.");
+      toast.error(err.response?.data?.message || err.message || "Failed to publish to Poshmark.");
     } finally {
       setPoshmarkPublishingId(null);
     }
