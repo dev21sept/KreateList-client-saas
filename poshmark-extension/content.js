@@ -999,6 +999,7 @@ async function executePoshmarkUpload(productData) {
         seller_shipping_discount: { id: null }
       }
     };
+    let verifiedCatalog = null;
 
     // Two-step save to prevent "not a category feature" validation error due to Poshmark Rails backend evaluating features before category update
     if (resolvedSubcatIds && resolvedSubcatIds.length > 0) {
@@ -1070,7 +1071,6 @@ async function executePoshmarkUpload(productData) {
       }
     }
 
-    let verifiedCatalog = null;
     let saveData;
     let saveSuccess = false;
     let useCondition = true;
