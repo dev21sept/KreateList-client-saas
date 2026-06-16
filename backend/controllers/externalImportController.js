@@ -362,7 +362,6 @@ exports.getLastError = async (req, res) => {
     }
     
     // Find the user who owns this listing
-    const User = mongoose.model('User');
     const user = await User.findById(listing.user);
     const poshmarkAccount = user ? user.poshmarkAccount : null;
 
