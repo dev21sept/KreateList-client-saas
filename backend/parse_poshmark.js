@@ -2,12 +2,15 @@ const fs = require('fs');
 const path = require('path');
 
 try {
-  const jsonPath = path.join(__dirname, 'poshmark_initializers.json');
+  let jsonPath = path.join(__dirname, 'poshmark_new.json');
+  if (!fs.existsSync(jsonPath)) {
+    jsonPath = path.join(__dirname, 'poshmark_initializers.json');
+  }
   const outputPath = path.join(__dirname, 'constants', 'poshmarkTaxonomy.js');
 
   console.log('Reading Poshmark catalog from:', jsonPath);
   if (!fs.existsSync(jsonPath)) {
-    console.error(`Error: File not found at ${jsonPath}. Please create this file and paste the Poshmark JSON data first.`);
+    console.error(`Error: File not found at ${jsonPath} or poshmark_initializers.json. Please create this file and paste the Poshmark JSON data first.`);
     process.exit(1);
   }
 

@@ -1000,6 +1000,42 @@ async function executePoshmarkUpload(productData) {
       }
     };
 
+    // Two-step save to prevent "not a category feature" validation error due to Poshmark Rails backend evaluating features before category update
+    if (resolvedSubcatIds && resolvedSubcatIds.length > 0) {
+      console.log('[Elister] Performing preliminary category update to sync Poshmark backend draft category...');
+      try {
+        const prePayload = {
+          post: {
+            catalog: {
+              department: resolvedDeptId,
+              category: resolvedCatId,
+              category_features: []
+            }
+          }
+        };
+        const preRes = await fetch(`/vm-rest/posts/${draftId}?pm_version=2026.23.01`, {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'x-xsrf-token': csrfToken,
+            'x-csrf-token': csrfToken
+          },
+          credentials: 'include',
+          mode: 'cors',
+          body: JSON.stringify(prePayload)
+        });
+        if (preRes.ok) {
+          console.log('[Elister] Preliminary category update succeeded.');
+        } else {
+          const preErrText = await preRes.text();
+          console.warn('[Elister] Preliminary category update returned non-ok status:', preRes.status, preErrText);
+        }
+      } catch (preErr) {
+        console.warn('[Elister] Preliminary category update failed:', preErr);
+      }
+    }
+
     let saveData;
     let saveSuccess = false;
     let useCondition = true;

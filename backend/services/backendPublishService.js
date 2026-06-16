@@ -638,6 +638,43 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     }
   };
 
+  // TWO-STEP SAVE PREPARATION:
+  // Update category and department first to avoid race condition where subcategories are validated against the old category.
+  if (resolvedSubcats && resolvedSubcats.length > 0) {
+    console.log('[Poshmark Publisher] Performing preliminary category update to sync Poshmark draft category...');
+    try {
+      const prePayload = {
+        post: {
+          catalog: {
+            department: resolvedDept,
+            category: resolvedCat,
+            category_features: []
+          }
+        }
+      };
+      const preConfig = getAxiosConfig({
+        method: 'POST',
+        url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
+        headers: {
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'cookie': sessionCookie,
+          'x-xsrf-token': csrfToken,
+          'x-csrf-token': csrfToken
+        },
+        data: prePayload
+      });
+      const preRes = await axios(preConfig);
+      if (preRes.status === 200) {
+        console.log('[Poshmark Publisher] Preliminary category update succeeded.');
+      } else {
+        console.warn('[Poshmark Publisher] Preliminary category update returned status:', preRes.status);
+      }
+    } catch (preErr) {
+      console.warn('[Poshmark Publisher] Preliminary category update failed:', preErr.response?.data || preErr.message);
+    }
+  }
+
   let useCondition = true;
   const maxRetries = 5;
   let saveSuccess = false;
