@@ -120,19 +120,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     console.log('Resolving Poshmark session cookies...');
     getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
-      const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
+      const hasSession = poshCookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
       
-      if (!hasSessionCookie) {
+      if (!hasSession) {
         const cookieNames = poshCookies.map(c => `${c.name} (${c.domain})`).join(', ');
         sendResponse({ 
           success: false, 
-          message: `Active Poshmark session (_poshmark_session) not found on ${baseDomain}. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
+          message: `Active Poshmark session not found on ${baseDomain}. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
         });
         return;
       }
       
-      // Combine them into a single Cookie header string
-      const sessionCookie = poshCookies.map(c => `${c.name}=${c.value}`).join('; ');
+      // Combine them into a single Cookie header string, appending the capture domain
+      const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
       
       console.log('Submitting captured Poshmark credentials to backend:', backendUrl);
       fetch(`${backendUrl}/external-import/connect`, {
@@ -189,7 +189,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { platform, data } = message;
     if (platform === 'poshmark') {
       getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
-        const sessionCookie = poshCookies.map(c => `${c.name}=${c.value}`).join('; ');
+        const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
         
         cachedConnectionDetails[platform] = {
           username: data.username,

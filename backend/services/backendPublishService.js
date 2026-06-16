@@ -459,16 +459,34 @@ function resolvePoshmarkCategory(path) {
 
   return {
     department: deptId,
-    category: mappedCatId,
+  category: mappedCatId,
     subcategories: []
   };
 }
 
+function getDomainFromCookie(sessionCookie) {
+  if (sessionCookie) {
+    const match = sessionCookie.match(/elister_domain=([^;]+)/);
+    if (match) {
+      const domain = match[1].trim();
+      return domain.startsWith('www.') ? domain : `www.${domain}`;
+    }
+  }
+  return 'www.poshmark.com';
+}
+
+function cleanCookieHeader(sessionCookie) {
+  if (!sessionCookie) return '';
+  return sessionCookie.replace(/;\s*elister_domain=[^;]+/, '').replace(/elister_domain=[^;]+;\s*/, '').trim();
+}
+
 function getPoshmarkHeaders(sessionCookie, csrfToken) {
+  const domain = getDomainFromCookie(sessionCookie);
+  const cleanCookie = cleanCookieHeader(sessionCookie);
   return {
     'accept': 'application/json',
     'content-type': 'application/json',
-    'cookie': sessionCookie,
+    'cookie': csrfToken ? `io_token=${csrfToken}; ${cleanCookie}` : cleanCookie,
     'x-xsrf-token': csrfToken,
     'x-csrf-token': csrfToken,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -479,7 +497,7 @@ function getPoshmarkHeaders(sessionCookie, csrfToken) {
     'Sec-Fetch-Dest': 'empty',
     'Sec-Fetch-Mode': 'cors',
     'Sec-Fetch-Site': 'same-origin',
-    'Referer': 'https://poshmark.com/create-listing'
+    'Referer': `https://${domain}/create-listing`
   };
 }
 
@@ -491,11 +509,12 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     throw new Error('Poshmark cookies are missing. Please connect your Poshmark account.');
   }
 
-  if (!sessionCookie.includes('_poshmark_session=')) {
+  if (!sessionCookie.includes('_poshmark_session=') && !sessionCookie.includes('jwt=')) {
     throw new Error('Your Poshmark session has expired or is invalid. Please open Poshmark.com in a new tab, ensure you are logged in, and then visit the integrations/accounts page on eLister to re-connect your account.');
   }
 
-  console.log(`[Poshmark Publisher] Initializing publish for listing: "${listing.title}"`);
+  const domain = getDomainFromCookie(sessionCookie);
+  console.log(`[Poshmark Publisher] Initializing publish for listing: "${listing.title}" on domain: ${domain}`);
   
   // Step 1: Create Draft Session on Poshmark
   console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
@@ -503,7 +522,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   try {
     const draftConfig = getAxiosConfig({
       method: 'POST',
-      url: 'https://poshmark.com/vm-rest/posts?pm_version=2026.23.01',
+      url: `https://${domain}/vm-rest/posts?pm_version=2026.23.01`,
       headers: getPoshmarkHeaders(sessionCookie, csrfToken),
       data: { post: { autolist_draft: false } }
     });
@@ -518,13 +537,16 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     console.log(`[Poshmark Publisher] Draft session created. Draft ID: ${draftId}`);
   } catch (draftErr) {
     console.error('[Poshmark Publisher] Draft session failed:', draftErr.response?.data || draftErr.message);
-    throw new Error(`Poshmark Draft Session Failed: ${draftErr.message}`);
+    throw new Error(`Draft Creation Failed: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
   }
 
-  // Step 2: Upload Images
-  const mediaIds = [];
+  // Step 2: Upload Images to Poshmark Draft
   const images = listing.images || [];
+  if (images.length === 0) {
+    throw new Error('At least one image is required to publish to Poshmark.');
+  }
 
+  const mediaIds = [];
   for (let i = 0; i < images.length; i++) {
     try {
       const imgBuffer = await downloadImageBuffer(images[i]);
@@ -542,7 +564,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       delete uploadHeaders['content-type']; // Let form-data boundary work
       const uploadConfig = getAxiosConfig({
         method: 'POST',
-        url: `https://poshmark.com/api/posts/${draftId}/media/scratch?app_type=web`,
+        url: `https://${domain}/api/posts/${draftId}/media/scratch?app_type=web`,
         headers: {
           ...uploadHeaders,
           ...form.getHeaders()
@@ -558,101 +580,48 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         throw new Error(`No media ID returned: ${JSON.stringify(uploadData)}`);
       }
       mediaIds.push(mediaId);
-      console.log(`[Poshmark Publisher] Image upload success. Media ID: ${mediaId}`);
+      console.log(`[Poshmark Publisher] Image ${i + 1} uploaded successfully. Media ID: ${mediaId}`);
     } catch (imgErr) {
-      console.error(`[Poshmark Publisher] Image upload failed for index ${i}:`, imgErr.message);
-      throw new Error(`Poshmark Image Upload Failed: ${imgErr.message}`);
+      console.error(`[Poshmark Publisher] Image ${i + 1} upload failed:`, imgErr.response?.data || imgErr.message);
+      throw new Error(`Image Upload Failed: ${imgErr.message}`);
     }
   }
 
-  if (mediaIds.length === 0) {
-    throw new Error('No images uploaded successfully to Poshmark.');
-  }
+  // Step 3: Populate and Save Listing Attributes
+  console.log('[Poshmark Publisher] Step 3: Synchronizing draft attributes and categories...');
+  const size = listing.size || 'OS';
+  const brand = listing.brand || 'Original';
+  const price = parseFloat(listing.price || '0');
+  const originalPrice = parseFloat(listing.originalPrice || '0') || null;
 
-  // Step 3: Save Listing Attributes
-  console.log('[Poshmark Publisher] Step 3: Saving listing attributes...');
-  
-  const mapCondition = (cond) => {
-    const c = String(cond || '').toLowerCase();
-    if (c === 'nwt') return 'nwt';
-    if (c === 'like_new' || c === 'like new' || c === 'uln' || c === 'nwot') return 'uln';
-    if (c === 'good' || c === 'euc' || c === 'vguc' || c === 'guc' || c === 'ug') return 'ug';
-    if (c === 'fair' || c === 'uf') return 'uf';
-    return 'uln';
-  };
+  // Resolve category features (subcategories) to flat string IDs
+  const resolvedSubcats = Array.isArray(listing.subcategoryIds) 
+    ? listing.subcategoryIds.map(id => typeof id === 'object' && id ? (id.id || id._id || String(id)) : String(id))
+    : [];
 
-  let resolvedDept = listing.departmentId;
-  let resolvedCat = listing.categoryId;
-  let resolvedSubcats = listing.subcategoryIds ? (Array.isArray(listing.subcategoryIds) ? listing.subcategoryIds : [listing.subcategoryIds]) : [];
-
-  if (!resolvedDept || !resolvedCat) {
-    const resolved = resolvePoshmarkCategory(listing.category);
-    const normalized = normalizePoshmarkIds(resolved.department, resolved.category);
-    resolvedDept = normalized.departmentId;
-    resolvedCat = normalized.categoryId;
-    resolvedSubcats = resolved.subcategories || [];
-  } else {
-    const normalized = normalizePoshmarkIds(resolvedDept, resolvedCat);
-    resolvedDept = normalized.departmentId;
-    resolvedCat = normalized.categoryId;
-  }
-  
   const savePayload = {
     post: {
       title: listing.title,
       description: listing.description,
-      brand: listing.brand || "",
-      condition: mapCondition(listing.selectedCondition || listing.conditionId),
-      price_amount: {
-        val: parseFloat(listing.price) || 0,
-        currency_code: "USD",
-        currency_symbol: "$"
-      },
-      original_price_amount: {
-        val: parseFloat(listing.originalPrice || 0) || 0,
-        currency_code: "USD",
-        currency_symbol: "$"
-      },
+      original_price_amount: originalPrice ? { val: originalPrice, currency_code: 'USD' } : null,
+      price_amount: { val: price, currency_code: 'USD' },
+      inventory_status: 'available',
+      sizes: [{ name: size }],
+      brand: brand,
+      colors: listing.colors ? (Array.isArray(listing.colors) ? listing.colors : [listing.colors]) : [],
       catalog: {
-        department: resolvedDept,
-        category: resolvedCat,
+        department: listing.departmentId || null,
+        category: listing.categoryId || null,
         category_features: resolvedSubcats
       },
-      colors: listing.color ? [listing.color.split(',')[0].trim()] : [],
-      style_tags: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim()) : [],
-      pictures: mediaIds.slice(1).map(id => ({ id })),
-      cover_shot: { id: mediaIds[0] },
-      inventory: {
-        status: "available",
-        multi_item: false,
-        size_quantity_revision: 0,
-        size_quantities: [
-          {
-            size_id: listing.size || "OS",
-            size_obj: {
-              id: listing.size || "OS",
-              short: listing.size || "OS",
-              long: listing.size || "OS",
-              display: listing.size || "OS",
-              display_with_size_set: listing.size || "OS",
-              display_with_size_system: `US ${listing.size || "OS"}`,
-              display_with_system_and_set: `US ${listing.size || "OS"}`,
-              equivalent_sizes: {},
-              size_system: "us"
-            },
-            quantity_available: 1,
-            quantity_sold: 0,
-            size_system: "us",
-            size_set_tags: ["standard"]
-          }
-        ]
-      },
-      offer_auto_actions_v2_enabled: false,
-      seller_private_info: {},
-      autolist_draft: false,
-      seller_shipping_discount: { id: null }
+      media_ids: mediaIds
     }
   };
+
+  // Add condition fields if present
+  if (listing.condition) {
+    savePayload.post.condition = listing.condition;
+  }
 
   // TWO-STEP SAVE PREPARATION:
   // Update category and department first to avoid race condition where subcategories are validated against the old category.
@@ -664,7 +633,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 
       const preConfig = getAxiosConfig({
         method: 'POST',
-        url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
+        url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
         headers: getPoshmarkHeaders(sessionCookie, csrfToken),
         data: prePayload
       });
@@ -695,7 +664,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     try {
       const saveConfig = getAxiosConfig({
         method: 'POST',
-        url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
+        url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
         headers: getPoshmarkHeaders(sessionCookie, csrfToken),
         data: currentPayload
       });
@@ -710,30 +679,25 @@ async function publishToPoshmark(listing, poshmarkAccount) {
           await new Promise(res => setTimeout(res, 2500));
           continue;
         }
-        if (errMsg.toLowerCase().includes("invalid condition") && useCondition) {
-          console.warn(`[Poshmark Publisher] Poshmark returned invalid condition error: ${errMsg}. Retrying without condition field...`);
+        if (errMsg.includes("condition") && useCondition) {
+          console.warn(`[Poshmark Publisher] Condition attribute rejected by Poshmark taxonomy. Disabling and retrying...`);
           useCondition = false;
+          attempt--; // Retry immediately without consuming attempt
           continue;
         }
-        throw new Error(errMsg || "Failed to save details.");
+        throw new Error(errMsg);
       }
       
-      console.log('[Poshmark Publisher] Attributes saved successfully!');
       saveSuccess = true;
+      console.log(`[Poshmark Publisher] Attributes successfully saved.`);
       break;
     } catch (saveErr) {
-      const responseData = saveErr.response?.data;
-      if (responseData && responseData.error) {
-        const errMsg = responseData.error.errorMessage || responseData.error.userMessage || responseData.error.errorType || "";
-        if (errMsg.toLowerCase().includes("invalid condition") && useCondition) {
-          console.warn(`[Poshmark Publisher] Poshmark returned invalid condition error: ${errMsg}. Retrying without condition field...`);
-          useCondition = false;
-          continue;
-        }
+      console.error(`[Poshmark Publisher] Attribute save attempt ${attempt} failed:`, saveErr.response?.data || saveErr.message);
+      if (attempt === maxRetries) {
+        throw new Error(`Attribute Save Failed: ${saveErr.response?.data?.error?.errorMessage || saveErr.message}`);
       }
-      
-      console.error('[Poshmark Publisher] Attributes save failed:', saveErr.response?.data || saveErr.message);
-      throw new Error(`Poshmark Save Attributes Failed: ${saveErr.message}`);
+      // Delay before retrying
+      await new Promise(res => setTimeout(res, 2000));
     }
   }
   
@@ -746,7 +710,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   try {
     const publishConfig = getAxiosConfig({
       method: 'PUT',
-      url: `https://poshmark.com/vm-rest/posts/${draftId}/status/published?app_version=2.55&pm_version=2026.23.01`,
+      url: `https://${domain}/vm-rest/posts/${draftId}/status/published?app_version=2.55&pm_version=2026.23.01`,
       headers: getPoshmarkHeaders(sessionCookie, csrfToken),
       data: {}
     });
@@ -767,7 +731,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     return {
       success: true,
       id: draftId,
-      url: `https://poshmark.com/listing/${draftId}`
+      url: `https://${domain.replace('www.', '')}/listing/${draftId}`
     };
   } catch (pubErr) {
     console.error('[Poshmark Publisher] Publication failed:', pubErr.response?.data || pubErr.message);
