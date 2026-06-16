@@ -1052,9 +1052,13 @@ async function executePoshmarkUpload(productData) {
                 hasTitle: !!(postObj && postObj.title)
               };
               console.log('[Elister] Verified catalog status on server:', verifiedCatalog);
+            } else {
+              const errText = await verifyRes.text();
+              verifiedCatalog = { verifyStatus: verifyRes.status, verifyErrorText: errText };
             }
           } catch (e) {
             console.warn('[Elister] Failed to verify draft category:', e);
+            verifiedCatalog = { verifyError: e.message, verifyStack: e.stack };
           }
         } else {
           const preErrText = await preRes.text();
