@@ -237,25 +237,64 @@
       
       const isPoshmarkApi = url.includes('/vm-rest/') || url.includes('/api/');
       
-      if (isPoshmarkApi && (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts'))) {
+      if (isPoshmarkApi) {
+        // Check response headers for CSRF token
+        if (response.headers) {
+          const respCsrf = response.headers.get('x-xsrf-token') || response.headers.get('x-csrf-token');
+          if (respCsrf && !respCsrf.includes('-')) {
+            console.log('[Elister Interceptor] Captured CSRF token from fetch response headers:', respCsrf);
+            document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
+            window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
+              detail: { csrfToken: respCsrf }
+            }));
+          }
+        }
+
         const responseClone = response.clone();
         const responseText = await responseClone.text();
         
-        window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
-          detail: {
-            url,
-            method,
-            headers: options.headers || {},
-            body: options.body || null,
-            response: responseText
+        if (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts')) {
+          window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
+            detail: {
+              url,
+              method,
+              headers: options.headers || {},
+              body: options.body || null,
+              response: responseText
+            }
+          }));
+        }
+
+        // Try extracting CSRF token from JSON body
+        try {
+          const resData = JSON.parse(responseText);
+          const findCsrf = (obj) => {
+            if (!obj || typeof obj !== 'object') return null;
+            if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20 && !obj.csrfToken.includes('-')) return obj.csrfToken;
+            if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20 && !obj.csrf_token.includes('-')) return obj.csrf_token;
+            if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20 && !obj.authenticityToken.includes('-')) return obj.authenticityToken;
+            if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20 && !obj.authenticity_token.includes('-')) return obj.authenticity_token;
+            
+            for (let key in obj) {
+              const res = findCsrf(obj[key]);
+              if (res) return res;
+            }
+            return null;
+          };
+          const extractedCsrf = findCsrf(resData);
+          if (extractedCsrf) {
+            console.log('[Elister Interceptor] Extracted CSRF token from fetch response body:', extractedCsrf);
+            document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
+            window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
+              detail: { csrfToken: extractedCsrf }
+            }));
           }
-        }));
+        } catch(e) {}
 
         // Extract draft ID from response if it is a POST/PUT to posts or create-listing related endpoints
         if (url.includes('posts')) {
           try {
             const resData = JSON.parse(responseText);
-            // Search for draft ID recursively inside the response JSON
             const findId = (obj) => {
               if (!obj || typeof obj !== 'object') return null;
               if (obj.id && typeof obj.id === 'string' && /^[a-f0-9]{24}$/.test(obj.id)) {
@@ -318,46 +357,86 @@
       try {
         const isPoshmarkApi = this._url.includes('/vm-rest/') || this._url.includes('/api/');
         
-        if (isPoshmarkApi && (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts'))) {
-          window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
-            detail: {
-              url: this._url,
-              method: this._method,
-              headers: {},
-              body: body || null,
-              response: this.responseText
+        if (isPoshmarkApi) {
+          // Check response headers for CSRF token
+          try {
+            const respCsrf = this.getResponseHeader('x-xsrf-token') || this.getResponseHeader('x-csrf-token');
+            if (respCsrf && !respCsrf.includes('-')) {
+              console.log('[Elister Interceptor] Captured CSRF token from XHR response headers:', respCsrf);
+              document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
+              window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
+                detail: { csrfToken: respCsrf }
+              }));
             }
-          }));
+          } catch (e) {}
 
-          if (this._url.includes('posts')) {
-            try {
-              const resData = JSON.parse(this.responseText);
-              const findId = (obj) => {
-                if (!obj || typeof obj !== 'object') return null;
-                if (obj.id && typeof obj.id === 'string' && /^[a-f0-9]{24}$/.test(obj.id)) {
-                  if (!obj.id.endsWith('8c10d97b4e1245005764')) return obj.id;
-                }
-                if (obj.postId && typeof obj.postId === 'string' && /^[a-f0-9]{24}$/.test(obj.postId)) return obj.postId;
-                if (obj.post_id && typeof obj.post_id === 'string' && /^[a-f0-9]{24}$/.test(obj.post_id)) return obj.post_id;
-                if (obj.listingId && typeof obj.listingId === 'string' && /^[a-f0-9]{24}$/.test(obj.listingId)) return obj.listingId;
-                if (obj.listing_id && typeof obj.listing_id === 'string' && /^[a-f0-9]{24}$/.test(obj.listing_id)) return obj.listing_id;
-                if (obj.draftId && typeof obj.draftId === 'string' && /^[a-f0-9]{24}$/.test(obj.draftId)) return obj.draftId;
-                if (obj.draft_id && typeof obj.draft_id === 'string' && /^[a-f0-9]{24}$/.test(obj.draft_id)) return obj.draft_id;
-                
-                for (let key in obj) {
-                  const res = findId(obj[key]);
-                  if (res) return res;
-                }
-                return null;
-              };
-              const extractedId = findId(resData);
-              if (extractedId) {
-                console.log('[Elister Interceptor] Extracted draft ID from XHR response:', extractedId);
-                window.dispatchEvent(new CustomEvent('ELISTER_DRAFT_ID_CAPTURED', {
-                  detail: { draftId: extractedId }
-                }));
+          // Check response body for CSRF token
+          try {
+            const resData = JSON.parse(this.responseText);
+            const findCsrf = (obj) => {
+              if (!obj || typeof obj !== 'object') return null;
+              if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20 && !obj.csrfToken.includes('-')) return obj.csrfToken;
+              if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20 && !obj.csrf_token.includes('-')) return obj.csrf_token;
+              if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20 && !obj.authenticityToken.includes('-')) return obj.authenticityToken;
+              if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20 && !obj.authenticity_token.includes('-')) return obj.authenticity_token;
+              
+              for (let key in obj) {
+                const res = findCsrf(obj[key]);
+                if (res) return res;
               }
-            } catch(e) {}
+              return null;
+            };
+            const extractedCsrf = findCsrf(resData);
+            if (extractedCsrf) {
+              console.log('[Elister Interceptor] Extracted CSRF token from XHR response body:', extractedCsrf);
+              document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
+              window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
+                detail: { csrfToken: extractedCsrf }
+              }));
+            }
+          } catch (e) {}
+
+          if (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts')) {
+            window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
+              detail: {
+                url: this._url,
+                method: this._method,
+                headers: {},
+                body: body || null,
+                response: this.responseText
+              }
+            }));
+
+            if (this._url.includes('posts')) {
+              try {
+                const resData = JSON.parse(this.responseText);
+                const findId = (obj) => {
+                  if (!obj || typeof obj !== 'object') return null;
+                  if (obj.id && typeof obj.id === 'string' && /^[a-f0-9]{24}$/.test(obj.id)) {
+                    if (!obj.id.endsWith('8c10d97b4e1245005764')) return obj.id;
+                  }
+                  if (obj.postId && typeof obj.postId === 'string' && /^[a-f0-9]{24}$/.test(obj.postId)) return obj.postId;
+                  if (obj.post_id && typeof obj.post_id === 'string' && /^[a-f0-9]{24}$/.test(obj.post_id)) return obj.post_id;
+                  if (obj.listingId && typeof obj.listingId === 'string' && /^[a-f0-9]{24}$/.test(obj.listingId)) return obj.listingId;
+                  if (obj.listing_id && typeof obj.listing_id === 'string' && /^[a-f0-9]{24}$/.test(obj.listing_id)) return obj.listing_id;
+                  if (obj.draftId && typeof obj.draftId === 'string' && /^[a-f0-9]{24}$/.test(obj.draftId)) return obj.draftId;
+                  if (obj.draft_id && typeof obj.draft_id === 'string' && /^[a-f0-9]{24}$/.test(obj.draft_id)) return obj.draft_id;
+                  
+                  for (let key in obj) {
+                    const res = findId(obj[key]);
+                    if (res) return res;
+                  }
+                  return null;
+                };
+                const extractedId = findId(resData);
+                if (extractedId) {
+                  console.log('[Elister Interceptor] Extracted draft ID from XHR response:', extractedId);
+                  window.dispatchEvent(new CustomEvent('ELISTER_DRAFT_ID_CAPTURED', {
+                    detail: { draftId: extractedId }
+                  }));
+                }
+              } catch(e) {}
+            }
           }
         }
       } catch (e) {}

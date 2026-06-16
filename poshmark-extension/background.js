@@ -44,12 +44,10 @@ function getPoshmarkCookiesWithSessionCheck(sender, callback) {
   };
 
   const processCookies = (poshCookies, attempt) => {
-    const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
-    const filteredCookies = poshCookies.filter(c => relevantNames.includes(c.name));
-    console.log(`[Background] Found Poshmark session cookies (attempt ${attempt}):`, filteredCookies.map(c => ({ name: c.name, domain: c.domain })));
+    console.log(`[Background] Found Poshmark cookies (attempt ${attempt}):`, poshCookies.map(c => ({ name: c.name, domain: c.domain })));
 
-    const hasSessionCookie = filteredCookies.some(c => c.name === '_poshmark_session');
-    const hasJwt = filteredCookies.some(c => c.name === 'jwt');
+    const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
+    const hasJwt = poshCookies.some(c => c.name === 'jwt');
 
     if (!hasSessionCookie && hasJwt && attempt === 1) {
       console.log(`[Background] _poshmark_session not found on ${baseDomain} but jwt is present. Establishing session via fetch...`);
@@ -61,10 +59,10 @@ function getPoshmarkCookiesWithSessionCheck(sender, callback) {
         })
         .catch(err => {
           console.error('[Background] Failed to establish Poshmark session:', err);
-          callback(filteredCookies, baseDomain);
+          callback(poshCookies, baseDomain);
         });
     } else {
-      callback(filteredCookies, baseDomain);
+      callback(poshCookies, baseDomain);
     }
   };
 
