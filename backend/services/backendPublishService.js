@@ -643,15 +643,9 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   if (resolvedSubcats && resolvedSubcats.length > 0) {
     console.log('[Poshmark Publisher] Performing preliminary category update to sync Poshmark draft category...');
     try {
-      const prePayload = {
-        post: {
-          catalog: {
-            department: resolvedDept,
-            category: resolvedCat,
-            category_features: []
-          }
-        }
-      };
+      const prePayload = JSON.parse(JSON.stringify(savePayload));
+      prePayload.post.catalog.category_features = [];
+
       const preConfig = getAxiosConfig({
         method: 'POST',
         url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,

@@ -1004,15 +1004,9 @@ async function executePoshmarkUpload(productData) {
     if (resolvedSubcatIds && resolvedSubcatIds.length > 0) {
       console.log('[Elister] Performing preliminary category update to sync Poshmark backend draft category...');
       try {
-        const prePayload = {
-          post: {
-            catalog: {
-              department: resolvedDeptId,
-              category: resolvedCatId,
-              category_features: []
-            }
-          }
-        };
+        const prePayload = JSON.parse(JSON.stringify(savePayload));
+        prePayload.post.catalog.category_features = [];
+        
         const preRes = await fetch(`/vm-rest/posts/${draftId}?pm_version=2026.23.01`, {
           method: 'POST',
           headers: {

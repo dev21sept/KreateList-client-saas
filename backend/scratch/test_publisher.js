@@ -176,7 +176,8 @@ async function runTests() {
   const saveDetailsRequest2 = global.capturedRequests.find(r => 
     r.url.includes('/vm-rest/posts/657ab890cdef1234567890aa?pm_version=') &&
     r.data.post.title === "Awesome Nike Hoodie" &&
-    r.data.post.catalog && r.data.post.catalog.department === "000e8975d97b4e80ef00a955"
+    r.data.post.catalog && r.data.post.catalog.department === "000e8975d97b4e80ef00a955" &&
+    r.data.post.catalog.category_features && r.data.post.catalog.category_features.length > 0
   );
   assert.ok(saveDetailsRequest2, "Poshmark details save payload with department ID should be captured");
   assert.strictEqual(saveDetailsRequest2.data.post.catalog.category, "00248975d97b4e80ef00a955");
