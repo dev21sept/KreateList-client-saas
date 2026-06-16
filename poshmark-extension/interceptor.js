@@ -10,17 +10,10 @@
       else if (window.App && window.App.token) token = window.App.token;
       else if (window.csrfToken) token = window.csrfToken;
       else if (window.xsrfToken) token = window.xsrfToken;
-      
-      // 2. Check NextJS Hydration Data if present
-      if (!token) {
-        const nextDataEl = document.getElementById('__NEXT_DATA__');
-        if (nextDataEl) {
-          const text = nextDataEl.textContent;
-          const match = text.match(/"csrfToken"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i) ||
-                        text.match(/"xsrfToken"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i) ||
-                        text.match(/"token"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i);
-          if (match && match[1]) token = match[1];
-        }
+
+      // Filter out NextJS UUID tokens containing hyphens
+      if (token && token.includes('-')) {
+        token = null;
       }
 
       if (token) {
@@ -228,7 +221,7 @@
         }
       }
 
-      if (csrfToken) {
+      if (csrfToken && !csrfToken.includes('-')) {
         document.documentElement.setAttribute('data-elister-csrf-token', csrfToken);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken }
@@ -304,7 +297,7 @@
 
   XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
     try {
-      if (name.toLowerCase() === 'x-xsrf-token' || name.toLowerCase() === 'x-csrf-token') {
+      if ((name.toLowerCase() === 'x-xsrf-token' || name.toLowerCase() === 'x-csrf-token') && value && !value.includes('-')) {
         document.documentElement.setAttribute('data-elister-csrf-token', value);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: value }
