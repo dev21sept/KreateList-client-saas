@@ -440,7 +440,7 @@ const EbayAccounts = () => {
                       <button
                         onClick={() => handleSyncCloset('poshmark', poshmark.username)}
                         disabled={syncingPlatform === 'poshmark'}
-                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
                       >
                         {syncingPlatform === 'poshmark' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
                         Sync Poshmark Closet
@@ -466,7 +466,7 @@ const EbayAccounts = () => {
                   <button 
                     onClick={() => triggerAutoConnect('poshmark')}
                     disabled={poshLoading}
-                    className="mt-2 px-8 py-3 bg-indigo-650 text-white rounded-xl font-black text-xs hover:bg-indigo-750 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                    className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
                   >
                     {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
                   </button>
@@ -551,7 +551,7 @@ const EbayAccounts = () => {
                       <button
                         onClick={() => handleSyncCloset('depop', depop.username)}
                         disabled={syncingPlatform === 'depop'}
-                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
                       >
                         {syncingPlatform === 'depop' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
                         Sync Depop Shop
@@ -577,7 +577,7 @@ const EbayAccounts = () => {
                   <button 
                     onClick={() => triggerAutoConnect('depop')}
                     disabled={depopLoading}
-                    className="mt-2 px-8 py-3 bg-indigo-650 text-white rounded-xl font-black text-xs hover:bg-indigo-750 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                    className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
                   >
                     {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
                   </button>
