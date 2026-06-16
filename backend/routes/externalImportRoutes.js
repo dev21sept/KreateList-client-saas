@@ -3,7 +3,8 @@ const {
   importExternalCloset, 
   connectPlatform, 
   publishListingToPlatform,
-  getLiveChannelInventory
+  getLiveChannelInventory,
+  getDebugListing
 } = require('../controllers/externalImportController');
 const { protect } = require('../middleware/auth');
 
@@ -16,5 +17,6 @@ router.post('/import', importExternalCloset);
 router.post('/connect', connectPlatform);
 router.post('/publish/:id', publishListingToPlatform);
 router.get('/live', getLiveChannelInventory);
+router.get('/debug-listing/:id', getDebugListing);
 
 module.exports = router;

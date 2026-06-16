@@ -341,3 +341,15 @@ exports.getLiveChannelInventory = async (req, res) => {
     res.status(200).json({ success: false, message: err.message, data: [] });
   }
 };
+
+exports.getDebugListing = async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    res.status(200).json({ success: true, data: listing });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
