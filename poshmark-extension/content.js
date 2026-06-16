@@ -16,19 +16,16 @@ function getCsrfToken(site) {
   const cached = sessionStorage.getItem('elister_captured_csrf_token');
   if (cached) return cached;
 
-  if (site === 'poshmark') {
-    // For Poshmark, strictly rely on intercepted headers to prevent capturing false UUIDs or tracking tokens
-    return null;
-  }
-
   // 2. Try scanning all meta tags
   const metas = document.querySelectorAll('meta');
   for (let meta of metas) {
     const name = (meta.getAttribute('name') || meta.getAttribute('property') || '').toLowerCase();
     const content = meta.getAttribute('content');
     if ((name.includes('csrf') || name.includes('xsrf') || name.includes('token')) && content && content.length > 20) {
-      console.log('[Elister Extension] Extracted CSRF token from meta tag:', name);
-      return content;
+      if (site !== 'poshmark' || !content.includes('-')) {
+        console.log('[Elister Extension] Extracted CSRF token from meta tag:', name);
+        return content;
+      }
     }
   }
 
@@ -41,8 +38,10 @@ function getCsrfToken(site) {
                     text.match(/"xsrfToken"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i) ||
                     text.match(/"token"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i);
       if (match && match[1]) {
-        console.log('[Elister Extension] Extracted CSRF token from __NEXT_DATA__ script tag');
-        return match[1];
+        if (site !== 'poshmark' || !match[1].includes('-')) {
+          console.log('[Elister Extension] Extracted CSRF token from __NEXT_DATA__ script tag');
+          return match[1];
+        }
       }
     }
   } catch(e) {}
@@ -56,8 +55,11 @@ function getCsrfToken(site) {
     if (name) {
       const lowerName = name.toLowerCase();
       if ((lowerName.includes('csrf') || lowerName.includes('xsrf') || lowerName.includes('token')) && val && val.length > 20) {
-        console.log('[Elister Extension] Extracted CSRF token from cookie:', name);
-        return decodeURIComponent(val);
+        const decoded = decodeURIComponent(val);
+        if (site !== 'poshmark' || !decoded.includes('-')) {
+          console.log('[Elister Extension] Extracted CSRF token from cookie:', name);
+          return decoded;
+        }
       }
     }
   }
@@ -65,11 +67,11 @@ function getCsrfToken(site) {
   // 5. Default legacy fallback naming checks
   if (site === 'poshmark') {
     const pmCookie = getCookie('_csrf_token') || getCookie('csrf_token') || getCookie('xsrf-token');
-    if (pmCookie) return pmCookie;
+    if (pmCookie && !pmCookie.includes('-')) return pmCookie;
   }
 
   const generalCsrf = getCookie('csrf_token') || getCookie('authenticity_token');
-  if (generalCsrf) return generalCsrf;
+  if (generalCsrf && (site !== 'poshmark' || !generalCsrf.includes('-'))) return generalCsrf;
 
   return null;
 }
