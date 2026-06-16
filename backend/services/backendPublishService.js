@@ -230,6 +230,36 @@ async function publishToDepop(listing, depopAccount) {
 // -------------------------------------------------------------
 // Helper: Translate legacy/mismatched Poshmark category and department IDs to actual Poshmark IDs
 function normalizePoshmarkIds(deptId, catId) {
+  const NATIVE_CATEGORIES = new Set([
+    '00248975d97b4e80ef00a955', '002a8975d97b4e80ef00a955', '00108975d97b4e80ef00a955',
+    '00148975d97b4e80ef00a955', '001a8975d97b4e80ef00a955', '001c8975d97b4e80ef00a955',
+    '00268975d97b4e80ef00a955', '001e8975d97b4e80ef00a955', '00128975d97b4e80ef00a955',
+    '00168975d97b4e80ef00a955', '00188975d97b4e80ef00a955', '03008c10d97b4e1245005764',
+    '02008c10d97b4e1245005764', '04008c10d97b4e1245005764', '05008c10d97b4e1245005764',
+    '06008c10d97b4e1245005764', '07008c10d97b4e1245005764', '08008c10d97b4e1245005764',
+    '09008c10d97b4e1245005764', '0b008c10d97b4e1245005764', '21008c10d97b4e1245005764',
+    '22008c10d97b4e1245005764', '23008c10d97b4e1245005764', '29008c10d97b4e1245005764',
+    '2e008c10d97b4e1245005764', '000e8975d97b4e80ef00a955', '01008c10d97b4e1245005764',
+    '20008c10d97b4e1245005764', '5b3b13d30640fd0aeb9c5cb6', 'af08bf904024037d7a7b5fad',
+    '583c7d134024035188906153', '5d1cb37951e70e1762c90bc7'
+  ]);
+
+  if (catId && NATIVE_CATEGORIES.has(catId)) {
+    let resolvedDeptId = deptId;
+    if (catId.endsWith('d97b4e80ef00a955')) {
+      resolvedDeptId = '000e8975d97b4e80ef00a955'; // Women
+    } else if (catId.endsWith('d97b4e1245005764')) {
+      if (catId.startsWith('2')) {
+        resolvedDeptId = '20008c10d97b4e1245005764'; // Kids
+      } else {
+        resolvedDeptId = '01008c10d97b4e1245005764'; // Men
+      }
+    } else {
+      resolvedDeptId = catId; // Home, Pets, Electronics, Beauty departments match category ID
+    }
+    return { departmentId: resolvedDeptId, categoryId: catId };
+  }
+
   let resolvedDeptId = deptId;
   let resolvedCatId = catId;
 
