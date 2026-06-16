@@ -10,9 +10,13 @@
     "cookies"
   ],
   "host_permissions": [
+    "*://poshmark.com/*",
     "*://*.poshmark.com/*",
+    "*://poshmark.ca/*",
     "*://*.poshmark.ca/*",
+    "*://poshmark.co.uk/*",
     "*://*.poshmark.co.uk/*",
+    "*://poshmark.com.au/*",
     "*://*.poshmark.com.au/*",
     "*://app.elister.ai/*",
     "*://localhost/*",
@@ -27,9 +31,13 @@
   "content_scripts": [
     {
       "matches": [
+        "*://poshmark.com/*",
         "*://*.poshmark.com/*",
+        "*://poshmark.ca/*",
         "*://*.poshmark.ca/*",
+        "*://poshmark.co.uk/*",
         "*://*.poshmark.co.uk/*",
+        "*://poshmark.com.au/*",
         "*://*.poshmark.com.au/*",
         "*://app.elister.ai/*",
         "*://localhost/*",
@@ -40,9 +48,13 @@
     },
     {
       "matches": [
+        "*://poshmark.com/*",
         "*://*.poshmark.com/*",
+        "*://poshmark.ca/*",
         "*://*.poshmark.ca/*",
+        "*://poshmark.co.uk/*",
         "*://*.poshmark.co.uk/*",
+        "*://poshmark.com.au/*",
         "*://*.poshmark.com.au/*"
       ],
       "js": ["interceptor.js"],
