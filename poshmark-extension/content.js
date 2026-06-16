@@ -1049,6 +1049,8 @@ async function executePoshmarkUpload(productData) {
               const catObj = postObj && postObj.catalog;
               verifiedCatalog = {
                 catalog: catObj,
+                size: postObj && postObj.size,
+                size_obj: postObj && postObj.size_obj,
                 topKeys: Object.keys(verifyData || {}),
                 postKeys: verifyData.post ? Object.keys(verifyData.post) : null,
                 hasTitle: !!(postObj && postObj.title)
