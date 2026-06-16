@@ -586,7 +586,6 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       title: listing.title,
       description: listing.description,
       brand: listing.brand || "",
-      size: listing.size || "OS",
       condition: mapCondition(listing.selectedCondition || listing.conditionId),
       price_amount: {
         val: parseFloat(listing.price) || 0,
@@ -601,7 +600,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       catalog: {
         department: resolvedDept,
         category: resolvedCat,
-        category_features: resolvedSubcats.map(id => ({ id }))
+        category_features: resolvedSubcats
       },
       colors: listing.color ? [listing.color.split(',')[0].trim()] : [],
       style_tags: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim()) : [],

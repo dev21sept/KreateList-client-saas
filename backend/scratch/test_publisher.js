@@ -181,7 +181,7 @@ async function runTests() {
   );
   assert.ok(saveDetailsRequest2, "Poshmark details save payload with department ID should be captured");
   assert.strictEqual(saveDetailsRequest2.data.post.catalog.category, "00248975d97b4e80ef00a955");
-  assert.deepStrictEqual(saveDetailsRequest2.data.post.catalog.category_features, [{ id: "00d89287d97b4e80ef00a955" }]);
+  assert.deepStrictEqual(saveDetailsRequest2.data.post.catalog.category_features, ["00d89287d97b4e80ef00a955"]);
   console.log('✅ Poshmark direct backend publishing with structured IDs test: PASSED');
   
   console.log('\n--- ALL PUBLISHING VALIDATION TESTS COMPLETED SUCCESSFULLY ---');

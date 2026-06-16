@@ -948,7 +948,6 @@ async function executePoshmarkUpload(productData) {
         title: productData.title,
         description: productData.description,
         brand: productData.brand || "",
-        size: productData.size || "OS",
         condition: mapCondition(productData.condition),
         price_amount: {
           val: parseFloat(productData.price) || 0,
@@ -963,7 +962,7 @@ async function executePoshmarkUpload(productData) {
         catalog: {
           department: resolvedDeptId,
           category: resolvedCatId,
-          category_features: resolvedSubcatIds.map(id => ({ id }))
+          category_features: resolvedSubcatIds
         },
         colors: filteredColors,
         style_tags: productData.styleTags || [],
@@ -1000,7 +999,6 @@ async function executePoshmarkUpload(productData) {
         seller_shipping_discount: { id: null }
       }
     };
-    let verifiedCatalog = null;
 
     // Two-step save to prevent "not a category feature" validation error due to Poshmark Rails backend evaluating features before category update
     if (resolvedSubcatIds && resolvedSubcatIds.length > 0) {
@@ -1049,8 +1047,6 @@ async function executePoshmarkUpload(productData) {
               const catObj = postObj && postObj.catalog;
               verifiedCatalog = {
                 catalog: catObj,
-                size: postObj && postObj.size,
-                size_obj: postObj && postObj.size_obj,
                 topKeys: Object.keys(verifyData || {}),
                 postKeys: verifyData.post ? Object.keys(verifyData.post) : null,
                 hasTitle: !!(postObj && postObj.title)
@@ -1074,6 +1070,7 @@ async function executePoshmarkUpload(productData) {
       }
     }
 
+    let verifiedCatalog = null;
     let saveData;
     let saveSuccess = false;
     let useCondition = true;
