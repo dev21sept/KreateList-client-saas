@@ -1044,7 +1044,13 @@ async function executePoshmarkUpload(productData) {
             if (verifyRes.ok) {
               const verifyData = await verifyRes.json();
               const postObj = verifyData && (verifyData.post || verifyData);
-              verifiedCatalog = postObj && postObj.catalog;
+              const catObj = postObj && postObj.catalog;
+              verifiedCatalog = {
+                catalog: catObj,
+                topKeys: Object.keys(verifyData || {}),
+                postKeys: verifyData.post ? Object.keys(verifyData.post) : null,
+                hasTitle: !!(postObj && postObj.title)
+              };
               console.log('[Elister] Verified catalog status on server:', verifiedCatalog);
             }
           } catch (e) {
