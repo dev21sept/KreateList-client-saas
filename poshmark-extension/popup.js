@@ -96,9 +96,13 @@ async function checkActiveConnection() {
   try {
     const tabs = await chrome.tabs.query({
       url: [
+        "*://poshmark.com/*",
         "*://*.poshmark.com/*",
+        "*://poshmark.ca/*",
         "*://*.poshmark.ca/*",
+        "*://poshmark.co.uk/*",
         "*://*.poshmark.co.uk/*",
+        "*://poshmark.com.au/*",
         "*://*.poshmark.com.au/*"
       ]
     });

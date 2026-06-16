@@ -7,6 +7,70 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Fast Automator Service Worker installed!');
 });
 
+// Helper: Extract base domain from sender tab URL (e.g. poshmark.com, poshmark.ca, etc.)
+function getBaseDomain(sender) {
+  try {
+    if (sender && sender.tab && sender.tab.url) {
+      const url = new URL(sender.tab.url);
+      const host = url.hostname.toLowerCase();
+      const match = host.match(/poshmark\.(com|ca|co\.uk|com\.au)/);
+      if (match) {
+        return match[0];
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing base domain from sender:', e);
+  }
+  return 'poshmark.com';
+}
+
+// Helper: Query Poshmark cookies and optionally establish session if missing but jwt is present
+function getPoshmarkCookiesWithSessionCheck(sender, callback) {
+  const baseDomain = getBaseDomain(sender);
+  console.log(`[Background] Querying cookies for base domain: ${baseDomain}`);
+
+  const queryAndCheck = (attempt = 1) => {
+    chrome.cookies.getAll({ domain: baseDomain }, (cookies) => {
+      // Fallback if domain-specific query returns nothing or is blocked
+      if (!cookies || cookies.length === 0) {
+        chrome.cookies.getAll({}, (allCookies) => {
+          const filtered = allCookies ? allCookies.filter(c => c.domain.includes(baseDomain)) : [];
+          processCookies(filtered, attempt);
+        });
+      } else {
+        processCookies(cookies, attempt);
+      }
+    });
+  };
+
+  const processCookies = (poshCookies, attempt) => {
+    const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
+    const filteredCookies = poshCookies.filter(c => relevantNames.includes(c.name));
+    console.log(`[Background] Found Poshmark session cookies (attempt ${attempt}):`, filteredCookies.map(c => ({ name: c.name, domain: c.domain })));
+
+    const hasSessionCookie = filteredCookies.some(c => c.name === '_poshmark_session');
+    const hasJwt = filteredCookies.some(c => c.name === 'jwt');
+
+    if (!hasSessionCookie && hasJwt && attempt === 1) {
+      console.log(`[Background] _poshmark_session not found on ${baseDomain} but jwt is present. Establishing session via fetch...`);
+      // Fetch the base domain root to trigger Rails session cookie setup
+      fetch(`https://www.${baseDomain}/`)
+        .then(() => {
+          // Wait 1.5 seconds for the browser to receive and apply Set-Cookie, then query again
+          setTimeout(() => queryAndCheck(2), 1500);
+        })
+        .catch(err => {
+          console.error('[Background] Failed to establish Poshmark session:', err);
+          callback(filteredCookies, baseDomain);
+        });
+    } else {
+      callback(filteredCookies, baseDomain);
+    }
+  };
+
+  queryAndCheck(1);
+}
+
 // Listener for runtime messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
@@ -54,26 +118,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
     
-    console.log('Fetching all cookies to resolve Poshmark session...');
-    chrome.cookies.getAll({}, (cookies) => {
-      if (!cookies || cookies.length === 0) {
-        console.error('No cookies returned by chrome.cookies.getAll');
-        sendResponse({ success: false, message: 'No cookies found. Please check extension permissions.' });
-        return;
-      }
-      
-      // Filter for Poshmark session cookies (jwt, _poshmark_session, _csrf, rt)
-      const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
-      const poshCookies = cookies.filter(c => c.domain.includes('poshmark.com') && relevantNames.includes(c.name));
-      console.log('Found Poshmark session cookies:', poshCookies.map(c => ({ name: c.name, domain: c.domain })));
-      
+    console.log('Resolving Poshmark session cookies...');
+    getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
       const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
       
       if (!hasSessionCookie) {
-        const cookieNames = cookies.filter(c => c.domain.includes('poshmark')).map(c => `${c.name} (${c.domain})`).slice(0, 30).join(', ');
+        const cookieNames = poshCookies.map(c => `${c.name} (${c.domain})`).join(', ');
         sendResponse({ 
           success: false, 
-          message: `Active Poshmark session (_poshmark_session) not found. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
+          message: `Active Poshmark session (_poshmark_session) not found on ${baseDomain}. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
         });
         return;
       }
@@ -135,9 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   else if (message.action === 'CACHE_CONNECTION_DETAILS') {
     const { platform, data } = message;
     if (platform === 'poshmark') {
-      chrome.cookies.getAll({}, (cookies) => {
-        const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
-        const poshCookies = cookies ? cookies.filter(c => c.domain.includes('poshmark.com') && relevantNames.includes(c.name)) : [];
+      getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
         const sessionCookie = poshCookies.map(c => `${c.name}=${c.value}`).join('; ');
         
         cachedConnectionDetails[platform] = {
@@ -146,11 +197,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sessionCookie
         };
         console.log(`Cached Connection Details for ${platform}:`, cachedConnectionDetails[platform]);
+        sendResponse({ success: true });
       });
+      return true;
     } else {
       cachedConnectionDetails[platform] = data;
+      sendResponse({ success: true });
     }
-    sendResponse({ success: true });
   }
 
   else if (message.action === 'GET_CONNECTION_DETAILS') {
