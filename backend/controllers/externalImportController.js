@@ -360,10 +360,27 @@ exports.getLastError = async (req, res) => {
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
+    
+    // Find the user who owns this listing
+    const User = mongoose.model('User');
+    const user = await User.findById(listing.user);
+    const poshmarkAccount = user ? user.poshmarkAccount : null;
+
     res.status(200).json({ 
       success: true, 
       errorMessage: listing.get('errorMessage'),
-      status: listing.get('status')
+      status: listing.get('status'),
+      poshmarkAccount: poshmarkAccount ? {
+        connected: poshmarkAccount.connected,
+        username: poshmarkAccount.username,
+        connectedAt: poshmarkAccount.connectedAt,
+        hasCookie: !!poshmarkAccount.sessionCookie,
+        hasCsrf: !!poshmarkAccount.csrfToken,
+        cookieLen: poshmarkAccount.sessionCookie ? poshmarkAccount.sessionCookie.length : 0,
+        csrfLen: poshmarkAccount.csrfToken ? poshmarkAccount.csrfToken.length : 0,
+        cookiePrefix: poshmarkAccount.sessionCookie ? poshmarkAccount.sessionCookie.substring(0, 20) : '',
+        csrfPrefix: poshmarkAccount.csrfToken ? poshmarkAccount.csrfToken.substring(0, 8) : ''
+      } : null
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
