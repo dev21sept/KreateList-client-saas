@@ -353,3 +353,19 @@ exports.getDebugListing = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.getLastError = async (req, res) => {
+  try {
+    const listing = await Listing.findById('6a31773b289c09e927037903');
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    res.status(200).json({ 
+      success: true, 
+      errorMessage: listing.get('errorMessage'),
+      status: listing.get('status')
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

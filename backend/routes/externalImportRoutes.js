@@ -4,11 +4,14 @@ const {
   connectPlatform, 
   publishListingToPlatform,
   getLiveChannelInventory,
-  getDebugListing
+  getDebugListing,
+  getLastError
 } = require('../controllers/externalImportController');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
+
+router.get('/get-last-error', getLastError);
 
 // All import routes are protected (require authentication)
 router.use(protect);
