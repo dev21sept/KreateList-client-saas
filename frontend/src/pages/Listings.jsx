@@ -71,6 +71,7 @@ const Listings = () => {
   const [activeImage, setActiveImage] = useState(null);
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
+  const [poshmarkDirectPublishingId, setPoshmarkDirectPublishingId] = useState(null);
   const [vintedPublishingId, setVintedPublishingId] = useState(null);
   const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
@@ -400,22 +401,85 @@ const Listings = () => {
   };
 
   const handlePoshmarkPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
+      return;
+    }
+
     setPoshmarkPublishingId(listing._id);
     try {
-      toast.success("Publishing listing to Poshmark...");
-      const res = await externalImportService.publish(listing._id, { platform: 'poshmark' });
-      if (res.data?.success) {
-        toast.success("Listing successfully published to Poshmark!");
-        fetchListings();
-        setPreviewListing(null);
-      } else {
-        throw new Error(res.data?.message || "Failed to publish listing.");
+      // Fetch full listing details with images and description since list view excludes them
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
       }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        return;
+      }
+
+      // Strip HTML tags for Poshmark's text-only description box
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: fullListing.brand || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "OS",
+          colors: fullListing.color 
+            ? fullListing.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
+            : [],
+          condition: fullListing.conditionId || "uln",
+          styleTags: fullListing.styleTag ? fullListing.styleTag.split(',').map(t => t.trim()) : [],
+          departmentId: fullListing.departmentId || "01008c10d97b4e1245005764", // Default Men
+          categoryId: fullListing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
+          subcategoryIds: fullListing.subcategoryIds ? (Array.isArray(fullListing.subcategoryIds) ? fullListing.subcategoryIds : [fullListing.subcategoryIds]) : [],
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Opening Poshmark and launching publisher queue...");
+      setPreviewListing(null);
     } catch (err) {
       console.error("Error publishing to Poshmark:", err);
-      toast.error(err.response?.data?.message || err.message || "Failed to publish to Poshmark.");
+      toast.error("Failed to load listing details. Please try again.");
     } finally {
       setPoshmarkPublishingId(null);
+    }
+  };
+
+  const handlePoshmarkDirectPublish = async (listing) => {
+    setPoshmarkDirectPublishingId(listing._id);
+    try {
+      const res = await externalImportService.publish(listing._id, { platform: 'poshmark' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Poshmark via API!");
+        setPreviewListing(null);
+        fetchListings();
+      }
+    } catch (error) {
+      console.error("Error publishing directly to Poshmark:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Poshmark directly.");
+    } finally {
+      setPoshmarkDirectPublishingId(null);
     }
   };
 
@@ -670,31 +734,55 @@ const Listings = () => {
     return (
       <>
         {previewListing.platform === 'poshmark' && (
-          <button 
-            onClick={() => {
-              if (previewListing.status === 'published' && previewListing.poshmarkUrl) {
-                handleVerifyAndOpen(previewListing);
-              } else {
-                handlePoshmarkPublish(previewListing);
-              }
-            }}
-            disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-          >
-            {verifyingListingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                Verifying...
-              </>
-            ) : poshmarkPublishingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                Listing...
-              </>
+          <>
+            {previewListing.status === 'published' && previewListing.poshmarkUrl ? (
+              <button 
+                onClick={() => handleVerifyAndOpen(previewListing)}
+                disabled={verifyingListingId === previewListing._id}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {verifyingListingId === previewListing._id ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  'View on Poshmark'
+                )}
+              </button>
             ) : (
-              'List to Poshmark (API)'
+              <>
+                <button 
+                  onClick={() => handlePoshmarkDirectPublish(previewListing)}
+                  disabled={poshmarkDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
+                >
+                  {poshmarkDirectPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing Direct...
+                    </>
+                  ) : (
+                    'List to Poshmark (Direct API)'
+                  )}
+                </button>
+                <button 
+                  onClick={() => handlePoshmarkPublish(previewListing)}
+                  disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkDirectPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {poshmarkPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to Poshmark (Extension)'
+                  )}
+                </button>
+              </>
             )}
-          </button>
+          </>
         )}
         {previewListing.platform === 'ebay' && (
           <button 

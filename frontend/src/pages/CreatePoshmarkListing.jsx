@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { ruleService, aiService, listingService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 
 const POSHMARK_COLORS = [
@@ -381,6 +382,7 @@ const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select color
 const CreatePoshmarkListing = () => {
   const navigate = useNavigate();
   const { toast } = useNotification();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'poshmark';
@@ -647,7 +649,21 @@ const CreatePoshmarkListing = () => {
     setFiles(newFiles);
   };
 
-  const handleSaveListing = async (publish = false) => {
+  const handleSaveListing = async (publishType = null) => {
+    // publishType can be 'extension', 'direct', or null (draft)
+    if (publishType === 'extension') {
+      const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
+      if (!isExtensionInstalled) {
+        toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
+        return;
+      }
+    } else if (publishType === 'direct') {
+      if (!user?.poshmarkAccount?.connected || !user?.poshmarkAccount?.sessionCookie) {
+        toast.warning("Your Poshmark account is not connected on the server. Please connect your Poshmark account first in settings.");
+        return;
+      }
+    }
+
     setLoading(true);
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -684,15 +700,54 @@ const CreatePoshmarkListing = () => {
         : await listingService.create(listingData);
       if (response.data.success) {
         const savedListing = response.data.data;
-        const listingId = editId || savedListing._id || savedListing.id;
         
-        if (publish) {
-          toast.success("Publishing listing to Poshmark...");
-          const publishResponse = await externalImportService.publish(listingId, { platform: 'poshmark' });
-          if (publishResponse.data.success) {
-            toast.success('Listing published to Poshmark successfully!');
-          } else {
-            toast.warning('Listing saved, but failed to publish to Poshmark: ' + (publishResponse.data.message || 'Unknown error'));
+        if (publishType === 'extension') {
+          toast.success(editId ? 'Poshmark Listing updated!' : 'Poshmark Listing saved!');
+          // Strip HTML tags for Poshmark's text-only description box
+          const plainDesc = savedListing.description 
+            ? savedListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+            : '';
+
+          const token = localStorage.getItem('token');
+          const backendUrl = import.meta.env.MODE === 'production'
+            ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+            : 'http://localhost:5000/api';
+
+          window.postMessage({
+            action: 'ELISTER_LIST_ITEM_TRIGGER',
+            data: {
+              listingId: savedListing._id,
+              token,
+              backendUrl,
+              title: savedListing.title,
+              description: plainDesc,
+              brand: savedListing.brand || "",
+              price: parseFloat(savedListing.price) || 0.0,
+              originalPrice: parseFloat(savedListing.originalPrice) || 0.0,
+              size: savedListing.size || "OS",
+              colors: savedListing.color 
+                ? savedListing.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
+                : [],
+              condition: savedListing.conditionId || "uln",
+              styleTags: savedListing.styleTag ? savedListing.styleTag.split(',').map(t => t.trim()) : [],
+              departmentId: savedListing.departmentId || "01008c10d97b4e1245005764", // Default Men
+              categoryId: savedListing.categoryId || "07008c10d97b4e1245005764", // Default Shirts
+              subcategoryIds: savedListing.subcategoryIds ? (Array.isArray(savedListing.subcategoryIds) ? savedListing.subcategoryIds : [savedListing.subcategoryIds]) : [],
+              images: savedListing.images || []
+            }
+          }, "*");
+
+          toast.success("Opening Poshmark and launching publisher queue...");
+        } else if (publishType === 'direct') {
+          toast.success("Listing saved. Publishing to Poshmark directly via API...");
+          try {
+            const publishRes = await externalImportService.publish(savedListing._id, { platform: 'poshmark' });
+            if (publishRes.data.success) {
+              toast.success("Listing successfully published to Poshmark via API!");
+            }
+          } catch (pubErr) {
+            console.error("Direct publish failed:", pubErr);
+            toast.error(pubErr.response?.data?.message || "Failed to publish listing to Poshmark directly.");
           }
         } else {
           toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
@@ -1317,18 +1372,25 @@ const CreatePoshmarkListing = () => {
             {step === 3 ? (
               <>
                 <button 
-                  onClick={() => handleSaveListing(false)}
+                  onClick={() => handleSaveListing(null)}
                   disabled={loading || isConvertingImages || !allImagesLoaded}
                   className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
                 >
                   Save Draft
                 </button>
                 <button 
-                  onClick={() => handleSaveListing(true)}
+                  onClick={() => handleSaveListing('direct')}
                   disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
                 >
-                  {loading ? 'Working...' : 'Save & Publish to Poshmark'}
+                  {loading ? 'Working...' : 'List via Direct API'}
+                </button>
+                <button 
+                  onClick={() => handleSaveListing('extension')}
+                  disabled={loading || isConvertingImages || !allImagesLoaded}
+                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                >
+                  {loading ? 'Working...' : 'List via Extension'}
                 </button>
               </>
             ) : (
