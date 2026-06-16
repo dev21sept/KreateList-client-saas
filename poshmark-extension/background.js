@@ -213,16 +213,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   else if (message.action === 'START_POSHMARK_LISTING') {
-    // Store data in transition memory
-    pendingListingData = message.data;
-    console.log('Stored pending Poshmark listing data in queue:', pendingListingData);
+    const appTabId = sender.tab ? sender.tab.id : null;
+    pendingListingData = {
+      ...message.data,
+      appTabId: appTabId
+    };
+    console.log('Stored pending Poshmark listing data in queue with appTabId:', appTabId);
     
-    // Open Poshmark create listing page in a new tab
-    chrome.tabs.create({ url: 'https://poshmark.com/create-listing' }, (tab) => {
-      console.log('Opened Poshmark tab, ID:', tab.id);
+    // Open Poshmark create listing page in a background tab
+    chrome.tabs.create({ url: 'https://poshmark.com/create-listing', active: false }, (tab) => {
+      console.log('Opened Poshmark background tab, ID:', tab.id);
     });
     
-    sendResponse({ success: true, message: 'Poshmark tab opened. Listing queued.' });
+    sendResponse({ success: true, message: 'Poshmark background tab opened. Listing queued.' });
+  }
+  
+  else if (message.action === 'POSHMARK_PUBLISH_STATUS') {
+    const { appTabId, status, message: statusMsg, percent, listingId } = message;
+    if (appTabId) {
+      chrome.tabs.sendMessage(appTabId, {
+        action: 'ELISTER_PUBLISH_STATUS_FROM_EXTENSION',
+        status,
+        message: statusMsg,
+        percent,
+        listingId
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Background] Error sending status to app tab:', chrome.runtime.lastError.message);
+        }
+      });
+    }
+    
+    // Close the Poshmark automation tab when done
+    if (status === 'success' || status === 'error') {
+      if (sender.tab && sender.tab.id) {
+        console.log(`[Background] Closing Poshmark automation tab: ${sender.tab.id}`);
+        chrome.tabs.remove(sender.tab.id);
+      }
+    }
+    sendResponse({ success: true });
   }
   
   else if (message.action === 'GET_PENDING_LISTING') {

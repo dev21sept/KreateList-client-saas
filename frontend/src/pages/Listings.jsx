@@ -329,6 +329,40 @@ const Listings = () => {
     }
   };
 
+  useEffect(() => {
+    // Check if there is an active listing publishing from session storage
+    const activePublishingId = sessionStorage.getItem('elister_poshmark_publishing_id');
+    if (activePublishingId) {
+      setPoshmarkPublishingId(activePublishingId);
+    }
+
+    const handleMessage = (event) => {
+      const isAllowedOrigin = event.origin.includes('elister.ai') || event.origin.includes('localhost') || event.origin.includes('127.0.0.1');
+      if (!isAllowedOrigin) return;
+
+      if (event.data && event.data.action === 'ELISTER_PUBLISH_STATUS_UPDATE') {
+        const { status, message, percent, listingId } = event.data;
+        console.log('[Listings] Received publish status update from extension:', event.data);
+        
+        if (status === 'success') {
+          toast.success("Listing successfully published to Poshmark!");
+          sessionStorage.removeItem('elister_poshmark_publishing_id');
+          setPoshmarkPublishingId(null);
+          fetchListings(false); // Reload listings from backend
+        } else if (status === 'error') {
+          toast.error(`Publish failed: ${message}`);
+          sessionStorage.removeItem('elister_poshmark_publishing_id');
+          setPoshmarkPublishingId(null);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
   const handleDelete = async (id) => {
     if (await confirm("Are you sure you want to delete this listing?", { title: 'Delete Listing', destructive: true })) {
       try {
@@ -408,6 +442,7 @@ const Listings = () => {
     }
 
     setPoshmarkPublishingId(listing._id);
+    sessionStorage.setItem('elister_poshmark_publishing_id', listing._id);
     try {
       // Fetch full listing details with images and description since list view excludes them
       const res = await listingService.getOne(listing._id);
@@ -419,6 +454,8 @@ const Listings = () => {
       
       if (!fullListing.images || fullListing.images.length === 0) {
         toast.warning("Listing has no images. Please add images before publishing!");
+        sessionStorage.removeItem('elister_poshmark_publishing_id');
+        setPoshmarkPublishingId(null);
         return;
       }
 
@@ -456,12 +493,12 @@ const Listings = () => {
         }
       }, "*");
 
-      toast.success("Opening Poshmark and launching publisher queue...");
+      toast.success("Listing execution started in background...");
       setPreviewListing(null);
     } catch (err) {
       console.error("Error publishing to Poshmark:", err);
       toast.error("Failed to load listing details. Please try again.");
-    } finally {
+      sessionStorage.removeItem('elister_poshmark_publishing_id');
       setPoshmarkPublishingId(null);
     }
   };

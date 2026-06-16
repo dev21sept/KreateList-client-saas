@@ -713,6 +713,8 @@ const CreatePoshmarkListing = () => {
             ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
             : 'http://localhost:5000/api';
 
+          sessionStorage.setItem('elister_poshmark_publishing_id', savedListing._id);
+
           window.postMessage({
             action: 'ELISTER_LIST_ITEM_TRIGGER',
             data: {
@@ -737,7 +739,7 @@ const CreatePoshmarkListing = () => {
             }
           }, "*");
 
-          toast.success("Opening Poshmark and launching publisher queue...");
+          toast.success("Listing execution started in background...");
         } else if (publishType === 'direct') {
           toast.success("Listing saved. Publishing to Poshmark directly via API...");
           try {

@@ -726,6 +726,9 @@ async function executePoshmarkUpload(productData) {
     font-family: 'Inter', system-ui, sans-serif;
     width: 330px;
   `;
+  if (productData.appTabId) {
+    overlay.style.display = 'none';
+  }
   overlay.innerHTML = `
     <h3 style="margin-top:0;font-size:13px;font-weight:700;color:#ff4757;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;margin-bottom:12px;">eLister Auto-Publisher</h3>
     <div id="elister-status" style="font-size:11px;margin-bottom:10px;font-weight:500;">Initializing draft...</div>
@@ -736,11 +739,25 @@ async function executePoshmarkUpload(productData) {
   document.body.appendChild(overlay);
   
   const updateStatus = (text, percent) => {
-    document.getElementById('elister-status').textContent = text;
-    document.getElementById('elister-progress').style.width = `${percent}%`;
+    const statusEl = document.getElementById('elister-status');
+    const progressEl = document.getElementById('elister-progress');
+    if (statusEl) statusEl.textContent = text;
+    if (progressEl) progressEl.style.width = `${percent}%`;
+    
+    if (productData.appTabId) {
+      chrome.runtime.sendMessage({
+        action: 'POSHMARK_PUBLISH_STATUS',
+        appTabId: productData.appTabId,
+        status: 'progress',
+        message: text,
+        percent: percent,
+        listingId: productData.listingId
+      }).catch(() => {});
+    }
   };
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
 
   try {
     let csrfToken = getCsrfToken('poshmark');
@@ -1182,13 +1199,59 @@ async function executePoshmarkUpload(productData) {
         });
         if (updateRes.ok) {
           console.log('[Elister Extension] Successfully updated listing status in eLister database!');
-          chrome.runtime.sendMessage({ action: 'RELOAD_ELISTER_TABS' }).catch(() => {});
+          if (productData.appTabId) {
+            chrome.runtime.sendMessage({
+              action: 'POSHMARK_PUBLISH_STATUS',
+              appTabId: productData.appTabId,
+              status: 'success',
+              message: 'Listing published successfully.',
+              percent: 100,
+              listingId: productData.listingId
+            }).catch(() => {});
+            return;
+          } else {
+            chrome.runtime.sendMessage({ action: 'RELOAD_ELISTER_TABS' }).catch(() => {});
+          }
         } else {
           console.error('[Elister Extension] Failed to update eLister database status:', updateRes.status);
+          if (productData.appTabId) {
+            chrome.runtime.sendMessage({
+              action: 'POSHMARK_PUBLISH_STATUS',
+              appTabId: productData.appTabId,
+              status: 'error',
+              message: `Failed to update eLister database status (HTTP ${updateRes.status})`,
+              percent: 100,
+              listingId: productData.listingId
+            }).catch(() => {});
+            return;
+          }
         }
       } catch (dbErr) {
         console.error('[Elister Extension] Error updating database:', dbErr);
+        if (productData.appTabId) {
+          chrome.runtime.sendMessage({
+            action: 'POSHMARK_PUBLISH_STATUS',
+            appTabId: productData.appTabId,
+            status: 'error',
+            message: `Database update error: ${dbErr.message}`,
+            percent: 100,
+            listingId: productData.listingId
+          }).catch(() => {});
+          return;
+        }
       }
+    }
+
+    if (productData.appTabId) {
+      chrome.runtime.sendMessage({
+        action: 'POSHMARK_PUBLISH_STATUS',
+        appTabId: productData.appTabId,
+        status: 'success',
+        message: 'Listing published successfully.',
+        percent: 100,
+        listingId: productData.listingId
+      }).catch(() => {});
+      return;
     }
 
     await delay(1800);
@@ -1248,8 +1311,22 @@ async function executePoshmarkUpload(productData) {
     console.error("[Elister Publisher Error]", err);
     sessionStorage.removeItem('elister_captured_draft_id');
     updateStatus(`Upload Failed: ${err.message}`, 100);
+    
+    if (productData.appTabId) {
+      chrome.runtime.sendMessage({
+        action: 'POSHMARK_PUBLISH_STATUS',
+        appTabId: productData.appTabId,
+        status: 'error',
+        message: err.message,
+        percent: 100,
+        listingId: productData.listingId
+      }).catch(() => {});
+      return;
+    }
+
     overlay.style.border = "1px solid #ff4757";
-    document.getElementById('elister-progress').style.background = "#ff4757";
+    const progressEl = document.getElementById('elister-progress');
+    if (progressEl) progressEl.style.background = "#ff4757";
     
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "Close Panel";
@@ -1257,6 +1334,7 @@ async function executePoshmarkUpload(productData) {
     closeBtn.onclick = () => overlay.remove();
     overlay.appendChild(closeBtn);
   }
+
 }
 
 // -------------------------------------------------------------
@@ -1433,6 +1511,20 @@ else if (currentSite === 'elister') {
 
 // Message Listener for Popup status queries
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'ELISTER_PUBLISH_STATUS_FROM_EXTENSION') {
+    if (currentSite === 'elister') {
+      window.postMessage({
+        action: 'ELISTER_PUBLISH_STATUS_UPDATE',
+        status: request.status,
+        message: request.message,
+        percent: request.percent,
+        listingId: request.listingId
+      }, '*');
+      sendResponse({ success: true });
+    }
+    return true;
+  }
+
   if (request.action === 'GET_SESSION_STATUS') {
     const csrfToken = getCsrfToken(currentSite);
     const username = getUsernameFromDOM(currentSite);
