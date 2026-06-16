@@ -484,9 +484,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       headers: {
         'accept': 'application/json',
         'content-type': 'application/json',
-        'cookie': sessionCookie,
+        'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
         'x-xsrf-token': csrfToken,
-        'x-csrf-token': csrfToken
+        'x-csrf-token': csrfToken,
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
       data: { post: { autolist_draft: false } }
     });
@@ -527,9 +528,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         headers: {
           ...form.getHeaders(),
           'accept': 'application/json',
-          'cookie': sessionCookie,
+          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
           'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken
+          'x-csrf-token': csrfToken,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
         data: form
       });
@@ -652,9 +654,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         headers: {
           'accept': 'application/json',
           'content-type': 'application/json',
-          'cookie': sessionCookie,
+          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
           'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken
+          'x-csrf-token': csrfToken,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
         data: prePayload
       });
@@ -689,9 +692,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         headers: {
           'accept': 'application/json',
           'content-type': 'application/json',
-          'cookie': sessionCookie,
+          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
           'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken
+          'x-csrf-token': csrfToken,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
         data: currentPayload
       });
@@ -746,9 +750,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       headers: {
         'accept': 'application/json',
         'content-type': 'application/json',
-        'cookie': sessionCookie,
+        'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
         'x-xsrf-token': csrfToken,
-        'x-csrf-token': csrfToken
+        'x-csrf-token': csrfToken,
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
       data: {}
     });
