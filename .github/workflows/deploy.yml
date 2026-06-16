@@ -61,9 +61,6 @@ jobs:
     name: Deploy Backend
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Deploy Backend to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -73,25 +70,15 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # Create backend package (excluding node_modules and env files)
-          tar -czf backend.tar.gz --exclude='backend/node_modules' --exclude='backend/.env' backend/
-          
-          # Upload to server's temp directory
-          scp -i private_key.pem -o StrictHostKeyChecking=no backend.tar.gz ${EC2_USERNAME}@${EC2_HOST}:/tmp/
-          
-          # SSH, extract new backend, npm install, PM2 restart
+          # SSH into EC2, pull latest changes, install dependencies, restart backend
           ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
-            # Load NVM (Node Version Manager) paths for non-interactive shell
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
             cd ~/elister
             
-            # Extract new backend files
-            tar -xzf /tmp/backend.tar.gz -C ~/elister/
-            rm /tmp/backend.tar.gz
+            # Update git repository cleanly
+            git fetch origin
+            git reset --hard origin/main
             
-            # Install production dependencies and restart app
+            # Install production dependencies and restart backend
             cd backend
             npm install --production
             pm2 restart elister-backend || pm2 start ecosystem.config.js --env production
