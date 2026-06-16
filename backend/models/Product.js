@@ -26,6 +26,10 @@ const productSchema = new mongoose.Schema({
   },
   ebayListingId: String,
   ebayUrl: String,
+  poshmarkListingId: String,
+  poshmarkUrl: String,
+  depopListingId: String,
+  depopUrl: String,
   updated_at: {
     type: Date,
     default: Date.now

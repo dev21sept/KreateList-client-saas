@@ -1,5 +1,6 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
+const Product = require('../models/Product');
 const { scrapeDepopShop, scrapePoshmarkCloset } = require('../services/externalImportService');
 const { publishToDepop, publishToPoshmark } = require('../services/backendPublishService');
 
@@ -42,8 +43,8 @@ exports.importExternalCloset = async (req, res) => {
     const importedItems = [];
 
     for (const item of scrapedListings) {
-      // Check for duplicate in DB for this user
-      let duplicateQuery = { user: req.user.id };
+      // Check for duplicate in DB for this user in Product collection
+      let duplicateQuery = { user: req.user.id, source: normalizedPlatform };
       
       if (normalizedPlatform === 'depop') {
         duplicateQuery.$or = [
@@ -59,45 +60,37 @@ exports.importExternalCloset = async (req, res) => {
         ];
       }
 
-      const existingListing = await Listing.findOne(duplicateQuery);
+      const existingProduct = await Product.findOne(duplicateQuery);
 
-      if (existingListing) {
+      if (existingProduct) {
         duplicateCount++;
         continue;
       }
 
-      // Prepare Listing payload
-      const listingPayload = {
+      // Prepare Product payload
+      const productPayload = {
         user: req.user.id,
         title: item.title,
         description: item.description,
-        price: item.price,
+        selling_price: parseFloat(item.price) || 0,
         sku: item.sku,
-        category: item.category || 'Tops',
-        categoryId: item.categoryId || '',
-        images: item.images,
-        thumbnail: item.thumbnail || '',
-        status: 'draft',
-        platform: normalizedPlatform,
         brand: item.brand || '',
-        size: item.size || '',
-        quantity: item.quantity || 1,
-        color: item.color || '',
-        styleTag: item.styleTag || '',
-        originalPrice: item.originalPrice || '',
-        country: 'United States' // Default country
+        images: item.images,
+        source: normalizedPlatform,
+        status: 'live',
+        updated_at: Date.now()
       };
 
       if (normalizedPlatform === 'depop') {
-        listingPayload.depopListingId = item.depopListingId;
-        listingPayload.depopUrl = item.depopUrl;
+        productPayload.depopListingId = item.depopListingId;
+        productPayload.depopUrl = item.depopUrl;
       } else {
-        listingPayload.poshmarkListingId = item.poshmarkListingId;
-        listingPayload.poshmarkUrl = item.poshmarkUrl;
+        productPayload.poshmarkListingId = item.poshmarkListingId;
+        productPayload.poshmarkUrl = item.poshmarkUrl;
       }
 
-      const newListing = await Listing.create(listingPayload);
-      importedItems.push(newListing);
+      const newProduct = await Product.create(productPayload);
+      importedItems.push(newProduct);
       importCount++;
     }
 
@@ -144,8 +137,12 @@ exports.connectPlatform = async (req, res) => {
     if (disconnect) {
       if (normalizedPlatform === 'depop') {
         user.depopAccount = { connected: false };
+        await Product.deleteMany({ user: req.user.id, source: 'depop' });
+        await Listing.deleteMany({ user: req.user.id, platform: 'depop', depopListingId: { $exists: true, $ne: '' } });
       } else if (normalizedPlatform === 'poshmark') {
         user.poshmarkAccount = { connected: false };
+        await Product.deleteMany({ user: req.user.id, source: 'poshmark' });
+        await Listing.deleteMany({ user: req.user.id, platform: 'poshmark', poshmarkListingId: { $exists: true, $ne: '' } });
       } else {
         return res.status(400).json({ success: false, message: 'Supported platforms are depop or poshmark only.' });
       }
