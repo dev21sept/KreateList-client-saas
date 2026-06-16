@@ -491,6 +491,10 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     throw new Error('Poshmark cookies are missing. Please connect your Poshmark account.');
   }
 
+  if (!sessionCookie.includes('_poshmark_session=')) {
+    throw new Error('Your Poshmark session has expired or is invalid. Please open Poshmark.com in a new tab, ensure you are logged in, and then visit the integrations/accounts page on eLister to re-connect your account.');
+  }
+
   console.log(`[Poshmark Publisher] Initializing publish for listing: "${listing.title}"`);
   
   // Step 1: Create Draft Session on Poshmark

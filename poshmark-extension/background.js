@@ -64,16 +64,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
       // Filter for Poshmark session cookies (jwt, _poshmark_session, _csrf, rt)
       const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
-      const poshCookies = cookies.filter(c => relevantNames.includes(c.name));
+      const poshCookies = cookies.filter(c => c.domain.includes('poshmark.com') && relevantNames.includes(c.name));
       console.log('Found Poshmark session cookies:', poshCookies.map(c => ({ name: c.name, domain: c.domain })));
       
-      const hasAuthCookie = poshCookies.some(c => c.name === 'jwt' || c.name === '_poshmark_session');
+      const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
       
-      if (!hasAuthCookie) {
-        const cookieNames = cookies.map(c => `${c.name} (${c.domain})`).slice(0, 30).join(', ');
+      if (!hasSessionCookie) {
         sendResponse({ 
           success: false, 
-          message: `Failed to capture authentication cookies (jwt or _poshmark_session not found). Found cookies: [${cookieNames}]` 
+          message: 'Active Poshmark session (_poshmark_session) not found. Please open Poshmark.com, make sure you are logged in, and try again.' 
         });
         return;
       }
@@ -137,7 +136,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (platform === 'poshmark') {
       chrome.cookies.getAll({}, (cookies) => {
         const relevantNames = ['jwt', '_poshmark_session', '_csrf', 'rt'];
-        const poshCookies = cookies ? cookies.filter(c => relevantNames.includes(c.name)) : [];
+        const poshCookies = cookies ? cookies.filter(c => c.domain.includes('poshmark.com') && relevantNames.includes(c.name)) : [];
         const sessionCookie = poshCookies.map(c => `${c.name}=${c.value}`).join('; ');
         
         cachedConnectionDetails[platform] = {
