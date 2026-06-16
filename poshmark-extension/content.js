@@ -1030,6 +1030,26 @@ async function executePoshmarkUpload(productData) {
           }
           console.log('[Elister] Preliminary category update succeeded. Waiting 3s for database propagation...');
           await delay(3000);
+          
+          try {
+            const verifyRes = await fetch(`/vm-rest/posts/${draftId}?pm_version=2026.23.01`, {
+              method: 'GET',
+              headers: {
+                'accept': 'application/json',
+                'x-xsrf-token': csrfToken,
+                'x-csrf-token': csrfToken
+              },
+              credentials: 'include'
+            });
+            if (verifyRes.ok) {
+              const verifyData = await verifyRes.json();
+              const postObj = verifyData && (verifyData.post || verifyData);
+              verifiedCatalog = postObj && postObj.catalog;
+              console.log('[Elister] Verified catalog status on server:', verifiedCatalog);
+            }
+          } catch (e) {
+            console.warn('[Elister] Failed to verify draft category:', e);
+          }
         } else {
           const preErrText = await preRes.text();
           throw new Error(`Preliminary category update HTTP error ${preRes.status}: ${preErrText}`);
@@ -1040,6 +1060,7 @@ async function executePoshmarkUpload(productData) {
       }
     }
 
+    let verifiedCatalog = null;
     let saveData;
     let saveSuccess = false;
     let useCondition = true;
@@ -1083,10 +1104,7 @@ async function executePoshmarkUpload(productData) {
           useCondition = false;
           continue;
         }
-        const savedCat = responseData.post && responseData.post.catalog && responseData.post.catalog.category;
-        const savedDept = responseData.post && responseData.post.catalog && responseData.post.catalog.department;
-        const savedFeatures = responseData.post && responseData.post.catalog && responseData.post.catalog.category_features;
-        throw new Error(`${errMsg} (Saved Cat: ${savedCat}, Dept: ${savedDept}, Features: ${JSON.stringify(savedFeatures)})`);
+        throw new Error(`${errMsg} (Verified Server Cat: ${JSON.stringify(verifiedCatalog)})`);
       }
       if (!saveRes.ok) throw new Error(`Failed to save product attributes. Status: ${saveRes.status}`);
       saveSuccess = true;
