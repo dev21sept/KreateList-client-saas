@@ -1083,7 +1083,10 @@ async function executePoshmarkUpload(productData) {
           useCondition = false;
           continue;
         }
-        throw new Error(errMsg || "Failed to save details.");
+        const savedCat = responseData.post && responseData.post.catalog && responseData.post.catalog.category;
+        const savedDept = responseData.post && responseData.post.catalog && responseData.post.catalog.department;
+        const savedFeatures = responseData.post && responseData.post.catalog && responseData.post.catalog.category_features;
+        throw new Error(`${errMsg} (Saved Cat: ${savedCat}, Dept: ${savedDept}, Features: ${JSON.stringify(savedFeatures)})`);
       }
       if (!saveRes.ok) throw new Error(`Failed to save product attributes. Status: ${saveRes.status}`);
       saveSuccess = true;
@@ -1207,6 +1210,7 @@ async function executePoshmarkUpload(productData) {
     
   } catch (err) {
     console.error("[Elister Publisher Error]", err);
+    sessionStorage.removeItem('elister_captured_draft_id');
     updateStatus(`Upload Failed: ${err.message}`, 100);
     overlay.style.border = "1px solid #ff4757";
     document.getElementById('elister-progress').style.background = "#ff4757";
