@@ -586,6 +586,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       title: listing.title,
       description: listing.description,
       brand: listing.brand || "",
+      size: listing.size || "OS",
       condition: mapCondition(listing.selectedCondition || listing.conditionId),
       price_amount: {
         val: parseFloat(listing.price) || 0,

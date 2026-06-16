@@ -948,6 +948,7 @@ async function executePoshmarkUpload(productData) {
         title: productData.title,
         description: productData.description,
         brand: productData.brand || "",
+        size: productData.size || "OS",
         condition: mapCondition(productData.condition),
         price_amount: {
           val: parseFloat(productData.price) || 0,
