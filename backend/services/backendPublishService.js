@@ -660,7 +660,8 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       });
       const preRes = await axios(preConfig);
       if (preRes.status === 200) {
-        console.log('[Poshmark Publisher] Preliminary category update succeeded.');
+        console.log('[Poshmark Publisher] Preliminary category update succeeded. Waiting 3s for database propagation...');
+        await new Promise(res => setTimeout(res, 3000));
       } else {
         console.warn('[Poshmark Publisher] Preliminary category update returned status:', preRes.status);
       }

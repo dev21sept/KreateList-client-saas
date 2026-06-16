@@ -1028,7 +1028,8 @@ async function executePoshmarkUpload(productData) {
             const preErrMsg = preData.error.errorMessage || preData.error.userMessage || preData.error.errorType || "";
             throw new Error(`Preliminary category update failed: ${preErrMsg}`);
           }
-          console.log('[Elister] Preliminary category update succeeded.');
+          console.log('[Elister] Preliminary category update succeeded. Waiting 3s for database propagation...');
+          await delay(3000);
         } else {
           const preErrText = await preRes.text();
           throw new Error(`Preliminary category update HTTP error ${preRes.status}: ${preErrText}`);
