@@ -1258,25 +1258,37 @@ async function executePoshmarkUpload(productData) {
 const currentSite = detectSite();
 
 // Helper: check if we are in connection flow and successfully logged in
-function checkAndCompleteConnection() {
+async function checkAndCompleteConnection() {
   const csrfToken = getCsrfToken('poshmark');
   const username = getUsernameFromDOM('poshmark');
 
   console.log('[Elister Extension] Checking connection status:', { username, hasCsrf: !!csrfToken });
 
   if (username && username !== 'Guest' && csrfToken) {
-    chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
+    chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, async (response) => {
       if (response && response.success && response.flow) {
-        console.log('[Elister Extension] Active Poshmark connection flow detected! Syncing with backend...');
-        chrome.runtime.sendMessage({
-          action: 'COMPLETE_POSHMARK_CONNECT',
-          data: {
-            username: username,
-            csrfToken: csrfToken
-          }
-        }, (res) => {
-          console.log('[Elister Extension] COMPLETE_POSHMARK_CONNECT response:', res);
-        });
+        console.log('[Elister Extension] Active Poshmark connection flow detected! Refreshing session cookie via same-origin fetch...');
+        
+        try {
+          // Trigger same-origin fetch to ensure _poshmark_session is set/refreshed in the browser
+          await fetch('/');
+          console.log('[Elister Extension] Same-origin session recovery fetch completed successfully.');
+        } catch (e) {
+          console.error('[Elister Extension] Same-origin session fetch failed:', e);
+        }
+        
+        // Brief timeout to let the browser commit cookie to store
+        setTimeout(() => {
+          chrome.runtime.sendMessage({
+            action: 'COMPLETE_POSHMARK_CONNECT',
+            data: {
+              username: username,
+              csrfToken: csrfToken
+            }
+          }, (res) => {
+            console.log('[Elister Extension] COMPLETE_POSHMARK_CONNECT response:', res);
+          });
+        }, 500);
       }
     });
   }
@@ -1301,7 +1313,7 @@ if (currentSite === 'poshmark') {
   });
 
   // Listen for captured CSRF tokens
-  window.addEventListener('ELISTER_TOKEN_CAPTURED', (event) => {
+  window.addEventListener('ELISTER_TOKEN_CAPTURED', async (event) => {
     const token = event.detail.csrfToken;
     if (token) {
       sessionStorage.setItem('elister_captured_csrf_token', token);
@@ -1313,6 +1325,13 @@ if (currentSite === 'poshmark') {
       // Cache full Poshmark connection details
       const username = getUsernameFromDOM('poshmark');
       if (username && username !== 'Guest') {
+        console.log('[Elister Extension] Token captured. Ensuring Poshmark session is active...');
+        try {
+          await fetch('/');
+        } catch (e) {
+          console.error('[Elister Extension] Failed to capture session cookie via fetch:', e);
+        }
+        
         chrome.runtime.sendMessage({
           action: 'CACHE_CONNECTION_DETAILS',
           platform: 'poshmark',
