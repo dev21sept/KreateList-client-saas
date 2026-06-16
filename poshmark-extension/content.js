@@ -16,6 +16,11 @@ function getCsrfToken(site) {
   const cached = sessionStorage.getItem('elister_captured_csrf_token');
   if (cached) return cached;
 
+  if (site === 'poshmark') {
+    // For Poshmark, strictly rely on intercepted headers to prevent capturing false UUIDs or tracking tokens
+    return null;
+  }
+
   // 2. Try scanning all meta tags
   const metas = document.querySelectorAll('meta');
   for (let meta of metas) {
