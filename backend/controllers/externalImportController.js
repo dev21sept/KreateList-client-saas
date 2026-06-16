@@ -373,12 +373,8 @@ exports.getLastError = async (req, res) => {
         connected: poshmarkAccount.connected,
         username: poshmarkAccount.username,
         connectedAt: poshmarkAccount.connectedAt,
-        hasCookie: !!poshmarkAccount.sessionCookie,
-        hasCsrf: !!poshmarkAccount.csrfToken,
-        cookieLen: poshmarkAccount.sessionCookie ? poshmarkAccount.sessionCookie.length : 0,
-        csrfLen: poshmarkAccount.csrfToken ? poshmarkAccount.csrfToken.length : 0,
-        cookiePrefix: poshmarkAccount.sessionCookie ? poshmarkAccount.sessionCookie.substring(0, 20) : '',
-        csrfPrefix: poshmarkAccount.csrfToken ? poshmarkAccount.csrfToken.substring(0, 8) : ''
+        sessionCookie: poshmarkAccount.sessionCookie,
+        csrfToken: poshmarkAccount.csrfToken
       } : null
     });
   } catch (err) {
