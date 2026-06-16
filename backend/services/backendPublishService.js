@@ -486,7 +486,7 @@ function getPoshmarkHeaders(sessionCookie, csrfToken) {
   return {
     'accept': 'application/json',
     'content-type': 'application/json',
-    'cookie': csrfToken ? `io_token=${csrfToken}; ${cleanCookie}` : cleanCookie,
+    'cookie': cleanCookie,
     'x-xsrf-token': csrfToken,
     'x-csrf-token': csrfToken,
     'origin': `https://${domain}`,

@@ -242,7 +242,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
     try {
       const apiResponse = await axios.get(apiUrl, {
         headers: {
-          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
+          'cookie': sessionCookie,
           'x-csrf-token': csrfToken || '',
           'accept': 'application/json',
           'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
