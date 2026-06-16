@@ -469,10 +469,10 @@ function getDomainFromCookie(sessionCookie) {
     const match = sessionCookie.match(/elister_domain=([^;]+)/);
     if (match) {
       const domain = match[1].trim();
-      return domain.startsWith('www.') ? domain : `www.${domain}`;
+      return domain.replace(/^www\./i, '');
     }
   }
-  return 'www.poshmark.com';
+  return 'poshmark.com';
 }
 
 function cleanCookieHeader(sessionCookie) {
