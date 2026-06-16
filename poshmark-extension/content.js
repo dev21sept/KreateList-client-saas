@@ -1020,13 +1020,22 @@ async function executePoshmarkUpload(productData) {
           body: JSON.stringify(prePayload)
         });
         if (preRes.ok) {
+          let preData;
+          try {
+            preData = await preRes.json();
+          } catch (e) {}
+          if (preData && preData.error) {
+            const preErrMsg = preData.error.errorMessage || preData.error.userMessage || preData.error.errorType || "";
+            throw new Error(`Preliminary category update failed: ${preErrMsg}`);
+          }
           console.log('[Elister] Preliminary category update succeeded.');
         } else {
           const preErrText = await preRes.text();
-          console.warn('[Elister] Preliminary category update returned non-ok status:', preRes.status, preErrText);
+          throw new Error(`Preliminary category update HTTP error ${preRes.status}: ${preErrText}`);
         }
       } catch (preErr) {
-        console.warn('[Elister] Preliminary category update failed:', preErr);
+        console.error('[Elister] Preliminary category update error:', preErr);
+        throw preErr; // Throw so that it immediately stops and shows the exact error in the popup panel
       }
     }
 
