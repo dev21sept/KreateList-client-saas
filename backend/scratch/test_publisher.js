@@ -145,7 +145,7 @@ async function runTests() {
   // Verify captured requests
   const draftRequest = global.capturedRequests.find(r => r.url.includes('/vm-rest/posts?pm_version='));
   assert.ok(draftRequest);
-  assert.strictEqual(draftRequest.headers.cookie, "io_token=mock-csrf-token-abc; _poshmark_session=mock-cookie-123");
+  assert.strictEqual(draftRequest.headers.cookie, "_poshmark_session=mock-cookie-123");
   assert.strictEqual(draftRequest.headers['x-xsrf-token'], "mock-csrf-token-abc");
 
   const saveDetailsRequest = global.capturedRequests.find(r => r.url.includes('/vm-rest/posts/657ab890cdef1234567890aa?pm_version='));

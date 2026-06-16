@@ -464,6 +464,25 @@ function resolvePoshmarkCategory(path) {
   };
 }
 
+function getPoshmarkHeaders(sessionCookie, csrfToken) {
+  return {
+    'accept': 'application/json',
+    'content-type': 'application/json',
+    'cookie': sessionCookie,
+    'x-xsrf-token': csrfToken,
+    'x-csrf-token': csrfToken,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
+    'Referer': 'https://poshmark.com/create-listing'
+  };
+}
+
 async function publishToPoshmark(listing, poshmarkAccount) {
   const csrfToken = poshmarkAccount.csrfToken;
   const sessionCookie = poshmarkAccount.sessionCookie;
@@ -481,14 +500,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     const draftConfig = getAxiosConfig({
       method: 'POST',
       url: 'https://poshmark.com/vm-rest/posts?pm_version=2026.23.01',
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
-        'x-xsrf-token': csrfToken,
-        'x-csrf-token': csrfToken,
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
+      headers: getPoshmarkHeaders(sessionCookie, csrfToken),
       data: { post: { autolist_draft: false } }
     });
 
@@ -522,16 +534,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         contentType: 'image/jpeg'
       });
 
+      const uploadHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+      delete uploadHeaders['content-type']; // Let form-data boundary work
       const uploadConfig = getAxiosConfig({
         method: 'POST',
         url: `https://poshmark.com/api/posts/${draftId}/media/scratch?app_type=web`,
         headers: {
-          ...form.getHeaders(),
-          'accept': 'application/json',
-          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
-          'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken,
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          ...uploadHeaders,
+          ...form.getHeaders()
         },
         data: form
       });
@@ -651,14 +661,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       const preConfig = getAxiosConfig({
         method: 'POST',
         url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
-          'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken,
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
         data: prePayload
       });
       const preRes = await axios(preConfig);
@@ -689,14 +692,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       const saveConfig = getAxiosConfig({
         method: 'POST',
         url: `https://poshmark.com/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
-          'x-xsrf-token': csrfToken,
-          'x-csrf-token': csrfToken,
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
         data: currentPayload
       });
 
@@ -747,14 +743,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     const publishConfig = getAxiosConfig({
       method: 'PUT',
       url: `https://poshmark.com/vm-rest/posts/${draftId}/status/published?app_version=2.55&pm_version=2026.23.01`,
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'cookie': csrfToken ? `io_token=${csrfToken}; ${sessionCookie}` : sessionCookie,
-        'x-xsrf-token': csrfToken,
-        'x-csrf-token': csrfToken,
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
+      headers: getPoshmarkHeaders(sessionCookie, csrfToken),
       data: {}
     });
 
