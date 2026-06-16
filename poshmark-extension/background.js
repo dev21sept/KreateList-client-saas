@@ -70,9 +70,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
       
       if (!hasSessionCookie) {
+        const cookieNames = cookies.filter(c => c.domain.includes('poshmark')).map(c => `${c.name} (${c.domain})`).slice(0, 30).join(', ');
         sendResponse({ 
           success: false, 
-          message: 'Active Poshmark session (_poshmark_session) not found. Please open Poshmark.com, make sure you are logged in, and try again.' 
+          message: `Active Poshmark session (_poshmark_session) not found. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
         });
         return;
       }
