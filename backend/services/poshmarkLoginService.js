@@ -1,5 +1,7 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const fs = require('fs');
+const path = require('path');
 
 // Apply the stealth plugin to avoid Cloudflare detection
 puppeteer.use(StealthPlugin());
@@ -19,6 +21,7 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
   console.log(`[Poshmark Login] Launching Stealth Browser for: ${username} on domain: ${cleanDomain}`);
 
   let browser = null;
+  let page = null;
   try {
     // Launch headless Chromium with proxy support if configured
     const launchOptions = {
@@ -39,7 +42,7 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
     }
 
     browser = await puppeteer.launch(launchOptions);
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
     // Emulate human-like viewport and user-agent details
     await page.setViewport({ width: 1280, height: 800 });
@@ -144,6 +147,25 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
   } catch (error) {
     console.error('[Poshmark Login] Stealth login error:', error.message);
+    if (browser && page) {
+      try {
+        const uploadsDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const screenshotPath = path.join(uploadsDir, 'login_error.png');
+        await page.screenshot({ path: screenshotPath });
+        console.log(`[Poshmark Login] Saved error screenshot to: ${screenshotPath}`);
+        
+        const pageTitle = await page.title().catch(() => 'Unknown');
+        console.log(`[Poshmark Login] Error Page Title: ${pageTitle}`);
+        
+        const pageText = await page.evaluate(() => document.body.innerText.substring(0, 1000)).catch(() => '');
+        console.log(`[Poshmark Login] Error Page Text Preview:\n${pageText}`);
+      } catch (err) {
+        console.error('[Poshmark Login] Failed to take error screenshot:', err.message);
+      }
+    }
     if (browser) {
       await browser.close().catch(() => {});
     }
