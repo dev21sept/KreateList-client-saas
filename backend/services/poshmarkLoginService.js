@@ -1,52 +1,13 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { HttpsProxyAgent } = require('https-proxy-agent');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
-// Helper to construct axios config with HTTP Proxy support if configured
-function getAxiosConfig(options) {
-  const config = {
-    method: options.method || 'GET',
-    url: options.url,
-    headers: options.headers || {},
-    data: options.data || null,
-    timeout: 20000,
-    validateStatus: () => true // Allow handling non-200 responses manually
-  };
-  
-  const proxyUrl = process.env.HTTP_PROXY_URL;
-  if (proxyUrl) {
-    console.log(`[Poshmark Login] Routing request via proxy agent...`);
-    config.httpsAgent = new HttpsProxyAgent(proxyUrl);
-  }
-  
-  return config;
-}
-
-// Helper to parse cookies from Set-Cookie header array
-function parseSetCookies(setCookieHeader) {
-  if (!setCookieHeader || !Array.isArray(setCookieHeader)) return {};
-  const cookies = {};
-  setCookieHeader.forEach(cookieStr => {
-    const parts = cookieStr.split(';')[0].split('=');
-    if (parts.length >= 2) {
-      const name = parts[0].trim();
-      const value = parts.slice(1).join('=').trim();
-      cookies[name] = value;
-    }
-  });
-  return cookies;
-}
-
-// Helper to serialize cookies object to header string
-function serializeCookies(cookiesObj) {
-  return Object.entries(cookiesObj)
-    .map(([name, value]) => `${name}=${value}`)
-    .join('; ');
-}
+// Apply the stealth plugin to avoid Cloudflare detection
+puppeteer.use(StealthPlugin());
 
 /**
- * Performs server-side login to Poshmark using username/password credentials.
- * Captures and returns session cookies and CSRF token.
+ * Performs server-side login to Poshmark using Puppeteer Stealth Browser automation.
+ * This launches a headless browser, types the credentials, and captures cookies/tokens
+ * bypassing Cloudflare's JA3 and request header blocks.
  * 
  * @param {string} username Poshmark username or email
  * @param {string} password Poshmark account password
@@ -55,122 +16,142 @@ function serializeCookies(cookiesObj) {
  */
 async function loginToPoshmark(username, password, domain = 'poshmark.com') {
   const cleanDomain = domain.trim().toLowerCase().replace(/^www\./i, '') || 'poshmark.com';
-  console.log(`[Poshmark Login] Attempting login for user: ${username} on domain: ${cleanDomain}`);
+  console.log(`[Poshmark Login] Launching Stealth Browser for: ${username} on domain: ${cleanDomain}`);
 
-  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
+  let browser = null;
   try {
-    // Step 1: GET Poshmark login page to initialize session and extract initial CSRF token
-    console.log('[Poshmark Login] Step 1: Fetching login page to initialize CSRF and cookies...');
-    const getPageConfig = getAxiosConfig({
-      method: 'GET',
-      url: `https://www.${cleanDomain}/login`,
-      headers: {
-        'User-Agent': userAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
-    });
-
-    const pageRes = await axios(getPageConfig);
-    if (pageRes.status !== 200) {
-      throw new Error(`Failed to load Poshmark login page. HTTP status: ${pageRes.status}`);
-    }
-
-    // Parse cookies and CSRF from page response
-    const pageCookies = parseSetCookies(pageRes.headers['set-cookie']);
-    const $ = cheerio.load(pageRes.data);
-    
-    // Extract CSRF token from meta tags
-    const csrfToken = $('meta[name="csrf-token"]').attr('content') || 
-                      $('body').attr('data-csrf-token') || 
-                      pageCookies['_csrf'] || 
-                      '';
-                      
-    console.log(`[Poshmark Login] Initial cookies loaded:`, Object.keys(pageCookies));
-    console.log(`[Poshmark Login] CSRF token resolved: ${csrfToken ? 'YES' : 'NO'}`);
-
-    if (!csrfToken) {
-      throw new Error('Unable to extract CSRF token from Poshmark login page.');
-    }
-
-    // Step 2: POST credentials to Poshmark user login endpoint
-    console.log('[Poshmark Login] Step 2: Submitting login credentials...');
-    
-    const loginPayload = {
-      login_form: {
-        username_email: username.trim(),
-        password: password
-      }
+    // Launch headless Chromium with proxy support if configured
+    const launchOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-web-security',
+        '--allow-running-insecure-content'
+      ]
     };
 
-    const cookieHeader = serializeCookies(pageCookies);
-    const postLoginConfig = getAxiosConfig({
-      method: 'POST',
-      url: `https://www.${cleanDomain}/vm-rest/users/login`,
-      headers: {
-        'User-Agent': userAgent,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-csrf-token': csrfToken,
-        'x-xsrf-token': csrfToken,
-        'cookie': cookieHeader,
-        'origin': `https://www.${cleanDomain}`,
-        'referer': `https://www.${cleanDomain}/login`
-      },
-      data: loginPayload
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    if (proxyUrl) {
+      console.log(`[Poshmark Login] Setting browser proxy: ${proxyUrl}`);
+      launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+    }
+
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+
+    // Emulate human-like viewport and user-agent details
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Set custom headers to look even more like a real Chrome session
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9'
     });
 
-    const loginRes = await axios(postLoginConfig);
-    console.log(`[Poshmark Login] Response Status: ${loginRes.status}`);
+    console.log(`[Poshmark Login] Navigating to login page: https://www.${cleanDomain}/login`);
+    const response = await page.goto(`https://www.${cleanDomain}/login`, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
 
-    if (loginRes.status !== 200 && loginRes.status !== 201) {
-      const errMsg = loginRes.data?.error?.errorMessage || loginRes.data?.message || `HTTP error ${loginRes.status}`;
-      throw new Error(errMsg);
+    if (!response || response.status() >= 400) {
+      throw new Error(`Failed to load Poshmark login page. HTTP status: ${response ? response.status() : 'No Response'}`);
     }
 
-    // Step 3: Parse and merge authenticated session cookies
-    const authCookies = parseSetCookies(loginRes.headers['set-cookie']);
-    const mergedCookiesObj = { ...pageCookies, ...authCookies };
+    // Step 1: Wait for login inputs
+    console.log('[Poshmark Login] Waiting for inputs to render...');
+    const usernameSelector = '#login_form_username_email, input[name="login_form[username_email]"], input[type="text"]';
+    const passwordSelector = '#login_form_password, input[name="login_form[password]"], input[type="password"]';
     
-    const hasSessionCookie = mergedCookiesObj['_poshmark_session'] || mergedCookiesObj['jwt'];
-    if (!hasSessionCookie) {
-      // If we got 200 but no session cookies, it might have triggered security challenge
-      if (loginRes.data?.security_challenge || loginRes.data?.captcha_required) {
-        throw new Error('Security verification (CAPTCHA) required by Poshmark.');
+    await page.waitForSelector(usernameSelector, { timeout: 15000 });
+    await page.waitForSelector(passwordSelector, { timeout: 15000 });
+
+    // Step 2: Input credentials with minor keystroke delays to simulate typing
+    console.log('[Poshmark Login] Entering credentials...');
+    await page.type(usernameSelector, username.trim(), { delay: 50 });
+    await page.type(passwordSelector, password, { delay: 50 });
+
+    // Step 3: Click login button
+    console.log('[Poshmark Login] Clicking submit...');
+    const submitButtonSelector = 'button[type="submit"], input[type="submit"]';
+    await Promise.all([
+      page.click(submitButtonSelector),
+      // Wait for network activity to settle down after submit
+      page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {})
+    ]);
+
+    // Step 4: Verify authentication by polling for session cookies
+    console.log('[Poshmark Login] Verifying login success by checking session cookies...');
+    let loggedIn = false;
+    let finalCookies = [];
+
+    // Check cookies every 500ms for up to 10 seconds
+    for (let i = 0; i < 20; i++) {
+      const cookies = await page.cookies();
+      const hasSession = cookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+      
+      if (hasSession) {
+        loggedIn = true;
+        finalCookies = cookies;
+        break;
       }
-      throw new Error('Login successful but Poshmark session cookie was not returned.');
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // Append the elister_domain tag so our backendPublishService knows which domain to target
-    const finalCookieString = `${serializeCookies(mergedCookiesObj)}; elister_domain=${cleanDomain}`;
-    
-    // Resolve final CSRF token
-    const finalCsrfToken = loginRes.headers['x-csrf-token'] || 
-                           loginRes.headers['x-xsrf-token'] || 
-                           mergedCookiesObj['_csrf'] || 
-                           csrfToken;
+    if (!loggedIn) {
+      // Check if page displays an error message on screen
+      const pageText = await page.evaluate(() => document.body.innerText);
+      if (pageText.includes('Invalid username/email or password') || pageText.includes('incorrect password')) {
+        throw new Error('Invalid username/email or password.');
+      }
+      if (pageText.includes('security challenge') || pageText.includes('CAPTCHA') || pageText.includes('bot detection')) {
+        throw new Error('Security verification (CAPTCHA) required by Poshmark. Please connect using the eLister Chrome Extension instead.');
+      }
+      throw new Error('Authentication failed or session expired. Please verify your credentials.');
+    }
 
-    console.log('[Poshmark Login] Login successful! Session captured.');
+    // Step 5: Format cookie string and extract CSRF token
+    const cookieHeaderStr = finalCookies
+      .map(c => `${c.name}=${c.value}`)
+      .join('; ');
+
+    // Add the elister_domain tag so backendPublishService routes correctly
+    const finalCookieString = `${cookieHeaderStr}; elister_domain=${cleanDomain}`;
+
+    // Extract CSRF token from page meta or cookies
+    const csrfToken = await page.evaluate(() => {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) return meta.getAttribute('content');
+      return document.body.getAttribute('data-csrf-token') || '';
+    });
+
+    const csrfCookie = finalCookies.find(c => c.name === '_csrf');
+    const finalCsrfToken = csrfCookie ? csrfCookie.value : (csrfToken || '');
+
+    console.log('[Poshmark Login] Direct cloud login successful! Cookies captured.');
+
+    await browser.close();
+    browser = null;
 
     return {
       success: true,
-      username: loginRes.data?.user?.username || username.trim(),
+      username: username.trim(),
       sessionCookie: finalCookieString,
       csrfToken: finalCsrfToken
     };
 
   } catch (error) {
-    console.error('[Poshmark Login] Direct login failed with error:', error.message);
+    console.error('[Poshmark Login] Stealth login error:', error.message);
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    
     let userMsg = error.message;
-    if (error.response?.data?.error?.errorMessage) {
-      userMsg = error.response.data.error.errorMessage;
+    if (userMsg.toLowerCase().includes('timeout')) {
+      userMsg = 'Connection timed out. Please check credentials or use the Chrome Extension.';
     }
-    
-    if (userMsg.toLowerCase().includes('captcha') || userMsg.toLowerCase().includes('security')) {
-      userMsg = 'Security verification (CAPTCHA) required by Poshmark. Please log in using the eLister Chrome Extension instead.';
-    }
-    
     return {
       success: false,
       message: userMsg

@@ -29,6 +29,9 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.10",
     "openai": "^6.37.0",
+    "puppeteer": "^25.1.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "razorpay": "^2.9.6",
     "sharp": "^0.34.5",
     "stripe": "^22.1.1"
