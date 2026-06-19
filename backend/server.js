@@ -53,8 +53,11 @@ app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 // AI Routes
 app.use('/api/ai', require('./routes/aiRoutes'));
-// External Import Routes
-app.use('/api/external-import', require('./routes/externalImportRoutes'));
+// Poshmark Routes
+app.use('/api/poshmark', require('./routes/poshmarkRoutes'));
+// Depop Routes
+app.use('/api/depop', require('./routes/depopRoutes'));
+
 
 // Error Handler
 app.use((err, req, res, next) => {

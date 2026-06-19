@@ -21,6 +21,7 @@ import {
 import { ruleService, aiService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
+import { compressImage } from '../utils/imageCompressor';
 import { DEPOP_COLOURS } from '../constants/depopColours';
 import { DEPOP_STYLES } from '../constants/depopStyles';
 import { DEPOP_AGES } from '../constants/depopAges';
@@ -489,10 +490,14 @@ const CreateDepopListing = () => {
     setFiles([...files, ...uploadedFiles]);
     setIsConvertingImages(true);
     try {
-      const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
+      // Compress each image using the utility
+      const base64Images = await Promise.all(
+        uploadedFiles.map(file => compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 }))
+      );
       setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
     } catch (err) {
-      console.error("Error converting images to base64:", err);
+      console.error("Error compressing and converting images:", err);
+      toast.error("Failed to process some images.");
     } finally {
       setIsConvertingImages(false);
     }

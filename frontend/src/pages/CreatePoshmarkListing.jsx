@@ -26,6 +26,7 @@ import { ruleService, aiService, listingService, externalImportService } from '.
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
+import { compressImage } from '../utils/imageCompressor';
 
 const POSHMARK_COLORS = [
   'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
@@ -521,10 +522,14 @@ const CreatePoshmarkListing = () => {
     setFiles([...files, ...uploadedFiles]);
     setIsConvertingImages(true);
     try {
-      const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
+      // Compress each image using the utility
+      const base64Images = await Promise.all(
+        uploadedFiles.map(file => compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 }))
+      );
       setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
     } catch (err) {
-      console.error("Error converting images to base64:", err);
+      console.error("Error compressing and converting images:", err);
+      toast.error("Failed to process some images.");
     } finally {
       setIsConvertingImages(false);
     }

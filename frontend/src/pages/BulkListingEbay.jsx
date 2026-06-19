@@ -23,6 +23,7 @@ import {
 import { ruleService, aiService, ebayService, bulkListingEbayService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import { compressImage } from '../utils/imageCompressor';
 
 // Helper Dropdown for Rules & Models
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -530,7 +531,10 @@ const BulkListingEbay = () => {
     setItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'uploading' } : it));
 
     try {
-      const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
+      // Compress each image using the utility
+      const base64Images = await Promise.all(
+        uploadedFiles.map(file => compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 }))
+      );
       setItems(prev => prev.map(it => {
         if (it.id === itemId) {
           return {
@@ -542,7 +546,7 @@ const BulkListingEbay = () => {
         return it;
       }));
     } catch (err) {
-      toast.error("Failed to convert image files.");
+      toast.error("Failed to compress image files.");
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'pending' } : it));
     }
   };
@@ -563,11 +567,14 @@ const BulkListingEbay = () => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    toast.info(`Uploading ${files.length} photos...`);
+    toast.info(`Uploading & compressing ${files.length} photos...`);
     try {
-      const base64s = await Promise.all(files.map(f => fileToBase64(f)));
+      // Compress each image using the utility
+      const base64s = await Promise.all(
+        files.map(f => compressImage(f, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 }))
+      );
       setSourcePhotos(prev => [...prev, ...base64s]);
-      toast.success(`Uploaded ${files.length} photos to the scanning pool.`);
+      toast.success(`Uploaded and compressed ${files.length} photos to the scanning pool.`);
     } catch (err) {
       toast.error("Failed to process uploaded photos.");
     }

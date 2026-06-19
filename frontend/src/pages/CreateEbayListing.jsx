@@ -27,6 +27,7 @@ import {
 import { ruleService, aiService, ebayService, listingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import { compressImage } from '../utils/imageCompressor';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -393,10 +394,14 @@ const CreateEbayListing = () => {
     setFiles([...files, ...uploadedFiles]);
     setIsConvertingImages(true);
     try {
-      const base64Images = await Promise.all(uploadedFiles.map(file => fileToBase64(file)));
+      // Compress each image using the utility
+      const base64Images = await Promise.all(
+        uploadedFiles.map(file => compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 }))
+      );
       setFormData(prev => ({ ...prev, images: [...prev.images, ...base64Images] }));
     } catch (err) {
-      console.error("Error converting images to base64:", err);
+      console.error("Error compressing and converting images:", err);
+      toast.error("Failed to process some images.");
     } finally {
       setIsConvertingImages(false);
     }

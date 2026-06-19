@@ -142,13 +142,35 @@ exports.updateListing = async (req, res) => {
 
     if (req.body.images && Array.isArray(req.body.images)) {
       req.body.images = await normalizeProductImages(req.body.images, baseUrl);
+      
+      // Delete old replaced image files from disk
+      if (listing.images && Array.isArray(listing.images)) {
+        const fs = require('fs');
+        const path = require('path');
+        const newImages = req.body.images;
+        
+        listing.images.forEach(oldImg => {
+          if (oldImg.includes('/uploads/') && !newImages.includes(oldImg)) {
+            const filename = oldImg.split('/uploads/').pop();
+            const filepath = path.join(__dirname, '..', 'uploads', filename);
+            if (fs.existsSync(filepath)) {
+              try {
+                fs.unlinkSync(filepath);
+                console.log(`[Listing Controller] Deleted replaced image file: ${filepath}`);
+              } catch (err) {
+                console.error(`[Listing Controller] Error deleting replaced file: ${filepath}`, err.message);
+              }
+            }
+          }
+        });
+      }
+
       if (req.body.images.length > 0) {
         req.body.thumbnail = await generateThumbnail(req.body.images[0]);
       } else {
         req.body.thumbnail = '';
       }
     }
-
 
     listing = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.status(200).json({ success: true, data: listing });
@@ -169,12 +191,34 @@ exports.deleteListing = async (req, res) => {
     if (listing.user.toString() !== req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
+
+    // Delete associated image files from server disk
+    if (listing.images && Array.isArray(listing.images)) {
+      const fs = require('fs');
+      const path = require('path');
+      listing.images.forEach(imgUrl => {
+        if (imgUrl.includes('/uploads/')) {
+          const filename = imgUrl.split('/uploads/').pop();
+          const filepath = path.join(__dirname, '..', 'uploads', filename);
+          if (fs.existsSync(filepath)) {
+            try {
+              fs.unlinkSync(filepath);
+              console.log(`[Listing Controller] Deleted image file: ${filepath}`);
+            } catch (err) {
+              console.error(`[Listing Controller] Error deleting file: ${filepath}`, err.message);
+            }
+          }
+        }
+      });
+    }
+
     await Listing.findByIdAndDelete(req.params.id);
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 // Helper to map eBay condition IDs to Inventory API enum strings
 function mapConditionIdToEnum(conditionId) {

@@ -42,6 +42,9 @@ const EbayAccounts = () => {
   const [poshCookie, setPoshCookie] = useState('');
   const [poshCsrf, setPoshCsrf] = useState('');
   const [poshLoading, setPoshLoading] = useState(false);
+  const [poshPassword, setPoshPassword] = useState('');
+  const [poshDomain, setPoshDomain] = useState('poshmark.com');
+  const [poshConnectMethod, setPoshConnectMethod] = useState('password'); // 'password', 'extension', 'manual'
 
   // Depop Form state
   const [depopUsername, setDepopUsername] = useState('');
@@ -263,6 +266,35 @@ const EbayAccounts = () => {
     }
   };
 
+  const handlePoshmarkPasswordConnect = async (e) => {
+    e.preventDefault();
+    if (!poshUsername || !poshPassword) {
+      toast.warning('Please enter your Poshmark username/email and password.');
+      return;
+    }
+    try {
+      setPoshLoading(true);
+      toast.info('Connecting to Poshmark via Cloud Login...');
+      const res = await externalImportService.connectPassword({
+        platform: 'poshmark',
+        username: poshUsername,
+        password: poshPassword,
+        domain: poshDomain
+      });
+      if (res.data?.success) {
+        toast.success('Poshmark Connected Successfully via Cloud Login!');
+        await loadUser();
+        setPoshUsername('');
+        setPoshPassword('');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to connect Poshmark. Please verify credentials or use Chrome Extension.');
+    } finally {
+      setPoshLoading(false);
+    }
+  };
+
   const handlePoshmarkDisconnect = async () => {
     if (await confirm('Disconnect Poshmark Account?', { title: 'Disconnect Poshmark', destructive: true })) {
       try {
@@ -458,66 +490,146 @@ const EbayAccounts = () => {
               </motion.div>
             ) : (
               <div className="space-y-4">
-                <div className="text-center py-2 flex flex-col items-center gap-2">
-                  <h4 className="text-md font-bold text-slate-900">Connect Poshmark Channel</h4>
-                  <p className="text-slate-500 text-xs">Sync Poshmark instantly with 1-click using the Chrome Extension.</p>
-                  
-                  {/* One-Click Automatic Connect Button */}
-                  <button 
-                    onClick={() => triggerAutoConnect('poshmark')}
-                    disabled={poshLoading}
-                    className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                {/* Method selector tabs */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 max-w-md mx-auto">
+                  <button
+                    onClick={() => setPoshConnectMethod('password')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      poshConnectMethod === 'password' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                   >
-                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                    Cloud Login
                   </button>
-                </div>
-                
-                <div className="relative my-4 flex items-center justify-center">
-                  <div className="border-t border-slate-100 w-full absolute" />
-                  <span className="bg-white px-3 text-[10px] font-bold text-slate-400 relative">OR CONNECT MANUALLY</span>
+                  <button
+                    onClick={() => setPoshConnectMethod('extension')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      poshConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    Chrome Extension
+                  </button>
+                  <button
+                    onClick={() => setPoshConnectMethod('manual')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      poshConnectMethod === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    Manual Mode
+                  </button>
                 </div>
 
-                <form onSubmit={handlePoshmarkConnect} className="space-y-3 max-w-md mx-auto">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Username</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. posh_seller" 
-                      value={poshUsername}
-                      onChange={(e) => setPoshUsername(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                    />
+                {poshConnectMethod === 'password' && (
+                  <form onSubmit={handlePoshmarkPasswordConnect} className="space-y-3 max-w-md mx-auto">
+                    <div className="text-center py-1">
+                      <h4 className="text-sm font-bold text-slate-800">Cloud Password Login</h4>
+                      <p className="text-slate-500 text-[11px] mt-0.5">Logs in to Poshmark directly using your credentials.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Region</label>
+                      <select
+                        value={poshDomain}
+                        onChange={(e) => setPoshDomain(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-slate-700"
+                      >
+                        <option value="poshmark.com">United States (poshmark.com)</option>
+                        <option value="poshmark.ca">Canada (poshmark.ca)</option>
+                        <option value="poshmark.co.uk">United Kingdom (poshmark.co.uk)</option>
+                        <option value="poshmark.com.au">Australia (poshmark.com.au)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Username or Email</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. posh_seller or email@example.com" 
+                        value={poshUsername}
+                        onChange={(e) => setPoshUsername(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Password</label>
+                      <input 
+                        type="password" 
+                        placeholder="Your Poshmark password" 
+                        value={poshPassword}
+                        onChange={(e) => setPoshPassword(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      disabled={poshLoading}
+                      className="w-full py-2.5 mt-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
+                    </button>
+                  </form>
+                )}
+
+                {poshConnectMethod === 'extension' && (
+                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
+                    <h4 className="text-sm font-bold text-slate-800">1-Click Chrome Extension</h4>
+                    <p className="text-slate-500 text-xs">Grabs your active browser session automatically. Solves CAPTCHA issues instantly.</p>
+                    
+                    <button 
+                      onClick={() => triggerAutoConnect('poshmark')}
+                      disabled={poshLoading}
+                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Session Cookie (_poshmark_session)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Paste complete _poshmark_session cookie value" 
-                      value={poshCookie}
-                      onChange={(e) => setPoshCookie(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">CSRF Token (x-xsrf-token / x-csrf-token)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Paste csrf token value" 
-                      value={poshCsrf}
-                      onChange={(e) => setPoshCsrf(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={poshLoading}
-                    className="w-full py-2.5 bg-rose-500 text-white rounded-xl font-black text-xs hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
-                  >
-                    {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark Manually'}
-                  </button>
-                </form>
+                )}
+
+                {poshConnectMethod === 'manual' && (
+                  <form onSubmit={handlePoshmarkConnect} className="space-y-3 max-w-md mx-auto">
+                    <div className="text-center py-1">
+                      <h4 className="text-sm font-bold text-slate-800">Manual Cookie Setup</h4>
+                      <p className="text-slate-500 text-[11px] mt-0.5">Directly input captured cookies and tokens from Developer Tools.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Username</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. posh_seller" 
+                        value={poshUsername}
+                        onChange={(e) => setPoshUsername(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Session Cookie (_poshmark_session)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Paste complete _poshmark_session cookie value" 
+                        value={poshCookie}
+                        onChange={(e) => setPoshCookie(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">CSRF Token (x-xsrf-token / x-csrf-token)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Paste csrf token value" 
+                        value={poshCsrf}
+                        onChange={(e) => setPoshCsrf(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      disabled={poshLoading}
+                      className="w-full py-2.5 bg-rose-500 text-white rounded-xl font-black text-xs hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark Manually'}
+                    </button>
+                  </form>
+                )}
               </div>
             )}
+
           </div>
 
           {/* 3. Depop Integration Card */}
