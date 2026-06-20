@@ -24,8 +24,9 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
   let page = null;
   try {
     // Launch headless Chromium with proxy support if configured
+    const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
     const launchOptions = {
-      headless: true,
+      headless: isProd ? true : false,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -34,6 +35,10 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
         '--allow-running-insecure-content'
       ]
     };
+
+    if (!isProd) {
+      console.log('[Poshmark Login] Running in non-headless mode locally to allow manual 2FA entry.');
+    }
 
     const proxyUrl = process.env.HTTP_PROXY_URL;
     if (proxyUrl) {
@@ -90,8 +95,26 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
     let loggedIn = false;
     let finalCookies = [];
 
-    // Check cookies every 500ms for up to 10 seconds
-    for (let i = 0; i < 20; i++) {
+    // Check if 2FA code is requested on the page
+    const is2FA = await page.evaluate(() => {
+      return !!document.querySelector('input[placeholder="Enter Verification Code"]') || 
+             document.body.innerText.includes('Verify Email') || 
+             document.body.innerText.includes('verification code');
+    }).catch(() => false);
+
+    let maxSeconds = 15; // 15 seconds default
+    if (is2FA) {
+      console.log('[Poshmark Login] 2-Factor Authentication (Verify Email) detected!');
+      if (!isProd) {
+        console.log('[Poshmark Login] Please check your email, type the OTP code in the browser window, and click Done.');
+        maxSeconds = 120; // Give the user 2 minutes to enter the code
+      } else {
+        console.log('[Poshmark Login] 2FA is active and cannot be completed in headless mode on the server.');
+      }
+    }
+
+    const maxIterations = maxSeconds * 2;
+    for (let i = 0; i < maxIterations; i++) {
       const cookies = await page.cookies();
       const hasSession = cookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
       
@@ -105,12 +128,19 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     if (!loggedIn) {
       // Check if page displays an error message on screen
-      const pageText = await page.evaluate(() => document.body.innerText);
+      const pageText = await page.evaluate(() => document.body.innerText).catch(() => '');
       if (pageText.includes('Invalid username/email or password') || pageText.includes('incorrect password')) {
         throw new Error('Invalid username/email or password.');
       }
       if (pageText.includes('security challenge') || pageText.includes('CAPTCHA') || pageText.includes('bot detection')) {
         throw new Error('Security verification (CAPTCHA) required by Poshmark. Please connect using the eLister Chrome Extension instead.');
+      }
+      if (is2FA) {
+        if (isProd) {
+          throw new Error('Email Verification Code (2FA) required by Poshmark. Please connect using the eLister Chrome Extension instead.');
+        } else {
+          throw new Error('Verification code timed out. Please try again.');
+        }
       }
       throw new Error('Authentication failed or session expired. Please verify your credentials.');
     }
