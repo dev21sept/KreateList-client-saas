@@ -126,6 +126,7 @@ const Rules = () => {
   const [titleSequence, setTitleSequence] = useState([]);
   const [customFieldText, setCustomFieldText] = useState('');
   const [descriptionPrompt, setDescriptionPrompt] = useState('');
+  const [descriptionTemplate, setDescriptionTemplate] = useState('');
   const [conditionNote, setConditionNote] = useState('');
   
   // eBay Policy State
@@ -226,10 +227,21 @@ const Rules = () => {
     }
   };
 
+  const loadDefaultTemplate = () => {
+    setDescriptionTemplate(
+      `<b>The Ultimate Look / Perfect Upgrade:</b> {hook}<br><br>\n` +
+      `<b>About the Brand:</b> {brandInfo}<br><br>\n` +
+      `<b>Key Features & Design:</b> {features}<br><br>\n` +
+      `<b>Versatility / Usage:</b> {stylingTips}<br><br>\n` +
+      `<b>Condition Report:</b> {conditionReport}`
+    );
+  };
+
   const resetFields = () => {
     setRuleName('');
     setTitleSequence([]);
     setDescriptionPrompt('');
+    setDescriptionTemplate('');
     setConditionNote('');
     setFulfillmentPolicyId('');
     setPaymentPolicyId('');
@@ -244,6 +256,7 @@ const Rules = () => {
     setRuleName(rule.name);
     setTitleSequence(rule.title_sequence || []);
     setDescriptionPrompt(rule.description_prompt || '');
+    setDescriptionTemplate(rule.description_template || '');
     setConditionNote(rule.condition_note || '');
     setFulfillmentPolicyId(rule.fulfillmentPolicyId || '');
     setPaymentPolicyId(rule.paymentPolicyId || '');
@@ -280,6 +293,7 @@ const Rules = () => {
       name: ruleName,
       title_sequence: titleSequence,
       description_prompt: descriptionPrompt,
+      description_template: descriptionTemplate,
       condition_note: conditionNote,
       fulfillmentPolicyId,
       paymentPolicyId,
@@ -461,6 +475,31 @@ const Rules = () => {
                 onChange={(e) => setConditionNote(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* HTML Description Template */}
+          <div className="pt-6 border-t border-slate-50 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
+                <Box size={16} className="mr-2 text-indigo-500" /> HTML Description Template
+              </label>
+              <button
+                type="button"
+                onClick={loadDefaultTemplate}
+                className="self-start sm:self-auto px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <Sparkles size={12} className="text-indigo-500" /> Load Default Template
+              </button>
+            </div>
+            <textarea
+              className="w-full h-48 p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none leading-relaxed text-slate-700 text-xs font-mono"
+              placeholder="Enter custom HTML description template. E.g. <b>Brand:</b> {Brand}<br><b>Size:</b> {Size}<br><br>{hook}"
+              value={descriptionTemplate}
+              onChange={(e) => setDescriptionTemplate(e.target.value)}
+            />
+            <p className="text-[11px] text-slate-400 font-medium">
+              Placeholders like <code>&#123;hook&#125;</code>, <code>&#123;brandInfo&#125;</code>, <code>&#123;features&#125;</code>, <code>&#123;stylingTips&#125;</code>, <code>&#123;conditionReport&#125;</code> or attributes like <code>&#123;Brand&#125;</code>, <code>&#123;Size&#125;</code> will be populated by AI analysis. Supports HTML formatting like <code>&lt;b&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;ul&gt;</code>, etc.
+            </p>
           </div>
 
           {/* Section 4: eBay Policies */}

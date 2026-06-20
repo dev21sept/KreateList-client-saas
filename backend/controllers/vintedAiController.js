@@ -475,6 +475,7 @@ exports.vintedAnalyzeListing = async (req, res) => {
             images,
             title_sequence = DEFAULT_TITLE_SEQUENCE,
             description_prompt = '',
+            description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
@@ -533,13 +534,25 @@ exports.vintedAnalyzeListing = async (req, res) => {
             }
         }));
 
-        const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-            ? `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
+        let descriptionInstruction = '';
+        if (description_template && description_template.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
+   "${description_template.trim()}"
+   
+   - Fill in the HTML template by replacing any placeholders (like {hook}, {brandInfo}, {features}, {Brand}, {Size}, etc.) or descriptive placeholders inside curly braces/brackets with actual analysis from the product images.
+   - Output the filled template as HTML (do NOT strip tags now; we will strip them in post-processing).`;
+
+            if (description_prompt && description_prompt.trim() !== '') {
+                descriptionInstruction += `\n   - ADDITIONAL USER INSTRUCTION/TONE GUIDANCE: "${description_prompt.trim()}". Follow this guidance when generating the contents for the placeholders.`;
+            }
+        } else if (description_prompt && description_prompt.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
    "${description_prompt.trim()}"
    
    - STRICT: Replace placeholders like {Brand}, {Size}, etc., with actual data.
-   - If it is a short/general instruction, follow it exactly. Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`
-            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
+   - If it is a short/general instruction, follow it exactly. Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`;
+        } else {
+            descriptionInstruction = `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
    - Write a detailed and professional summary of the item shown.
    - Do NOT use HTML tags (like <b>, <br>).
    - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\\n\\n) for clear, readable spacing.
@@ -553,6 +566,7 @@ exports.vintedAnalyzeListing = async (req, res) => {
      - {Key feature 3}
      
      CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
+        }
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,

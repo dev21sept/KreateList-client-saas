@@ -18,6 +18,10 @@ const ruleSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  description_template: {
+    type: String,
+    default: ''
+  },
   condition_note: {
     type: String,
     default: ''

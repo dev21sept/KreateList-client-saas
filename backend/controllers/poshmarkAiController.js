@@ -108,6 +108,7 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
             images,
             title_sequence = DEFAULT_TITLE_SEQUENCE,
             description_prompt = '',
+            description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
@@ -167,15 +168,27 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
             }
         }));
 
-        const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-            ? `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
+        let descriptionInstruction = '';
+        if (description_template && description_template.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
+   "${description_template.trim()}"
+   
+   - Fill in the HTML template by replacing any placeholders (like {hook}, {brandInfo}, {features}, {Brand}, {Size}, etc.) or descriptive placeholders inside curly braces/brackets with actual analysis from the product images.
+   - Output the filled template as HTML (do NOT strip tags now; we will strip them in post-processing).`;
+
+            if (description_prompt && description_prompt.trim() !== '') {
+                descriptionInstruction += `\n   - ADDITIONAL USER INSTRUCTION/TONE GUIDANCE: "${description_prompt.trim()}". Follow this guidance when generating the contents for the placeholders.`;
+            }
+        } else if (description_prompt && description_prompt.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
    "${description_prompt.trim()}"
    
    - STRICT: If the instruction contains placeholders like {Brand}, {Size}, {Material}, {Type}, etc., replace them with data from the images. 
    - SMART ADAPTATION: If the user provides a fixed template but the image clearly shows something else, adapt the template intelligently to match the physical product while maintaining the user's requested tone and structure. 
    - If it is a general prompt like "Summarize in 2 sentences" or "only two line", follow it EXACTLY. 
-   - Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`
-            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
+   - Do NOT use HTML tags (like <b>, <br>). Format the output as clean, beautifully structured plain text using newlines for paragraph spacing.`;
+        } else {
+            descriptionInstruction = `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy, Plain Text Only):
    - Analyze the item to write a professional, engaging summary.
    - Do NOT use HTML tags (like <b>, <br>).
    - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\\n\\n) for clear, readable spacing.
@@ -193,6 +206,7 @@ exports.poshmarkAnalyzeListing = async (req, res) => {
      VERSATILITY / USAGE: {Styling tips or functional use cases}
      
      CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
+        }
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,

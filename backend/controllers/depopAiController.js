@@ -20,7 +20,9 @@ function sanitizeTitle(titleStr) {
 
 function sanitizeDescription(descStr) {
     if (!descStr || typeof descStr !== 'string') return '';
-    let sanitized = descStr;
+    let sanitized = descStr
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, '');
     BANNED_HASHTAGS.forEach(word => {
         const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         // Match hashtag #vape
@@ -155,6 +157,7 @@ exports.depopAnalyzeListing = async (req, res) => {
             images,
             title_sequence = DEFAULT_TITLE_SEQUENCE,
             description_prompt = '',
+            description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
@@ -213,19 +216,32 @@ exports.depopAnalyzeListing = async (req, res) => {
             }
         }));
 
-        const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-            ? `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
+        let descriptionInstruction = '';
+        if (description_template && description_template.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
+   "${description_template.trim()}"
+   
+   - Fill in the HTML template by replacing any placeholders (like {hook}, {brandInfo}, {features}, {Brand}, {Size}, etc.) or descriptive placeholders inside curly braces/brackets with actual analysis from the product images.
+   - Output the filled template as HTML (do NOT strip tags now; we will strip them in post-processing).`;
+
+            if (description_prompt && description_prompt.trim() !== '') {
+                descriptionInstruction += `\n   - ADDITIONAL USER INSTRUCTION/TONE GUIDANCE: "${description_prompt.trim()}". Follow this guidance when generating the contents for the placeholders.`;
+            }
+        } else if (description_prompt && description_prompt.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
    "${description_prompt.trim()}"
    
    - STRICT: Replace placeholders like {Brand}, {Size}, etc.
-   - Format with plain text newlines (Strictly NO HTML tags).`
-            : `2. Description Construction - TRENDY & DESCRIPTIVE (Tailored for Depop):
+   - Format with plain text newlines (Strictly NO HTML tags).`;
+        } else {
+            descriptionInstruction = `2. Description Construction - TRENDY & DESCRIPTIVE (Tailored for Depop):
    - Write a modern summary. Keep it clean and highly engaging.
    - Plain text ONLY (Strictly NO HTML tags like <b>, <br>, etc.). Use standard double newlines for spacing.
    - Include:
      - Aesthetic & Styling: {Aesthetic style keyword hook - e.g., retro, indie, street, Y2K}
      - Item Details: {Bullet points describing material, quality, fit}
      - Condition: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
+        }
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,

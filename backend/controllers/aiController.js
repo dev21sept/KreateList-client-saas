@@ -66,6 +66,7 @@ exports.analyzeListing = async (req, res) => {
             platform = 'ebay',
             title_sequence = DEFAULT_TITLE_SEQUENCE,
             description_prompt = '',
+            description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
@@ -282,15 +283,28 @@ exports.analyzeListing = async (req, res) => {
         // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
 
-        const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-            ? `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
+        let descriptionInstruction = '';
+        if (description_template && description_template.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
+   "${description_template.trim()}"
+   
+   - Fill in the HTML template by replacing any placeholders (like {hook}, {brandInfo}, {features}, {Brand}, {Size}, etc.) or descriptive placeholders inside curly braces/brackets with actual analysis from the product images.
+   - Do NOT modify the HTML tags (like <b>, <br>, <li>, etc.) or the general structure of the template. Keep them exactly as they are.
+   - Make sure all placeholders are replaced, and output the final populated HTML string.`;
+
+            if (description_prompt && description_prompt.trim() !== '') {
+                descriptionInstruction += `\n   - ADDITIONAL USER INSTRUCTION/TONE GUIDANCE: "${description_prompt.trim()}". Follow this guidance when generating the contents for the placeholders.`;
+            }
+        } else if (description_prompt && description_prompt.trim() !== '') {
+            descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
    "${description_prompt.trim()}"
    
    - STRICT: If the instruction contains placeholders like {Brand}, {Size}, {Material}, {Type}, etc., replace them with data from the images. 
    - SMART ADAPTATION: If the user provides a fixed template but the image clearly shows something else, adapt the template intelligently to match the physical product while maintaining the user's requested tone and structure. 
    - If it is a general prompt like "Summarize in 2 sentences" or "only two line", follow it EXACTLY. 
-   - Do NOT use any other default structures. Format with HTML tags like <b> and <br> for spacing.`
-            : `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
+   - Do NOT use any other default structures. Format with HTML tags like <b> and <br> for spacing.`;
+        } else {
+            descriptionInstruction = `2. Description Construction - HIGH-CONVERSION & PERSUASIVE (Detailed & Lengthy):
    - Analyze the item to write a professional summary.
    - Use HTML <b> for section headers and <br><br> for spacing.
    - Include these sections:
@@ -299,6 +313,7 @@ exports.analyzeListing = async (req, res) => {
      - <b>Key Features & Design:</b> {Detailed bullet points for material, durability, and standout design elements}.<br><br>
      - <b>Versatility / Usage:</b> {Styling tips or functional use cases}.<br><br>
      - <b>Condition Report:</b> ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}<br><br>`;
+        }
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,

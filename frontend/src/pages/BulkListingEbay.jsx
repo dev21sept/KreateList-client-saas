@@ -606,6 +606,7 @@ const BulkListingEbay = () => {
         images: sourcePhotos,
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
+        description_template: selectedRuleObj?.description_template || '',
         condition_name: globalCondition,
         model: globalModel,
         existing_skus: existingSkus

@@ -578,6 +578,7 @@ const CreatePoshmarkListing = () => {
         images: formData.images, 
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
+        description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
         model: formData.selectedModel || 'gpt-4o-mini'

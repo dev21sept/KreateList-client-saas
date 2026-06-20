@@ -138,6 +138,7 @@ exports.analyzeBulk = async (req, res) => {
       images,
       title_sequence = DEFAULT_TITLE_SEQUENCE,
       description_prompt = '',
+      description_template = '',
       condition_name = 'Pre-owned',
       condition_note = '',
       model = 'gpt-4o-mini',
@@ -311,9 +312,23 @@ Response format: Return ONLY a JSON object matching this structure:
         image_url: { url: url }
       }));
 
-      const descriptionInstruction = description_prompt && description_prompt.trim() !== ''
-          ? `2. Description Construction - STRICTLY follow this custom template: "${description_prompt.trim()}". Replace placeholders with data from images.`
-          : `2. Description Construction - HTML format with key features, brand heritage, utility report, and condition report. Use <b> for headings and <br><br> for spacing.`;
+      let descriptionInstruction = '';
+      if (description_template && description_template.trim() !== '') {
+        descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
+   "${description_template.trim()}"
+   
+   - Fill in the HTML template by replacing any placeholders (like {hook}, {brandInfo}, {features}, {Brand}, {Size}, etc.) or descriptive placeholders inside curly braces/brackets with actual analysis from the product images.
+   - Do NOT modify the HTML tags (like <b>, <br>, <li>, etc.) or the general structure of the template. Keep them exactly as they are.
+   - Make sure all placeholders are replaced, and output the final populated HTML string.`;
+
+        if (description_prompt && description_prompt.trim() !== '') {
+          descriptionInstruction += `\n   - ADDITIONAL USER INSTRUCTION/TONE GUIDANCE: "${description_prompt.trim()}". Follow this guidance when generating the contents for the placeholders.`;
+        }
+      } else if (description_prompt && description_prompt.trim() !== '') {
+        descriptionInstruction = `2. Description Construction - STRICTLY follow this custom template: "${description_prompt.trim()}". Replace placeholders with data from images.`;
+      } else {
+        descriptionInstruction = `2. Description Construction - HTML format with key features, brand heritage, utility report, and condition report. Use <b> for headings and <br><br> for spacing.`;
+      }
 
       const promptDetails = `Analyze these product images to generate a professional eBay listing.
       
