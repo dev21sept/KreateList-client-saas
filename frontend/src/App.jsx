@@ -47,15 +47,14 @@ const DomainRedirect = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const hostname = window.location.hostname;
-    const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
-    
-    // Check if we should enforce domain routing:
-    // Only in production, or if the dev hostname explicitly contains a subdomain
-    const shouldRedirect = !isDev || hostname.startsWith('app.');
-    if (!shouldRedirect) return;
+  const hostname = window.location.hostname;
+  const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
+  
+  // Check if we should enforce domain routing:
+  // Only in production, or if the dev hostname explicitly contains a subdomain
+  const shouldRedirect = !isDev || hostname.startsWith('app.');
 
+  if (shouldRedirect) {
     const isAppSubdomain = hostname.startsWith('app.');
     const currentPath = location.pathname;
     
@@ -89,25 +88,26 @@ const DomainRedirect = ({ children }) => {
       currentPath === path || currentPath.startsWith(path + '/')
     );
 
-    if (isAppSubdomain) {
-      if (currentPath === '/') {
-        // Redirect root subdomain to /dashboard (which redirects to login if unauthenticated)
+    if (!isAppSubdomain && isAppPath) {
+      window.location.replace(`${appBase}${currentPath}${location.search}`);
+      return null;
+    }
+
+    if (isAppSubdomain && !isAppPath) {
+      window.location.replace(`${landingBase}${currentPath}${location.search}`);
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      const isAppSubdomain = hostname.startsWith('app.');
+      const currentPath = location.pathname;
+      if (isAppSubdomain && currentPath === '/') {
         navigate('/dashboard', { replace: true });
-        return;
-      }
-      
-      if (!isAppPath) {
-        // On app domain but accessing landing page path, redirect to landing domain
-        window.location.href = `${landingBase}${currentPath}${location.search}`;
-      }
-    } else {
-      // On landing page domain
-      if (isAppPath) {
-        // On landing domain but accessing app path, redirect to app domain
-        window.location.href = `${appBase}${currentPath}${location.search}`;
       }
     }
-  }, [location, navigate]);
+  }, [location, navigate, hostname, shouldRedirect]);
 
   return children;
 };
