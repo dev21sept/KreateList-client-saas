@@ -284,7 +284,7 @@ const EbayAccounts = () => {
         password: poshPassword,
         domain: poshDomain
       });
-      if (res.data?.2faRequired) {
+      if (res.data?.['2faRequired']) {
         toast.info(res.data.message || 'Verification code sent to your email.');
         setShowPosh2fa(true);
         setPosh2faSessionId(res.data.sessionId);
