@@ -45,6 +45,9 @@ const EbayAccounts = () => {
   const [poshPassword, setPoshPassword] = useState('');
   const [poshDomain, setPoshDomain] = useState('poshmark.com');
   const [poshConnectMethod, setPoshConnectMethod] = useState('password'); // 'password', 'extension', 'manual'
+  const [showPosh2fa, setShowPosh2fa] = useState(false);
+  const [posh2faCode, setPosh2faCode] = useState('');
+  const [posh2faSessionId, setPosh2faSessionId] = useState('');
 
   // Depop Form state
   const [depopUsername, setDepopUsername] = useState('');
@@ -281,6 +284,12 @@ const EbayAccounts = () => {
         password: poshPassword,
         domain: poshDomain
       });
+      if (res.data?.2faRequired) {
+        toast.info(res.data.message || 'Verification code sent to your email.');
+        setShowPosh2fa(true);
+        setPosh2faSessionId(res.data.sessionId);
+        return;
+      }
       if (res.data?.success) {
         toast.success('Poshmark Connected Successfully via Cloud Login!');
         await loadUser();
@@ -290,6 +299,36 @@ const EbayAccounts = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to connect Poshmark. Please verify credentials or use Chrome Extension.');
+    } finally {
+      setPoshLoading(false);
+    }
+  };
+
+  const handlePoshmark2faSubmit = async (e) => {
+    e.preventDefault();
+    if (!posh2faCode) {
+      toast.warning('Please enter the verification code.');
+      return;
+    }
+    try {
+      setPoshLoading(true);
+      toast.info('Submitting verification code...');
+      const res = await externalImportService.verifyPoshmark2fa({
+        sessionId: posh2faSessionId,
+        code: posh2faCode
+      });
+      if (res.data?.success) {
+        toast.success('Poshmark Connected Successfully!');
+        await loadUser();
+        setShowPosh2fa(false);
+        setPosh2faCode('');
+        setPosh2faSessionId('');
+        setPoshUsername('');
+        setPoshPassword('');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Verification failed. Please try again.');
     } finally {
       setPoshLoading(false);
     }
@@ -519,52 +558,90 @@ const EbayAccounts = () => {
                 </div>
 
                 {poshConnectMethod === 'password' && (
-                  <form onSubmit={handlePoshmarkPasswordConnect} className="space-y-3 max-w-md mx-auto">
-                    <div className="text-center py-1">
-                      <h4 className="text-sm font-bold text-slate-800">Cloud Password Login</h4>
-                      <p className="text-slate-500 text-[11px] mt-0.5">Logs in to Poshmark directly using your credentials.</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Region</label>
-                      <select
-                        value={poshDomain}
-                        onChange={(e) => setPoshDomain(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-slate-700"
+                  showPosh2fa ? (
+                    <form onSubmit={handlePoshmark2faSubmit} className="space-y-3 max-w-md mx-auto">
+                      <div className="text-center py-1">
+                        <h4 className="text-sm font-bold text-slate-800">Email Verification Required</h4>
+                        <p className="text-slate-500 text-[11px] mt-0.5">Please check your email for the code sent by Poshmark.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Verification Code</label>
+                        <input 
+                          type="text" 
+                          placeholder="Enter OTP / verification code" 
+                          value={posh2faCode}
+                          onChange={(e) => setPosh2faCode(e.target.value)}
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold tracking-widest text-center"
+                        />
+                      </div>
+                      <div className="flex gap-2.5 pt-1">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setShowPosh2fa(false);
+                            setPosh2faCode('');
+                          }}
+                          className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit"
+                          disabled={poshLoading}
+                          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          {poshLoading ? <Loader2 className="animate-spin" size={12} /> : 'Verify Code'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={handlePoshmarkPasswordConnect} className="space-y-3 max-w-md mx-auto">
+                      <div className="text-center py-1">
+                        <h4 className="text-sm font-bold text-slate-800">Cloud Password Login</h4>
+                        <p className="text-slate-500 text-[11px] mt-0.5">Logs in to Poshmark directly using your credentials.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Region</label>
+                        <select
+                          value={poshDomain}
+                          onChange={(e) => setPoshDomain(e.target.value)}
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-slate-700"
+                        >
+                          <option value="poshmark.com">United States (poshmark.com)</option>
+                          <option value="poshmark.ca">Canada (poshmark.ca)</option>
+                          <option value="poshmark.co.uk">United Kingdom (poshmark.co.uk)</option>
+                          <option value="poshmark.com.au">Australia (poshmark.com.au)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Username or Email</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. posh_seller or email@example.com" 
+                          value={poshUsername}
+                          onChange={(e) => setPoshUsername(e.target.value)}
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Password</label>
+                        <input 
+                          type="password" 
+                          placeholder="Your Poshmark password" 
+                          value={poshPassword}
+                          onChange={(e) => setPoshPassword(e.target.value)}
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <button 
+                        type="submit"
+                        disabled={poshLoading}
+                        className="w-full py-2.5 mt-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        <option value="poshmark.com">United States (poshmark.com)</option>
-                        <option value="poshmark.ca">Canada (poshmark.ca)</option>
-                        <option value="poshmark.co.uk">United Kingdom (poshmark.co.uk)</option>
-                        <option value="poshmark.com.au">Australia (poshmark.com.au)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Username or Email</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. posh_seller or email@example.com" 
-                        value={poshUsername}
-                        onChange={(e) => setPoshUsername(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Password</label>
-                      <input 
-                        type="password" 
-                        placeholder="Your Poshmark password" 
-                        value={poshPassword}
-                        onChange={(e) => setPoshPassword(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <button 
-                      type="submit"
-                      disabled={poshLoading}
-                      className="w-full py-2.5 mt-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
-                    </button>
-                  </form>
+                        {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
+                      </button>
+                    </form>
+                  )
                 )}
 
                 {poshConnectMethod === 'extension' && (

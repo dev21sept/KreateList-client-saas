@@ -96,6 +96,7 @@ export const poshmarkService = {
   importCloset: (data) => API.post('/poshmark/import', data),
   connect: (data) => API.post('/poshmark/connect', data),
   connectPassword: (data) => API.post('/poshmark/connect-password', data),
+  verify2fa: (data) => API.post('/poshmark/verify-2fa', data),
   publish: (id, data) => API.post(`/poshmark/publish/${id}`, data),
   getLive: () => API.get('/poshmark/live')
 };
@@ -112,6 +113,7 @@ export const externalImportService = {
   importCloset: (data) => data.platform === 'depop' ? depopService.importCloset(data) : poshmarkService.importCloset(data),
   connect: (data) => data.platform === 'depop' ? depopService.connect(data) : poshmarkService.connect(data),
   connectPassword: (data) => poshmarkService.connectPassword(data),
+  verifyPoshmark2fa: (data) => poshmarkService.verify2fa(data),
   publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : poshmarkService.publish(id, data),
   getLive: (platform) => platform === 'depop' ? depopService.getLive() : poshmarkService.getLive()
 };

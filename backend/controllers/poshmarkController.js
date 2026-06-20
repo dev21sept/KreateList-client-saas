@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const { scrapePoshmarkCloset } = require('../services/externalImportService');
 const { publishToPoshmark } = require('../services/backendPublishService');
-const { loginToPoshmark } = require('../services/poshmarkLoginService');
+const { loginToPoshmark, verify2FA } = require('../services/poshmarkLoginService');
 
 // @desc    Connect Poshmark credentials manually or via extension (cookies / token)
 // @route   POST /api/poshmark/connect
@@ -76,6 +76,15 @@ exports.poshmarkConnectPassword = async (req, res) => {
 
     const loginResult = await loginToPoshmark(username, password, domain || 'poshmark.com');
     
+    if (loginResult.2faRequired) {
+      return res.status(200).json({
+        success: true,
+        2faRequired: true,
+        sessionId: loginResult.sessionId,
+        message: loginResult.message
+      });
+    }
+
     if (!loginResult.success) {
       return res.status(400).json({
         success: false,
@@ -101,6 +110,48 @@ exports.poshmarkConnectPassword = async (req, res) => {
   } catch (err) {
     console.error(`[Poshmark Controller] Connect password error:`, err.message);
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Verify Poshmark 2FA code
+// @route   POST /api/poshmark/verify-2fa
+// @access  Private
+exports.poshmarkVerify2FA = async (req, res) => {
+  try {
+    const { sessionId, code } = req.body;
+
+    if (!sessionId || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID and verification code are required.'
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const verifyResult = await verify2FA(sessionId, code);
+
+    user.poshmarkAccount = {
+      connected: true,
+      username: verifyResult.username,
+      sessionCookie: verifyResult.sessionCookie,
+      csrfToken: verifyResult.csrfToken,
+      connectedAt: new Date()
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Poshmark account connected successfully via 2FA!',
+      data: user.poshmarkAccount
+    });
+  } catch (err) {
+    console.error(`[Poshmark Controller] Verify 2FA error:`, err.message);
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 

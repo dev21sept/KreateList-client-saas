@@ -3,6 +3,9 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
 
+// Global map to hold active 2FA login sessions in memory
+const activeSessions = new Map();
+
 // Apply the stealth plugin to avoid Cloudflare detection
 puppeteer.use(StealthPlugin());
 
@@ -102,16 +105,41 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
              document.body.innerText.includes('verification code');
     }).catch(() => false);
 
-    let maxSeconds = 15; // 15 seconds default
     if (is2FA) {
       console.log('[Poshmark Login] 2-Factor Authentication (Verify Email) detected!');
-      if (!isProd) {
-        console.log('[Poshmark Login] Please check your email, type the OTP code in the browser window, and click Done.');
-        maxSeconds = 120; // Give the user 2 minutes to enter the code
-      } else {
-        console.log('[Poshmark Login] 2FA is active and cannot be completed in headless mode on the server.');
-      }
+      const sessionId = `posh_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Store in memory map
+      activeSessions.set(sessionId, {
+        browser,
+        page,
+        username,
+        cleanDomain
+      });
+
+      // Cleanup timeout after 2 minutes
+      setTimeout(() => {
+        const sess = activeSessions.get(sessionId);
+        if (sess) {
+          console.log(`[Poshmark Login] 2FA Session ${sessionId} expired. Closing browser...`);
+          sess.browser.close().catch(() => {});
+          activeSessions.delete(sessionId);
+        }
+      }, 120000);
+
+      // Nullify browser and page so catch block doesn't close it
+      browser = null;
+      page = null;
+
+      return {
+        success: true,
+        2faRequired: true,
+        sessionId,
+        message: 'Email Verification Code (2FA) required by Poshmark. Please check your email and enter the code.'
+      };
     }
+
+    let maxSeconds = 15; // 15 seconds default
 
     const maxIterations = maxSeconds * 2;
     for (let i = 0; i < maxIterations; i++) {
@@ -211,6 +239,113 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
   }
 }
 
+/**
+ * Submits the 2FA verification code to the active Puppeteer page session.
+ * Exchanged for session cookies once verification succeeds.
+ */
+async function verify2FA(sessionId, code) {
+  const session = activeSessions.get(sessionId);
+  if (!session) {
+    throw new Error('Verification session expired or invalid. Please try again.');
+  }
+
+  const { browser, page, username, cleanDomain } = session;
+  console.log(`[Poshmark Login] Submitting 2FA code for user: ${username}`);
+
+  try {
+    const codeInputSelector = 'input[placeholder="Enter Verification Code"]';
+    await page.waitForSelector(codeInputSelector, { timeout: 15000 });
+    
+    // Clear the input first
+    await page.click(codeInputSelector, { clickCount: 3 });
+    await page.keyboard.press('Backspace');
+    
+    // Type code
+    await page.type(codeInputSelector, code.trim(), { delay: 50 });
+
+    // Click the Done submit button
+    console.log('[Poshmark Login] Clicking Done button inside 2FA modal...');
+    await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const doneBtn = buttons.find(b => b.innerText.trim() === 'Done');
+      if (doneBtn) {
+        doneBtn.click();
+      } else {
+        const submitBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitBtn) submitBtn.click();
+      }
+    });
+
+    // Wait for session cookies
+    console.log('[Poshmark Login] Waiting for session cookies after 2FA submit...');
+    let loggedIn = false;
+    let finalCookies = [];
+
+    // Check cookies every 500ms for up to 30 seconds
+    for (let i = 0; i < 60; i++) {
+      const cookies = await page.cookies();
+      const hasSession = cookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+      
+      if (hasSession) {
+        loggedIn = true;
+        finalCookies = cookies;
+        break;
+      }
+      
+      const pageText = await page.evaluate(() => document.body.innerText).catch(() => '');
+      if (pageText.includes('invalid verification code') || pageText.includes('incorrect code')) {
+        throw new Error('Invalid verification code entered. Please check your email and try again.');
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    if (!loggedIn) {
+      throw new Error('Verification timed out or failed. Please request a new code.');
+    }
+
+    // Format cookie string and extract CSRF token
+    const cookieHeaderStr = finalCookies
+      .map(c => `${c.name}=${c.value}`)
+      .join('; ');
+
+    const finalCookieString = `${cookieHeaderStr}; elister_domain=${cleanDomain}`;
+
+    const csrfToken = await page.evaluate(() => {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) return meta.getAttribute('content');
+      return document.body.getAttribute('data-csrf-token') || '';
+    });
+
+    const csrfCookie = finalCookies.find(c => c.name === '_csrf');
+    const finalCsrfToken = csrfCookie ? csrfCookie.value : (csrfToken || '');
+
+    console.log('[Poshmark Login] 2FA Verification successful! Cookies captured.');
+
+    // Clean up
+    await browser.close().catch(() => {});
+    activeSessions.delete(sessionId);
+
+    return {
+      success: true,
+      username: username,
+      sessionCookie: finalCookieString,
+      csrfToken: finalCsrfToken
+    };
+
+  } catch (error) {
+    console.error('[Poshmark Login] 2FA verification error:', error.message);
+    
+    // Close browser on timeout or generic errors, keep open on "invalid code" so they can retry
+    if (error.message.includes('expired') || error.message.includes('timed out') || error.message.includes('timed')) {
+      await browser.close().catch(() => {});
+      activeSessions.delete(sessionId);
+    }
+    throw error;
+  }
+}
+
 module.exports = {
-  loginToPoshmark
+  loginToPoshmark,
+  verify2FA
 };
