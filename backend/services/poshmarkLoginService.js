@@ -65,8 +65,8 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     // Step 1: Wait for login inputs
     console.log('[Poshmark Login] Waiting for inputs to render...');
-    const usernameSelector = '#login_form_username_email, input[name="login_form[username_email]"], input[type="text"]';
-    const passwordSelector = '#login_form_password, input[name="login_form[password]"], input[type="password"]';
+    const usernameSelector = '#login_form_username_email, input[name="login_form[username_email]"]';
+    const passwordSelector = '#login_form_password, input[name="login_form[password]"]';
     
     await page.waitForSelector(usernameSelector, { timeout: 15000 });
     await page.waitForSelector(passwordSelector, { timeout: 15000 });
