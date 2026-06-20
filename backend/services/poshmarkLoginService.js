@@ -133,7 +133,7 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
       return {
         success: true,
-        2faRequired: true,
+        '2faRequired': true,
         sessionId,
         message: 'Email Verification Code (2FA) required by Poshmark. Please check your email and enter the code.'
       };

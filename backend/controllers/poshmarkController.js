@@ -76,10 +76,10 @@ exports.poshmarkConnectPassword = async (req, res) => {
 
     const loginResult = await loginToPoshmark(username, password, domain || 'poshmark.com');
     
-    if (loginResult.2faRequired) {
+    if (loginResult['2faRequired']) {
       return res.status(200).json({
         success: true,
-        2faRequired: true,
+        '2faRequired': true,
         sessionId: loginResult.sessionId,
         message: loginResult.message
       });
