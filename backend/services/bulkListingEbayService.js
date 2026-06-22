@@ -3,6 +3,7 @@ const User = require('../models/User');
 const { normalizeProductImages, generateThumbnail } = require('../utils/imageProcessor');
 const ebayService = require('./ebayService');
 const { getValidToken } = require('../controllers/ebayController');
+const { sanitizeEbayDescription } = require('./descriptionService');
 
 const isAspectValueInvalid = (val) => {
   if (typeof val !== 'string') return true;
@@ -87,6 +88,23 @@ exports.bulkSaveDrafts = async (userId, listingsData, baseUrl) => {
           item.thumbnail = await generateThumbnail(item.images[0]);
         } else {
           item.thumbnail = '';
+        }
+      }
+
+      // Check for duplicate listing by first image and title (only if creating a new listing)
+      if (!item._id && (!item.id || item.id.startsWith('item-'))) {
+        if ((item.images && item.images.length > 0) || item.title) {
+          const { findDuplicateListing } = require('../utils/duplicateChecker');
+          const duplicate = await findDuplicateListing(userId, 'ebay', item.images && item.images.length > 0 ? item.images[0] : null, item.title);
+          if (duplicate) {
+            console.log(`[BULK SAVE DRAFT] Duplicate found. Skipping: ${item.title}`);
+            savedListings.push({
+              success: false,
+              error: `Duplicate: listing "${duplicate.title}" already exists.`,
+              itemTitle: item.title
+            });
+            continue;
+          }
         }
       }
 
@@ -273,8 +291,8 @@ async function publishSingleEbayListing(listing, token) {
       },
       condition: ebayConditionEnum,
       product: {
-        title: listing.title,
-        description: listing.description,
+        title: listing.title ? listing.title.substring(0, 80) : '',
+        description: sanitizeEbayDescription(listing.description),
         aspects: aspects,
         imageUrls: ebayImageUrls.length > 0 ? ebayImageUrls : ['https://via.placeholder.com/500']
       }
@@ -341,7 +359,7 @@ async function publishSingleEbayListing(listing, token) {
           currency: 'USD'
         }
       },
-      listingDescription: listing.description,
+      listingDescription: sanitizeEbayDescription(listing.description),
       categoryId: listing.categoryId || '26315',
       merchantLocationKey: locationKey,
       listingPolicies: {
@@ -420,6 +438,21 @@ exports.bulkPublishListings = async (userId, listingsData, baseUrl) => {
           itemData.images = await normalizeProductImages(itemData.images, baseUrl);
           if (itemData.images.length > 0) {
             itemData.thumbnail = await generateThumbnail(itemData.images[0]);
+          }
+        }
+
+        // Check for duplicate listing by first image and title (only if creating a new listing)
+        if ((itemData.images && itemData.images.length > 0) || itemData.title) {
+          const { findDuplicateListing } = require('../utils/duplicateChecker');
+          const duplicate = await findDuplicateListing(userId, 'ebay', itemData.images && itemData.images.length > 0 ? itemData.images[0] : null, itemData.title);
+          if (duplicate) {
+            console.log(`[BULK PUBLISH] Duplicate found. Skipping: ${itemData.title}`);
+            results.push({
+              success: false,
+              error: `Duplicate: listing "${duplicate.title}" already exists.`,
+              title: itemData.title
+            });
+            continue;
           }
         }
 

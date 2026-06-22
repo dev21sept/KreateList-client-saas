@@ -49,6 +49,22 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
       launchOptions.args.push(`--proxy-server=${proxyUrl}`);
     }
 
+    // Set custom Chrome executable path if configured or present on system
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      console.log(`[Poshmark Login] Using configured executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else {
+      // Check standard Linux paths for installed system Chrome/Chromium
+      const checkPaths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+      for (const p of checkPaths) {
+        if (fs.existsSync(p)) {
+          console.log(`[Poshmark Login] System Chrome fallback matched: ${p}`);
+          launchOptions.executablePath = p;
+          break;
+        }
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     page = await browser.newPage();
 
@@ -100,9 +116,9 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     // Check if 2FA code is requested on the page
     const is2FA = await page.evaluate(() => {
-      return !!document.querySelector('input[placeholder="Enter Verification Code"]') || 
-             document.body.innerText.includes('Verify Email') || 
-             document.body.innerText.includes('verification code');
+      return document.body.innerText.includes('Verify Email') || 
+             document.body.innerText.includes('verification code') ||
+             document.body.innerText.includes('Verification Code');
     }).catch(() => false);
 
     if (is2FA) {
@@ -253,7 +269,68 @@ async function verify2FA(sessionId, code) {
   console.log(`[Poshmark Login] Submitting 2FA code for user: ${username}`);
 
   try {
-    const codeInputSelector = 'input[placeholder="Enter Verification Code"]';
+    // Wait for the modal or verification text to be visible
+    await page.waitForFunction(() => {
+      return document.body.innerText.includes('Verify Email') || 
+             document.body.innerText.includes('verification code') ||
+             document.body.innerText.includes('Verification Code');
+    }, { timeout: 10000 }).catch(() => {});
+
+    // Try to find the visible verification input element inside the container dynamically
+    let codeInputSelector = await page.evaluate(() => {
+      // Find all containers containing verification keywords
+      const containers = Array.from(document.querySelectorAll('div, section, form, modal'));
+      const verifyContainers = containers.filter(el => {
+        const text = el.innerText || '';
+        return text.includes('Verify Email') || text.includes('Verification Code') || text.includes('verification code');
+      });
+
+      // Sort by size (smallest inner-most first)
+      verifyContainers.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+
+      for (const container of verifyContainers) {
+        const inputs = Array.from(container.querySelectorAll('input'));
+        const visibleInput = inputs.find(input => {
+          const style = window.getComputedStyle(input);
+          return style.display !== 'none' && 
+                 style.visibility !== 'hidden' && 
+                 input.type !== 'hidden' && 
+                 input.type !== 'submit' && 
+                 input.type !== 'button' && 
+                 input.type !== 'checkbox' && 
+                 input.type !== 'radio';
+        });
+        if (visibleInput) {
+          visibleInput.setAttribute('data-elister-otp-input', 'true');
+          return 'input[data-elister-otp-input="true"]';
+        }
+      }
+
+      // Fallback: Find any visible text/number/tel input on the page
+      const allInputs = Array.from(document.querySelectorAll('input'));
+      const visibleInput = allInputs.find(input => {
+        const style = window.getComputedStyle(input);
+        return style.display !== 'none' && 
+               style.visibility !== 'hidden' && 
+               input.type !== 'hidden' && 
+               input.type !== 'submit' && 
+               input.type !== 'button' && 
+               input.type !== 'checkbox' && 
+               input.type !== 'radio';
+      });
+      if (visibleInput) {
+        visibleInput.setAttribute('data-elister-otp-input', 'true');
+        return 'input[data-elister-otp-input="true"]';
+      }
+
+      return null;
+    });
+
+    if (!codeInputSelector) {
+      console.log('[Poshmark Login] Dynamic OTP input selection failed. Trying fallback selector...');
+      codeInputSelector = 'input[placeholder="Enter Verification Code"]';
+    }
+
     await page.waitForSelector(codeInputSelector, { timeout: 15000 });
     
     // Clear the input first
@@ -336,6 +413,27 @@ async function verify2FA(sessionId, code) {
   } catch (error) {
     console.error('[Poshmark Login] 2FA verification error:', error.message);
     
+    if (browser && page) {
+      try {
+        const uploadsDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const screenshotPath = path.join(uploadsDir, '2fa_error.png');
+        await page.screenshot({ path: screenshotPath });
+        console.log(`[Poshmark Login] Saved 2FA error screenshot to: ${screenshotPath}`);
+        
+        const pageTitle = await page.title().catch(() => 'Unknown');
+        console.log(`[Poshmark Login] 2FA Error Page Title: ${pageTitle}`);
+        
+        const pageHtml = await page.content().catch(() => '');
+        fs.writeFileSync(path.join(uploadsDir, '2fa_error.html'), pageHtml);
+        console.log(`[Poshmark Login] Saved 2FA error HTML to: ${path.join(uploadsDir, '2fa_error.html')}`);
+      } catch (err) {
+        console.error('[Poshmark Login] Failed to take 2FA error screenshot:', err.message);
+      }
+    }
+
     // Close browser on timeout or generic errors, keep open on "invalid code" so they can retry
     if (error.message.includes('expired') || error.message.includes('timed out') || error.message.includes('timed')) {
       await browser.close().catch(() => {});

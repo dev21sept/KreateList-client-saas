@@ -3,6 +3,7 @@ const User = require('../models/User');
 const { normalizeProductImages, generateThumbnail } = require('../utils/imageProcessor');
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
+const { sanitizeEbayDescription } = require('../services/descriptionService');
 
 const isAspectValueInvalid = (val) => {
   if (typeof val !== 'string') return true;
@@ -473,8 +474,8 @@ exports.publishListing = async (req, res) => {
       },
       condition: ebayConditionEnum,
       product: {
-        title: listing.title,
-        description: listing.description,
+        title: listing.title ? listing.title.substring(0, 80) : '',
+        description: sanitizeEbayDescription(listing.description),
         aspects: aspects,
         imageUrls: ebayImageUrls.length > 0 ? ebayImageUrls : ['https://via.placeholder.com/500']
       }
@@ -565,7 +566,7 @@ exports.publishListing = async (req, res) => {
           currency: 'USD'
         }
       },
-      listingDescription: listing.description,
+      listingDescription: sanitizeEbayDescription(listing.description),
       categoryId: listing.categoryId || '26315',
       merchantLocationKey: locationKey,
       listingPolicies: {

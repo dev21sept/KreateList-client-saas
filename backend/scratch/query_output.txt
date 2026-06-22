@@ -1,0 +1,25 @@
+--- LATEST 10 LISTINGS ---
+[Listing 1]
+  ID: 6a2884a3d1e779b5bffc8405
+  Title: "Nike Jacket Nylon Series Size L"
+  Price: 50
+  SKU: KL2V
+  Platform: vinted
+  Status: draft
+  Source: undefined
+  Created At: Wed Jun 10 2026 02:54:51 GMT+0530 (India Standard Time)
+  Images Count: 6
+  First Image: data:image/jpeg;base64,/9j/2wBDAAYGBgYHBgcICAcKCwoLCg8ODAwODxYQERAREBYiFRkVFRkVIh4kHhweJB42KiYmKjY+N
+[Listing 2]
+  ID: 6a214619bef8275b23072b86
+  Title: "Reebok"
+  Price: 29.99
+  SKU: KL1A
+  Platform: ebay
+  Status: draft
+  Source: undefined
+  Created At: Thu Jun 04 2026 15:02:09 GMT+0530 (India Standard Time)
+  Images Count: 5
+  First Image: data:image/jpeg;base64,/9j/2wBDAAMDAwMDAwMDAwMEBAQEBAYFBQUFBgkGBwYHBgkOCAoICAoIDgwPDAsMDwwWEQ8PERYZF
+
+--- LATEST 10 PRODUCTS ---

@@ -268,6 +268,8 @@ const BulkListingEbay = () => {
   // Scanning Pool State
   const [sourcePhotos, setSourcePhotos] = useState([]);
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const modelOptions = useMemo(() => [
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
@@ -824,12 +826,14 @@ const BulkListingEbay = () => {
 
   // Batch operations: Bulk Save Drafts
   const saveSelectedDrafts = async () => {
+    if (isSaving || isPublishing || isBatchAnalyzing) return;
     const selectedToSave = items.filter(it => it.selected && it.images.length > 0 && it.title);
     if (selectedToSave.length === 0) {
       toast.warning("Please select analyzed/populated listings to save.");
       return;
     }
 
+    setIsSaving(true);
     // Update statuses to 'saving'
     setItems(prev => prev.map(it => it.selected ? { ...it, status: 'saving', error: '' } : it));
 
@@ -905,17 +909,21 @@ const BulkListingEbay = () => {
       console.error("Bulk save drafts failed:", err);
       toast.error("Failed to save drafts: " + err.message);
       setItems(prev => prev.map(it => it.selected ? { ...it, status: 'failed', error: err.message } : it));
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // Batch operations: Bulk Publish Listings
   const publishSelectedListings = async () => {
+    if (isSaving || isPublishing || isBatchAnalyzing) return;
     const selectedToPublish = items.filter(it => it.selected && it.images.length > 0 && it.title);
     if (selectedToPublish.length === 0) {
       toast.warning("Please select analyzed/populated listings to publish.");
       return;
     }
 
+    setIsPublishing(true);
     // Update status to 'publishing'
     setItems(prev => prev.map(it => it.selected ? { ...it, status: 'publishing', error: '' } : it));
 
@@ -991,6 +999,8 @@ const BulkListingEbay = () => {
       console.error("Bulk publish failed:", err);
       toast.error("Failed to publish: " + err.message);
       setItems(prev => prev.map(it => it.selected ? { ...it, status: 'failed', error: err.message } : it));
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -1370,21 +1380,42 @@ const BulkListingEbay = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={analyzeSelected}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-600 transition-all cursor-pointer"
+              disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-600 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Sparkles size={14} /> Scan Selected with AI
             </button>
             <button
               onClick={saveSelectedDrafts}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-blue-500/10"
+              disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={14} /> Save Selected Drafts
+              {isSaving ? (
+                <>
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Save Selected Drafts
+                </>
+              )}
             </button>
             <button
               onClick={publishSelectedListings}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+              disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send size={14} /> Publish Selected to eBay
+              {isPublishing ? (
+                <>
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Send size={14} /> Publish Selected to eBay
+                </>
+              )}
             </button>
           </div>
         </div>
