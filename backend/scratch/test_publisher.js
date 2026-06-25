@@ -33,7 +33,7 @@ const mockAxios = async (config) => {
     };
   }
 
-  if (config.url.includes('/vm-rest/posts?pm_version=')) {
+  if (config.url.includes('/posts?pm_version=')) {
     return {
       status: 200,
       data: {
@@ -132,7 +132,7 @@ async function runTests() {
   console.log('\nTesting direct Poshmark publishing...');
   global.capturedRequests = [];
   const mockPoshmarkAccount = {
-    sessionCookie: "_poshmark_session=mock-cookie-123",
+    sessionCookie: "_poshmark_session=mock-cookie-123; jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNjU3YWI4OTBjZGVmMTIzNDU2Nzg5MGFhIn0.sig",
     csrfToken: "mock-csrf-token-abc"
   };
 
@@ -143,9 +143,9 @@ async function runTests() {
   assert.strictEqual(poshmarkRes.url, "https://poshmark.com/listing/657ab890cdef1234567890aa");
 
   // Verify captured requests
-  const draftRequest = global.capturedRequests.find(r => r.url.includes('/vm-rest/posts?pm_version='));
+  const draftRequest = global.capturedRequests.find(r => r.url.includes('/posts?pm_version='));
   assert.ok(draftRequest);
-  assert.strictEqual(draftRequest.headers.cookie, "_poshmark_session=mock-cookie-123");
+  assert.strictEqual(draftRequest.headers.cookie, "_poshmark_session=mock-cookie-123; jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNjU3YWI4OTBjZGVmMTIzNDU2Nzg5MGFhIn0.sig");
   assert.strictEqual(draftRequest.headers['x-xsrf-token'], "mock-csrf-token-abc");
 
   const saveDetailsRequest = global.capturedRequests.find(r => r.url.includes('/vm-rest/posts/657ab890cdef1234567890aa?pm_version='));

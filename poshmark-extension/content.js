@@ -1483,6 +1483,30 @@ else if (currentSite === 'elister') {
   // Inject extension detection attribute for the React frontend
   document.body.dataset.elisterExtensionInstalled = "true";
 
+  // Silently check and sync Poshmark cookies on eLister page load/refresh
+  setTimeout(() => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const backendUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+          ? 'http://localhost:5000/api'
+          : 'https://api.elister.ai/api';
+        
+        console.log('[Elister Extension] Triggering auto-sync of active Poshmark cookies...');
+        chrome.runtime.sendMessage({
+          action: 'SILENT_SYNC_POSHMARK',
+          data: { token, backendUrl }
+        }, (response) => {
+          if (response && response.success) {
+            console.log('[Elister Extension] Silent Poshmark session sync succeeded:', response);
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[Elister Extension] Error in silent auto-sync check:', e);
+    }
+  }, 2000);
+
   // If running on eLister React page, listen to messages dispatched by the web application
   window.addEventListener('message', (event) => {
     // Basic origin filtering for security

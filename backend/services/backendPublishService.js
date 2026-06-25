@@ -502,6 +502,39 @@ function getDomainFromCookie(sessionCookie) {
   return 'poshmark.com';
 }
 
+function getUserIdFromSessionCookie(sessionCookie) {
+  if (sessionCookie) {
+    // 1. Try parsing from jwt cookie
+    const jwtMatch = sessionCookie.match(/jwt=([^;]+)/);
+    if (jwtMatch) {
+      try {
+        const payloadBase64 = jwtMatch[1].split('.')[1];
+        const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+        if (payload.user_id) {
+          return payload.user_id;
+        }
+      } catch (e) {
+        console.error('[Poshmark Publisher] Error parsing user ID from jwt:', e);
+      }
+    }
+    
+    // 2. Try parsing from ui cookie
+    const uiMatch = sessionCookie.match(/ui=([^;]+)/);
+    if (uiMatch) {
+      try {
+        const decoded = decodeURIComponent(uiMatch[1]);
+        const uiObj = JSON.parse(decoded);
+        if (uiObj && uiObj.uid) {
+          return uiObj.uid;
+        }
+      } catch (e) {
+        console.error('[Poshmark Publisher] Error parsing user ID from ui cookie:', e);
+      }
+    }
+  }
+  return null;
+}
+
 function cleanCookieHeader(sessionCookie) {
   if (!sessionCookie) return '';
   return sessionCookie.replace(/;\s*elister_domain=[^;]+/, '').replace(/elister_domain=[^;]+;\s*/, '').trim();
@@ -579,9 +612,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
   let draftId;
   try {
+    const userId = getUserIdFromSessionCookie(sessionCookie);
+    if (!userId) {
+      throw new Error('Poshmark User ID not found in session cookies. Please reconnect your account.');
+    }
+
     const draftConfig = getAxiosConfig({
       method: 'POST',
-      url: `https://${domain}/vm-rest/posts?pm_version=2026.23.01`,
+      url: `https://${domain}/vm-rest/users/${userId}/posts?pm_version=2026.26.01`,
       headers: getPoshmarkHeaders(sessionCookie, csrfToken),
       data: { post: { autolist_draft: false } }
     });
@@ -651,36 +689,87 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   const size = listing.size || 'OS';
   const brand = listing.brand || 'Original';
   const price = parseFloat(listing.price || '0');
-  const originalPrice = parseFloat(listing.originalPrice || '0') || null;
+  const originalPrice = parseFloat(listing.originalPrice || '0') || 0;
 
   // Resolve category features (subcategories) to flat string IDs
   const resolvedSubcats = Array.isArray(listing.subcategoryIds) 
     ? listing.subcategoryIds.map(id => typeof id === 'object' && id ? (id.id || id._id || String(id)) : String(id))
     : [];
 
+  // Parse colors
+  let postColors = [];
+  if (listing.colors) {
+    postColors = Array.isArray(listing.colors) ? listing.colors : [listing.colors];
+  } else if (listing.color) {
+    postColors = [listing.color];
+  }
+
+  // Parse style tags
+  let postStyleTags = [];
+  if (Array.isArray(listing.styleTags)) {
+    postStyleTags = listing.styleTags;
+  } else if (listing.styleTag) {
+    postStyleTags = listing.styleTag.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  // Map Poshmark condition
+  const mapPoshmarkCondition = (cond) => {
+    const c = String(cond || '').toLowerCase();
+    if (c === 'nwt' || c === 'new with tags') return 'nwt';
+    if (c === 'like_new' || c === 'like new' || c === 'uln' || c === 'nwot' || c === 'new without tags') return 'uln';
+    if (c === 'good' || c === 'euc' || c === 'vguc' || c === 'guc' || c === 'ug') return 'ug';
+    if (c === 'fair' || c === 'uf') return 'uf';
+    return 'uln';
+  };
+
   const savePayload = {
     post: {
       title: listing.title,
       description: listing.description,
-      original_price_amount: originalPrice ? { val: originalPrice, currency_code: 'USD' } : null,
-      price_amount: { val: price, currency_code: 'USD' },
-      inventory_status: 'available',
-      sizes: [{ name: size }],
       brand: brand,
-      colors: listing.colors ? (Array.isArray(listing.colors) ? listing.colors : [listing.colors]) : [],
+      condition: mapPoshmarkCondition(listing.selectedCondition || listing.conditionId || listing.condition),
+      price_amount: { val: price, currency_code: 'USD', currency_symbol: '$' },
+      original_price_amount: { val: originalPrice, currency_code: 'USD', currency_symbol: '$' },
       catalog: {
         department: listing.departmentId || null,
         category: listing.categoryId || null,
         category_features: resolvedSubcats
       },
-      media_ids: mediaIds
+      colors: postColors,
+      style_tags: postStyleTags,
+      pictures: mediaIds.slice(1).map(id => ({ id })),
+      cover_shot: mediaIds.length > 0 ? { id: mediaIds[0] } : null,
+      inventory: {
+        status: "available",
+        multi_item: false,
+        size_quantity_revision: 0,
+        size_quantities: [
+          {
+            size_id: size,
+            size_obj: {
+              id: size,
+              short: size,
+              long: size,
+              display: size,
+              display_with_size_set: size,
+              display_with_size_system: `US ${size}`,
+              display_with_system_and_set: `US ${size}`,
+              equivalent_sizes: {},
+              size_system: "us"
+            },
+            quantity_available: 1,
+            quantity_sold: 0,
+            size_system: "us",
+            size_set_tags: ["standard"]
+          }
+        ]
+      },
+      offer_auto_actions_v2_enabled: false,
+      seller_private_info: {},
+      autolist_draft: false,
+      seller_shipping_discount: { id: null }
     }
   };
-
-  // Add condition fields if present
-  if (listing.condition) {
-    savePayload.post.condition = listing.condition;
-  }
 
   // TWO-STEP SAVE PREPARATION:
   // Update category and department first to avoid race condition where subcategories are validated against the old category.

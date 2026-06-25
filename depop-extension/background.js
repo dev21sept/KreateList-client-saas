@@ -1,7 +1,19 @@
-let pendingListingData = null;
-let cachedCsrfTokens = {};
-let cachedConnectionDetails = {};
-let activeConnectFlow = null;
+// Helper to get/set state variables from storage
+function getStorageData(key, defaultValue) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve(result[key] !== undefined ? result[key] : defaultValue);
+    });
+  });
+}
+
+function setStorageData(key, value) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [key]: value }, () => {
+      resolve();
+    });
+  });
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Depop Fast Automator Service Worker installed!');
@@ -16,14 +28,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender.tab ? sender.tab.id : null;
     if (tabId) {
       chrome.tabs.update(tabId, { url: 'https://www.depop.com/login/' }, (tab) => {
-        activeConnectFlow = {
+        const flow = {
           tabId: tab.id,
           token,
           backendUrl,
           frontendUrl
         };
-        console.log('Redirecting same tab for Depop Connect Flow:', tab.id);
-        sendResponse({ success: true });
+        setStorageData('activeConnectFlow', flow).then(() => {
+          console.log('Redirecting same tab for Depop Connect Flow:', tab.id);
+          sendResponse({ success: true });
+        });
       });
     } else {
       sendResponse({ success: false, message: 'No sender tab found' });
@@ -33,52 +47,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   else if (message.action === 'GET_CONNECT_FLOW') {
     const tabId = sender.tab ? sender.tab.id : null;
-    if (activeConnectFlow && activeConnectFlow.tabId === tabId) {
-      sendResponse({ success: true, flow: activeConnectFlow });
-    } else {
-      sendResponse({ success: false });
-    }
+    getStorageData('activeConnectFlow', null).then((flow) => {
+      if (flow && flow.tabId === tabId) {
+        sendResponse({ success: true, flow });
+      } else {
+        sendResponse({ success: false });
+      }
+    });
+    return true;
   }
   
   else if (message.action === 'COMPLETE_DEPOP_CONNECT') {
     const { username, accessToken } = message.data;
-    if (!activeConnectFlow) {
-      sendResponse({ success: false, message: 'No active connect flow found' });
-      return true;
-    }
-    const { token, backendUrl, frontendUrl } = activeConnectFlow;
-    
-    console.log('Submitting captured Depop credentials to backend:', backendUrl);
-    fetch(`${backendUrl}/depop/connect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        platform: 'depop',
-        username,
-        accessToken
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      console.log('Backend connect response:', data);
-      if (data.success) {
-        cachedConnectionDetails['depop'] = {
+    getStorageData('activeConnectFlow', null).then((flow) => {
+      if (!flow) {
+        sendResponse({ success: false, message: 'No active connect flow found' });
+        return;
+      }
+      const { token, backendUrl, frontendUrl } = flow;
+      
+      console.log('Submitting captured Depop credentials to backend:', backendUrl);
+      fetch(`${backendUrl}/depop/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          platform: 'depop',
           username,
           accessToken
-        };
-        chrome.tabs.update(activeConnectFlow.tabId, { url: `${frontendUrl}/ebay-accounts?success=depop` });
-        activeConnectFlow = null;
-        sendResponse({ success: true });
-      } else {
-        sendResponse({ success: false, message: data.message || 'Backend connection failed' });
-      }
-    })
-    .catch(err => {
-      console.error('Error connecting Depop to backend:', err);
-      sendResponse({ success: false, error: err.message });
+        })
+      })
+      .then(res => res.json())
+      .then((data) => {
+        console.log('Backend connect response:', data);
+        if (data.success) {
+          getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+            cachedDetails['depop'] = {
+              username,
+              accessToken
+            };
+            setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+              chrome.tabs.update(flow.tabId, { url: `${frontendUrl}/ebay-accounts?success=depop` });
+              setStorageData('activeConnectFlow', null).then(() => {
+                sendResponse({ success: true });
+              });
+            });
+          });
+        } else {
+          sendResponse({ success: false, message: data.message || 'Backend connection failed' });
+        }
+      })
+      .catch(err => {
+        console.error('Error connecting Depop to backend:', err);
+        sendResponse({ success: false, error: err.message });
+      });
     });
     return true;
   }
@@ -90,51 +114,73 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   else if (message.action === 'CACHE_CSRF_TOKEN') {
     const { site, token } = message.data;
     if (site && token) {
-      cachedCsrfTokens[site] = token;
-      console.log(`Cached CSRF Token for ${site}:`, token);
+      getStorageData('cachedCsrfTokens', {}).then((tokens) => {
+        tokens[site] = token;
+        setStorageData('cachedCsrfTokens', tokens).then(() => {
+          console.log(`Cached CSRF Token for ${site}:`, token);
+          sendResponse({ success: true });
+        });
+      });
+    } else {
+      sendResponse({ success: true });
     }
-    sendResponse({ success: true });
+    return true;
   }
   
   else if (message.action === 'CACHE_CONNECTION_DETAILS') {
     const { platform, data } = message;
     if (platform && data) {
-      cachedConnectionDetails[platform] = data;
-      console.log(`Cached Connection Details for ${platform}:`, data);
+      getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+        cachedDetails[platform] = data;
+        setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+          console.log(`Cached Connection Details for ${platform}:`, data);
+          sendResponse({ success: true });
+        });
+      });
+      return true;
     }
     sendResponse({ success: true });
   }
 
   else if (message.action === 'GET_CONNECTION_DETAILS') {
-    sendResponse({ success: true, data: cachedConnectionDetails[message.platform] });
+    getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+      sendResponse({ success: true, data: cachedDetails[message.platform] });
+    });
+    return true;
   }
   
   else if (message.action === 'GET_CACHED_CSRF_TOKEN') {
-    sendResponse({ success: true, token: cachedCsrfTokens[message.site] });
+    getStorageData('cachedCsrfTokens', {}).then((tokens) => {
+      sendResponse({ success: true, token: tokens[message.site] });
+    });
+    return true;
   }
   
   else if (message.action === 'START_DEPOP_LISTING') {
-    // Store data in transition memory
-    pendingListingData = message.data;
-    console.log('Stored pending Depop listing data in queue:', pendingListingData);
-    
-    // Open Depop create listing page in a new tab
-    chrome.tabs.create({ url: 'https://www.depop.com/products/create/' }, (tab) => {
-      console.log('Opened Depop tab, ID:', tab.id);
+    const pendingData = message.data;
+    setStorageData('pendingListingData', pendingData).then(() => {
+      console.log('Stored pending Depop listing data in queue:', pendingData);
+      
+      // Open Depop create listing page in a new tab
+      chrome.tabs.create({ url: 'https://www.depop.com/products/create/' }, (tab) => {
+        console.log('Opened Depop tab, ID:', tab.id);
+      });
+      
+      sendResponse({ success: true, message: 'Depop tab opened. Listing queued.' });
     });
-    
-    sendResponse({ success: true, message: 'Depop tab opened. Listing queued.' });
+    return true;
   }
   
   else if (message.action === 'GET_PENDING_LISTING') {
-    // Return queued data if available
-    if (pendingListingData) {
-      sendResponse({ success: true, data: pendingListingData });
-      // Clear queue once dispatched to prevent duplicate attempts
-      pendingListingData = null;
-    } else {
-      sendResponse({ success: false, message: 'No pending listing queued.' });
-    }
+    getStorageData('pendingListingData', null).then((pendingData) => {
+      if (pendingData) {
+        sendResponse({ success: true, data: pendingData });
+        setStorageData('pendingListingData', null).then(() => {});
+      } else {
+        sendResponse({ success: false, message: 'No pending listing queued.' });
+      }
+    });
+    return true;
   }
   
   else if (message.action === 'LOG_CAPTURED_API') {

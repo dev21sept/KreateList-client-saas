@@ -1,7 +1,19 @@
-let pendingListingData = null;
-let cachedCsrfTokens = {};
-let cachedConnectionDetails = {};
-let activeConnectFlow = null;
+// Helper to get/set state variables from storage
+function getStorageData(key, defaultValue) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve(result[key] !== undefined ? result[key] : defaultValue);
+    });
+  });
+}
+
+function setStorageData(key, value) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [key]: value }, () => {
+      resolve();
+    });
+  });
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Fast Automator Service Worker installed!');
@@ -67,14 +79,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender.tab ? sender.tab.id : null;
     if (tabId) {
       chrome.tabs.update(tabId, { url: 'https://poshmark.com/create-listing' }, (tab) => {
-        activeConnectFlow = {
+        const flow = {
           tabId: tab.id,
           token,
           backendUrl,
           frontendUrl
         };
-        console.log('Redirecting same tab for Poshmark Connect Flow:', tab.id);
-        sendResponse({ success: true });
+        setStorageData('activeConnectFlow', flow).then(() => {
+          console.log('Redirecting same tab for Poshmark Connect Flow:', tab.id);
+          sendResponse({ success: true });
+        });
       });
     } else {
       sendResponse({ success: false, message: 'No sender tab found' });
@@ -84,76 +98,157 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   else if (message.action === 'GET_CONNECT_FLOW') {
     const tabId = sender.tab ? sender.tab.id : null;
-    if (activeConnectFlow && activeConnectFlow.tabId === tabId) {
-      sendResponse({ success: true, flow: activeConnectFlow });
-    } else {
-      sendResponse({ success: false });
+    getStorageData('activeConnectFlow', null).then((flow) => {
+      if (flow && flow.tabId === tabId) {
+        sendResponse({ success: true, flow });
+      } else {
+        sendResponse({ success: false });
+      }
+    });
+    return true;
+  }
+  
+  else if (message.action === 'SILENT_SYNC_POSHMARK') {
+    const { token, backendUrl } = message.data;
+    if (typeof chrome.cookies === 'undefined') {
+      sendResponse({ success: false, message: 'chrome.cookies API is undefined.' });
+      return true;
     }
+    
+    getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
+      const hasJwt = poshCookies.some(c => c.name === 'jwt');
+      if (!hasJwt) {
+        sendResponse({ success: false, message: 'No active Poshmark session found in browser.' });
+        return;
+      }
+      
+      getStorageData('cachedCsrfTokens', {}).then((tokens) => {
+        const csrfToken = tokens['poshmark'] || '';
+        const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
+        
+        const uiCookie = poshCookies.find(c => c.name === 'ui');
+        let username = 'nicks771';
+        if (uiCookie) {
+          try {
+            const decoded = decodeURIComponent(uiCookie.value);
+            const uiObj = JSON.parse(decoded);
+            if (uiObj && uiObj.dh) {
+              username = uiObj.dh;
+            }
+          } catch (e) {
+            console.error('Error parsing username from ui cookie:', e);
+          }
+        }
+        
+        console.log('[Background] Silently syncing Poshmark session for:', username);
+        fetch(`${backendUrl}/poshmark/connect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            platform: 'poshmark',
+            username,
+            sessionCookie,
+            csrfToken
+          })
+        })
+        .then(res => res.json())
+        .then((data) => {
+          if (data.success) {
+            getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+              cachedDetails['poshmark'] = {
+                username,
+                sessionCookie,
+                csrfToken
+              };
+              setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+                sendResponse({ success: true, message: 'Session synced successfully.' });
+              });
+            });
+          } else {
+            sendResponse({ success: false, message: data.message || 'Sync connection failed' });
+          }
+        })
+        .catch(err => {
+          sendResponse({ success: false, error: err.message });
+        });
+      });
+    });
+    return true;
   }
   
   else if (message.action === 'COMPLETE_POSHMARK_CONNECT') {
     const { username, csrfToken } = message.data;
-    if (!activeConnectFlow) {
-      sendResponse({ success: false, message: 'No active connect flow found' });
-      return true;
-    }
-    const { token, backendUrl, frontendUrl } = activeConnectFlow;
-    
-    if (typeof chrome.cookies === 'undefined') {
-      console.error('chrome.cookies API is undefined! Permission may be missing or extension needs a full reload.');
-      sendResponse({ success: false, message: 'chrome.cookies API is undefined. Please remove and re-load the extension.' });
-      return true;
-    }
-    
-    console.log('Resolving Poshmark session cookies...');
-    getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
-      const hasSession = poshCookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+    getStorageData('activeConnectFlow', null).then((flow) => {
+      if (!flow) {
+        sendResponse({ success: false, message: 'No active connect flow found' });
+        return;
+      }
+      const { token, backendUrl, frontendUrl } = flow;
       
-      if (!hasSession) {
-        const cookieNames = poshCookies.map(c => `${c.name} (${c.domain})`).join(', ');
-        sendResponse({ 
-          success: false, 
-          message: `Active Poshmark session not found on ${baseDomain}. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
-        });
+      if (typeof chrome.cookies === 'undefined') {
+        console.error('chrome.cookies API is undefined! Permission may be missing or extension needs a full reload.');
+        sendResponse({ success: false, message: 'chrome.cookies API is undefined. Please remove and re-load the extension.' });
         return;
       }
       
-      // Combine them into a single Cookie header string, appending the capture domain
-      const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
-      
-      console.log('Submitting captured Poshmark credentials to backend:', backendUrl);
-      fetch(`${backendUrl}/poshmark/connect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          platform: 'poshmark',
-          username,
-          sessionCookie,
-          csrfToken
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        console.log('Backend connect response:', data);
-        if (data.success) {
-          cachedConnectionDetails['poshmark'] = {
+      console.log('Resolving Poshmark session cookies...');
+      getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
+        const hasSession = poshCookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+        
+        if (!hasSession) {
+          const cookieNames = poshCookies.map(c => `${c.name} (${c.domain})`).join(', ');
+          sendResponse({ 
+            success: false, 
+            message: `Active Poshmark session not found on ${baseDomain}. Please log in first. Poshmark cookies found: [${cookieNames || 'none'}]` 
+          });
+          return;
+        }
+        
+        // Combine them into a single Cookie header string, appending the capture domain
+        const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
+        
+        console.log('Submitting captured Poshmark credentials to backend:', backendUrl);
+        fetch(`${backendUrl}/poshmark/connect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            platform: 'poshmark',
             username,
             sessionCookie,
             csrfToken
-          };
-          chrome.tabs.update(activeConnectFlow.tabId, { url: `${frontendUrl}/ebay-accounts?success=poshmark` });
-          activeConnectFlow = null;
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, message: data.message || 'Backend connection failed' });
-        }
-      })
-      .catch(err => {
-        console.error('Error connecting Poshmark to backend:', err);
-        sendResponse({ success: false, error: err.message });
+          })
+        })
+        .then(res => res.json())
+        .then((data) => {
+          console.log('Backend connect response:', data);
+          if (data.success) {
+            getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+              cachedDetails['poshmark'] = {
+                username,
+                sessionCookie,
+                csrfToken
+              };
+              setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+                chrome.tabs.update(flow.tabId, { url: `${frontendUrl}/ebay-accounts?success=poshmark` });
+                setStorageData('activeConnectFlow', null).then(() => {
+                  sendResponse({ success: true });
+                });
+              });
+            });
+          } else {
+            sendResponse({ success: false, message: data.message || 'Backend connection failed' });
+          }
+        })
+        .catch(err => {
+          console.error('Error connecting Poshmark to backend:', err);
+          sendResponse({ success: false, error: err.message });
+        });
       });
     });
     return true;
@@ -166,10 +261,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   else if (message.action === 'CACHE_CSRF_TOKEN') {
     const { site, token } = message.data;
     if (site && token) {
-      cachedCsrfTokens[site] = token;
-      console.log(`Cached CSRF Token for ${site}:`, token);
+      getStorageData('cachedCsrfTokens', {}).then((tokens) => {
+        tokens[site] = token;
+        setStorageData('cachedCsrfTokens', tokens).then(() => {
+          console.log(`Cached CSRF Token for ${site}:`, token);
+          sendResponse({ success: true });
+        });
+      });
+    } else {
+      sendResponse({ success: true });
     }
-    sendResponse({ success: true });
+    return true;
   }
   
   else if (message.action === 'CACHE_CONNECTION_DETAILS') {
@@ -178,43 +280,80 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
         const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
         
-        cachedConnectionDetails[platform] = {
-          username: data.username,
-          csrfToken: data.csrfToken,
-          sessionCookie
-        };
-        console.log(`Cached Connection Details for ${platform}:`, cachedConnectionDetails[platform]);
-        sendResponse({ success: true });
+        getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+          cachedDetails[platform] = {
+            username: data.username,
+            csrfToken: data.csrfToken,
+            sessionCookie
+          };
+          setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+            console.log(`Cached Connection Details for ${platform}:`, cachedDetails[platform]);
+            sendResponse({ success: true });
+          });
+        });
       });
       return true;
     } else {
-      cachedConnectionDetails[platform] = data;
-      sendResponse({ success: true });
+      getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+        cachedDetails[platform] = data;
+        setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+          sendResponse({ success: true });
+        });
+      });
+      return true;
     }
   }
 
   else if (message.action === 'GET_CONNECTION_DETAILS') {
-    sendResponse({ success: true, data: cachedConnectionDetails[message.platform] });
+    if (message.platform === 'poshmark') {
+      getPoshmarkCookiesWithSessionCheck(sender, (poshCookies, baseDomain) => {
+        getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+          const details = cachedDetails['poshmark'] || {};
+          const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
+          
+          sendResponse({
+            success: true,
+            data: {
+              username: details.username || 'nicks771',
+              csrfToken: details.csrfToken || '',
+              sessionCookie
+            }
+          });
+        });
+      });
+      return true;
+    } else {
+      getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+        sendResponse({ success: true, data: cachedDetails[message.platform] });
+      });
+      return true;
+    }
   }
   
   else if (message.action === 'GET_CACHED_CSRF_TOKEN') {
-    sendResponse({ success: true, token: cachedCsrfTokens[message.site] });
+    getStorageData('cachedCsrfTokens', {}).then((tokens) => {
+      sendResponse({ success: true, token: tokens[message.site] });
+    });
+    return true;
   }
   
   else if (message.action === 'START_POSHMARK_LISTING') {
     const appTabId = sender.tab ? sender.tab.id : null;
-    pendingListingData = {
+    const pendingData = {
       ...message.data,
       appTabId: appTabId
     };
-    console.log('Stored pending Poshmark listing data in queue with appTabId:', appTabId);
-    
-    // Open Poshmark create listing page in a background tab
-    chrome.tabs.create({ url: 'https://poshmark.com/create-listing', active: false }, (tab) => {
-      console.log('Opened Poshmark background tab, ID:', tab.id);
+    setStorageData('pendingListingData', pendingData).then(() => {
+      console.log('Stored pending Poshmark listing data in queue with appTabId:', appTabId);
+      
+      // Open Poshmark create listing page in a background tab
+      chrome.tabs.create({ url: 'https://poshmark.com/create-listing', active: false }, (tab) => {
+        console.log('Opened Poshmark background tab, ID:', tab.id);
+      });
+      
+      sendResponse({ success: true, message: 'Poshmark background tab opened. Listing queued.' });
     });
-    
-    sendResponse({ success: true, message: 'Poshmark background tab opened. Listing queued.' });
+    return true;
   }
   
   else if (message.action === 'POSHMARK_PUBLISH_STATUS') {
@@ -244,14 +383,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   else if (message.action === 'GET_PENDING_LISTING') {
-    // Return queued data if available
-    if (pendingListingData) {
-      sendResponse({ success: true, data: pendingListingData });
-      // Clear queue once dispatched to prevent duplicate attempts
-      pendingListingData = null;
-    } else {
-      sendResponse({ success: false, message: 'No pending listing queued.' });
-    }
+    getStorageData('pendingListingData', null).then((pendingData) => {
+      if (pendingData) {
+        sendResponse({ success: true, data: pendingData });
+        setStorageData('pendingListingData', null).then(() => {});
+      } else {
+        sendResponse({ success: false, message: 'No pending listing queued.' });
+      }
+    });
+    return true;
   }
   
   else if (message.action === 'LOG_CAPTURED_API') {
