@@ -156,6 +156,7 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     const maxIterations = maxSeconds * 2;
     let hasNavigatedToHome = false;
+    let sessionCookieWaitCount = 0;
     for (let i = 0; i < maxIterations; i++) {
       let cookies = await page.cookies();
       
@@ -225,9 +226,20 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
       const hasJwt = cookies.some(c => c.name === 'jwt');
       
       if (hasSessionCookie) {
-        loggedIn = true;
-        finalCookies = cookies;
-        break;
+        if (hasJwt) {
+          loggedIn = true;
+          finalCookies = cookies;
+          break;
+        } else {
+          sessionCookieWaitCount++;
+          console.log(`[Poshmark Login] _poshmark_session found, waiting for jwt... (Attempt ${sessionCookieWaitCount}/8)`);
+          if (sessionCookieWaitCount >= 8) {
+            console.log('[Poshmark Login] jwt wait timed out. Proceeding with _poshmark_session only.');
+            loggedIn = true;
+            finalCookies = cookies;
+            break;
+          }
+        }
       } else if (hasJwt) {
         console.log('[Poshmark Login] jwt found but _poshmark_session is missing. Establishing session...');
         // Try same-origin fetch to establish session cookie
@@ -488,6 +500,7 @@ async function verify2FA(sessionId, code) {
 
     // Check cookies every 500ms for up to 30 seconds
     let hasNavigatedToHome = false;
+    let sessionCookieWaitCount = 0;
     for (let i = 0; i < 60; i++) {
       let cookies = await page.cookies();
       
@@ -557,9 +570,20 @@ async function verify2FA(sessionId, code) {
       const hasJwt = cookies.some(c => c.name === 'jwt');
       
       if (hasSessionCookie) {
-        loggedIn = true;
-        finalCookies = cookies;
-        break;
+        if (hasJwt) {
+          loggedIn = true;
+          finalCookies = cookies;
+          break;
+        } else {
+          sessionCookieWaitCount++;
+          console.log(`[Poshmark Login] _poshmark_session found after 2FA, waiting for jwt... (Attempt ${sessionCookieWaitCount}/8)`);
+          if (sessionCookieWaitCount >= 8) {
+            console.log('[Poshmark Login] jwt wait timed out after 2FA. Proceeding with _poshmark_session only.');
+            loggedIn = true;
+            finalCookies = cookies;
+            break;
+          }
+        }
       } else if (hasJwt) {
         console.log('[Poshmark Login] jwt found after 2FA but _poshmark_session is missing. Establishing session...');
         // Try same-origin fetch to establish session cookie
