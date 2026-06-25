@@ -317,6 +317,24 @@ if (typeof OffscreenCanvas === 'undefined') {
 // Helper: Extract Username from DOM
 function getUsernameFromDOM(site) {
   if (site === 'poshmark') {
+    // 0. Try reading from Poshmark 'ui' cookie
+    try {
+      const cookies = document.cookie.split(';');
+      for (let c of cookies) {
+        const parts = c.trim().split('=');
+        if (parts[0] === 'ui') {
+          const decoded = decodeURIComponent(parts.slice(1).join('='));
+          const uiObj = JSON.parse(decoded);
+          if (uiObj && uiObj.dh) {
+            console.log('[Elister Extension] Extracted username from ui cookie:', uiObj.dh);
+            return uiObj.dh;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Elister Extension] Error parsing ui cookie:', e);
+    }
+
     // 1. Try finding link containing "/closet/" (supports absolute and relative URLs)
     const navProfileLink = document.querySelector('a[href*="/closet/"]');
     if (navProfileLink) {
