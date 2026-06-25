@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const { scrapeDepopShop } = require('../services/externalImportService');
 const { publishToDepop } = require('../services/backendPublishService');
+const { loginToDepopInteractive } = require('../services/depopLoginService');
 
 // @desc    Connect Depop credentials manually or via extension (accessToken)
 // @route   POST /api/depop/connect
@@ -17,7 +18,12 @@ exports.depopConnect = async (req, res) => {
     }
 
     if (disconnect) {
-      user.depopAccount = { connected: false };
+      user.depopAccount = {
+        connected: false,
+        username: '',
+        accessToken: '',
+        connectedAt: null
+      };
       // Clean up local product drafts imported from Depop
       await Product.deleteMany({ user: req.user.id, source: 'depop' });
       await Listing.deleteMany({ user: req.user.id, platform: 'depop', depopListingId: { $exists: true, $ne: '' } });
@@ -49,6 +55,46 @@ exports.depopConnect = async (req, res) => {
     });
   } catch (err) {
     console.error(`[Depop Controller] Connect error:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Connect Depop credentials using interactive login page
+// @route   POST /api/depop/connect-interactive
+// @access  Private
+exports.depopConnectInteractive = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    console.log(`[Depop Controller] Starting interactive connection for user: ${req.user.id}`);
+    const loginResult = await loginToDepopInteractive();
+
+    if (!loginResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: loginResult.message || 'Interactive login failed.'
+      });
+    }
+
+    user.depopAccount = {
+      connected: true,
+      username: loginResult.username,
+      accessToken: loginResult.accessToken,
+      connectedAt: new Date()
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Depop account connected successfully via Interactive Login!',
+      data: user.depopAccount
+    });
+  } catch (err) {
+    console.error(`[Depop Controller] Connect interactive error:`, err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };

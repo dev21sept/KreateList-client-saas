@@ -1,6 +1,7 @@
 const express = require('express');
 const { 
   depopConnect, 
+  depopConnectInteractive,
   depopImportCloset, 
   depopPublish, 
   depopGetLive 
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 router.post('/connect', depopConnect);
+router.post('/connect-interactive', depopConnectInteractive);
 router.post('/import', depopImportCloset);
 router.post('/publish/:id', depopPublish);
 router.get('/live', depopGetLive);

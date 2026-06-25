@@ -403,9 +403,26 @@ exports.publishListing = async (req, res) => {
         if (value && value.length > 0) {
           const filtered = (Array.isArray(value) ? value : [value])
             .map(v => String(v || ''))
-            .filter(v => !isAspectValueInvalid(v));
+            .filter(v => {
+              if (isAspectValueInvalid(v)) return false;
+              // Specific check for Fabric Weight: must contain a positive number
+              if (key.trim().toLowerCase() === 'fabric weight') {
+                const numMatch = v.match(/(\d+(\.\d+)?)/);
+                if (!numMatch || parseFloat(numMatch[1]) <= 0) {
+                  return false; // discard non-numeric or <= 0 values
+                }
+              }
+              return true;
+            });
           if (filtered.length > 0) {
-            aspects[key] = filtered;
+            if (key.trim().toLowerCase() === 'fabric weight') {
+              aspects[key] = filtered.map(v => {
+                const numMatch = v.match(/(\d+(\.\d+)?)/);
+                return String(parseFloat(numMatch[1]).toFixed(1));
+              });
+            } else {
+              aspects[key] = filtered;
+            }
           }
         }
       }

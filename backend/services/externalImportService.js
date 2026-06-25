@@ -1,5 +1,15 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const fs = require('fs');
+const path = require('path');
+
+try {
+  puppeteer.use(StealthPlugin());
+} catch (e) {
+  // ignore if already registered
+}
 
 // Recursive helper to find anything resembling a product array inside NextData JSON
 function findProductsInNextData(obj) {
@@ -225,19 +235,174 @@ async function scrapeDepopShop(username) {
 }
 
 /**
+ * Helper to fetch HTML content from a URL using Puppeteer Stealth Browser.
+ * Used when direct HTTP requests (axios) are blocked by Cloudflare/WAF.
+ */
+async function fetchHtmlWithPuppeteer(targetUrl) {
+  let browser = null;
+  try {
+    const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
+    const launchOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-web-security',
+        '--allow-running-insecure-content'
+      ]
+    };
+
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    if (proxyUrl) {
+      launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+    }
+
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else {
+      const checkPaths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+      for (const p of checkPaths) {
+        if (fs.existsSync(p)) {
+          launchOptions.executablePath = p;
+          break;
+        }
+      }
+    }
+
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9'
+    });
+
+    const response = await page.goto(targetUrl, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    if (!response || response.status() >= 400) {
+      throw new Error(`Failed to load page. HTTP status: ${response ? response.status() : 'No Response'}`);
+    }
+
+    // Wait 2 seconds for dynamic contents to render
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const html = await page.content();
+    await browser.close();
+    return html;
+  } catch (error) {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    throw error;
+  }
+}
+
+/**
  * Scrapes Poshmark closet products list
  * @param {string} username Poshmark username
  * @param {Object} [credentials] Poshmark connection credentials (sessionCookie, csrfToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
 async function scrapePoshmarkCloset(username, credentials = {}) {
-  const cleanUsername = username.trim().toLowerCase();
+  let cleanUsername = username.trim().toLowerCase();
   
+  // Parse helper for cookie values
+  const getCookieValue = (cookieStr, name) => {
+    if (!cookieStr) return null;
+    const cookies = cookieStr.split(';');
+    for (const cookie of cookies) {
+      const [cookieName, cookieVal] = cookie.trim().split('=');
+      if (cookieName === name) {
+        return decodeURIComponent(cookieVal);
+      }
+    }
+    return null;
+  };
+
+  // If cleanUsername is an email, try to resolve it using the sessionCookie
+  if (cleanUsername.includes('@') && credentials && credentials.sessionCookie) {
+    console.log(`[Import Scraper] Stored username is an email. Resolving actual username from session cookies...`);
+    let extracted = '';
+
+    // Step 1: Extract username locally from 'ui' cookie (immune to 403 blocks)
+    const uiCookie = getCookieValue(credentials.sessionCookie, 'ui');
+    if (uiCookie) {
+      try {
+        const parsedUi = JSON.parse(uiCookie);
+        if (parsedUi && parsedUi.dh) {
+          extracted = parsedUi.dh;
+          console.log(`[Import Scraper] Resolved username from ui cookie: ${extracted}`);
+        }
+      } catch (e) {
+        // Fallback regex match if JSON.parse fails (e.g., if cookie is double-encoded or contains invalid JSON)
+        const match = uiCookie.match(/"dh"\s*:\s*"([^"]+)"/);
+        if (match && match[1]) {
+          extracted = match[1];
+          console.log(`[Import Scraper] Resolved username from ui cookie (regex): ${extracted}`);
+        }
+      }
+    }
+
+    if (!extracted) {
+      const cookieUser = getCookieValue(credentials.sessionCookie, 'username') || getCookieValue(credentials.sessionCookie, 'user_name');
+      if (cookieUser) {
+        extracted = cookieUser;
+        console.log(`[Import Scraper] Resolved username from legacy cookie: ${extracted}`);
+      }
+    }
+
+    // Step 2: Fallback to home page web request only if local parsing yielded nothing
+    if (!extracted) {
+      try {
+        const homeResponse = await axios.get('https://poshmark.com/', {
+          headers: {
+            'cookie': credentials.sessionCookie,
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          },
+          timeout: 10000
+        });
+        const $ = cheerio.load(homeResponse.data);
+        
+        const closetLink = $('a[href*="/closet/"]').first();
+        if (closetLink.length > 0) {
+          const href = closetLink.attr('href') || '';
+          const match = href.match(/\/closet\/([^/?#\s]+)/);
+          if (match && match[1]) extracted = match[1];
+        }
+        
+        if (!extracted) {
+          $('a').each((i, el) => {
+            const href = $(el).attr('href') || '';
+            const match = href.match(/\/closet\/([^/?#\s]+)/);
+            if (match && match[1]) {
+              extracted = match[1];
+              return false; // break loop
+            }
+          });
+        }
+      } catch (resolveErr) {
+        console.warn(`[Import Scraper] Failed to resolve username via web request: ${resolveErr.message}`);
+      }
+    }
+
+    if (extracted) {
+      cleanUsername = extracted;
+      if (credentials) credentials.username = extracted;
+      console.log(`[Import Scraper] Successfully resolved username to: ${cleanUsername}`);
+    } else {
+      console.warn(`[Import Scraper] Could not resolve actual username from session cookies or web request.`);
+    }
+  }
+
   // 1. Try using the API with credentials first if available
   if (credentials && credentials.sessionCookie) {
     const { sessionCookie, csrfToken } = credentials;
     const apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
-    console.log(`[Import Scraper] Fetching Poshmark closet via REST API for ${username} at ${apiUrl}`);
+    console.log(`[Import Scraper] Fetching Poshmark closet via REST API for ${cleanUsername} at ${apiUrl}`);
     
     try {
       const apiResponse = await axios.get(apiUrl, {
@@ -300,17 +465,24 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
 
   // 2. Fallback to public page scraping
   const targetUrl = `https://poshmark.com/closet/${cleanUsername}`;
-  console.log(`[Import Scraper] Fetching public Poshmark closet for ${username} at ${targetUrl}`);
+  console.log(`[Import Scraper] Fetching public Poshmark closet for ${cleanUsername} at ${targetUrl}`);
   
   const config = getRequestConfig(targetUrl);
   
   try {
-    const response = await axios.get(config.url, {
-      headers: config.headers,
-      timeout: 15000
-    });
+    let html = null;
+    try {
+      const response = await axios.get(config.url, {
+        headers: config.headers,
+        timeout: 15000
+      });
+      html = response.data;
+    } catch (err) {
+      console.warn(`[Import Scraper] Public Poshmark fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
+      html = await fetchHtmlWithPuppeteer(targetUrl);
+    }
     
-    const $ = cheerio.load(response.data);
+    const $ = cheerio.load(html);
     const listings = [];
 
     // 1. Try parsing JSON-LD scripts (LD+JSON) containing Product schemas or ItemList

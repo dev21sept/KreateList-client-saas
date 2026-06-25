@@ -29,7 +29,7 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
     // Launch headless Chromium with proxy support if configured
     const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
     const launchOptions = {
-      headless: isProd ? true : false,
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -38,10 +38,6 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
         '--allow-running-insecure-content'
       ]
     };
-
-    if (!isProd) {
-      console.log('[Poshmark Login] Running in non-headless mode locally to allow manual 2FA entry.');
-    }
 
     const proxyUrl = process.env.HTTP_PROXY_URL;
     if (proxyUrl) {
@@ -125,16 +121,8 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
       console.log('[Poshmark Login] 2-Factor Authentication (Verify Email) detected!');
       const sessionId = `posh_2fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       
-      // Store in memory map
-      activeSessions.set(sessionId, {
-        browser,
-        page,
-        username,
-        cleanDomain
-      });
-
       // Cleanup timeout after 2 minutes
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         const sess = activeSessions.get(sessionId);
         if (sess) {
           console.log(`[Poshmark Login] 2FA Session ${sessionId} expired. Closing browser...`);
@@ -142,6 +130,15 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
           activeSessions.delete(sessionId);
         }
       }, 120000);
+
+      // Store in memory map
+      activeSessions.set(sessionId, {
+        browser,
+        page,
+        username,
+        cleanDomain,
+        timeoutId
+      });
 
       // Nullify browser and page so catch block doesn't close it
       browser = null;
@@ -158,14 +155,104 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
     let maxSeconds = 15; // 15 seconds default
 
     const maxIterations = maxSeconds * 2;
+    let hasNavigatedToHome = false;
     for (let i = 0; i < maxIterations; i++) {
-      const cookies = await page.cookies();
-      const hasSession = cookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+      let cookies = await page.cookies();
       
-      if (hasSession) {
+      // Dynamic LocalStorage/SessionStorage extract fallback
+      const extSessionVal = await page.evaluate(() => {
+        try {
+          const findSessionValue = (obj) => {
+            if (!obj) return null;
+            if (typeof obj === 'string' && obj.startsWith('v2_')) return obj;
+            if (typeof obj === 'object') {
+              for (const key in obj) {
+                try {
+                  const val = obj[key];
+                  if (typeof val === 'string' && val.startsWith('v2_')) return val;
+                  if (typeof val === 'object') {
+                    const res = findSessionValue(val);
+                    if (res) return res;
+                  }
+                } catch (e) {}
+              }
+            }
+            return null;
+          };
+          for (let k = 0; k < localStorage.length; k++) {
+            const key = localStorage.key(k);
+            const valStr = localStorage.getItem(key);
+            if (valStr && valStr.includes('v2_')) {
+              try {
+                const parsed = JSON.parse(valStr);
+                const res = findSessionValue(parsed);
+                if (res) return res;
+              } catch (e) {
+                const match = valStr.match(/(v2_[a-zA-Z0-9_\-]+)/);
+                if (match) return match[1];
+              }
+            }
+          }
+          for (let k = 0; k < sessionStorage.length; k++) {
+            const key = sessionStorage.key(k);
+            const valStr = sessionStorage.getItem(key);
+            if (valStr && valStr.includes('v2_')) {
+              try {
+                const parsed = JSON.parse(valStr);
+                const res = findSessionValue(parsed);
+                if (res) return res;
+              } catch (e) {
+                const match = valStr.match(/(v2_[a-zA-Z0-9_\-]+)/);
+                if (match) return match[1];
+              }
+            }
+          }
+        } catch (e) {}
+        return null;
+      }).catch(() => null);
+
+      if (extSessionVal && !cookies.some(c => c.name === '_poshmark_session')) {
+        console.log('[Poshmark Login] Extracted _poshmark_session dynamically from LocalStorage.');
+        cookies.push({
+          name: '_poshmark_session',
+          value: extSessionVal,
+          domain: `.${cleanDomain}`,
+          path: '/'
+        });
+      }
+
+      const hasSessionCookie = cookies.some(c => c.name === '_poshmark_session');
+      const hasJwt = cookies.some(c => c.name === 'jwt');
+      
+      if (hasSessionCookie) {
         loggedIn = true;
         finalCookies = cookies;
         break;
+      } else if (hasJwt) {
+        console.log('[Poshmark Login] jwt found but _poshmark_session is missing. Establishing session...');
+        // Try same-origin fetch to establish session cookie
+        await page.evaluate(() => fetch('/').catch(() => {}));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        cookies = await page.cookies();
+        if (cookies.some(c => c.name === '_poshmark_session')) {
+          loggedIn = true;
+          finalCookies = cookies;
+          break;
+        }
+
+        if (!hasNavigatedToHome) {
+          hasNavigatedToHome = true;
+          console.log('[Poshmark Login] _poshmark_session still missing. Navigating to home to establish session...');
+          await page.goto(`https://www.${cleanDomain}/`, { waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+          
+          cookies = await page.cookies();
+          if (cookies.some(c => c.name === '_poshmark_session')) {
+            loggedIn = true;
+            finalCookies = cookies;
+            break;
+          }
+        }
       }
       await new Promise(resolve => setTimeout(resolve, 500));
     }
@@ -209,12 +296,45 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     console.log('[Poshmark Login] Direct cloud login successful! Cookies captured.');
 
+    // Try to extract the actual closet username from the page or cookies
+    let capturedUsername = username.trim();
+    try {
+      const extractedUsername = await page.evaluate(() => {
+        const closetLink = document.querySelector('a[href*="/closet/"]');
+        if (closetLink) {
+          const href = closetLink.getAttribute('href');
+          const match = href.match(/\/closet\/([^/?#\s]+)/);
+          if (match && match[1]) return match[1];
+        }
+        const allLinks = Array.from(document.querySelectorAll('a'));
+        for (const link of allLinks) {
+          const href = link.getAttribute('href') || '';
+          const match = href.match(/\/closet\/([^/?#\s]+)/);
+          if (match && match[1]) return match[1];
+        }
+        return null;
+      });
+
+      if (extractedUsername) {
+        capturedUsername = extractedUsername;
+        console.log(`[Poshmark Login] Extracted actual Poshmark username: ${capturedUsername}`);
+      } else {
+        const usernameCookie = finalCookies.find(c => c.name === 'username' || c.name === 'user_name');
+        if (usernameCookie && usernameCookie.value) {
+          capturedUsername = usernameCookie.value;
+          console.log(`[Poshmark Login] Extracted username from cookie: ${capturedUsername}`);
+        }
+      }
+    } catch (extractErr) {
+      console.warn('[Poshmark Login] Failed to extract actual username:', extractErr.message);
+    }
+
     await browser.close();
     browser = null;
 
     return {
       success: true,
-      username: username.trim(),
+      username: capturedUsername,
       sessionCookie: finalCookieString,
       csrfToken: finalCsrfToken
     };
@@ -265,7 +385,11 @@ async function verify2FA(sessionId, code) {
     throw new Error('Verification session expired or invalid. Please try again.');
   }
 
-  const { browser, page, username, cleanDomain } = session;
+  const { browser, page, username, cleanDomain, timeoutId } = session;
+  if (timeoutId) {
+    console.log(`[Poshmark Login] Clearing 2FA expiration timer for session: ${sessionId}`);
+    clearTimeout(timeoutId);
+  }
   console.log(`[Poshmark Login] Submitting 2FA code for user: ${username}`);
 
   try {
@@ -353,20 +477,114 @@ async function verify2FA(sessionId, code) {
       }
     });
 
+    // Wait for page redirection/network to settle
+    console.log('[Poshmark Login] Waiting for redirection and network to settle after 2FA submit...');
+    await page.waitForNetworkIdle({ timeout: 15000 }).catch(() => {});
+
     // Wait for session cookies
     console.log('[Poshmark Login] Waiting for session cookies after 2FA submit...');
     let loggedIn = false;
     let finalCookies = [];
 
     // Check cookies every 500ms for up to 30 seconds
+    let hasNavigatedToHome = false;
     for (let i = 0; i < 60; i++) {
-      const cookies = await page.cookies();
-      const hasSession = cookies.some(c => c.name === '_poshmark_session' || c.name === 'jwt');
+      let cookies = await page.cookies();
       
-      if (hasSession) {
+      // Dynamic LocalStorage/SessionStorage extract fallback
+      const extSessionVal = await page.evaluate(() => {
+        try {
+          const findSessionValue = (obj) => {
+            if (!obj) return null;
+            if (typeof obj === 'string' && obj.startsWith('v2_')) return obj;
+            if (typeof obj === 'object') {
+              for (const key in obj) {
+                try {
+                  const val = obj[key];
+                  if (typeof val === 'string' && val.startsWith('v2_')) return val;
+                  if (typeof val === 'object') {
+                    const res = findSessionValue(val);
+                    if (res) return res;
+                  }
+                } catch (e) {}
+              }
+            }
+            return null;
+          };
+          for (let k = 0; k < localStorage.length; k++) {
+            const key = localStorage.key(k);
+            const valStr = localStorage.getItem(key);
+            if (valStr && valStr.includes('v2_')) {
+              try {
+                const parsed = JSON.parse(valStr);
+                const res = findSessionValue(parsed);
+                if (res) return res;
+              } catch (e) {
+                const match = valStr.match(/(v2_[a-zA-Z0-9_\-]+)/);
+                if (match) return match[1];
+              }
+            }
+          }
+          for (let k = 0; k < sessionStorage.length; k++) {
+            const key = sessionStorage.key(k);
+            const valStr = sessionStorage.getItem(key);
+            if (valStr && valStr.includes('v2_')) {
+              try {
+                const parsed = JSON.parse(valStr);
+                const res = findSessionValue(parsed);
+                if (res) return res;
+              } catch (e) {
+                const match = valStr.match(/(v2_[a-zA-Z0-9_\-]+)/);
+                if (match) return match[1];
+              }
+            }
+          }
+        } catch (e) {}
+        return null;
+      }).catch(() => null);
+
+      if (extSessionVal && !cookies.some(c => c.name === '_poshmark_session')) {
+        console.log('[Poshmark Login] Extracted _poshmark_session dynamically after 2FA.');
+        cookies.push({
+          name: '_poshmark_session',
+          value: extSessionVal,
+          domain: `.${cleanDomain}`,
+          path: '/'
+        });
+      }
+
+      const hasSessionCookie = cookies.some(c => c.name === '_poshmark_session');
+      const hasJwt = cookies.some(c => c.name === 'jwt');
+      
+      if (hasSessionCookie) {
         loggedIn = true;
         finalCookies = cookies;
         break;
+      } else if (hasJwt) {
+        console.log('[Poshmark Login] jwt found after 2FA but _poshmark_session is missing. Establishing session...');
+        // Try same-origin fetch to establish session cookie
+        await page.evaluate(() => fetch('/').catch(() => {}));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        cookies = await page.cookies();
+        if (cookies.some(c => c.name === '_poshmark_session')) {
+          loggedIn = true;
+          finalCookies = cookies;
+          break;
+        }
+
+        if (!hasNavigatedToHome) {
+          hasNavigatedToHome = true;
+          console.log('[Poshmark Login] _poshmark_session still missing after 2FA. Navigating to home to establish session...');
+          await page.goto(`https://www.${cleanDomain}/`, { waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+          
+          cookies = await page.cookies();
+          if (cookies.some(c => c.name === '_poshmark_session')) {
+            loggedIn = true;
+            finalCookies = cookies;
+            break;
+          }
+        }
       }
       
       const pageText = await page.evaluate(() => document.body.innerText).catch(() => '');
@@ -399,13 +617,46 @@ async function verify2FA(sessionId, code) {
 
     console.log('[Poshmark Login] 2FA Verification successful! Cookies captured.');
 
+    // Try to extract the actual closet username from the page or cookies
+    let capturedUsername = username.trim();
+    try {
+      const extractedUsername = await page.evaluate(() => {
+        const closetLink = document.querySelector('a[href*="/closet/"]');
+        if (closetLink) {
+          const href = closetLink.getAttribute('href');
+          const match = href.match(/\/closet\/([^/?#\s]+)/);
+          if (match && match[1]) return match[1];
+        }
+        const allLinks = Array.from(document.querySelectorAll('a'));
+        for (const link of allLinks) {
+          const href = link.getAttribute('href') || '';
+          const match = href.match(/\/closet\/([^/?#\s]+)/);
+          if (match && match[1]) return match[1];
+        }
+        return null;
+      });
+
+      if (extractedUsername) {
+        capturedUsername = extractedUsername;
+        console.log(`[Poshmark Login] Extracted actual Poshmark username after 2FA: ${capturedUsername}`);
+      } else {
+        const usernameCookie = finalCookies.find(c => c.name === 'username' || c.name === 'user_name');
+        if (usernameCookie && usernameCookie.value) {
+          capturedUsername = usernameCookie.value;
+          console.log(`[Poshmark Login] Extracted username from cookie after 2FA: ${capturedUsername}`);
+        }
+      }
+    } catch (extractErr) {
+      console.warn('[Poshmark Login] Failed to extract actual username after 2FA:', extractErr.message);
+    }
+
     // Clean up
     await browser.close().catch(() => {});
     activeSessions.delete(sessionId);
 
     return {
       success: true,
-      username: username,
+      username: capturedUsername,
       sessionCookie: finalCookieString,
       csrfToken: finalCsrfToken
     };

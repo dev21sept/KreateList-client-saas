@@ -18,7 +18,13 @@ exports.poshmarkConnect = async (req, res) => {
     }
 
     if (disconnect) {
-      user.poshmarkAccount = { connected: false };
+      user.poshmarkAccount = {
+        connected: false,
+        username: '',
+        sessionCookie: '',
+        csrfToken: '',
+        connectedAt: null
+      };
       // Clean up local product drafts imported from Poshmark
       await Product.deleteMany({ user: req.user.id, source: 'poshmark' });
       await Listing.deleteMany({ user: req.user.id, platform: 'poshmark', poshmarkListingId: { $exists: true, $ne: '' } });
@@ -173,7 +179,15 @@ exports.poshmarkImportCloset = async (req, res) => {
     console.log(`[Poshmark Controller] Starting closet import for: ${cleanUsername}, UserID: ${req.user.id}`);
     
     const user = await User.findById(req.user.id);
-    const scrapedListings = await scrapePoshmarkCloset(cleanUsername, user?.poshmarkAccount);
+    const poshAccount = user?.poshmarkAccount || {};
+    const scrapedListings = await scrapePoshmarkCloset(cleanUsername, poshAccount);
+
+    if (user && user.poshmarkAccount && poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {
+      user.poshmarkAccount.username = poshAccount.username;
+      user.markModified('poshmarkAccount');
+      await user.save();
+      console.log(`[Poshmark Controller] Saved resolved username (${poshAccount.username}) to DB`);
+    }
 
     let importCount = 0;
     let duplicateCount = 0;
@@ -270,6 +284,12 @@ exports.poshmarkPublish = async (req, res) => {
     console.log(`[Poshmark Controller] Direct publishing listing: ${listingId} to Poshmark`);
     const publishResult = await publishToPoshmark(listing, user.poshmarkAccount);
 
+    // Save updated credentials if session cookie was established/updated
+    if (user.isModified('poshmarkAccount')) {
+      await user.save();
+      console.log(`[Poshmark Controller] Updated poshmarkAccount in database with dynamically established session cookie`);
+    }
+
     // Save publish outcome in listing document
     listing.status = 'published';
     listing.errorMessage = null;
@@ -320,10 +340,18 @@ exports.poshmarkGetLive = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Poshmark account is not connected.' });
     }
     
-    const username = user.poshmarkAccount.username;
+    const poshAccount = user.poshmarkAccount || {};
+    const username = poshAccount.username;
     console.log(`[Poshmark Controller] Fetching live inventory for Poshmark (${username})`);
     
-    const liveListings = await scrapePoshmarkCloset(username, user.poshmarkAccount);
+    const liveListings = await scrapePoshmarkCloset(username, poshAccount);
+
+    if (poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {
+      user.poshmarkAccount.username = poshAccount.username;
+      user.markModified('poshmarkAccount');
+      await user.save();
+      console.log(`[Poshmark Controller] Saved resolved username (${poshAccount.username}) to DB in getLive`);
+    }
     
     res.status(200).json({
       success: true,

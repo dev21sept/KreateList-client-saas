@@ -53,6 +53,7 @@ const EbayAccounts = () => {
   const [depopUsername, setDepopUsername] = useState('');
   const [depopToken, setDepopToken] = useState('');
   const [depopLoading, setDepopLoading] = useState(false);
+  const [depopConnectMethod, setDepopConnectMethod] = useState('interactive'); // 'interactive', 'extension', 'manual'
 
   // Sync state
   const [syncingPlatform, setSyncingPlatform] = useState(null);
@@ -377,6 +378,25 @@ const EbayAccounts = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to connect Depop.');
+    } finally {
+      setDepopLoading(false);
+    }
+  };
+
+  const handleDepopInteractiveConnect = async () => {
+    try {
+      setDepopLoading(true);
+      toast.info('Starting In-App Login. Please look for the opened browser window and log in to Depop.');
+      
+      const res = await externalImportService.connectInteractiveDepop();
+      
+      if (res.data?.success) {
+        toast.success('Depop Connected Successfully via In-App Login!');
+        await loadUser();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'In-App Login failed or was cancelled.');
     } finally {
       setDepopLoading(false);
     }
@@ -758,54 +778,99 @@ const EbayAccounts = () => {
               </motion.div>
             ) : (
               <div className="space-y-4">
-                <div className="text-center py-2 flex flex-col items-center gap-2">
-                  <h4 className="text-md font-bold text-slate-900">Connect Depop Channel</h4>
-                  <p className="text-slate-500 text-xs">Sync Depop instantly with 1-click using the Chrome Extension.</p>
-                  
-                  {/* One-Click Automatic Connect Button */}
-                  <button 
-                    onClick={() => triggerAutoConnect('depop')}
-                    disabled={depopLoading}
-                    className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                {/* Method selector tabs */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 max-w-md mx-auto">
+                  <button
+                    onClick={() => setDepopConnectMethod('interactive')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      depopConnectMethod === 'interactive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                   >
-                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically (Recommended) <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                    In-App Login
                   </button>
-                </div>
-                
-                <div className="relative my-4 flex items-center justify-center">
-                  <div className="border-t border-slate-100 w-full absolute" />
-                  <span className="bg-white px-3 text-[10px] font-bold text-slate-400 relative">OR CONNECT MANUALLY</span>
+                  <button
+                    onClick={() => setDepopConnectMethod('extension')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      depopConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    Chrome Extension
+                  </button>
+                  <button
+                    onClick={() => setDepopConnectMethod('manual')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                      depopConnectMethod === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    Manual Mode
+                  </button>
                 </div>
 
-                <form onSubmit={handleDepopConnect} className="space-y-3 max-w-md mx-auto">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Depop Username</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. depop_seller" 
-                      value={depopUsername}
-                      onChange={(e) => setDepopUsername(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                    />
+                {depopConnectMethod === 'interactive' && (
+                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
+                    <h4 className="text-sm font-bold text-slate-800">Direct In-App Login</h4>
+                    <p className="text-slate-500 text-xs">Opens a secure browser window. Enter your details and log in manually, eLister will capture the session instantly.</p>
+                    
+                    <button 
+                      onClick={handleDepopInteractiveConnect}
+                      disabled={depopLoading}
+                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Start In-App Login <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Access Token (Bearer token)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Paste complete authorization Bearer token" 
-                      value={depopToken}
-                      onChange={(e) => setDepopToken(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                    />
+                )}
+
+                {depopConnectMethod === 'extension' && (
+                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
+                    <h4 className="text-sm font-bold text-slate-800">1-Click Chrome Extension</h4>
+                    <p className="text-slate-500 text-xs">Grabs your active browser session automatically from Chrome.</p>
+                    
+                    <button 
+                      onClick={() => triggerAutoConnect('depop')}
+                      disabled={depopLoading}
+                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                    </button>
                   </div>
-                  <button 
-                    type="submit"
-                    disabled={depopLoading}
-                    className="w-full py-2.5 bg-red-650 text-white rounded-xl font-black text-xs hover:bg-red-750 transition-all flex items-center justify-center gap-2"
-                  >
-                    {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop Manually'}
-                  </button>
-                </form>
+                )}
+
+                {depopConnectMethod === 'manual' && (
+                  <form onSubmit={handleDepopConnect} className="space-y-3 max-w-md mx-auto">
+                    <div className="text-center py-1">
+                      <h4 className="text-sm font-bold text-slate-800">Manual Token Setup</h4>
+                      <p className="text-slate-500 text-[11px] mt-0.5">Directly input captured username and Bearer token.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Depop Username</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. depop_seller" 
+                        value={depopUsername}
+                        onChange={(e) => setDepopUsername(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Access Token (Bearer token)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Paste complete authorization Bearer token" 
+                        value={depopToken}
+                        onChange={(e) => setDepopToken(e.target.value)}
+                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      disabled={depopLoading}
+                      className="w-full py-2.5 bg-red-650 text-white rounded-xl font-black text-xs hover:bg-red-750 transition-all flex items-center justify-center gap-2"
+                    >
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop Manually'}
+                    </button>
+                  </form>
+                )}
               </div>
             )}
           </div>

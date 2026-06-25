@@ -11,11 +11,6 @@
       else if (window.csrfToken) token = window.csrfToken;
       else if (window.xsrfToken) token = window.xsrfToken;
 
-      // Filter out NextJS UUID tokens containing hyphens
-      if (token && token.includes('-')) {
-        token = null;
-      }
-
       if (token) {
         document.documentElement.setAttribute('data-elister-csrf-token', token);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
@@ -221,7 +216,7 @@
         }
       }
 
-      if (csrfToken && !csrfToken.includes('-')) {
+      if (csrfToken) {
         document.documentElement.setAttribute('data-elister-csrf-token', csrfToken);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken }
@@ -241,7 +236,7 @@
         // Check response headers for CSRF token
         if (response.headers) {
           const respCsrf = response.headers.get('x-xsrf-token') || response.headers.get('x-csrf-token');
-          if (respCsrf && !respCsrf.includes('-')) {
+          if (respCsrf) {
             console.log('[Elister Interceptor] Captured CSRF token from fetch response headers:', respCsrf);
             document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
             window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
@@ -270,10 +265,10 @@
           const resData = JSON.parse(responseText);
           const findCsrf = (obj) => {
             if (!obj || typeof obj !== 'object') return null;
-            if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20 && !obj.csrfToken.includes('-')) return obj.csrfToken;
-            if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20 && !obj.csrf_token.includes('-')) return obj.csrf_token;
-            if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20 && !obj.authenticityToken.includes('-')) return obj.authenticityToken;
-            if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20 && !obj.authenticity_token.includes('-')) return obj.authenticity_token;
+            if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20) return obj.csrfToken;
+            if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20) return obj.csrf_token;
+            if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20) return obj.authenticityToken;
+            if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20) return obj.authenticity_token;
             
             for (let key in obj) {
               const res = findCsrf(obj[key]);
@@ -336,7 +331,7 @@
 
   XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
     try {
-      if ((name.toLowerCase() === 'x-xsrf-token' || name.toLowerCase() === 'x-csrf-token') && value && !value.includes('-')) {
+      if ((name.toLowerCase() === 'x-xsrf-token' || name.toLowerCase() === 'x-csrf-token') && value) {
         document.documentElement.setAttribute('data-elister-csrf-token', value);
         window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
           detail: { csrfToken: value }
@@ -361,7 +356,7 @@
           // Check response headers for CSRF token
           try {
             const respCsrf = this.getResponseHeader('x-xsrf-token') || this.getResponseHeader('x-csrf-token');
-            if (respCsrf && !respCsrf.includes('-')) {
+            if (respCsrf) {
               console.log('[Elister Interceptor] Captured CSRF token from XHR response headers:', respCsrf);
               document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
               window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
@@ -375,10 +370,10 @@
             const resData = JSON.parse(this.responseText);
             const findCsrf = (obj) => {
               if (!obj || typeof obj !== 'object') return null;
-              if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20 && !obj.csrfToken.includes('-')) return obj.csrfToken;
-              if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20 && !obj.csrf_token.includes('-')) return obj.csrf_token;
-              if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20 && !obj.authenticityToken.includes('-')) return obj.authenticityToken;
-              if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20 && !obj.authenticity_token.includes('-')) return obj.authenticity_token;
+              if (obj.csrfToken && typeof obj.csrfToken === 'string' && obj.csrfToken.length > 20) return obj.csrfToken;
+              if (obj.csrf_token && typeof obj.csrf_token === 'string' && obj.csrf_token.length > 20) return obj.csrf_token;
+              if (obj.authenticityToken && typeof obj.authenticityToken === 'string' && obj.authenticityToken.length > 20) return obj.authenticityToken;
+              if (obj.authenticity_token && typeof obj.authenticity_token === 'string' && obj.authenticity_token.length > 20) return obj.authenticity_token;
               
               for (let key in obj) {
                 const res = findCsrf(obj[key]);

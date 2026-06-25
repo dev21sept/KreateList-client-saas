@@ -27,6 +27,33 @@ function getAxiosConfig(options) {
   return config;
 }
 
+// Helper to parse and merge set-cookie headers into a cookie string
+function mergeSetCookies(currentCookieStr, setCookieHeader) {
+  if (!setCookieHeader || !Array.isArray(setCookieHeader)) return currentCookieStr;
+  
+  const cookieMap = new Map();
+  if (currentCookieStr) {
+    currentCookieStr.split(';').forEach(c => {
+      const parts = c.trim().split('=');
+      if (parts[0]) {
+        cookieMap.set(parts[0], parts.slice(1).join('='));
+      }
+    });
+  }
+
+  setCookieHeader.forEach(cookieStr => {
+    const mainPart = cookieStr.split(';')[0];
+    const parts = mainPart.trim().split('=');
+    if (parts[0]) {
+      cookieMap.set(parts[0], parts.slice(1).join('='));
+    }
+  });
+
+  return Array.from(cookieMap.entries())
+    .map(([name, val]) => `${name}=${val}`)
+    .join('; ');
+}
+
 // Helper: Download image (URLs or local S3 uploads) and return it as a Buffer
 async function downloadImageBuffer(imageUrl) {
   if (!imageUrl) {
@@ -503,8 +530,8 @@ function getPoshmarkHeaders(sessionCookie, csrfToken) {
 }
 
 async function publishToPoshmark(listing, poshmarkAccount) {
+  let sessionCookie = poshmarkAccount.sessionCookie;
   const csrfToken = poshmarkAccount.csrfToken;
-  const sessionCookie = poshmarkAccount.sessionCookie;
 
   if (!csrfToken || !sessionCookie) {
     throw new Error('Poshmark cookies are missing. Please connect your Poshmark account.');
@@ -515,6 +542,37 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   }
 
   const domain = getDomainFromCookie(sessionCookie);
+
+  // If _poshmark_session is missing but jwt is present, try to establish the session cookie dynamically
+  if (!sessionCookie.includes('_poshmark_session=') && sessionCookie.includes('jwt=')) {
+    console.log(`[Poshmark Publisher] _poshmark_session is missing from user cookies. Establishing it on-the-fly...`);
+    try {
+      const cleanCookie = cleanCookieHeader(sessionCookie);
+      const resConfig = getAxiosConfig({
+        method: 'GET',
+        url: `https://${domain}/create-listing`,
+        headers: {
+          'cookie': cleanCookie,
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      const res = await axios(resConfig);
+      
+      const setCookies = res.headers['set-cookie'];
+      if (setCookies) {
+        const mergedCookie = mergeSetCookies(sessionCookie, setCookies);
+        if (mergedCookie.includes('_poshmark_session=')) {
+          sessionCookie = mergedCookie;
+          poshmarkAccount.sessionCookie = mergedCookie; // Update in reference so controller can save it
+          console.log(`[Poshmark Publisher] Successfully established and merged _poshmark_session cookie.`);
+        }
+      }
+    } catch (sessionErr) {
+      console.error(`[Poshmark Publisher] Failed to establish session on-the-fly:`, sessionErr.message);
+    }
+  }
+
   console.log(`[Poshmark Publisher] Initializing publish for listing: "${listing.title}" on domain: ${domain}`);
   
   // Step 1: Create Draft Session on Poshmark

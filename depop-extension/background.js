@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { token, backendUrl, frontendUrl } = activeConnectFlow;
     
     console.log('Submitting captured Depop credentials to backend:', backendUrl);
-    fetch(`${backendUrl}/external-import/connect`, {
+    fetch(`${backendUrl}/depop/connect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

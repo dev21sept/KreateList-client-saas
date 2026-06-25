@@ -30,40 +30,29 @@ function getPoshmarkCookiesWithSessionCheck(sender, callback) {
   console.log(`[Background] Querying cookies for base domain: ${baseDomain}`);
 
   const queryAndCheck = (attempt = 1) => {
-    chrome.cookies.getAll({ domain: baseDomain }, (cookies) => {
-      // Fallback if domain-specific query returns nothing or is blocked
-      if (!cookies || cookies.length === 0) {
-        chrome.cookies.getAll({}, (allCookies) => {
-          const filtered = allCookies ? allCookies.filter(c => c.domain.includes(baseDomain)) : [];
-          processCookies(filtered, attempt);
-        });
+    chrome.cookies.getAll({}, (allCookies) => {
+      const poshCookies = allCookies ? allCookies.filter(c => c.domain.includes(baseDomain)) : [];
+      console.log(`[Background] Found Poshmark cookies (attempt ${attempt}):`, poshCookies.map(c => ({ name: c.name, domain: c.domain })));
+
+      const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
+      const hasJwt = poshCookies.some(c => c.name === 'jwt');
+
+      if (!hasSessionCookie && hasJwt && attempt === 1) {
+        console.log(`[Background] _poshmark_session not found on ${baseDomain} but jwt is present. Establishing session via fetch...`);
+        // Fetch /create-listing with a cache-buster to trigger Rails session cookie setup
+        fetch(`https://${baseDomain}/create-listing?_elister_cb=` + Date.now())
+          .then(() => {
+            // Wait 1.5 seconds for the browser to receive and apply Set-Cookie, then query again
+            setTimeout(() => queryAndCheck(2), 1500);
+          })
+          .catch(err => {
+            console.error('[Background] Failed to establish Poshmark session:', err);
+            callback(poshCookies, baseDomain);
+          });
       } else {
-        processCookies(cookies, attempt);
+        callback(poshCookies, baseDomain);
       }
     });
-  };
-
-  const processCookies = (poshCookies, attempt) => {
-    console.log(`[Background] Found Poshmark cookies (attempt ${attempt}):`, poshCookies.map(c => ({ name: c.name, domain: c.domain })));
-
-    const hasSessionCookie = poshCookies.some(c => c.name === '_poshmark_session');
-    const hasJwt = poshCookies.some(c => c.name === 'jwt');
-
-    if (!hasSessionCookie && hasJwt && attempt === 1) {
-      console.log(`[Background] _poshmark_session not found on ${baseDomain} but jwt is present. Establishing session via fetch...`);
-      // Fetch the API endpoint to trigger Rails session cookie setup
-      fetch(`https://www.${baseDomain}/vm-rest/users/self`)
-        .then(() => {
-          // Wait 1.5 seconds for the browser to receive and apply Set-Cookie, then query again
-          setTimeout(() => queryAndCheck(2), 1500);
-        })
-        .catch(err => {
-          console.error('[Background] Failed to establish Poshmark session:', err);
-          callback(poshCookies, baseDomain);
-        });
-    } else {
-      callback(poshCookies, baseDomain);
-    }
   };
 
   queryAndCheck(1);
@@ -77,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { token, backendUrl, frontendUrl } = message.data;
     const tabId = sender.tab ? sender.tab.id : null;
     if (tabId) {
-      chrome.tabs.update(tabId, { url: 'https://poshmark.com/login' }, (tab) => {
+      chrome.tabs.update(tabId, { url: 'https://poshmark.com/create-listing' }, (tab) => {
         activeConnectFlow = {
           tabId: tab.id,
           token,
@@ -133,7 +122,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const sessionCookie = `${poshCookies.map(c => `${c.name}=${c.value}`).join('; ')}; elister_domain=${baseDomain}`;
       
       console.log('Submitting captured Poshmark credentials to backend:', backendUrl);
-      fetch(`${backendUrl}/external-import/connect`, {
+      fetch(`${backendUrl}/poshmark/connect`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

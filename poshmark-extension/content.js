@@ -16,20 +16,37 @@ function getCsrfToken(site) {
   const cached = sessionStorage.getItem('elister_captured_csrf_token');
   if (cached) return cached;
 
-  // 2. Try scanning all meta tags
+  // 2. Try specific meta tags first
+  const specificMeta = document.querySelector('meta[name="csrf-token"]') || 
+                       document.querySelector('meta[name="xsrf-token"]') || 
+                       document.querySelector('meta[name="csrf_token"]');
+  if (specificMeta) {
+    const content = specificMeta.getAttribute('content');
+    if (content && content.length > 10) {
+      console.log('[Elister Extension] Extracted CSRF token from specific meta tag:', specificMeta.getAttribute('name'));
+      return content;
+    }
+  }
+
+  // 3. Try specific cookies first
+  const pmCookie = getCookie('_csrf') || getCookie('_csrf_token') || getCookie('csrf_token') || getCookie('xsrf-token') || getCookie('authenticity_token');
+  if (pmCookie && pmCookie.length > 10) {
+    console.log('[Elister Extension] Extracted CSRF token from specific cookie');
+    return pmCookie;
+  }
+
+  // 4. Try scanning all meta tags
   const metas = document.querySelectorAll('meta');
   for (let meta of metas) {
     const name = (meta.getAttribute('name') || meta.getAttribute('property') || '').toLowerCase();
     const content = meta.getAttribute('content');
     if ((name.includes('csrf') || name.includes('xsrf') || name.includes('token')) && content && content.length > 20) {
-      if (site !== 'poshmark' || !content.includes('-')) {
-        console.log('[Elister Extension] Extracted CSRF token from meta tag:', name);
-        return content;
-      }
+      console.log('[Elister Extension] Extracted CSRF token from meta tag:', name);
+      return content;
     }
   }
 
-  // 3. Try reading NextJS Hydration Data from DOM script tag
+  // 5. Try reading NextJS Hydration Data from DOM script tag
   try {
     const nextDataEl = document.getElementById('__NEXT_DATA__');
     if (nextDataEl) {
@@ -38,15 +55,13 @@ function getCsrfToken(site) {
                     text.match(/"xsrfToken"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i) ||
                     text.match(/"token"\s*:\s*"([a-zA-Z0-9_\-]{20,60})"/i);
       if (match && match[1]) {
-        if (site !== 'poshmark' || !match[1].includes('-')) {
-          console.log('[Elister Extension] Extracted CSRF token from __NEXT_DATA__ script tag');
-          return match[1];
-        }
+        console.log('[Elister Extension] Extracted CSRF token from __NEXT_DATA__ script tag');
+        return match[1];
       }
     }
   } catch(e) {}
 
-  // 4. Try scanning all cookies (including pattern matches)
+  // 6. Try scanning all cookies (including pattern matches)
   const cookies = document.cookie.split(';');
   for (let c of cookies) {
     const parts = c.trim().split('=');
@@ -56,22 +71,11 @@ function getCsrfToken(site) {
       const lowerName = name.toLowerCase();
       if ((lowerName.includes('csrf') || lowerName.includes('xsrf') || lowerName.includes('token')) && val && val.length > 20) {
         const decoded = decodeURIComponent(val);
-        if (site !== 'poshmark' || !decoded.includes('-')) {
-          console.log('[Elister Extension] Extracted CSRF token from cookie:', name);
-          return decoded;
-        }
+        console.log('[Elister Extension] Extracted CSRF token from cookie:', name);
+        return decoded;
       }
     }
   }
-
-  // 5. Default legacy fallback naming checks
-  if (site === 'poshmark') {
-    const pmCookie = getCookie('_csrf_token') || getCookie('csrf_token') || getCookie('xsrf-token');
-    if (pmCookie && !pmCookie.includes('-')) return pmCookie;
-  }
-
-  const generalCsrf = getCookie('csrf_token') || getCookie('authenticity_token');
-  if (generalCsrf && (site !== 'poshmark' || !generalCsrf.includes('-'))) return generalCsrf;
 
   return null;
 }
@@ -1349,34 +1353,41 @@ async function checkAndCompleteConnection() {
 
   console.log('[Elister Extension] Checking connection status:', { username, hasCsrf: !!csrfToken });
 
-  if (username && username !== 'Guest' && csrfToken) {
-    chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, async (response) => {
-      if (response && response.success && response.flow) {
-        console.log('[Elister Extension] Active Poshmark connection flow detected! Refreshing session cookie via same-origin fetch...');
-        
-        try {
-          // Trigger same-origin fetch to /vm-rest/users/self (bypasses Service Worker cache) to ensure _poshmark_session is set
-          await fetch('/vm-rest/users/self');
-          console.log('[Elister Extension] Same-origin session recovery fetch completed successfully.');
-        } catch (e) {
-          console.error('[Elister Extension] Same-origin session fetch failed:', e);
+  chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, async (response) => {
+    if (response && response.success && response.flow) {
+      const isLoginPage = window.location.pathname.includes('/login');
+      
+      if (!username || username === 'Guest' || !csrfToken) {
+        if (!isLoginPage) {
+          console.log('[Elister Extension] Connection flow active but user is Guest or CSRF missing. Redirecting to login...');
+          window.location.href = 'https://poshmark.com/login';
         }
-        
-        // Brief timeout to let the browser commit cookie to store
-        setTimeout(() => {
-          chrome.runtime.sendMessage({
-            action: 'COMPLETE_POSHMARK_CONNECT',
-            data: {
-              username: username,
-              csrfToken: csrfToken
-            }
-          }, (res) => {
-            console.log('[Elister Extension] COMPLETE_POSHMARK_CONNECT response:', res);
-          });
-        }, 500);
+        return;
       }
-    });
-  }
+      
+      console.log('[Elister Extension] Active Poshmark connection flow detected! Refreshing session cookie via same-origin fetch...');
+      try {
+        // Trigger same-origin fetch to /create-listing with a cache-buster to force Rails session cookie establishment
+        await fetch('/create-listing?_elister_cb=' + Date.now());
+        console.log('[Elister Extension] Same-origin session recovery fetch completed successfully.');
+      } catch (e) {
+        console.error('[Elister Extension] Same-origin session fetch failed:', e);
+      }
+      
+      // Brief timeout to let the browser commit cookie to store
+      setTimeout(() => {
+        chrome.runtime.sendMessage({
+          action: 'COMPLETE_POSHMARK_CONNECT',
+          data: {
+            username: username,
+            csrfToken: csrfToken
+          }
+        }, (res) => {
+          console.log('[Elister Extension] COMPLETE_POSHMARK_CONNECT response:', res);
+        });
+      }, 500);
+    }
+  });
 }
 
 if (currentSite === 'poshmark') {
