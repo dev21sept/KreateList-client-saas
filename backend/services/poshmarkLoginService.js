@@ -579,6 +579,14 @@ async function verify2FA(sessionId, code) {
           console.log(`[Poshmark Login] _poshmark_session found after 2FA, waiting for jwt... (Attempt ${sessionCookieWaitCount}/8)`);
           if (sessionCookieWaitCount >= 8) {
             console.log('[Poshmark Login] jwt wait timed out after 2FA. Proceeding with _poshmark_session only.');
+            try {
+              const uploadsDir = path.join(__dirname, '..', 'uploads');
+              if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+              await page.screenshot({ path: path.join(uploadsDir, 'jwt_timeout_debug.png') });
+              console.log('[Poshmark Login] Saved jwt_timeout_debug.png for investigation.');
+            } catch (e) {
+              console.error('[Poshmark Login] Failed to save screenshot:', e.message);
+            }
             loggedIn = true;
             finalCookies = cookies;
             break;
