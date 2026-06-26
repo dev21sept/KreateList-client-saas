@@ -690,7 +690,13 @@ exports.getCategoryAspects = async (req, res) => {
 // @access  Private
 exports.getSyncedInventory = async (req, res) => {
   try {
-    const products = await Product.find({ user: req.user.id }).sort({ updated_at: -1 });
+    const products = await Product.find({ 
+      user: req.user.id,
+      $or: [
+        { source: 'ebay' },
+        { source: { $exists: false } }
+      ]
+    }).sort({ updated_at: -1 });
     res.status(200).json({ success: true, count: products.length, data: products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

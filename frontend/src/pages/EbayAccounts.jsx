@@ -810,6 +810,9 @@ const EbayAccounts = () => {
                   <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
                     <h4 className="text-sm font-bold text-slate-800">Direct In-App Login</h4>
                     <p className="text-slate-500 text-xs">Opens a secure browser window. Enter your details and log in manually, eLister will capture the session instantly.</p>
+                    <p className="text-amber-600 font-semibold text-[10px] mt-1 bg-amber-50 px-3 py-1 rounded-lg border border-amber-100 max-w-sm">
+                      Note: If you are accessing from India, please ensure your VPN is connected to a supported country (e.g., US/UK) before starting.
+                    </p>
                     
                     <button 
                       onClick={handleDepopInteractiveConnect}

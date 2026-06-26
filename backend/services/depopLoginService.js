@@ -65,6 +65,26 @@ async function loginToDepopInteractive() {
       ]
     };
 
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      console.log(`[Depop Login Service] Setting browser proxy: ${proxyUrl}`);
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        const cleanProxyUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+        launchOptions.args.push(`--proxy-server=${cleanProxyUrl}`);
+        
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = {
+            username: decodeURIComponent(parsedUrl.username),
+            password: decodeURIComponent(parsedUrl.password)
+          };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     // Use custom executable path if configured
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
       console.log(`[Depop Login Service] Using custom executable: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
@@ -83,6 +103,11 @@ async function loginToDepopInteractive() {
     browser = await puppeteer.launch(launchOptions);
     const pages = await browser.pages();
     page = pages.length > 0 ? pages[0] : await browser.newPage();
+
+    if (proxyAuth) {
+      console.log(`[Depop Login Service] Authenticating proxy connection...`);
+      await page.authenticate(proxyAuth);
+    }
 
     // Emulate standard human viewport and user-agent
     await page.setViewport({ width: 1280, height: 800 });
@@ -118,8 +143,15 @@ async function loginToDepopInteractive() {
       timeout: 60000
     });
 
-    if (!response || response.status() >= 400) {
-      throw new Error(`Failed to load Depop login page. HTTP status: ${response ? response.status() : 'No Response'}`);
+    if (!response) {
+      throw new Error('Failed to load Depop login page. No response received.');
+    }
+
+    const status = response.status();
+    console.log(`[Depop Login Service] Page loaded with HTTP status: ${status}`);
+
+    if (status >= 400) {
+      console.warn(`[Depop Login Service] HTTP status ${status} detected. This is likely a Cloudflare challenge page. Waiting for user to bypass challenge and log in...`);
     }
 
     // Keep checking storage and waiting for token (maximum 3 minutes wait time)

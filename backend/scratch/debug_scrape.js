@@ -25,7 +25,7 @@ async function debug() {
       const username = user.poshmarkAccount.username;
       console.log(`Found user: ${user.email} with Poshmark username: ${username}`);
       console.log('Running scrapePoshmarkCloset...');
-      const results = await scrapePoshmarkCloset(username);
+      const results = await scrapePoshmarkCloset(username, user.poshmarkAccount);
       console.log(`Success! Found ${results.length} items.`);
     }
   } catch (error) {
