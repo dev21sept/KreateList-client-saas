@@ -93,6 +93,7 @@ const userSchema = new mongoose.Schema({
     },
     username: String,
     accessToken: String,
+    sessionCookie: String,
     connectedAt: Date
   },
   currency: {

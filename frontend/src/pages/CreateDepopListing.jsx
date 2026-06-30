@@ -18,7 +18,7 @@ import {
   Eye,
   Trash2
 } from 'lucide-react';
-import { ruleService, aiService, listingService } from '../services/api';
+import { ruleService, aiService, listingService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
 import { compressImage } from '../utils/imageCompressor';
@@ -817,8 +817,33 @@ const CreateDepopListing = () => {
     setFiles(newFiles);
   };
 
-  const handleSaveListing = async (publish = false) => {
-    if (publish) {
+  const publishDepopViaExtensionBackground = (listing, token) => {
+    return new Promise((resolve, reject) => {
+      const handleResponse = (event) => {
+        const isAllowedOrigin = event.origin.includes('elister.ai') || event.origin.includes('localhost') || event.origin.includes('127.0.0.1');
+        if (!isAllowedOrigin) return;
+        
+        if (event.data && event.data.action === 'ELISTER_DEPOP_PUBLISH_BACKGROUND_RESPONSE') {
+          window.removeEventListener('message', handleResponse);
+          if (event.data.success) {
+            resolve({ id: event.data.id, url: event.data.url });
+          } else {
+            reject(new Error(event.data.error || 'Failed to publish to Depop in background.'));
+          }
+        }
+      };
+      window.addEventListener('message', handleResponse);
+      
+      window.postMessage({
+        action: 'ELISTER_DEPOP_PUBLISH_BACKGROUND_TRIGGER',
+        listing,
+        token
+      }, '*');
+    });
+  };
+
+  const handleSaveListing = async (publishMode = null) => {
+    if (publishMode === 'extension') {
       const isExtensionInstalled = document.body.dataset.elisterDepopExtensionInstalled === "true";
       if (!isExtensionInstalled) {
         toast.warning("Please install and reload the Elister Depop Chrome Extension to list automatically!");
@@ -873,7 +898,7 @@ const CreateDepopListing = () => {
         const savedListing = response.data.data;
         toast.success(editId ? 'Depop Listing updated successfully!' : 'Depop Listing saved successfully!');
         
-        if (publish) {
+        if (publishMode === 'extension') {
           const token = localStorage.getItem('token');
           const backendUrl = import.meta.env.MODE === 'production'
             ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
@@ -913,12 +938,18 @@ const CreateDepopListing = () => {
           }, "*");
 
           toast.success("Opening Depop and launching publisher queue...");
+        } else if (publishMode === 'direct') {
+          toast.info("Publishing to Depop directly via API...");
+          const res = await externalImportService.publish(savedListing._id, { platform: 'depop' });
+          if (res.data?.success) {
+            toast.success("Listing successfully published to Depop!");
+          }
         }
         navigate('/listings');
       }
     } catch (error) {
       console.error("Error saving listing:", error);
-      toast.error(error.response?.data?.message || "Failed to save listing.");
+      toast.error(error.message || error.response?.data?.message || "Failed to save listing.");
     } finally {
       setLoading(false);
     }
@@ -1590,18 +1621,25 @@ const CreateDepopListing = () => {
             {step === 3 ? (
               <>
                 <button 
-                  onClick={() => handleSaveListing(false)}
+                  onClick={() => handleSaveListing(null)}
                   disabled={loading || isConvertingImages || !allImagesLoaded}
                   className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Save Draft
                 </button>
                 <button 
-                  onClick={() => handleSaveListing(true)}
+                  onClick={() => handleSaveListing('direct')}
                   disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50 cursor-pointer"
                 >
-                  {loading ? 'Working...' : 'Save & Publish to Depop'}
+                  {loading ? 'Working...' : 'Save & Publish (Direct API)'}
+                </button>
+                <button 
+                  onClick={() => handleSaveListing('extension')}
+                  disabled={loading || isConvertingImages || !allImagesLoaded}
+                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? 'Working...' : 'Save & Publish (Extension)'}
                 </button>
               </>
             ) : (

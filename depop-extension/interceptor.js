@@ -142,6 +142,21 @@
       const options = args[1] || {};
       const method = options.method || 'GET';
       
+      if (response.ok && (url.includes('auth/session') || url.includes('users/me/settings'))) {
+        try {
+          const responseClone = response.clone();
+          const data = await responseClone.json();
+          const username = data.username || data.username_canonical || data.usernameCanonical || data.sub;
+          if (username) {
+            console.log('[Elister Depop Interceptor] Captured username from API response:', username);
+            sessionStorage.setItem('elister_captured_depop_username', username);
+            window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_USERNAME_CAPTURED', {
+              detail: { username }
+            }));
+          }
+        } catch (err) {}
+      }
+      
       const isDepopApi = url.includes('depop.com/api') || url.includes('api.depop.com');
       const isInteresting = url.includes('product') || url.includes('photo') || url.includes('image') || url.includes('upload') || url.includes('draft') || url.includes('create');
       

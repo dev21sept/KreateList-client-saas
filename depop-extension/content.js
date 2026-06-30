@@ -359,7 +359,8 @@ async function executeDepopUpload(productData) {
         if (!imgResponse.ok) {
           throw new Error(`Failed to fetch image ${i+1}. Status: ${imgResponse.status}`);
         }
-        const byteString = atob(imgResponse.data);
+        const base64Str = await imgResponse.text();
+        const byteString = atob(base64Str);
         const ab = new ArrayBuffer(byteString.length);
         const ia = new Uint8Array(ab);
         for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
@@ -383,7 +384,7 @@ async function executeDepopUpload(productData) {
 
     const getCountryCode = (countryName) => {
       const c = String(countryName).toLowerCase();
-      if (c === 'india' || c === 'in') return 'IN';
+      if (c === 'india' || c === 'in') return 'IN'; // Keep as IN
       if (c === 'united kingdom' || c === 'uk' || c === 'gb') return 'GB';
       if (c === 'united states' || c === 'us' || c === 'usa') return 'US';
       if (c === 'australia' || c === 'au') return 'AU';
@@ -429,15 +430,50 @@ async function executeDepopUpload(productData) {
     const condition = mapCondition(productData.conditionId || productData.selectedCondition);
 
     let variantSet = 54; // default
-    let variantsPayload = { "5": 1 }; // default
-    
+    let variantsPayload = {};
     if (productData.size) {
+      const catId = (productData.categoryId || '').toLowerCase();
+      const isMens = String(productData.category || '').toLowerCase().includes('men');
+      const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
+      
       const match = String(productData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+      let sizeName = '';
       if (match) {
         variantSet = parseInt(match[1]);
         const sizeId = match[2];
-        variantsPayload = {};
+        sizeName = match[3] || '';
         variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
+      } else {
+        sizeName = String(productData.size).trim().toUpperCase();
+        const standardSizes = {
+          'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
+          'ONE SIZE': '90', 'OS': '90'
+        };
+        const sizeId = standardSizes[sizeName] || '4'; // Default to M
+        variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
+      }
+
+      // Auto-correct variant set and size ID if it's Men's category but using Women's variant set
+      if (isMens) {
+        if (!isBottom) {
+          variantSet = 54;
+          const mensTopsSizes = {
+            'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
+            'ONE SIZE': '90', 'OS': '90'
+          };
+          let resolvedSizeName = sizeName.toUpperCase();
+          if (match && (variantSet !== 54)) {
+            const womensUSMap = { '15': 'XS', '16': 'S', '17': 'M', '18': 'L', '19': 'XL', '20': 'XXL' };
+            resolvedSizeName = womensUSMap[match[2]] || resolvedSizeName;
+          }
+          const sizeId = mensTopsSizes[resolvedSizeName] || '4';
+          variantsPayload = { [sizeId]: parseInt(productData.quantity) || 1 };
+        } else {
+          variantSet = 56;
+          let waistVal = sizeName.replace(/[^0-9]/g, '');
+          if (!waistVal) waistVal = '32'; // Default waist
+          variantsPayload = { [waistVal]: parseInt(productData.quantity) || 1 };
+        }
       }
     }
 
@@ -507,21 +543,78 @@ async function executeDepopUpload(productData) {
       }
     }
 
+    let shippingMethods = [];
+    let sellerAddress = countryName;
+    let sellerGeo = geo;
+    let sellerCountry = countryCode;
+
+    try {
+      updateStatus("Resolving shipping preferences...", 70);
+      const addrRes = await backgroundFetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+        method: 'GET',
+        headers: {
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      }, 'json');
+
+      if (addrRes && addrRes.ok) {
+        const addresses = await addrRes.json();
+        if (addresses && addresses.length > 0) {
+          const activeAddress = addresses[0];
+          const addressId = activeAddress.id || activeAddress.address_id;
+          
+          sellerAddress = activeAddress.city || activeAddress.town || countryName;
+          sellerCountry = activeAddress.country || countryCode;
+          sellerGeo = {
+            lat: activeAddress.geo_position_lat || geo.lat,
+            lng: activeAddress.geo_position_lng || geo.lng
+          };
+
+          const providersRes = await backgroundFetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+            method: 'GET',
+            headers: {
+              'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          }, 'json');
+
+          if (providersRes && providersRes.ok) {
+            const providers = await providersRes.json();
+            if (providers && providers.length > 0) {
+              const firstProvider = providers[0];
+              const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
+              
+              shippingMethods = [{
+                shipping_provider_id: firstProvider.id,
+                parcel_size_id: sizeObj.id,
+                shipping_type: 'depop',
+                price: parseFloat(productData.shippingPrice || 0).toFixed(2)
+              }];
+              console.log('[Elister Depop] Resolved shipping method dynamically:', shippingMethods);
+            }
+          }
+        }
+      }
+    } catch (shipErr) {
+      console.error('[Elister Depop] Failed to fetch shipping preferences:', shipErr);
+    }
+
     const listingLifecycleId = generateUUID();
     const persistentId = generateUUID();
 
     const savePayload = {
       age: productData.age ? [productData.age.toLowerCase()] : ["modern"],
-      address: countryName,
+      address: sellerAddress,
       attributes: attributesPayload,
       brand: (productData.brand || '').toLowerCase(),
       colour: productData.color ? [productData.color.toLowerCase()] : [],
       condition: condition,
-      country: countryCode,
+      country: sellerCountry,
       description: productData.description || '',
       gender: getGender(productData.category),
-      geo_position_lat: geo.lat,
-      geo_position_lng: geo.lng,
+      geo_position_lat: sellerGeo.lat,
+      geo_position_lng: sellerGeo.lng,
       is_kids: isKids(productData.category),
       listing_lifecycle_id: listingLifecycleId,
       national_shipping_cost: parseFloat(productData.shippingPrice || 0).toFixed(2),
@@ -529,7 +622,7 @@ async function executeDepopUpload(productData) {
       price_amount: parseFloat(productData.price || 0).toFixed(2),
       price_currency: "USD",
       product_type: productData.categoryId || "shirts",
-      shipping_methods: [],
+      shipping_methods: shippingMethods,
       sku: productData.sku || `KL${Date.now()}`,
       source: productData.source ? [productData.source.toLowerCase()] : ["preloved"],
       style: productData.styleTag ? productData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
@@ -657,54 +750,209 @@ function getUsernameFromToken(token) {
   return null;
 }
 
+function getUsernameFromDOM() {
+  try {
+    // Prioritize header navigation to avoid footer links like /blog/, /careers/, etc.
+    const header = document.querySelector('header') || document.querySelector('[class*="Header"]') || document.querySelector('[class*="navigation"]') || document.querySelector('[class*="Nav"]');
+    const anchors = header ? header.querySelectorAll('a[href]') : document.querySelectorAll('a[href]');
+    
+    const excluded = ['login', 'register', 'search', 'settings', 'products', 'create', 'category', 'bag', 'cart', 'messages', 'notifications', 'help', 'terms', 'privacy', 'explore', 'shop', 'blog', 'careers', 'press', 'about', 'community', 'safety', 'support', 'news', 'cookies', 'sell', 'buy', 'download', 'featured', 'editorial', 'sitemap', 'jobs', 'advertise', 'terms-of-service'];
+    
+    for (const anchor of anchors) {
+      const href = anchor.getAttribute('href');
+      if (!href) continue;
+      
+      const cleanHref = href.replace(/^https:\/\/www\.depop\.com/, '').trim();
+      if (cleanHref.startsWith('/') && cleanHref.endsWith('/')) {
+        const parts = cleanHref.split('/').filter(Boolean);
+        if (parts.length === 1) {
+          const potentialUser = parts[0];
+          if (/^[a-z0-9_-]{3,20}$/i.test(potentialUser)) {
+            if (!excluded.includes(potentialUser.toLowerCase())) {
+              return potentialUser;
+            }
+          }
+        }
+      }
+    }
+
+    const images = document.querySelectorAll('img[alt]');
+    for (const img of images) {
+      const alt = img.getAttribute('alt') || '';
+      const match = alt.match(/^([a-z0-9_-]+)'s\s+profile/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+  } catch (e) {
+    console.error('[Elister Depop] Error scraping username from DOM:', e);
+  }
+  return null;
+}
+
 function getDepopUsername() {
+  // 0. Check sessionStorage for intercepted username
+  try {
+    const sessionUser = sessionStorage.getItem('elister_captured_depop_username');
+    if (sessionUser) {
+      console.log('[Elister Depop] Resolved username from captured session:', sessionUser);
+      return sessionUser;
+    }
+  } catch (e) {}
+
+  // 1. Try to get username from JWT token
   const token = getAuthToken();
   if (token) {
     const usernameFromToken = getUsernameFromToken(token);
     if (usernameFromToken && isNaN(usernameFromToken)) {
+      console.log('[Elister Depop] Resolved username from JWT token:', usernameFromToken);
       return usernameFromToken;
     }
   }
 
-  // Check localStorage
+  // 2. Scan ALL localStorage keys for "username"
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.includes('user') || key.includes('session') || key.includes('persist'))) {
-        const val = localStorage.getItem(key);
-        if (val && val.includes('username')) {
-          const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-]+)"/i);
-          if (match && match[1]) return match[1];
+      if (!key) continue;
+      const val = localStorage.getItem(key);
+      if (val && val.includes('username')) {
+        const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-\.]+)"/i);
+        if (match && match[1] && isNaN(match[1])) {
+          console.log('[Elister Depop] Found username in localStorage key:', key, 'value:', match[1]);
+          return match[1];
         }
       }
     }
   } catch (e) {}
 
-  // Parse pathname if on profile
+  // 3. Scan ALL sessionStorage keys for "username"
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      const val = sessionStorage.getItem(key);
+      if (val && val.includes('username')) {
+        const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-\.]+)"/i);
+        if (match && match[1] && isNaN(match[1])) {
+          console.log('[Elister Depop] Found username in sessionStorage key:', key, 'value:', match[1]);
+          return match[1];
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 4. Scan Document Cookies for username/user
+  try {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const parts = cookie.trim().split('=');
+      const name = parts[0];
+      const val = parts.slice(1).join('=');
+      if (name && (name.toLowerCase().includes('username') || name.toLowerCase() === 'user')) {
+        if (val && /^[a-z0-9_-]{3,20}$/i.test(val) && isNaN(val)) {
+          console.log('[Elister Depop] Found username in cookie:', name, 'value:', val);
+          return val;
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 5. Parse DOM profile links
+  const domUser = getUsernameFromDOM();
+  if (domUser) {
+    console.log('[Elister Depop] Found username in DOM:', domUser);
+    return domUser;
+  }
+
+  // 6. Parse pathname if on profile
   try {
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0 && !['products', 'create', 'settings', 'search', 'category', 'login', 'register'].includes(pathParts[0])) {
+      console.log('[Elister Depop] Found username in pathname:', pathParts[0]);
       return pathParts[0];
     }
   } catch (e) {}
 
-  return 'depop_user';
+  return null;
 }
 
+let isResolvingUsername = false;
+let lastApiResolveTime = 0;
+
 async function resolveUsernameFromApi(token) {
+  // Rate limit: Only allow API resolution once every 5 seconds to prevent 429 spam
+  const now = Date.now();
+  if (isResolvingUsername || (now - lastApiResolveTime < 5000)) {
+    console.log('[Elister Depop] API resolution locked or rate-limited. Skipping to prevent 429 spam.');
+    return null;
+  }
+
+  isResolvingUsername = true;
+  lastApiResolveTime = now;
+
   try {
-    const res = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
-      headers: {
-        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-        'Accept': 'application/json'
+    // 1. Try the settings API first via direct page-context fetch (includes cookies automatically)
+    try {
+      console.log('[Elister Depop] Fetching settings via page-context fetch...');
+      const res = await window.fetch('https://webapi.depop.com/presentation/api/v1/users/me/settings/', {
+        method: 'GET',
+        headers: {
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('[Elister Depop] Settings API response status:', res.status);
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[Elister Depop] Settings API response data:', data);
+        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical || data.sub;
+        if (resolvedUser) {
+          console.log('[Elister Depop] Resolved username from settings API:', resolvedUser);
+          return resolvedUser;
+        }
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.warn('[Elister Depop] Settings API returned non-OK status. Body:', errText);
       }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.username) return data.username;
+    } catch (err) {
+      console.error('[Elister Depop] Failed to fetch settings from Depop API:', err);
     }
-  } catch (err) {
-    console.error('[Elister Depop] Failed to fetch session from Depop API:', err);
+
+    // 2. Fallback to auth session API via direct page-context fetch
+    try {
+      console.log('[Elister Depop] Fetching session via page-context fetch...');
+      const res = await window.fetch('https://webapi.depop.com/api/v1/auth/session', {
+        method: 'GET',
+        headers: {
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('[Elister Depop] Session API response status:', res.status);
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[Elister Depop] Session API response data:', data);
+        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical || data.sub;
+        if (resolvedUser) {
+          console.log('[Elister Depop] Resolved username from session API:', resolvedUser);
+          return resolvedUser;
+        }
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.warn('[Elister Depop] Session API returned non-OK status. Body:', errText);
+      }
+    } catch (err) {
+      console.error('[Elister Depop] Failed to fetch session from Depop API:', err);
+    }
+  } finally {
+    isResolvingUsername = false;
   }
   return null;
 }
@@ -714,12 +962,18 @@ async function checkAndCompleteConnection() {
   if (!token) return;
 
   let username = getDepopUsername();
-  if (username === 'depop_user') {
+  if (!username) {
+    console.log('[Elister Depop] Username not found in storage/URL. Resolving from API...');
     const apiUsername = await resolveUsernameFromApi(token);
     if (apiUsername) username = apiUsername;
   }
 
   console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
+
+  if (!username) {
+    console.warn('[Elister Depop] Could not resolve Depop username. Using fallback "depop_user" to complete connection.');
+    username = 'depop_user';
+  }
 
   chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
     if (response && response.success && response.flow) {
@@ -727,7 +981,7 @@ async function checkAndCompleteConnection() {
       chrome.runtime.sendMessage({
         action: 'COMPLETE_DEPOP_CONNECT',
         data: {
-          username: username || 'depop_user',
+          username: username,
           accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
         }
       }, (res) => {
@@ -738,6 +992,323 @@ async function checkAndCompleteConnection() {
 }
 
 if (currentSite === 'depop') {
+  if (window.location.search.includes('elister_background_publish=true')) {
+    console.log('[Elister Depop] Active on background publish tab! Initializing API publish...');
+    
+    // Helper to convert base64 to Blob
+    const base64ToBlob = (base64Data) => {
+      const parts = base64Data.split(';base64,');
+      const contentType = parts[0].split(':')[1];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      return new Blob([uInt8Array], { type: contentType });
+    };
+
+    const publishDepopViaPageContext = async (listing, token) => {
+      try {
+        console.log('[Page Context Publisher] Starting background publish for:', listing.title);
+        const base64Images = listing.base64Images || [];
+        const pictureIds = [];
+
+        // Step 1: Upload Images
+        for (let i = 0; i < Math.min(base64Images.length, 4); i++) {
+          try {
+            console.log(`[Page Context Publisher] Converting base64 image ${i + 1} (length: ${base64Images[i].length})...`);
+            const imgBlob = base64ToBlob(base64Images[i]);
+
+            console.log(`[Page Context Publisher] Initializing image upload ${i + 1} on Depop...`);
+            let initRes;
+            try {
+              initRes = await window.fetch('https://webapi.depop.com/api/v4/pictures/', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  type: "product",
+                  extension: "jpg",
+                  dimensions: { width: 1280, height: 1280 }
+                }),
+                credentials: 'include'
+              });
+            } catch (fetchErr) {
+              console.error(`[Page Context Publisher] Fetching pictures init API failed:`, fetchErr);
+              throw new Error(`Failed to initialize picture upload API call: ${fetchErr.message}`);
+            }
+
+            if (!initRes.ok) {
+              const errBody = await initRes.text().catch(() => '');
+              throw new Error(`Failed to initialize picture upload: Status ${initRes.status}. Details: ${errBody}`);
+            }
+
+            const initData = await initRes.json();
+            const photoId = initData.id || initData.picture_id || initData.pictureId || initData.sid;
+            const uploadUrl = initData.url || initData.upload_url || initData.uploadUrl;
+
+            if (!photoId || !uploadUrl) {
+              throw new Error(`Invalid response structure: ${JSON.stringify(initData)}`);
+            }
+
+            console.log(`[Page Context Publisher] Uploading image ${i + 1} to S3 URL:`, uploadUrl.substring(0, 80));
+            let putRes;
+            try {
+              putRes = await window.fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'image/jpeg'
+                },
+                body: imgBlob
+              });
+            } catch (s3Err) {
+              console.error(`[Page Context Publisher] S3 upload fetch failed:`, s3Err);
+              throw new Error(`S3 upload fetch failed: ${s3Err.message}`);
+            }
+
+            if (!putRes.ok) {
+              throw new Error(`Failed to upload image to S3: Status ${putRes.status}`);
+            }
+
+            pictureIds.push(photoId);
+            console.log(`[Page Context Publisher] Upload success for image ${i + 1}. ID: ${photoId}`);
+          } catch (imgErr) {
+            console.error(`[Page Context Publisher] Failed to upload image ${i + 1}:`, imgErr);
+            throw new Error(`Depop Image Upload Failed: ${imgErr.message}`);
+          }
+        }
+
+        if (pictureIds.length === 0) {
+          throw new Error('No images were successfully uploaded to Depop.');
+        }
+
+        // Step 2: Resolve Listing Attributes
+        const mapCondition = (cond) => {
+          const c = String(cond || '').toLowerCase();
+          if (c.includes('brand_new') || c.includes('brand new') || c.includes('nwt')) return 'brand_new';
+          if (c.includes('like_new') || c.includes('like new') || c.includes('nwot') || c.includes('used_like_new')) return 'used_like_new';
+          if (c.includes('excellent')) return 'used_excellent';
+          if (c.includes('good') || c.includes('very_good') || c.includes('very good') || c.includes('used_good')) return 'used_good';
+          if (c.includes('fair') || c.includes('used_fair')) return 'used_fair';
+          return 'used_excellent';
+        };
+
+        const getGender = (cat) => {
+          const c = String(cat || '').toLowerCase();
+          if (c.includes('women')) return 'female';
+          if (c.includes('men')) return 'male';
+          return 'unisex';
+        };
+
+        let shippingMethods = [];
+        let sellerAddress = "United States";
+        let sellerGeo = { lat: 37.09024, lng: -95.712891 };
+        let sellerCountry = "US";
+
+        try {
+          console.log('[Page Context Publisher] Fetching seller addresses...');
+          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+            },
+            credentials: 'include'
+          });
+
+          if (addrRes.ok) {
+            const addrData = await addrRes.json();
+            if (addrData && addrData.length > 0) {
+              const activeAddress = addrData[0];
+              const addressId = activeAddress.id || activeAddress.address_id;
+              
+              sellerAddress = activeAddress.city || activeAddress.town || "United States";
+              sellerCountry = activeAddress.country || "US";
+              sellerGeo = {
+                lat: activeAddress.geo_position_lat || 37.09024,
+                lng: activeAddress.geo_position_lng || -95.712891
+              };
+
+              console.log(`[Page Context Publisher] Fetching shipping providers for address: ${addressId}`);
+              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+                },
+                credentials: 'include'
+              });
+
+              if (providersRes.ok) {
+                const providersData = await providersRes.json();
+                if (providersData && providersData.length > 0) {
+                  const firstProvider = providersData[0];
+                  const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
+                  
+                  shippingMethods = [{
+                    shipping_provider_id: firstProvider.id,
+                    parcel_size_id: sizeObj.id,
+                    shipping_type: 'depop',
+                    price: parseFloat(listing.shippingPrice || 0).toFixed(2)
+                  }];
+                  console.log('[Page Context Publisher] Dynamically resolved shipping method:', shippingMethods);
+                }
+              }
+            }
+          }
+        } catch (shipErr) {
+          console.error('[Page Context Publisher] Failed to resolve shipping details dynamically:', shipErr.message);
+        }
+
+        // Build listing creation payload
+        const savePayload = {
+          age: listing.age ? [listing.age.toLowerCase()] : ["modern"],
+          address: sellerAddress,
+          attributes: {},
+          brand: (listing.brand || '').toLowerCase(),
+          colour: listing.color ? [listing.color.toLowerCase()] : [],
+          condition: mapCondition(listing.selectedCondition || listing.conditionId),
+          country: sellerCountry,
+          description: listing.description || '',
+          gender: getGender(listing.category),
+          geo_position_lat: sellerGeo.lat,
+          geo_position_lng: sellerGeo.lng,
+          is_kids: String(listing.category).toLowerCase().includes('kids'),
+          listing_lifecycle_id: window.crypto.randomUUID(),
+          national_shipping_cost: parseFloat(listing.shippingPrice || 0).toFixed(2),
+          picture_ids: pictureIds,
+          price_amount: parseFloat(listing.price || 0).toFixed(2),
+          price_currency: "USD",
+          product_type: listing.categoryId || "shirts",
+          shipping_methods: shippingMethods,
+          sku: listing.sku || `KL${Date.now()}`,
+          source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
+          style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
+          variant_set: (() => {
+            const catId = (listing.categoryId || '').toLowerCase();
+            const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
+            const isMens = String(listing.category || '').toLowerCase().includes('men');
+            
+            if (isMens) {
+              return isBottom ? 56 : 54;
+            }
+            
+            if (listing.size) {
+              const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              if (match) return parseInt(match[1]);
+            }
+            return 54; // default
+          })(),
+          variants: (() => {
+            const catId = (listing.categoryId || '').toLowerCase();
+            const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
+            const isMens = String(listing.category || '').toLowerCase().includes('men');
+            const qty = parseInt(listing.quantity) || 1;
+            
+            let sizeName = '';
+            let match = null;
+            if (listing.size) {
+              match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              if (match) {
+                sizeName = match[3] || '';
+              } else {
+                sizeName = String(listing.size).trim().toUpperCase();
+              }
+            }
+            
+            if (isMens) {
+              if (!isBottom) {
+                const mensTopsSizes = {
+                  'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
+                  'ONE SIZE': '90', 'OS': '90'
+                };
+                let resolvedSizeName = sizeName.toUpperCase();
+                if (match) {
+                  const womensUSMap = { '15': 'XS', '16': 'S', '17': 'M', '18': 'L', '19': 'XL', '20': 'XXL' };
+                  resolvedSizeName = womensUSMap[match[2]] || resolvedSizeName;
+                }
+                const sizeId = mensTopsSizes[resolvedSizeName] || '4';
+                return { [sizeId]: qty };
+              } else {
+                let waistVal = sizeName.replace(/[^0-9]/g, '');
+                if (!waistVal) waistVal = '32';
+                return { [waistVal]: qty };
+              }
+            }
+            
+            // Default / Women's / Kids
+            if (listing.size && match) {
+              return { [match[2]]: qty };
+            } else if (listing.size) {
+              const standardSizes = {
+                'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
+                'ONE SIZE': '90', 'OS': '90'
+              };
+              const sizeId = standardSizes[sizeName] || '4';
+              return { [sizeId]: qty };
+            }
+            return { "4": qty }; // Default M
+          })(),
+          persistent_id: window.crypto.randomUUID(),
+          quantity: null
+        };
+
+        console.log('[Page Context Publisher] Step 2: Creating listing on Depop...');
+        const saveRes = await window.fetch('https://webapi.depop.com/presentation/api/v1/listing/products/', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+          },
+          body: JSON.stringify(savePayload),
+          credentials: 'include'
+        });
+
+        if (!saveRes.ok) {
+          const errBody = await saveRes.text().catch(() => '');
+          throw new Error(`Failed to create product listing: Status ${saveRes.status}. Details: ${errBody}`);
+        }
+
+        const saveData = await saveRes.json();
+        const depopId = saveData.id || saveData.slug;
+        const depopUrl = `https://www.depop.com/products/${saveData.slug || depopId}/`;
+        
+        console.log('[Page Context Publisher] Successfully created listing on Depop:', depopId);
+        return { success: true, id: depopId, url: depopUrl };
+
+      } catch (err) {
+        console.error('[Page Context Publisher] Error during publish:', err.message);
+        return { success: false, error: err.message };
+      }
+    };
+
+    chrome.storage.local.get(['backgroundPublishData'], async (resData) => {
+      const data = resData.backgroundPublishData;
+      if (!data) {
+        console.error('[Elister Depop] No background publish data found.');
+        chrome.runtime.sendMessage({ action: 'BACKGROUND_PUBLISH_RESULT', result: { success: false, error: 'No listing data found' } });
+        return;
+      }
+      
+      const publishResult = await publishDepopViaPageContext(data.listing, data.token);
+      chrome.runtime.sendMessage({ action: 'BACKGROUND_PUBLISH_RESULT', result: publishResult });
+    });
+  }
+
+  // Listen for username captured event from interceptor
+  window.addEventListener('ELISTER_DEPOP_USERNAME_CAPTURED', (event) => {
+    const username = event.detail.username;
+    if (username) {
+      console.log('[Elister Depop] Username captured event received:', username);
+      checkAndCompleteConnection();
+    }
+  });
+
   // Check immediately on load
   setTimeout(checkAndCompleteConnection, 1000);
 
@@ -811,6 +1382,24 @@ else if (currentSite === 'elister') {
         data: event.data.data
       }, (response) => {
         console.log('[Elister Depop] Background worker acknowledged listing start:', response);
+      });
+    }
+
+    if (event.data && event.data.action === 'ELISTER_DEPOP_PUBLISH_BACKGROUND_TRIGGER') {
+      console.log('[Elister Depop] Direct API publish trigger received from application:', event.data);
+      const { listing, token } = event.data;
+      chrome.runtime.sendMessage({
+        action: 'PUBLISH_DEPOP_BACKGROUND',
+        data: { listing, token }
+      }, (response) => {
+        console.log('[Elister Depop] Direct API publish background response:', response);
+        window.postMessage({
+          action: 'ELISTER_DEPOP_PUBLISH_BACKGROUND_RESPONSE',
+          success: response.success,
+          id: response.id,
+          url: response.url,
+          error: response.error
+        }, '*');
       });
     }
 

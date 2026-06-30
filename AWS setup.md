@@ -200,3 +200,26 @@ sudo nginx -t
 
 # 4. Restart Nginx to load the SSL certificates.
 sudo systemctl restart nginx
+
+
+# ------------------------------------------------------------------------------
+# STEP 8: SERVER HEALTH & PERFORMANCE MONITORING
+# ------------------------------------------------------------------------------
+# These commands allow you to check the CPU, Memory (RAM), Disk Space, and active
+# PM2 backend processes load on your AWS EC2 instance.
+
+# 1. Open beautiful, color-coded real-time system resource monitor (CPU/RAM/Processes)
+# Install it first if not available: sudo apt install htop -y
+htop
+
+# 2. Open PM2 process monitor (app memory, CPU load, and real-time backend console logs)
+pm2 monit
+
+# 3. View a quick table overview of all backend app statuses, memory and restart counts
+pm2 status
+
+# 4. Check available and used Memory (RAM) in human-readable format
+free -h
+
+# 5. Check hard drive/disk space usage
+df -h

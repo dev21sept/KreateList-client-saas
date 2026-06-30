@@ -243,51 +243,131 @@ async function loginToDepopInteractive() {
     // Try to parse the username from the token
     let username = getUsernameFromToken(capturedToken);
 
-    // If username couldn't be decoded from the JWT token, query the Depop api from the page context
+    // If username couldn't be decoded, run a robust check for up to 6 seconds to let the page redirect & load details
     if (!username) {
-      console.log('[Depop Login Service] Fetching username from Depop profile API using page context...');
-      try {
-        const apiUsername = await page.evaluate(async (token) => {
+      console.log('[Depop Login Service] Username not in token payload. Waiting for redirect or storage updates...');
+      const checkStart = Date.now();
+      while (Date.now() - checkStart < 6000) {
+        // 1. Try reading standard username from localStorage or sessionStorage
+        username = await page.evaluate(() => {
           try {
-            const res = await fetch('https://webapi.depop.com/api/v1/users/me/', {
-              headers: {
-                'authorization': `Bearer ${token}`
+            const scanStorage = (storage) => {
+              if (!storage) return null;
+              for (let i = 0; i < storage.length; i++) {
+                const key = storage.key(i);
+                if (key && (key.includes('user') || key.includes('session') || key.includes('persist'))) {
+                  const val = storage.getItem(key);
+                  if (val && val.includes('username')) {
+                    const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-]+)"/i);
+                    if (match && match[1]) return match[1];
+                  }
+                }
               }
-            });
-            if (res.ok) {
-              const data = await res.json();
-              return data.username || data.username_canonical;
-            }
-          } catch (e) {}
-          return null;
-        }, capturedToken);
+              return null;
+            };
+            return scanStorage(localStorage) || scanStorage(sessionStorage);
+          } catch (e) {
+            return null;
+          }
+        }).catch(() => null);
 
-        if (apiUsername) {
-          username = apiUsername;
-          console.log('[Depop Login Service] Fetched username from Depop API:', username);
+        if (username) {
+          console.log('[Depop Login Service] Captured username from browser storage:', username);
+          break;
         }
-      } catch (err) {
-        console.warn('[Depop Login Service] Error querying users/me API:', err.message);
+
+        // 2. Try parsing username from the page's current URL (e.g. if redirected to profile page)
+        try {
+          const currentUrl = page.url();
+          const parsedUrl = new URL(currentUrl);
+          const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+          if (pathParts.length > 0 && !['products', 'create', 'settings', 'search', 'category', 'login', 'register', 'feed', 'notifications', 'messages', 'bag', 'cart'].includes(pathParts[0])) {
+            username = pathParts[0];
+            console.log('[Depop Login Service] Parsed username from redirect URL:', username);
+            break;
+          }
+        } catch (e) {}
+
+        // 3. Try to query Depop auth/session API from page context
+        try {
+          const apiUsername = await page.evaluate(async (token) => {
+            try {
+              const res = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/json'
+                }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                return data.username || data.username_canonical;
+              }
+            } catch (e) {}
+            return null;
+          }, capturedToken);
+
+          if (apiUsername) {
+            username = apiUsername;
+            console.log('[Depop Login Service] Fetched username from auth/session API (Page Context):', username);
+            break;
+          }
+        } catch (e) {}
+
+        // 4. Try to query Depop users/me API from page context (legacy/fallback)
+        try {
+          const apiUsername = await page.evaluate(async (token) => {
+            try {
+              const res = await fetch('https://webapi.depop.com/api/v1/users/me/', {
+                headers: {
+                  'authorization': `Bearer ${token}`
+                }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                return data.username || data.username_canonical;
+              }
+            } catch (e) {}
+            return null;
+          }, capturedToken);
+
+          if (apiUsername) {
+            username = apiUsername;
+            console.log('[Depop Login Service] Fetched username from users/me API (Page Context):', username);
+            break;
+          }
+        } catch (e) {}
+
+        await new Promise(r => setTimeout(r, 750));
       }
     }
 
-    // Fallback: Scan storage keys for standard username text patterns
+    // 5. Backend fallback: Call auth/session API using axios from the Node.js backend
     if (!username) {
-      username = await page.evaluate(() => {
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.includes('user') || key.includes('session') || key.includes('persist'))) {
-              const val = localStorage.getItem(key);
-              if (val && val.includes('username')) {
-                const match = val.match(/"username"\s*:\s*"([a-zA-Z0-9_\-]+)"/i);
-                if (match && match[1]) return match[1];
-              }
-            }
-          }
-        } catch (e) {}
-        return null;
-      }).catch(() => null);
+      console.log('[Depop Login Service] Final fallback: Fetching username from backend using Axios...');
+      try {
+        const axios = require('axios');
+        const axiosConfig = {
+          headers: {
+            'Authorization': `Bearer ${capturedToken}`,
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          },
+          timeout: 5000
+        };
+        const proxyUrl = process.env.HTTP_PROXY_URL;
+        if (proxyUrl) {
+          const { HttpsProxyAgent } = require('https-proxy-agent');
+          axiosConfig.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        }
+
+        const response = await axios.get('https://webapi.depop.com/api/v1/auth/session/', axiosConfig);
+        if (response.data && response.data.username) {
+          username = response.data.username;
+          console.log('[Depop Login Service] Fetched username from auth/session API (Backend Axios):', username);
+        }
+      } catch (err) {
+        console.warn('[Depop Login Service] Backend Axios username query failed:', err.message);
+      }
     }
 
     await browser.close();

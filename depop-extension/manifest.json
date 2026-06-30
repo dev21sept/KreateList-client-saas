@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "cookies",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "*://*.depop.com/*",

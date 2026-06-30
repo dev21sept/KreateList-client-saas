@@ -104,153 +104,311 @@ async function downloadImageBuffer(imageUrl) {
 // -------------------------------------------------------------
 async function publishToDepop(listing, depopAccount) {
   const authToken = depopAccount.accessToken;
+  const sessionCookie = depopAccount.sessionCookie;
+
   if (!authToken) {
     throw new Error('Depop access token is missing. Please connect your Depop account.');
   }
 
-  console.log(`[Depop Publisher] Initializing publish for listing: "${listing.title}"`);
-  
-  // Step 1: Upload Images
-  const pictureIds = [];
-  const images = listing.images || [];
-  
-  for (let i = 0; i < images.length; i++) {
+  // 1. Download images on the backend and convert them to Base64 (avoids mixed content issues in Puppeteer)
+  const base64Images = [];
+  for (const imgUrl of (listing.images || [])) {
     try {
-      const imgBuffer = await downloadImageBuffer(images[i]);
-      
-      // A. Initialize picture upload on Depop
-      console.log(`[Depop Publisher] Step 1.A: Initializing image upload ${i + 1} of ${images.length} on Depop...`);
-      const initConfig = getAxiosConfig({
-        method: 'POST',
-        url: 'https://webapi.depop.com/api/v4/pictures/',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'authorization': authToken
-        },
-        data: {
-          type: "product",
-          extension: "jpg",
-          dimensions: { width: 1280, height: 1280 }
-        }
-      });
-      
-      const initRes = await axios(initConfig);
-      const initData = initRes.data;
-      
-      const photoId = initData.id || initData.picture_id || initData.pictureId || initData.sid;
-      const uploadUrl = initData.url || initData.upload_url || initData.uploadUrl;
-      
-      if (!photoId || !uploadUrl) {
-        throw new Error(`Invalid response structure: ${JSON.stringify(initData)}`);
-      }
-      
-      // B. Upload binary image buffer to S3
-      console.log(`[Depop Publisher] Step 1.B: PUT binary buffer to S3 for image ${i + 1}...`);
-      const putConfig = getAxiosConfig({
-        method: 'PUT',
-        url: uploadUrl,
-        headers: {
-          'Content-Type': 'image/jpeg'
-        },
-        data: imgBuffer
-      });
-      
-      await axios(putConfig);
-      pictureIds.push(photoId);
-      console.log(`[Depop Publisher] Upload success for image ${i + 1}. ID: ${photoId}`);
+      const cleanUrl = imgUrl.replace('//localhost:', '//127.0.0.1:');
+      const imgBuffer = await downloadImageBuffer(cleanUrl);
+      const base64 = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      base64Images.push(base64);
     } catch (imgErr) {
-      console.error(`[Depop Publisher] Failed to upload image ${i + 1}:`, imgErr.message);
-      throw new Error(`Depop Image Upload Failed: ${imgErr.message}`);
+      console.error('[Depop Publisher] Failed to convert image to base64 on backend:', imgErr.message);
     }
   }
 
-  if (pictureIds.length === 0) {
-    throw new Error('No images were successfully uploaded to Depop.');
+  if (base64Images.length === 0) {
+    throw new Error('Failed to prepare any listing images.');
   }
 
-  // Step 2: Resolve Listing Attributes
-  const mapCondition = (cond) => {
-    const c = String(cond || '').toLowerCase();
-    if (c.includes('brand_new') || c.includes('brand new') || c.includes('nwt')) return 'brand_new';
-    if (c.includes('like_new') || c.includes('like new') || c.includes('nwot') || c.includes('used_like_new')) return 'used_like_new';
-    if (c.includes('excellent')) return 'used_excellent';
-    if (c.includes('good') || c.includes('very_good') || c.includes('very good') || c.includes('used_good')) return 'used_good';
-    if (c.includes('fair') || c.includes('used_fair')) return 'used_fair';
-    return 'used_excellent';
-  };
+  // 2. Launch Puppeteer with Stealth Plugin
+  const puppeteer = require('puppeteer-extra');
+  const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  puppeteer.use(StealthPlugin());
 
-  const getGender = (cat) => {
-    const c = String(cat || '').toLowerCase();
-    if (c.includes('women')) return 'female';
-    if (c.includes('men')) return 'male';
-    return 'unisex';
-  };
+  console.log('[Depop Publisher] Launching Puppeteer browser to publish listing...');
+  
+  const browserArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-web-security',
+    '--disable-features=IsolateOrigins,site-per-process'
+  ];
 
-  // Build listing creation payload
-  const savePayload = {
-    age: listing.age ? [listing.age.toLowerCase()] : ["modern"],
-    address: "United States", // default
-    attributes: {},
-    brand: (listing.brand || '').toLowerCase(),
-    colour: listing.color ? [listing.color.toLowerCase()] : [],
-    condition: mapCondition(listing.selectedCondition || listing.conditionId),
-    country: "US",
-    description: listing.description || '',
-    gender: getGender(listing.category),
-    geo_position_lat: 37.09024,
-    geo_position_lng: -95.712891,
-    is_kids: String(listing.category).toLowerCase().includes('kids'),
-    listing_lifecycle_id: require('crypto').randomUUID(),
-    national_shipping_cost: parseFloat(listing.shippingPrice || 0).toFixed(2),
-    picture_ids: pictureIds,
-    price_amount: parseFloat(listing.price || 0).toFixed(2),
-    price_currency: "USD",
-    product_type: listing.categoryId || "shirts",
-    shipping_methods: [],
-    sku: listing.sku || `KL${Date.now()}`,
-    source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
-    style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
-    variant_set: 54, // default
-    variants: { "5": 1 }, // default
-    persistent_id: require('crypto').randomUUID(),
-    quantity: null
-  };
+  // Apply proxy if configured
+  const proxyUrl = process.env.DEPOP_PROXY || undefined;
+  if (proxyUrl) {
+    const proxyHost = proxyUrl.replace(/https?:\/\//, '').split('@')[1] || proxyUrl.replace(/https?:\/\//, '');
+    browserArgs.push(`--proxy-server=${proxyHost}`);
+  }
 
-  // Step 3: Send save request to Depop
-  console.log('[Depop Publisher] Step 2: Creating listing on Depop...');
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: browserArgs,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+  });
+
+  const page = await browser.newPage();
+  
   try {
-    const saveConfig = getAxiosConfig({
-      method: 'POST',
-      url: 'https://webapi.depop.com/presentation/api/v1/listing/products/',
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'authorization': authToken
-      },
-      data: savePayload
-    });
+    // Authenticate proxy if needed
+    if (proxyUrl && proxyUrl.includes('@')) {
+      const authPart = proxyUrl.split('@')[0].replace(/https?:\/\//, '');
+      const [username, password] = authPart.split(':');
+      await page.authenticate({ username, password });
+    }
 
-    const saveRes = await axios(saveConfig);
-    const savedData = saveRes.data;
+    // Set cookies of depop.com
+    console.log('[Depop Publisher] Setting session cookies in Puppeteer...');
+    const parsedCookies = [];
+    if (sessionCookie) {
+      const cookiePairs = sessionCookie.split(';');
+      for (const pair of cookiePairs) {
+        const trimmed = pair.trim();
+        if (!trimmed) continue;
+        const index = trimmed.indexOf('=');
+        if (index === -1) continue;
+        const name = trimmed.substring(0, index);
+        const value = trimmed.substring(index + 1);
+        parsedCookies.push({
+          name,
+          value,
+          domain: '.depop.com',
+          path: '/'
+        });
+      }
+      await page.setCookie(...parsedCookies);
+    }
+
+    // Navigate to Depop to establish browser context origin
+    console.log('[Depop Publisher] Navigating to Depop to initialize session...');
+    await page.goto('https://www.depop.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // Set authorization token in sessionStorage and localStorage
+    await page.evaluate((token) => {
+      window.sessionStorage.setItem('elister_captured_depop_token', token);
+      window.localStorage.setItem('access_token', token.replace(/^Bearer\s+/i, ''));
+    }, authToken);
+
+    console.log('[Depop Publisher] Executing direct API upload inside Puppeteer page context...');
     
-    console.log('[Depop Publisher] Listing saved successfully on Depop!');
-    
-    const depopId = savedData.id || '';
-    const depopSlug = savedData.slug || '';
+    // 3. Execute Direct API calls inside the browser context
+    const publishResult = await page.evaluate(async (listingData, base64ImagesList, tokenString) => {
+      // Helper to convert base64 to Blob
+      const base64ToBlob = (base64Data) => {
+        const parts = base64Data.split(';base64,');
+        const contentType = parts[0].split(':')[1];
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = raw.charCodeAt(i);
+        }
+        return new Blob([uInt8Array], { type: contentType });
+      };
+
+      try {
+        const pictureIds = [];
+        // Step A: Upload Images to Depop S3
+        for (let i = 0; i < base64ImagesList.length; i++) {
+          const imgBlob = base64ToBlob(base64ImagesList[i]);
+
+          const initRes = await window.fetch('https://webapi.depop.com/api/v4/pictures/', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': tokenString
+            },
+            body: JSON.stringify({
+              type: "product",
+              extension: "jpg",
+              dimensions: { width: 1280, height: 1280 }
+            })
+          });
+
+          if (!initRes.ok) {
+            const errBody = await initRes.text().catch(() => '');
+            throw new Error(`Failed to initialize picture upload: Status ${initRes.status}. Details: ${errBody}`);
+          }
+
+          const initData = await initRes.json();
+          const photoId = initData.id || initData.picture_id || initData.pictureId;
+          const uploadUrl = initData.url || initData.upload_url || initData.uploadUrl;
+
+          const putRes = await window.fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: imgBlob
+          });
+
+          if (!putRes.ok) {
+            throw new Error(`Failed to upload image to S3: Status ${putRes.status}`);
+          }
+
+          pictureIds.push(photoId);
+        }
+
+        // Resolve attributes and build payload
+        const mapCondition = (cond) => {
+          const c = String(cond || '').toLowerCase();
+          if (c.includes('brand_new') || c.includes('brand new') || c.includes('nwt')) return 'brand_new';
+          if (c.includes('like_new') || c.includes('like new') || c.includes('nwot') || c.includes('used_like_new')) return 'used_like_new';
+          if (c.includes('excellent')) return 'used_excellent';
+          if (c.includes('good') || c.includes('very_good') || c.includes('very good') || c.includes('used_good')) return 'used_good';
+          if (c.includes('fair') || c.includes('used_fair')) return 'used_fair';
+          return 'used_excellent';
+        };
+
+        const getGender = (cat) => {
+          const c = String(cat || '').toLowerCase();
+          if (c.includes('women')) return 'female';
+          if (c.includes('men')) return 'male';
+          return 'unisex';
+        };
+
+        let shippingMethods = [];
+        let sellerAddress = "United States";
+        let sellerGeo = { lat: 37.09024, lng: -95.712891 };
+        let sellerCountry = "US";
+
+        try {
+          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': tokenString
+            }
+          });
+
+          if (addrRes.ok) {
+            const addrData = await addrRes.json();
+            if (addrData && addrData.length > 0) {
+              const activeAddress = addrData[0];
+              const addressId = activeAddress.id || activeAddress.address_id;
+              
+              sellerAddress = activeAddress.city || activeAddress.town || "United States";
+              sellerCountry = activeAddress.country || "US";
+              sellerGeo = {
+                lat: activeAddress.geo_position_lat || 37.09024,
+                lng: activeAddress.geo_position_lng || -95.712891
+              };
+
+              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json',
+                  'Authorization': tokenString
+                }
+              });
+
+              if (providersRes.ok) {
+                const providersData = await providersRes.json();
+                if (providersData && providersData.length > 0) {
+                  const firstProvider = providersData[0];
+                  const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
+                  
+                  shippingMethods = [{
+                    shipping_provider_id: firstProvider.id,
+                    parcel_size_id: sizeObj.id,
+                    shipping_type: 'depop',
+                    price: parseFloat(listingData.shippingPrice || 0).toFixed(2)
+                  }];
+                }
+              }
+            }
+          }
+        } catch (shipErr) {
+          console.error('[Page Context] Failed to resolve shipping details:', shipErr.message);
+        }
+
+        const savePayload = {
+          age: listingData.age ? [listingData.age.toLowerCase()] : ["modern"],
+          address: sellerAddress,
+          attributes: {},
+          brand: (listingData.brand || '').toLowerCase(),
+          colour: listingData.color ? [listingData.color.toLowerCase()] : [],
+          condition: mapCondition(listingData.selectedCondition || listingData.conditionId),
+          country: sellerCountry,
+          description: listingData.description || '',
+          gender: getGender(listingData.category),
+          geo_position_lat: sellerGeo.lat,
+          geo_position_lng: sellerGeo.lng,
+          is_kids: String(listingData.category).toLowerCase().includes('kids'),
+          listing_lifecycle_id: window.crypto.randomUUID(),
+          national_shipping_cost: parseFloat(listingData.shippingPrice || 0).toFixed(2),
+          picture_ids: pictureIds,
+          price_amount: parseFloat(listingData.price || 0).toFixed(2),
+          price_currency: "USD",
+          product_type: listingData.categoryId || "shirts",
+          shipping_methods: shippingMethods,
+          sku: listingData.sku || `KL${Date.now()}`,
+          source: listingData.source ? [listingData.source.toLowerCase()] : ["preloved"],
+          style: listingData.styleTag ? listingData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
+          variant_set: 54, // default
+          variants: (() => {
+            const qty = parseInt(listingData.quantity) || 1;
+            return { "4": qty }; // Default M
+          })(),
+          persistent_id: window.crypto.randomUUID(),
+          quantity: null
+        };
+
+        const saveRes = await window.fetch('https://webapi.depop.com/presentation/api/v1/listing/products/', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': tokenString
+          },
+          body: JSON.stringify(savePayload)
+        });
+
+        if (!saveRes.ok) {
+          const errBody = await saveRes.json().catch(() => null);
+          const details = errBody?.message || JSON.stringify(errBody);
+          throw new Error(`Depop Save Failed: ${details}`);
+        }
+
+        const savedData = await saveRes.json();
+        return {
+          success: true,
+          id: String(savedData.id),
+          slug: savedData.slug
+        };
+
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    }, listing, base64Images, authToken);
+
+    if (!publishResult.success) {
+      throw new Error(publishResult.error || 'Failed to publish to Depop inside browser context.');
+    }
+
+    console.log('[Depop Publisher] Listing published successfully via Puppeteer!');
+    const depopId = publishResult.id;
+    const depopSlug = publishResult.slug;
     const depopUrl = depopSlug ? `https://www.depop.com/products/${depopSlug}/` : `https://www.depop.com/products/${depopId}/`;
 
     return {
       success: true,
-      id: String(depopId),
+      id: depopId,
       url: depopUrl
     };
-  } catch (saveErr) {
-    console.error(`[Depop Publisher] Failed to save listing on Depop:`, saveErr.response?.data || saveErr.message);
-    const details = saveErr.response?.data?.message || JSON.stringify(saveErr.response?.data || saveErr.message);
-    throw new Error(`Depop Save Failed: ${details}`);
+
+  } finally {
+    await browser.close();
+    console.log('[Depop Publisher] Puppeteer browser closed.');
   }
 }
+
 
 // -------------------------------------------------------------
 // Poshmark Backend Publisher

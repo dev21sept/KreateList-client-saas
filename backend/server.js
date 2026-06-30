@@ -3,6 +3,12 @@ const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
+const dns = require('dns');
+
+// Force IPv4 first to ensure backend traffic routes through VPN
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const path = require('path');
 const connectDB = require('./config/db');
 

@@ -101,23 +101,136 @@ function getRequestConfig(targetUrl) {
 }
 
 /**
+ * Helper to decode JWT token and extract username
+ */
+function getDepopUsernameFromToken(token) {
+  try {
+    const cleanToken = token.replace(/^Bearer\s+/i, '');
+    const parts = cleanToken.split('.');
+    if (parts.length === 3) {
+      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decodedPayload = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+      const payloadObj = JSON.parse(decodedPayload);
+      if (payloadObj.username) return payloadObj.username;
+      if (payloadObj.username_canonical) return payloadObj.username_canonical;
+      if (payloadObj.sub) return payloadObj.sub;
+    }
+  } catch (e) {
+    console.error('[Import Scraper] Error decoding Depop JWT token:', e.message);
+  }
+  return null;
+}
+
+/**
  * Scrapes Depop profile products list
  * @param {string} username Depop username
+ * @param {Object} [credentials] Depop connection credentials (accessToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
-async function scrapeDepopShop(username) {
-  const targetUrl = `https://www.depop.com/${username.trim().toLowerCase()}/`;
-  console.log(`[Import Scraper] Fetching Depop shop for ${username} at ${targetUrl}`);
+async function resolveDepopUsernameViaPuppeteer(accessToken) {
+  let browser = null;
+  try {
+    const puppeteer = require('puppeteer-extra');
+    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    try {
+      puppeteer.use(StealthPlugin());
+    } catch (e) {}
+
+    console.log('[Import Scraper] Launching Puppeteer Stealth to resolve username...');
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Block unnecessary resources to speed up loading and prevent timeouts
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
+    await page.goto('https://www.depop.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    const result = await page.evaluate(async (token) => {
+      try {
+        const response = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
+          method: 'GET',
+          headers: {
+            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.username || null;
+        }
+        return null;
+      } catch (err) {
+        return null;
+      }
+    }, accessToken);
+
+    return result;
+  } catch (err) {
+    console.error('[Import Scraper] Failed to resolve username via Puppeteer:', err.message);
+    return null;
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
+}
+
+async function scrapeDepopShop(username, credentials = {}) {
+  let cleanUsername = username.trim().toLowerCase();
+
+  // If cleanUsername is an email, 'depop_user', or empty, try to resolve it using the accessToken
+  if ((cleanUsername.includes('@') || cleanUsername === 'depop_user' || !cleanUsername) && credentials && credentials.accessToken) {
+    console.log(`[Import Scraper] Stored Depop username is an email, 'depop_user', or empty. Resolving actual username...`);
+    let extracted = getDepopUsernameFromToken(credentials.accessToken);
+
+    if (!extracted) {
+      // Fallback: call Depop auth/session API via Puppeteer Stealth
+      extracted = await resolveDepopUsernameViaPuppeteer(credentials.accessToken);
+    }
+
+    if (extracted) {
+      cleanUsername = extracted.trim().toLowerCase();
+      if (credentials) credentials.username = extracted;
+      console.log(`[Import Scraper] Successfully resolved Depop username to: ${cleanUsername}`);
+    }
+  }
+
+  const targetUrl = `https://www.depop.com/${cleanUsername}/`;
+  console.log(`[Import Scraper] Fetching Depop shop for ${cleanUsername} at ${targetUrl}`);
   
   const config = getRequestConfig(targetUrl);
   
   try {
-    const response = await axios.get(config.url, {
-      headers: config.headers,
-      timeout: 15000
-    });
+    let html = null;
+    try {
+      const response = await axios.get(config.url, {
+        headers: config.headers,
+        timeout: 15000
+      });
+      html = response.data;
+    } catch (err) {
+      console.warn(`[Import Scraper] Public Depop fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
+      html = await fetchHtmlWithPuppeteer(targetUrl);
+    }
     
-    const $ = cheerio.load(response.data);
+    const $ = cheerio.load(html);
     const listings = [];
 
     // 1. Try __NEXT_DATA__ JSON parsing (best for maximum data)

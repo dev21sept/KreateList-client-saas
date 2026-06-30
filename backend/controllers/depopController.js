@@ -5,6 +5,60 @@ const { scrapeDepopShop } = require('../services/externalImportService');
 const { publishToDepop } = require('../services/backendPublishService');
 const { loginToDepopInteractive } = require('../services/depopLoginService');
 
+async function resolveDepopUsernameViaPuppeteer(accessToken) {
+  let browser = null;
+  try {
+    const puppeteer = require('puppeteer-extra');
+    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    try {
+      puppeteer.use(StealthPlugin());
+    } catch (e) {}
+
+    console.log('[Depop Controller] Launching Puppeteer Stealth to resolve username...');
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    await page.goto('https://www.depop.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+
+    const result = await page.evaluate(async (token) => {
+      try {
+        const response = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
+          method: 'GET',
+          headers: {
+            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.username || null;
+        }
+        return null;
+      } catch (err) {
+        return null;
+      }
+    }, accessToken);
+
+    return result;
+  } catch (err) {
+    console.error('[Depop Controller] Failed to resolve username via Puppeteer:', err.message);
+    return null;
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
+}
+
 // @desc    Connect Depop credentials manually or via extension (accessToken)
 // @route   POST /api/depop/connect
 // @access  Private
@@ -39,10 +93,30 @@ exports.depopConnect = async (req, res) => {
       return res.status(400).json({ success: false, message: 'username and accessToken are required.' });
     }
 
+    let resolvedUsername = username.trim();
+    if (resolvedUsername === 'depop_user' || resolvedUsername.includes('@') || !resolvedUsername) {
+      console.log(`[Depop Controller] Resolving actual username for token from connection request...`);
+      try {
+        const cleanToken = accessToken.trim().replace(/^Bearer\s+/i, '');
+        const parts = cleanToken.split('.');
+        if (parts.length === 3) {
+          const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const decodedPayload = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+          const payloadObj = JSON.parse(decodedPayload);
+          if (payloadObj.username) resolvedUsername = payloadObj.username;
+          else if (payloadObj.username_canonical) resolvedUsername = payloadObj.username_canonical;
+          else if (payloadObj.sub) resolvedUsername = payloadObj.sub;
+        }
+      } catch (err) {
+        console.warn(`[Depop Controller] Failed to resolve username during connect:`, err.message);
+      }
+    }
+
     user.depopAccount = {
       connected: true,
-      username: username.trim(),
+      username: resolvedUsername,
       accessToken: accessToken.trim(),
+      sessionCookie: (req.body.sessionCookie || '').trim(),
       connectedAt: new Date()
     };
 
@@ -116,7 +190,16 @@ exports.depopImportCloset = async (req, res) => {
     const cleanUsername = username.trim();
     console.log(`[Depop Controller] Starting shop import for: ${cleanUsername}, UserID: ${req.user.id}`);
     
-    const scrapedListings = await scrapeDepopShop(cleanUsername);
+    const user = await User.findById(req.user.id);
+    const depopAccount = user?.depopAccount || {};
+    const scrapedListings = await scrapeDepopShop(cleanUsername, depopAccount);
+
+    if (user && user.depopAccount && depopAccount.username && user.depopAccount.username !== depopAccount.username) {
+      user.depopAccount.username = depopAccount.username;
+      user.markModified('depopAccount');
+      await user.save();
+      console.log(`[Depop Controller] Saved resolved username (${depopAccount.username}) to DB`);
+    }
 
     let importCount = 0;
     let duplicateCount = 0;
@@ -263,10 +346,18 @@ exports.depopGetLive = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Depop account is not connected.' });
     }
     
-    const username = user.depopAccount.username;
+    const depopAccount = user.depopAccount || {};
+    const username = depopAccount.username;
     console.log(`[Depop Controller] Fetching live inventory for Depop (${username})`);
     
-    const liveListings = await scrapeDepopShop(username);
+    const liveListings = await scrapeDepopShop(username, depopAccount);
+
+    if (depopAccount.username && user.depopAccount.username !== depopAccount.username) {
+      user.depopAccount.username = depopAccount.username;
+      user.markModified('depopAccount');
+      await user.save();
+      console.log(`[Depop Controller] Saved resolved username (${depopAccount.username}) to DB in getLive`);
+    }
     
     res.status(200).json({
       success: true,

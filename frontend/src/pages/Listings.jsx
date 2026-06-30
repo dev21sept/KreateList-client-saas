@@ -74,6 +74,7 @@ const Listings = () => {
   const [poshmarkDirectPublishingId, setPoshmarkDirectPublishingId] = useState(null);
   const [vintedPublishingId, setVintedPublishingId] = useState(null);
   const [depopPublishingId, setDepopPublishingId] = useState(null);
+  const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
   
   // Auth and Channel Sync state
@@ -520,6 +521,49 @@ const Listings = () => {
     }
   };
 
+  const publishDepopViaExtensionBackground = (listing, token) => {
+    return new Promise((resolve, reject) => {
+      const handleResponse = (event) => {
+        const isAllowedOrigin = event.origin.includes('elister.ai') || event.origin.includes('localhost') || event.origin.includes('127.0.0.1');
+        if (!isAllowedOrigin) return;
+        
+        if (event.data && event.data.action === 'ELISTER_DEPOP_PUBLISH_BACKGROUND_RESPONSE') {
+          window.removeEventListener('message', handleResponse);
+          if (event.data.success) {
+            resolve({ id: event.data.id, url: event.data.url });
+          } else {
+            reject(new Error(event.data.error || 'Failed to publish to Depop in background.'));
+          }
+        }
+      };
+      window.addEventListener('message', handleResponse);
+      
+      window.postMessage({
+        action: 'ELISTER_DEPOP_PUBLISH_BACKGROUND_TRIGGER',
+        listing,
+        token
+      }, '*');
+    });
+  };
+
+  const handleDepopDirectPublish = async (listing) => {
+    setDepopDirectPublishingId(listing._id);
+    try {
+      toast.info("Publishing to Depop directly via API...");
+      const res = await externalImportService.publish(listing._id, { platform: 'depop' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Depop!");
+        setPreviewListing(null);
+        fetchListings();
+      }
+    } catch (error) {
+      console.error("Error publishing directly to Depop:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Depop directly.");
+    } finally {
+      setDepopDirectPublishingId(null);
+    }
+  };
+
   const handleVintedPublish = async (listing) => {
     const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
     if (!isExtensionInstalled) {
@@ -878,33 +922,55 @@ const Listings = () => {
           </button>
         )}
         {previewListing.platform === 'depop' && (
-          <button 
-            onClick={() => {
-              if (previewListing.status === 'published' && previewListing.depopUrl) {
-                handleVerifyAndOpen(previewListing);
-              } else {
-                handleDepopPublish(previewListing);
-              }
-            }}
-            disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            {verifyingListingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Verifying...
-              </>
-            ) : depopPublishingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Listing...
-              </>
-            ) : previewListing.status === 'published' && previewListing.depopUrl ? (
-              'View on Depop'
+          <>
+            {previewListing.status === 'published' && previewListing.depopUrl ? (
+              <button 
+                onClick={() => handleVerifyAndOpen(previewListing)}
+                disabled={verifyingListingId === previewListing._id}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {verifyingListingId === previewListing._id ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  'View on Depop'
+                )}
+              </button>
             ) : (
-              'List to Depop (API)'
+              <>
+                <button 
+                  onClick={() => handleDepopDirectPublish(previewListing)}
+                  disabled={depopDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
+                >
+                  {depopDirectPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing Direct...
+                    </>
+                  ) : (
+                    'List to Depop (Direct API)'
+                  )}
+                </button>
+                <button 
+                  onClick={() => handleDepopPublish(previewListing)}
+                  disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopDirectPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {depopPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to Depop (Extension)'
+                  )}
+                </button>
+              </>
             )}
-          </button>
+          </>
         )}
       </>
     );
