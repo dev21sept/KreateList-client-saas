@@ -17,69 +17,55 @@ const ShippingPolicy = () => {
             </p>
 
             <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 my-6 rounded-r-lg">
-              <h2 className="text-xl font-semibold text-indigo-900 mb-2">Service Delivery Timelines</h2>
+              <h2 className="text-xl font-semibold text-indigo-900 mb-2">Instant Digital Delivery</h2>
               <p className="text-indigo-800">
-                Timelines for delivering our listing and management services to our platform users.
+                Elister is a SaaS (Software-as-a-Service) platform. All features, tools, and subscription plans are delivered digitally. There are no physical shipping requirements.
               </p>
             </div>
 
             <hr className="my-8 border-gray-200" />
 
             {/* Services Detailed List */}
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Delivery Timelines by Service Type</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Service Provisioning & Access</h2>
 
             <div className="space-y-6">
-              {/* Listing/Posting */}
+              {/* Account Provisioning */}
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Listing / Posting Services</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $1.00 Per Item
-                  </span>
-                </div>
-                <div className="space-y-2 text-gray-600">
-                  <p>
-                    Delivery window: It can be up to <strong>48 Hours</strong> time to Draft or List the items.
-                  </p>
-                  <p className="text-sm italic text-gray-500">
-                    *Working days except for Sundays, Festivals, and National Holidays.
-                  </p>
-                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Instant Account Setup</h3>
+                <p className="text-gray-600 text-sm">
+                  Upon payment confirmation for any of our subscription plans (BASIC, PRO, or ENTERPRISE), your account features are provisioned and unlocked <strong>instantly</strong>. You will receive immediate access to connect your channels and begin listing.
+                </p>
               </div>
 
-              {/* Cross-listing */}
+              {/* Data Sync & API Timelines */}
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Cross-listing / Cross-posting</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $0.50 Per Item
-                  </span>
-                </div>
-                <div className="space-y-2 text-gray-600">
-                  <p>
-                    Delivery window: It can take up to <strong>48 Hours</strong> time to Draft or List the items.
-                  </p>
-                  <p className="text-sm italic text-gray-500">
-                    *Working days except for Sundays, Festivals, and National Holidays.
-                  </p>
-                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">AI Optimization & Publishing Timelines</h3>
+                <ul className="list-disc pl-5 space-y-2 text-gray-600 text-sm">
+                  <li>
+                    <strong>AI Optimizations:</strong> Generated within <strong>seconds</strong> directly in your browser.
+                  </li>
+                  <li>
+                    <strong>Channel Sync & Imports:</strong> Triggered immediately and completed in the background within a few minutes depending on platform queue sizes.
+                  </li>
+                </ul>
               </div>
 
-              {/* Amazon FBA */}
+              {/* Support SLA by Tiers */}
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Amazon FBA & Account Management</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $10.00 Per Hour
-                  </span>
-                </div>
-                <div className="space-y-2 text-gray-600">
-                  <p>
-                    Delivery window: It can take up to <strong>7 working days</strong> to start the accounting task.
-                  </p>
-                  <p className="text-sm italic text-gray-500">
-                    *Working days except for Sundays, Festivals, and National Holidays.
-                  </p>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Support & Service Delivery SLAs</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="font-bold text-sm text-gray-800">BASIC Plan Support</span>
+                    <span className="text-xs text-gray-500 font-semibold">24 - 48 Hours Email Response</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="font-bold text-sm text-gray-800">PRO Plan Support</span>
+                    <span className="text-xs text-gray-500 font-semibold">12 - 24 Hours Priority Support</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1">
+                    <span className="font-bold text-sm text-gray-800">ENTERPRISE Plan Support</span>
+                    <span className="text-xs text-gray-500 font-semibold">24/7 Dedicated Account Manager Support</span>
+                  </div>
                 </div>
               </div>
             </div>
