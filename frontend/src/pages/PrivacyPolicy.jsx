@@ -12,7 +12,7 @@ const PrivacyPolicy = () => {
 
           <div className="space-y-6 text-gray-700 leading-relaxed">
             <p>
-              As Elister By I & B (the "Company"), we promise the following data privacy and security terms:
+              As Elister By Kreatelist Infotech Private Limited (the "Company"), we promise the following data privacy and security terms:
             </p>
 
             <ul className="list-disc pl-5 space-y-3">
