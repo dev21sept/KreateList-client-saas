@@ -824,19 +824,13 @@ const EbayAccounts = () => {
                   <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
                     <h4 className="text-sm font-bold text-slate-800">Direct In-App Login</h4>
                     <p className="text-slate-500 text-xs">Opens a secure browser window. Enter your details and log in manually, eLister will capture the session instantly.</p>
-                    <p className="text-amber-600 font-semibold text-[10px] mt-1 bg-amber-50 px-3 py-1 rounded-lg border border-amber-100 max-w-sm">
-                      Note: If you are accessing from India, please ensure your VPN is connected to a supported country (e.g., US/UK) before starting.
-                    </p>
-                    <p className="text-rose-600 font-semibold text-[10px] mt-1 bg-rose-50 px-3 py-1 rounded-lg border border-rose-100 max-w-sm">
-                      Note: In-App Login is only compatible when running eLister locally. If hosted on a remote server, please use the Chrome Extension or Manual Mode.
-                    </p>
                     
                     <button 
                       onClick={handleDepopInteractiveConnect}
                       disabled={depopLoading}
                       className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
                     >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Start In-App Login <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Depop Account <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
                     </button>
                   </div>
                 )}
