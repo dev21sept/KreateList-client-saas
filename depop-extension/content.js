@@ -432,19 +432,13 @@ async function executeDepopUpload(productData) {
     let variantSet = 54; // default
     let variantsPayload = {};
     if (productData.size) {
-      const catId = (productData.categoryId || '').toLowerCase();
-      const isMens = String(productData.category || '').toLowerCase().includes('men');
-      const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
-      
       const match = String(productData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
-      let sizeName = '';
       if (match) {
         variantSet = parseInt(match[1]);
         const sizeId = match[2];
-        sizeName = match[3] || '';
         variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
       } else {
-        sizeName = String(productData.size).trim().toUpperCase();
+        const sizeName = String(productData.size).trim().toUpperCase();
         const standardSizes = {
           'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
           'ONE SIZE': '90', 'OS': '90'
@@ -452,94 +446,42 @@ async function executeDepopUpload(productData) {
         const sizeId = standardSizes[sizeName] || '4'; // Default to M
         variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
       }
-
-      // Auto-correct variant set and size ID if it's Men's category but using Women's variant set
-      if (isMens) {
-        if (!isBottom) {
-          variantSet = 54;
-          const mensTopsSizes = {
-            'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
-            'ONE SIZE': '90', 'OS': '90'
-          };
-          let resolvedSizeName = sizeName.toUpperCase();
-          if (match && (variantSet !== 54)) {
-            const womensUSMap = { '15': 'XS', '16': 'S', '17': 'M', '18': 'L', '19': 'XL', '20': 'XXL' };
-            resolvedSizeName = womensUSMap[match[2]] || resolvedSizeName;
-          }
-          const sizeId = mensTopsSizes[resolvedSizeName] || '4';
-          variantsPayload = { [sizeId]: parseInt(productData.quantity) || 1 };
-        } else {
-          variantSet = 56;
-          let waistVal = sizeName.replace(/[^0-9]/g, '');
-          if (!waistVal) waistVal = '32'; // Default waist
-          variantsPayload = { [waistVal]: parseInt(productData.quantity) || 1 };
-        }
-      }
-    }
-
-    // Resolve allowed attributes for the selected category
-    let allowedAttributes = productData.allowedAttributes;
-    if (!allowedAttributes || allowedAttributes.length === 0) {
-      // Fallback: guess allowed attributes based on categoryId
-      const catId = (productData.categoryId || '').toLowerCase();
-      const isBottoms = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('skirt') || catId.includes('shorts') || catId.includes('jogger');
-      const isFootwear = catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('sandals') || catId.includes('boots');
-      const isBeauty = catId.includes('beauty') || catId.includes('skincare') || catId.includes('makeup');
-      
-      allowedAttributes = ["occasion", "material"];
-      if (isBottoms) {
-        allowedAttributes.push("bottom-fit", "bottom-style", "body-fit", "size-fit");
-      } else if (isFootwear) {
-        allowedAttributes.push("trainers-type", "heel-type", "shoe-type", "fastening", "size-fit");
-      } else if (isBeauty) {
-        allowedAttributes = ["beauty-type"];
-      } else {
-        // Tops / dresses / general apparel
-        allowedAttributes.push("body-fit", "size-fit");
-      }
     }
 
     const attributesPayload = {};
-    if (productData.occasion && allowedAttributes.includes("occasion")) {
+    if (productData.occasion) {
       attributesPayload["occasion"] = [productData.occasion.toLowerCase()];
     }
-    if (productData.material && allowedAttributes.includes("material")) {
+    if (productData.material) {
       attributesPayload["material"] = [productData.material.toLowerCase()];
     }
-    if (productData.bodyFit && allowedAttributes.includes("body-fit")) {
+    if (productData.bodyFit) {
       attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
     }
-    if (productData.fastening && allowedAttributes.includes("fastening")) {
+    if (productData.fastening) {
       attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
     }
 
-    // Dynamic mapping for 'fit' based on what key the category supports
     if (productData.fit) {
-      const normalizedFit = productData.fit.toLowerCase();
-      if (allowedAttributes.includes("bottom-fit")) {
-        attributesPayload["bottom-fit"] = [normalizedFit];
-      } else if (allowedAttributes.includes("size-fit")) {
-        attributesPayload["size-fit"] = [normalizedFit];
-      } else if (allowedAttributes.includes("dress-length")) {
-        attributesPayload["dress-length"] = [normalizedFit];
-      } else if (allowedAttributes.includes("heel-type")) {
-        attributesPayload["heel-type"] = [normalizedFit];
-      } else if (allowedAttributes.includes("fit")) {
-        attributesPayload["fit"] = [normalizedFit];
+      const fitVal = productData.fit.toLowerCase();
+      const catId = (productData.categoryId || '').toLowerCase();
+      const isBottoms = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('skirt') || catId.includes('shorts') || catId.includes('jogger');
+      if (isBottoms) {
+        attributesPayload["bottom-fit"] = [fitVal];
+      } else {
+        attributesPayload["size-fit"] = [fitVal];
       }
     }
 
-    // Dynamic mapping for 'depopType' based on what key the category supports
     if (productData.depopType) {
-      const normalizedType = productData.depopType.toLowerCase();
-      const typeAttrs = [
-        "bottom-style", "dress-type", "coat-type", "jacket-type", 
-        "jumpssuit-type", "dungarees-type", "trainers-type", 
-        "shoe-type", "boot-type", "beauty-type"
-      ];
-      const matchedAttr = allowedAttributes.find(attr => typeAttrs.includes(attr));
-      if (matchedAttr) {
-        attributesPayload[matchedAttr] = [normalizedType];
+      const typeVal = productData.depopType.toLowerCase();
+      const catId = (productData.categoryId || '').toLowerCase();
+      if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
+        attributesPayload["bottom-style"] = [typeVal];
+      } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
+        attributesPayload["trainers-type"] = [typeVal];
+      } else if (catId.includes('coat') || catId.includes('jacket')) {
+        attributesPayload["coat-type"] = [typeVal];
       }
     }
 
@@ -1104,14 +1046,19 @@ if (currentSite === 'depop') {
           return 'unisex';
         };
 
-        let shippingMethods = [];
+        let shippingMethods = [{
+          shipping_provider_id: 1,
+          parcel_size_id: 3, // Medium size
+          shipping_type: 'depop',
+          price: parseFloat(listing.shippingPrice || 0).toFixed(2)
+        }];
         let sellerAddress = "United States";
         let sellerGeo = { lat: 37.09024, lng: -95.712891 };
         let sellerCountry = "US";
 
         try {
           console.log('[Page Context Publisher] Fetching seller addresses...');
-          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses', {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -1134,7 +1081,7 @@ if (currentSite === 'depop') {
               };
 
               console.log(`[Page Context Publisher] Fetching shipping providers for address: ${addressId}`);
-              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers`, {
                 method: 'GET',
                 headers: {
                   'Accept': 'application/json',
@@ -1168,7 +1115,37 @@ if (currentSite === 'depop') {
         const savePayload = {
           age: listing.age ? [listing.age.toLowerCase()] : ["modern"],
           address: sellerAddress,
-          attributes: {},
+          attributes: (() => {
+            const attrs = {};
+            if (listing.occasion) attrs["occasion"] = [listing.occasion.toLowerCase()];
+            if (listing.material) attrs["material"] = [listing.material.toLowerCase()];
+            if (listing.bodyFit) attrs["body-fit"] = [listing.bodyFit.toLowerCase()];
+            if (listing.fastening) attrs["fastening"] = [listing.fastening.toLowerCase()];
+            
+            if (listing.fit) {
+              const fitVal = listing.fit.toLowerCase();
+              const catId = (listing.categoryId || '').toLowerCase();
+              const isBottoms = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('skirt') || catId.includes('shorts') || catId.includes('jogger');
+              if (isBottoms) {
+                attrs["bottom-fit"] = [fitVal];
+              } else {
+                attrs["size-fit"] = [fitVal];
+              }
+            }
+            
+            if (listing.depopType) {
+              const typeVal = listing.depopType.toLowerCase();
+              const catId = (listing.categoryId || '').toLowerCase();
+              if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
+                attrs["bottom-style"] = [typeVal];
+              } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
+                attrs["trainers-type"] = [typeVal];
+              } else if (catId.includes('coat') || catId.includes('jacket')) {
+                attrs["coat-type"] = [typeVal];
+              }
+            }
+            return attrs;
+          })(),
           brand: (listing.brand || '').toLowerCase(),
           colour: listing.color ? [listing.color.toLowerCase()] : [],
           condition: mapCondition(listing.selectedCondition || listing.conditionId),
@@ -1189,67 +1166,27 @@ if (currentSite === 'depop') {
           source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
           style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {
-            const catId = (listing.categoryId || '').toLowerCase();
-            const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
-            const isMens = String(listing.category || '').toLowerCase().includes('men');
-            
-            if (isMens) {
-              return isBottom ? 56 : 54;
-            }
-            
             if (listing.size) {
               const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
               if (match) return parseInt(match[1]);
             }
-            return 54; // default
+            return 54;
           })(),
           variants: (() => {
-            const catId = (listing.categoryId || '').toLowerCase();
-            const isBottom = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts');
-            const isMens = String(listing.category || '').toLowerCase().includes('men');
             const qty = parseInt(listing.quantity) || 1;
-            
-            let sizeName = '';
-            let match = null;
             if (listing.size) {
-              match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
               if (match) {
-                sizeName = match[3] || '';
-              } else {
-                sizeName = String(listing.size).trim().toUpperCase();
+                return { [match[2]]: qty };
               }
-            }
-            
-            if (isMens) {
-              if (!isBottom) {
-                const mensTopsSizes = {
-                  'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
-                  'ONE SIZE': '90', 'OS': '90'
-                };
-                let resolvedSizeName = sizeName.toUpperCase();
-                if (match) {
-                  const womensUSMap = { '15': 'XS', '16': 'S', '17': 'M', '18': 'L', '19': 'XL', '20': 'XXL' };
-                  resolvedSizeName = womensUSMap[match[2]] || resolvedSizeName;
-                }
-                const sizeId = mensTopsSizes[resolvedSizeName] || '4';
-                return { [sizeId]: qty };
-              } else {
-                let waistVal = sizeName.replace(/[^0-9]/g, '');
-                if (!waistVal) waistVal = '32';
-                return { [waistVal]: qty };
-              }
-            }
-            
-            // Default / Women's / Kids
-            if (listing.size && match) {
-              return { [match[2]]: qty };
-            } else if (listing.size) {
+              const sizeName = String(listing.size).trim().toUpperCase();
               const standardSizes = {
                 'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
                 'ONE SIZE': '90', 'OS': '90'
               };
-              const sizeId = standardSizes[sizeName] || '4';
-              return { [sizeId]: qty };
+              if (standardSizes[sizeName]) {
+                return { [standardSizes[sizeName]]: qty };
+              }
             }
             return { "4": qty }; // Default M
           })(),

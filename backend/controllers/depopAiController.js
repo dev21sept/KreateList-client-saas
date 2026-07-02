@@ -3,6 +3,15 @@ const sharp = require('sharp');
 const Listing = require('../models/Listing');
 const { DEPOP_TAXONOMY } = require('../constants/depopTaxonomy');
 const { BANNED_HASHTAGS } = require('../constants/bannedWords');
+const {
+  DEPOP_KIDS_APPAREL_SIZES,
+  DEPOP_KIDS_SHOE_SIZES,
+  DEPOP_WOMENS_TOPS_SIZES,
+  DEPOP_WOMENS_BOTTOMS_SIZES,
+  DEPOP_MENS_TOPS_SIZES,
+  DEPOP_MENS_BOTTOMS_SIZES,
+  DEPOP_MENS_SHOE_SIZES
+} = require('../constants/depopSizes');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { logActivity } = require('../utils/activityUtils');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -149,6 +158,50 @@ function normalizeDepopCategory(rawCategory = '', itemGender = 'Unisex') {
 
     return bestMatch;
 }
+
+function resolveCompositeSize(categoryPath, sizeName) {
+    if (!categoryPath || !sizeName) return sizeName || '';
+    
+    const cat = String(categoryPath).toLowerCase();
+    const size = String(sizeName).trim().toUpperCase();
+    
+    let dataset = null;
+    if (cat.startsWith('kids >')) {
+        const isShoe = cat.includes('footwear');
+        dataset = isShoe ? DEPOP_KIDS_SHOE_SIZES : DEPOP_KIDS_APPAREL_SIZES;
+    } else if (cat.startsWith('women >')) {
+        const isBottom = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('skirts');
+        dataset = isBottom ? DEPOP_WOMENS_BOTTOMS_SIZES : DEPOP_WOMENS_TOPS_SIZES;
+    } else if (cat.startsWith('men >')) {
+        const isShoe = cat.includes('footwear');
+        if (isShoe) {
+            dataset = DEPOP_MENS_SHOE_SIZES;
+        } else {
+            const isBottom = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('trousers') || cat.includes('shorts');
+            dataset = isBottom ? DEPOP_MENS_BOTTOMS_SIZES : DEPOP_MENS_TOPS_SIZES;
+        }
+    }
+    
+    if (dataset) {
+        const scales = ['US', 'UK', 'EUR', 'AU'];
+        for (const scale of scales) {
+            const list = dataset[scale] || [];
+            let found = list.find(s => s.name.toUpperCase() === size);
+            if (!found) {
+                const cleanSize = size.replace(/[^0-9.]/g, '');
+                if (cleanSize) {
+                    found = list.find(s => s.name.replace(/[^0-9.]/g, '') === cleanSize);
+                }
+            }
+            if (found) {
+                return found.composite_id;
+            }
+        }
+    }
+    
+    return sizeName;
+}
+
 
 exports.depopAnalyzeListing = async (req, res) => {
     console.log(`\n--- [Depop AI] New Analysis Request Received ---`);
@@ -393,7 +446,7 @@ Response ONLY as JSON: {
                 originalPrice: finalData.original_price || '',
                 color: finalData.color || '',
                 styleTag: finalData.style_tag || '',
-                size: finalData.size || '',
+                size: resolveCompositeSize(matchedCategory.path, finalData.size),
                 age: finalData.age || '',
                 source: finalData.source || '',
                 material: finalData.material || '',

@@ -273,13 +273,18 @@ async function publishToDepop(listing, depopAccount) {
           return 'unisex';
         };
 
-        let shippingMethods = [];
+        let shippingMethods = [{
+          shipping_provider_id: 1,
+          parcel_size_id: 3, // Medium size
+          shipping_type: 'depop',
+          price: parseFloat(listingData.shippingPrice || 0).toFixed(2)
+        }];
         let sellerAddress = "United States";
         let sellerGeo = { lat: 37.09024, lng: -95.712891 };
         let sellerCountry = "US";
 
         try {
-          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses', {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -300,7 +305,7 @@ async function publishToDepop(listing, depopAccount) {
                 lng: activeAddress.geo_position_lng || -95.712891
               };
 
-              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers`, {
                 method: 'GET',
                 headers: {
                   'Accept': 'application/json',
@@ -331,7 +336,37 @@ async function publishToDepop(listing, depopAccount) {
         const savePayload = {
           age: listingData.age ? [listingData.age.toLowerCase()] : ["modern"],
           address: sellerAddress,
-          attributes: {},
+          attributes: (() => {
+            const attrs = {};
+            if (listingData.occasion) attrs["occasion"] = [listingData.occasion.toLowerCase()];
+            if (listingData.material) attrs["material"] = [listingData.material.toLowerCase()];
+            if (listingData.bodyFit) attrs["body-fit"] = [listingData.bodyFit.toLowerCase()];
+            if (listingData.fastening) attrs["fastening"] = [listingData.fastening.toLowerCase()];
+            
+            if (listingData.fit) {
+              const fitVal = listingData.fit.toLowerCase();
+              const catId = (listingData.categoryId || '').toLowerCase();
+              const isBottoms = catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('skirt') || catId.includes('shorts') || catId.includes('jogger');
+              if (isBottoms) {
+                attrs["bottom-fit"] = [fitVal];
+              } else {
+                attrs["size-fit"] = [fitVal];
+              }
+            }
+            
+            if (listingData.depopType) {
+              const typeVal = listingData.depopType.toLowerCase();
+              const catId = (listingData.categoryId || '').toLowerCase();
+              if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
+                attrs["bottom-style"] = [typeVal];
+              } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
+                attrs["trainers-type"] = [typeVal];
+              } else if (catId.includes('coat') || catId.includes('jacket')) {
+                attrs["coat-type"] = [typeVal];
+              }
+            }
+            return attrs;
+          })(),
           brand: (listingData.brand || '').toLowerCase(),
           colour: listingData.color ? [listingData.color.toLowerCase()] : [],
           condition: mapCondition(listingData.selectedCondition || listingData.conditionId),
@@ -351,9 +386,29 @@ async function publishToDepop(listing, depopAccount) {
           sku: listingData.sku || `KL${Date.now()}`,
           source: listingData.source ? [listingData.source.toLowerCase()] : ["preloved"],
           style: listingData.styleTag ? listingData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
-          variant_set: 54, // default
+          variant_set: (() => {
+            if (listingData.size) {
+              const match = String(listingData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              if (match) return parseInt(match[1]);
+            }
+            return 54;
+          })(),
           variants: (() => {
             const qty = parseInt(listingData.quantity) || 1;
+            if (listingData.size) {
+              const match = String(listingData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              if (match) {
+                return { [match[2]]: qty };
+              }
+              const sizeName = String(listingData.size).trim().toUpperCase();
+              const standardSizes = {
+                'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
+                'ONE SIZE': '90', 'OS': '90'
+              };
+              if (standardSizes[sizeName]) {
+                return { [standardSizes[sizeName]]: qty };
+              }
+            }
             return { "4": qty }; // Default M
           })(),
           persistent_id: window.crypto.randomUUID(),

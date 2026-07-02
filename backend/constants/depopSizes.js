@@ -1,4 +1,4 @@
-export const DEPOP_KIDS_APPAREL_SIZES = {
+const DEPOP_KIDS_APPAREL_SIZES = {
   "EUR": [
     { id: 1, name: "One size", size_set_id: 101, composite_id: "101.1-EUR" },
     { id: 2, name: "0-3 months", size_set_id: 101, composite_id: "101.2-EUR" },
@@ -101,7 +101,7 @@ export const DEPOP_KIDS_APPAREL_SIZES = {
   ]
 };
 
-export const DEPOP_KIDS_SHOE_SIZES = {
+const DEPOP_KIDS_SHOE_SIZES = {
   "EUR": [
     { id: 1, name: "16", size_set_id: 104, composite_id: "104.1-EUR" },
     { id: 2, name: "17", size_set_id: 104, composite_id: "104.2-EUR" },
@@ -215,7 +215,7 @@ export const DEPOP_KIDS_SHOE_SIZES = {
   ]
 };
 
-export const DEPOP_WOMENS_TOPS_SIZES = {
+const DEPOP_WOMENS_TOPS_SIZES = {
   "EUR": [
     { id: 1, name: "One size", size_set_id: 9, composite_id: "9.1-EUR" },
     { id: 16, name: "XXS", size_set_id: 9, composite_id: "9.16-EUR" },
@@ -358,7 +358,7 @@ export const DEPOP_WOMENS_TOPS_SIZES = {
   ]
 };
 
-export const DEPOP_WOMENS_BOTTOMS_SIZES = {
+const DEPOP_WOMENS_BOTTOMS_SIZES = {
   "EUR": [
     { id: 1, name: "One size", size_set_id: 24, composite_id: "24.1-EUR" },
     { id: 2, name: "XS", size_set_id: 24, composite_id: "24.2-EUR" },
@@ -439,7 +439,7 @@ export const DEPOP_WOMENS_BOTTOMS_SIZES = {
   "AU": []
 };
 
-export const DEPOP_MENS_TOPS_SIZES = {
+const DEPOP_MENS_TOPS_SIZES = {
   "US": [
     { id: 1, name: "XXS", size_set_id: 54, composite_id: "54.1-US" },
     { id: 2, name: "XS", size_set_id: 54, composite_id: "54.2-US" },
@@ -466,7 +466,7 @@ export const DEPOP_MENS_TOPS_SIZES = {
   ]
 };
 
-export const DEPOP_MENS_BOTTOMS_SIZES = {
+const DEPOP_MENS_BOTTOMS_SIZES = {
   "US": [
     { id: 28, name: "28\"", size_set_id: 56, composite_id: "56.28-US" },
     { id: 29, name: "29\"", size_set_id: 56, composite_id: "56.29-US" },
@@ -493,7 +493,7 @@ export const DEPOP_MENS_BOTTOMS_SIZES = {
   ]
 };
 
-export const DEPOP_MENS_SHOE_SIZES = {
+const DEPOP_MENS_SHOE_SIZES = {
   "US": [
     { id: 7, name: "US 7", size_set_id: 68, composite_id: "68.7-US" },
     { id: 7.5, name: "US 7.5", size_set_id: 68, composite_id: "68.7.5-US" },
@@ -522,3 +522,6 @@ export const DEPOP_MENS_SHOE_SIZES = {
     { id: 12, name: "UK 12", size_set_id: 68, composite_id: "68.12-UK" }
   ]
 };
+
+
+module.exports = { DEPOP_KIDS_APPAREL_SIZES, DEPOP_KIDS_SHOE_SIZES, DEPOP_WOMENS_TOPS_SIZES, DEPOP_WOMENS_BOTTOMS_SIZES, DEPOP_MENS_TOPS_SIZES, DEPOP_MENS_BOTTOMS_SIZES, DEPOP_MENS_SHOE_SIZES };

@@ -10,14 +10,15 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/elister';
   try {
     await mongoose.connect(MONGO_URI);
     const Listing = require('../models/Listing');
-    const listings = await Listing.find({}).sort({ createdAt: -1 }).limit(3);
     
-    console.log(`Found ${listings.length} listings in DB.`);
-    listings.forEach((listing, idx) => {
-      console.log(`Listing #${idx + 1}: ${listing.title}`);
-      console.log(`Images:`, listing.images);
-      console.log('--------------------------------------------------\n');
-    });
+    // Find listing by ID 6a420e6b015890f7f8335322
+    const listing = await Listing.findById('6a420e6b015890f7f8335322');
+    
+    if (listing) {
+      console.log(JSON.stringify(listing.toObject(), null, 2));
+    } else {
+      console.log('Listing 6a420e6b015890f7f8335322 not found in DB.');
+    }
   } catch (err) {
     console.error('Error:', err.message);
   } finally {
