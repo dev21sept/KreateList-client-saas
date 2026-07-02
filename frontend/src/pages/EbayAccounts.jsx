@@ -384,6 +384,20 @@ const EbayAccounts = () => {
   };
 
   const handleDepopInteractiveConnect = async () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocal) {
+      const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true" ||
+                                   document.body.dataset.elisterDepopExtensionInstalled === "true";
+      if (isExtensionInstalled) {
+        toast.info('Redirecting to Depop login. Please log in, and eLister will capture your connection automatically.');
+        triggerAutoConnect('depop');
+      } else {
+        toast.info('Opening Depop login page. Please log in, then copy your token to the Manual Mode tab, or install the Chrome Extension for automatic connection.');
+        window.open('https://www.depop.com/login/', '_blank');
+      }
+      return;
+    }
+
     try {
       setDepopLoading(true);
       toast.info('Starting In-App Login. Please look for the opened browser window and log in to Depop.');
