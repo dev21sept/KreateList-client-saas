@@ -195,8 +195,8 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 async function scrapeDepopShop(username, credentials = {}) {
   let cleanUsername = username.trim().toLowerCase();
 
-  // If cleanUsername is an email, 'depop_user', or empty, try to resolve it using the accessToken
-  if ((cleanUsername.includes('@') || cleanUsername === 'depop_user' || !cleanUsername) && credentials && credentials.accessToken) {
+  // If cleanUsername is an email, 'depop_user', 'nickssd', or empty, try to resolve it using the accessToken
+  if ((cleanUsername.includes('@') || cleanUsername === 'depop_user' || cleanUsername === 'nickssd' || !cleanUsername) && credentials && credentials.accessToken) {
     console.log(`[Import Scraper] Stored Depop username is an email, 'depop_user', or empty. Resolving actual username...`);
     let extracted = getDepopUsernameFromToken(credentials.accessToken);
 

@@ -94,7 +94,7 @@ exports.depopConnect = async (req, res) => {
     }
 
     let resolvedUsername = username.trim();
-    if (resolvedUsername === 'depop_user' || resolvedUsername.includes('@') || !resolvedUsername) {
+    if (resolvedUsername === 'depop_user' || resolvedUsername === 'nickssd' || resolvedUsername.includes('@') || !resolvedUsername) {
       console.log(`[Depop Controller] Resolving actual username for token from connection request...`);
       try {
         const cleanToken = accessToken.trim().replace(/^Bearer\s+/i, '');
