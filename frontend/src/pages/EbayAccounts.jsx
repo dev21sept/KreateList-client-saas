@@ -813,6 +813,9 @@ const EbayAccounts = () => {
                     <p className="text-amber-600 font-semibold text-[10px] mt-1 bg-amber-50 px-3 py-1 rounded-lg border border-amber-100 max-w-sm">
                       Note: If you are accessing from India, please ensure your VPN is connected to a supported country (e.g., US/UK) before starting.
                     </p>
+                    <p className="text-rose-600 font-semibold text-[10px] mt-1 bg-rose-50 px-3 py-1 rounded-lg border border-rose-100 max-w-sm">
+                      Note: In-App Login is only compatible when running eLister locally. If hosted on a remote server, please use the Chrome Extension or Manual Mode.
+                    </p>
                     
                     <button 
                       onClick={handleDepopInteractiveConnect}

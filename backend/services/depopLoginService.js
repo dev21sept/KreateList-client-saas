@@ -54,6 +54,12 @@ async function loginToDepopInteractive() {
   let browser = null;
   let page = null;
   try {
+    // Check if running on a headless environment or in production
+    const isHeadlessLinux = process.platform !== 'win32' && !process.env.DISPLAY;
+    if (isHeadlessLinux || process.env.NODE_ENV === 'production') {
+      throw new Error("In-App Login is not supported on remote/production servers as it requires displaying a browser window. Please connect using the 'Chrome Extension' or 'Manual Mode' tab instead.");
+    }
+
     const launchOptions = {
       headless: false,
       defaultViewport: null, // Human-like window sizing
