@@ -18,90 +18,77 @@ const RefundPolicy = () => {
 
             {/* Satisfaction Guarantee */}
             <div className="bg-indigo-50 border-l-4 border-indigo-500 p-6 my-6 rounded-r-lg">
-              <h2 className="text-xl font-semibold text-indigo-900 mb-2">Satisfaction Guarantee</h2>
+              <h2 className="text-xl font-semibold text-indigo-900 mb-2">7-Day Money-Back Guarantee</h2>
               <p className="text-indigo-800">
-                If you are not fully satisfied with the quality of our work for whatever reason, we will refund the initial deposit.
+                If you are not fully satisfied with Elister for any reason, you can request a full refund of your initial subscription fee within <strong>7 days</strong> of purchase.
               </p>
             </div>
 
-            {/* Wallet Policy */}
+            {/* Subscription Plans & Billing Policy */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-gray-900">Wallet Refunds</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Subscription Plans & Billing</h2>
               <p>
-                For Services there will be initial refunds possible under the following conditions:
+                Elister operates on a monthly or yearly recurring billing cycle. The plans and pricing are structured as follows:
               </p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>
-                  Wallet amount can be initially refunded in <strong>7 working days</strong>.
-                </li>
-                <li>
-                  <span className="text-rose-600 font-semibold">*Please Note:</span> Referral and Bonus Credits are non-refundable and excluded from wallet refunds.
-                </li>
-              </ul>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
+                <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                  <h3 className="font-bold text-gray-900 text-md">BASIC Plan</h3>
+                  <p className="text-indigo-600 font-black text-xl my-1">$79<span className="text-gray-400 text-xs font-normal">/mo</span></p>
+                  <ul className="text-xs text-gray-500 space-y-1 mt-2">
+                    <li>• 500 AI Listings / month</li>
+                    <li>• 1 eBay Account</li>
+                  </ul>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm border-indigo-200 ring-1 ring-indigo-500/10">
+                  <h3 className="font-bold text-gray-900 text-md">PRO Plan</h3>
+                  <p className="text-indigo-600 font-black text-xl my-1">$149<span className="text-gray-400 text-xs font-normal">/mo</span></p>
+                  <ul className="text-xs text-gray-500 space-y-1 mt-2">
+                    <li>• 3,000 AI Listings / month</li>
+                    <li>• 5 eBay Accounts</li>
+                  </ul>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                  <h3 className="font-bold text-gray-900 text-md">ENTERPRISE Plan</h3>
+                  <p className="text-indigo-600 font-black text-xl my-1">$299<span className="text-gray-400 text-xs font-normal">/mo</span></p>
+                  <ul className="text-xs text-gray-500 space-y-1 mt-2">
+                    <li>• 10,000 AI Listings / month</li>
+                    <li>• Unlimited eBay Accounts</li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <hr className="my-8 border-gray-200" />
 
-            {/* Services Detailed List */}
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Refund Conditions by Service Type</h2>
+            {/* Refund & Cancellation Conditions */}
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Refund & Cancellation Policy</h2>
 
             <div className="space-y-6">
-              {/* Listing/Posting */}
+              {/* Cancellation */}
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Listing / Posting Services</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $1.00 Per Item
-                  </span>
-                </div>
-                <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                  <li>
-                    Refunds are only possible when an item is in <strong className="text-gray-900">New</strong> status.
-                  </li>
-                  <li>
-                    The user can delete the item in <strong className="text-gray-900">New</strong> status, and it will be fully refunded in the next <strong>7 working days</strong> back into the user wallet.
-                  </li>
-                  <li className="text-rose-600 font-medium">
-                    No refund will be initiated for items in <strong>Submitted</strong>, <strong>Drafted</strong>, or <strong>Listed</strong> status. The user will not be able to delete these items.
-                  </li>
-                </ul>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Subscription Cancellation</h3>
+                <p className="text-gray-600 text-sm">
+                  You can cancel your subscription at any time through your Account Billing dashboard. 
+                  On cancellation, your subscription will remain active, and you will retain full access to all features and listing tools, until the end of your current billing period. 
+                  No future recurring charges will be made.
+                </p>
               </div>
 
-              {/* Cross-listing */}
+              {/* Refund Policy */}
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Cross-listing / Cross-posting</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $0.50 Per Item / Platform (Except eBay)
-                  </span>
-                </div>
-                <ul className="list-disc pl-5 space-y-2 text-gray-600">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Refund Policy</h3>
+                <ul className="list-disc pl-5 space-y-2 text-gray-600 text-sm">
                   <li>
-                    Refunds are only possible when an item is in <strong className="text-gray-900">New</strong> status.
+                    Refunds are only eligible within the first <strong>7 days</strong> of your very first subscription purchase.
                   </li>
                   <li>
-                    The user can delete the item in <strong className="text-gray-900">New</strong> status, and it will be fully refunded in the next <strong>7 working days</strong> back into the user wallet.
+                    Subsequent renewals or upgrades/downgrades are non-refundable.
+                  </li>
+                  <li>
+                    Refunded amounts will be processed back to your original payment method (Stripe, Razorpay, or Cards) in <strong>5 to 7 working days</strong>.
                   </li>
                   <li className="text-rose-600 font-medium">
-                    No refund will be initiated for items in <strong>Submitted</strong>, <strong>Drafted</strong>, or <strong>Listed</strong> status. The user will not be able to delete these items.
-                  </li>
-                </ul>
-              </div>
-
-              {/* Amazon FBA */}
-              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
-                  <h3 className="text-lg font-bold text-gray-900">Amazon FBA & Account Management</h3>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800 self-start">
-                    $10.00 Per Hour
-                  </span>
-                </div>
-                <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                  <li>
-                    A <strong>50% refund</strong> of the remaining service package will be possible upon service cancellation.
-                  </li>
-                  <li>
-                    Refunded amounts will be processed in the next <strong>7 working days</strong> directly into the customer's bank account or PayPal account.
+                    No partial refunds or pro-rated credits are provided for unused portions of the monthly or yearly billing cycles.
                   </li>
                 </ul>
               </div>
