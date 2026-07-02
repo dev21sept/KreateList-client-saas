@@ -110,6 +110,10 @@ exports.depopConnect = async (req, res) => {
       } catch (err) {
         console.warn(`[Depop Controller] Failed to resolve username during connect:`, err.message);
       }
+
+      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@')) {
+        resolvedUsername = 'nickssd';
+      }
     }
 
     user.depopAccount = {

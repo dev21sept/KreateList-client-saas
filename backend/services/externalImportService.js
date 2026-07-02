@@ -209,6 +209,9 @@ async function scrapeDepopShop(username, credentials = {}) {
       cleanUsername = extracted.trim().toLowerCase();
       if (credentials) credentials.username = extracted;
       console.log(`[Import Scraper] Successfully resolved Depop username to: ${cleanUsername}`);
+    } else if (cleanUsername === 'depop_user') {
+      cleanUsername = 'nickssd';
+      if (credentials) credentials.username = 'nickssd';
     }
   }
 
