@@ -57,7 +57,7 @@ const Footer = () => {
         </div>
         
         <div className="pt-8 border-t border-slate-50 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 space-y-4 md:space-y-0">
-          <p>© 2026 <a href='https://www.elister.ai/'>Elister.ai</a> By I AND B Outlet. All rights reserved.</p>
+          <p>© 2026 <a href='https://www.elister.ai/'>Elister.ai</a> By Kreatelist Infotech Private Limited. All rights reserved.</p>
           <div className="flex space-x-6">
            
           </div>
