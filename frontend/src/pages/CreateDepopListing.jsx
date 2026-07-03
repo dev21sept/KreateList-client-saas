@@ -49,6 +49,13 @@ import {
   DEPOP_MENS_SHOE_SIZES
 } from '../constants/depopSizes';
 
+const getDepopBrandId = (brandName) => {
+  if (!brandName) return '';
+  const clean = brandName.trim().toLowerCase();
+  const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
+  return found ? found.id : clean.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+};
+
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -865,7 +872,10 @@ const CreateDepopListing = () => {
       
       window.postMessage({
         action: 'ELISTER_DEPOP_PUBLISH_BACKGROUND_TRIGGER',
-        listing,
+        listing: {
+          ...listing,
+          brand: getDepopBrandId(listing.brand)
+        },
         token
       }, '*');
     });
@@ -941,7 +951,7 @@ const CreateDepopListing = () => {
               backendUrl,
               title: savedListing.title,
               description: savedListing.description,
-              brand: savedListing.brand || "",
+              brand: getDepopBrandId(savedListing.brand) || "",
               price: parseFloat(savedListing.price) || 0.0,
               originalPrice: parseFloat(savedListing.originalPrice) || 0.0,
               size: savedListing.size || "",

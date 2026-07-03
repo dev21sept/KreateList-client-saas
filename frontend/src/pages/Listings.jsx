@@ -22,6 +22,14 @@ import { useAuth } from '../context/AuthContext';
 import { listingService, ebayService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
+import { DEPOP_BRANDS } from '../constants/depopBrands';
+
+const getDepopBrandId = (brandName) => {
+  if (!brandName) return '';
+  const clean = brandName.trim().toLowerCase();
+  const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
+  return found ? found.id : clean.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+};
 
 const NO_IMAGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect fill="%23f1f5f9" width="150" height="150"/><path d="M55 65 L75 85 L95 60 L115 90 L35 90 Z" fill="%23cbd5e1"/><circle cx="55" cy="50" r="8" fill="%23cbd5e1"/></svg>');
 
@@ -540,7 +548,10 @@ const Listings = () => {
       
       window.postMessage({
         action: 'ELISTER_DEPOP_PUBLISH_BACKGROUND_TRIGGER',
-        listing,
+        listing: {
+          ...listing,
+          brand: getDepopBrandId(listing.brand)
+        },
         token
       }, '*');
     });
@@ -667,7 +678,7 @@ const Listings = () => {
           backendUrl,
           title: fullListing.title,
           description: plainDesc,
-          brand: fullListing.brand || "",
+          brand: getDepopBrandId(fullListing.brand) || "",
           price: parseFloat(fullListing.price) || 0.0,
           originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
           size: fullListing.size || "",

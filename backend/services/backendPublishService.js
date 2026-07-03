@@ -54,6 +54,43 @@ function mergeSetCookies(currentCookieStr, setCookieHeader) {
     .join('; ');
 }
 
+let depopBrandMap = null;
+
+function getDepopBrandId(brandName) {
+  if (!brandName) return '';
+  
+  const cleanName = brandName.trim().toLowerCase();
+  
+  if (!depopBrandMap) {
+    try {
+      const brandsPath = path.join(__dirname, '..', 'depopBrands.json');
+      if (fs.existsSync(brandsPath)) {
+        const brandsData = JSON.parse(fs.readFileSync(brandsPath, 'utf8'));
+        depopBrandMap = new Map();
+        for (const brand of brandsData) {
+          if (brand && brand.id && brand.name) {
+            depopBrandMap.set(brand.name.toLowerCase(), brand.id);
+            depopBrandMap.set(brand.id.toLowerCase(), brand.id);
+          }
+        }
+      } else {
+        console.warn(`[Backend Publisher] depopBrands.json not found at: ${brandsPath}`);
+      }
+    } catch (err) {
+      console.error('[Backend Publisher] Failed to load depopBrands.json:', err.message);
+    }
+  }
+
+  if (depopBrandMap && depopBrandMap.has(cleanName)) {
+    return depopBrandMap.get(cleanName);
+  }
+
+  // Fallback slugification
+  return cleanName
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // Helper: Download image (URLs or local S3 uploads) and return it as a Buffer
 async function downloadImageBuffer(imageUrl) {
   if (!imageUrl) {
@@ -109,6 +146,9 @@ async function publishToDepop(listing, depopAccount) {
   if (!authToken) {
     throw new Error('Depop access token is missing. Please connect your Depop account.');
   }
+
+  // Resolve brand name to Depop brand ID using depopBrands.json
+  const resolvedBrand = getDepopBrandId(listing.brand);
 
   // 1. Download images on the backend and convert them to Base64 (avoids mixed content issues in Puppeteer)
   const base64Images = [];
@@ -199,7 +239,7 @@ async function publishToDepop(listing, depopAccount) {
     console.log('[Depop Publisher] Executing direct API upload inside Puppeteer page context...');
     
     // 3. Execute Direct API calls inside the browser context
-    const publishResult = await page.evaluate(async (listingData, base64ImagesList, tokenString) => {
+    const publishResult = await page.evaluate(async (listingData, base64ImagesList, tokenString, resolvedBrandId) => {
       // Helper to convert base64 to Blob
       const base64ToBlob = (base64Data) => {
         const parts = base64Data.split(';base64,');
@@ -367,7 +407,7 @@ async function publishToDepop(listing, depopAccount) {
             }
             return attrs;
           })(),
-          brand: (listingData.brand || '').toLowerCase(),
+          brand: resolvedBrandId,
           colour: listingData.color ? [listingData.color.toLowerCase()] : [],
           condition: mapCondition(listingData.selectedCondition || listingData.conditionId),
           country: sellerCountry,
@@ -441,7 +481,7 @@ async function publishToDepop(listing, depopAccount) {
       } catch (err) {
         return { success: false, error: err.message };
       }
-    }, listing, base64Images, authToken);
+    }, listing, base64Images, authToken, resolvedBrand);
 
     if (!publishResult.success) {
       throw new Error(publishResult.error || 'Failed to publish to Depop inside browser context.');
