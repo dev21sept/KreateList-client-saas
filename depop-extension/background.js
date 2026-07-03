@@ -521,7 +521,7 @@ async function publishDepopBackground(listing, token) {
       style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
       variant_set: (() => {
         if (listing.size) {
-          const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+          const match = String(listing.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
           if (match) return parseInt(match[1]);
         }
         return 54;
@@ -529,7 +529,7 @@ async function publishDepopBackground(listing, token) {
       variants: (() => {
         const qty = parseInt(listing.quantity) || 1;
         if (listing.size) {
-          const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+          const match = String(listing.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
           if (match) {
             return { [match[2]]: qty };
           }

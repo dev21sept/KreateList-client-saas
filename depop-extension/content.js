@@ -432,7 +432,7 @@ async function executeDepopUpload(productData) {
     let variantSet = 54; // default
     let variantsPayload = {};
     if (productData.size) {
-      const match = String(productData.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+      const match = String(productData.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
       if (match) {
         variantSet = parseInt(match[1]);
         const sizeId = match[2];
@@ -1167,7 +1167,7 @@ if (currentSite === 'depop') {
           style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {
             if (listing.size) {
-              const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              const match = String(listing.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
               if (match) return parseInt(match[1]);
             }
             return 54;
@@ -1175,7 +1175,7 @@ if (currentSite === 'depop') {
           variants: (() => {
             const qty = parseInt(listing.quantity) || 1;
             if (listing.size) {
-              const match = String(listing.size).match(/^(\d+)\.(\d+)-(\w+)$/);
+              const match = String(listing.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
               if (match) {
                 return { [match[2]]: qty };
               }
