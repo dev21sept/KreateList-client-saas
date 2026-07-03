@@ -7,9 +7,13 @@ const {
   DEPOP_KIDS_APPAREL_SIZES,
   DEPOP_KIDS_SHOE_SIZES,
   DEPOP_WOMENS_TOPS_SIZES,
+  DEPOP_WOMENS_DRESSES_SIZES,
   DEPOP_WOMENS_BOTTOMS_SIZES,
+  DEPOP_WOMENS_OUTERWEAR_SIZES,
+  DEPOP_WOMENS_SHOE_SIZES,
   DEPOP_MENS_TOPS_SIZES,
   DEPOP_MENS_BOTTOMS_SIZES,
+  DEPOP_MENS_OUTERWEAR_SIZES,
   DEPOP_MENS_SHOE_SIZES
 } = require('../constants/depopSizes');
 const { wrapInTemplate } = require('../services/descriptionService');
@@ -170,15 +174,35 @@ function resolveCompositeSize(categoryPath, sizeName) {
         const isShoe = cat.includes('footwear');
         dataset = isShoe ? DEPOP_KIDS_SHOE_SIZES : DEPOP_KIDS_APPAREL_SIZES;
     } else if (cat.startsWith('women >')) {
-        const isBottom = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('skirts');
-        dataset = isBottom ? DEPOP_WOMENS_BOTTOMS_SIZES : DEPOP_WOMENS_TOPS_SIZES;
+        const isShoe = cat.includes('footwear');
+        if (isShoe) {
+            dataset = DEPOP_WOMENS_SHOE_SIZES;
+        } else {
+            const isBottom = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('skirts');
+            if (isBottom) {
+                dataset = DEPOP_WOMENS_BOTTOMS_SIZES;
+            } else {
+                const isOuterwear = cat.includes('outerwear') || cat.includes('coats') || cat.includes('jackets');
+                if (isOuterwear) {
+                    dataset = DEPOP_WOMENS_OUTERWEAR_SIZES;
+                } else {
+                    const isDress = cat.includes('dresses');
+                    dataset = isDress ? DEPOP_WOMENS_DRESSES_SIZES : DEPOP_WOMENS_TOPS_SIZES;
+                }
+            }
+        }
     } else if (cat.startsWith('men >')) {
         const isShoe = cat.includes('footwear');
         if (isShoe) {
             dataset = DEPOP_MENS_SHOE_SIZES;
         } else {
             const isBottom = cat.includes('bottoms') || cat.includes('jeans') || cat.includes('trousers') || cat.includes('shorts');
-            dataset = isBottom ? DEPOP_MENS_BOTTOMS_SIZES : DEPOP_MENS_TOPS_SIZES;
+            if (isBottom) {
+                dataset = DEPOP_MENS_BOTTOMS_SIZES;
+            } else {
+                const isOuterwear = cat.includes('outerwear') || cat.includes('coats') || cat.includes('jackets');
+                dataset = isOuterwear ? DEPOP_MENS_OUTERWEAR_SIZES : DEPOP_MENS_TOPS_SIZES;
+            }
         }
     }
     

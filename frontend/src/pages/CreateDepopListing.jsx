@@ -35,7 +35,19 @@ import { DEPOP_FASTENINGS } from '../constants/depopFastenings';
 import { DEPOP_FITS } from '../constants/depopFits';
 import { DEPOP_TYPES } from '../constants/depopTypes';
 import { DEPOP_ATTRIBUTE_OPTIONS, DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
-import { DEPOP_KIDS_APPAREL_SIZES, DEPOP_KIDS_SHOE_SIZES, DEPOP_WOMENS_TOPS_SIZES, DEPOP_WOMENS_BOTTOMS_SIZES, DEPOP_MENS_TOPS_SIZES, DEPOP_MENS_BOTTOMS_SIZES, DEPOP_MENS_SHOE_SIZES } from '../constants/depopSizes';
+import {
+  DEPOP_KIDS_APPAREL_SIZES,
+  DEPOP_KIDS_SHOE_SIZES,
+  DEPOP_WOMENS_TOPS_SIZES,
+  DEPOP_WOMENS_DRESSES_SIZES,
+  DEPOP_WOMENS_BOTTOMS_SIZES,
+  DEPOP_WOMENS_OUTERWEAR_SIZES,
+  DEPOP_WOMENS_SHOE_SIZES,
+  DEPOP_MENS_TOPS_SIZES,
+  DEPOP_MENS_BOTTOMS_SIZES,
+  DEPOP_MENS_OUTERWEAR_SIZES,
+  DEPOP_MENS_SHOE_SIZES
+} from '../constants/depopSizes';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -294,15 +306,25 @@ const CreateDepopListing = () => {
     }
     
     if (formData.category.startsWith('Women >')) {
+      const isShoe = formData.category.includes('Footwear');
+      if (isShoe) return DEPOP_WOMENS_SHOE_SIZES;
       const isBottom = formData.category.includes('Bottoms') || formData.category.includes('Jeans') || formData.category.includes('Skirts');
-      return isBottom ? DEPOP_WOMENS_BOTTOMS_SIZES : DEPOP_WOMENS_TOPS_SIZES;
+      if (isBottom) return DEPOP_WOMENS_BOTTOMS_SIZES;
+      const isOuterwear = formData.category.includes('Outerwear') || formData.category.includes('Coats') || formData.category.includes('Jackets');
+      if (isOuterwear) return DEPOP_WOMENS_OUTERWEAR_SIZES;
+      const isDress = formData.category.includes('Dresses');
+      if (isDress) return DEPOP_WOMENS_DRESSES_SIZES;
+      return DEPOP_WOMENS_TOPS_SIZES;
     }
 
     if (formData.category.startsWith('Men >')) {
       const isShoe = formData.category.includes('Footwear');
       if (isShoe) return DEPOP_MENS_SHOE_SIZES;
       const isBottom = formData.category.includes('Bottoms') || formData.category.includes('Jeans') || formData.category.includes('Trousers') || formData.category.includes('Shorts');
-      return isBottom ? DEPOP_MENS_BOTTOMS_SIZES : DEPOP_MENS_TOPS_SIZES;
+      if (isBottom) return DEPOP_MENS_BOTTOMS_SIZES;
+      const isOuterwear = formData.category.includes('Outerwear') || formData.category.includes('Coats') || formData.category.includes('Jackets');
+      if (isOuterwear) return DEPOP_MENS_OUTERWEAR_SIZES;
+      return DEPOP_MENS_TOPS_SIZES;
     }
     
     return null;

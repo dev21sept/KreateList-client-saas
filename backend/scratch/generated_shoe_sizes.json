@@ -1,0 +1,658 @@
+{
+  "US": [
+    {
+      "id": 1,
+      "name": "ONE SIZE",
+      "size_set_id": 77,
+      "composite_id": "77.1-US"
+    },
+    {
+      "id": 20,
+      "name": "US 3",
+      "size_set_id": 77,
+      "composite_id": "77.20-US"
+    },
+    {
+      "id": 21,
+      "name": "US 4",
+      "size_set_id": 77,
+      "composite_id": "77.21-US"
+    },
+    {
+      "id": 22,
+      "name": "US 5",
+      "size_set_id": 77,
+      "composite_id": "77.22-US"
+    },
+    {
+      "id": 23,
+      "name": "US 6",
+      "size_set_id": 77,
+      "composite_id": "77.23-US"
+    },
+    {
+      "id": 24,
+      "name": "US 6.5",
+      "size_set_id": 77,
+      "composite_id": "77.24-US"
+    },
+    {
+      "id": 2,
+      "name": "US 7",
+      "size_set_id": 77,
+      "composite_id": "77.2-US"
+    },
+    {
+      "id": 3,
+      "name": "US 7.5",
+      "size_set_id": 77,
+      "composite_id": "77.3-US"
+    },
+    {
+      "id": 4,
+      "name": "US 8",
+      "size_set_id": 77,
+      "composite_id": "77.4-US"
+    },
+    {
+      "id": 5,
+      "name": "US 8.5",
+      "size_set_id": 77,
+      "composite_id": "77.5-US"
+    },
+    {
+      "id": 6,
+      "name": "US 9",
+      "size_set_id": 77,
+      "composite_id": "77.6-US"
+    },
+    {
+      "id": 7,
+      "name": "US 9.5",
+      "size_set_id": 77,
+      "composite_id": "77.7-US"
+    },
+    {
+      "id": 8,
+      "name": "US 10",
+      "size_set_id": 77,
+      "composite_id": "77.8-US"
+    },
+    {
+      "id": 9,
+      "name": "US 10.5",
+      "size_set_id": 77,
+      "composite_id": "77.9-US"
+    },
+    {
+      "id": 10,
+      "name": "US 11",
+      "size_set_id": 77,
+      "composite_id": "77.10-US"
+    },
+    {
+      "id": 11,
+      "name": "US 11.5",
+      "size_set_id": 77,
+      "composite_id": "77.11-US"
+    },
+    {
+      "id": 12,
+      "name": "US 12",
+      "size_set_id": 77,
+      "composite_id": "77.12-US"
+    },
+    {
+      "id": 13,
+      "name": "US 12.5",
+      "size_set_id": 77,
+      "composite_id": "77.13-US"
+    },
+    {
+      "id": 14,
+      "name": "US 13",
+      "size_set_id": 77,
+      "composite_id": "77.14-US"
+    },
+    {
+      "id": 15,
+      "name": "US 13.5",
+      "size_set_id": 77,
+      "composite_id": "77.15-US"
+    },
+    {
+      "id": 16,
+      "name": "US 14",
+      "size_set_id": 77,
+      "composite_id": "77.16-US"
+    },
+    {
+      "id": 17,
+      "name": "US 14.5",
+      "size_set_id": 77,
+      "composite_id": "77.17-US"
+    },
+    {
+      "id": 18,
+      "name": "US 15",
+      "size_set_id": 77,
+      "composite_id": "77.18-US"
+    },
+    {
+      "id": 25,
+      "name": "US 15.5",
+      "size_set_id": 77,
+      "composite_id": "77.25-US"
+    },
+    {
+      "id": 26,
+      "name": "US 16",
+      "size_set_id": 77,
+      "composite_id": "77.26-US"
+    },
+    {
+      "id": 19,
+      "name": "Other",
+      "size_set_id": 77,
+      "composite_id": "77.19-US"
+    }
+  ],
+  "UK": [
+    {
+      "id": 1,
+      "name": "ONE SIZE",
+      "size_set_id": 5,
+      "composite_id": "5.1-UK"
+    },
+    {
+      "id": 20,
+      "name": "UK 2",
+      "size_set_id": 5,
+      "composite_id": "5.20-UK"
+    },
+    {
+      "id": 21,
+      "name": "UK 3",
+      "size_set_id": 5,
+      "composite_id": "5.21-UK"
+    },
+    {
+      "id": 22,
+      "name": "UK 4",
+      "size_set_id": 5,
+      "composite_id": "5.22-UK"
+    },
+    {
+      "id": 23,
+      "name": "UK 5",
+      "size_set_id": 5,
+      "composite_id": "5.23-UK"
+    },
+    {
+      "id": 24,
+      "name": "UK 5.5",
+      "size_set_id": 5,
+      "composite_id": "5.24-UK"
+    },
+    {
+      "id": 2,
+      "name": "UK 6",
+      "size_set_id": 5,
+      "composite_id": "5.2-UK"
+    },
+    {
+      "id": 3,
+      "name": "UK 6.5",
+      "size_set_id": 5,
+      "composite_id": "5.3-UK"
+    },
+    {
+      "id": 4,
+      "name": "UK 7",
+      "size_set_id": 5,
+      "composite_id": "5.4-UK"
+    },
+    {
+      "id": 5,
+      "name": "UK 7.5",
+      "size_set_id": 5,
+      "composite_id": "5.5-UK"
+    },
+    {
+      "id": 6,
+      "name": "UK 8",
+      "size_set_id": 5,
+      "composite_id": "5.6-UK"
+    },
+    {
+      "id": 7,
+      "name": "UK 8.5",
+      "size_set_id": 5,
+      "composite_id": "5.7-UK"
+    },
+    {
+      "id": 8,
+      "name": "UK 9",
+      "size_set_id": 5,
+      "composite_id": "5.8-UK"
+    },
+    {
+      "id": 9,
+      "name": "UK 9.5",
+      "size_set_id": 5,
+      "composite_id": "5.9-UK"
+    },
+    {
+      "id": 10,
+      "name": "UK 10",
+      "size_set_id": 5,
+      "composite_id": "5.10-UK"
+    },
+    {
+      "id": 11,
+      "name": "UK 10.5",
+      "size_set_id": 5,
+      "composite_id": "5.11-UK"
+    },
+    {
+      "id": 12,
+      "name": "UK 11",
+      "size_set_id": 5,
+      "composite_id": "5.12-UK"
+    },
+    {
+      "id": 13,
+      "name": "UK 11.5",
+      "size_set_id": 5,
+      "composite_id": "5.13-UK"
+    },
+    {
+      "id": 14,
+      "name": "UK 12",
+      "size_set_id": 5,
+      "composite_id": "5.14-UK"
+    },
+    {
+      "id": 15,
+      "name": "UK 12.5",
+      "size_set_id": 5,
+      "composite_id": "5.15-UK"
+    },
+    {
+      "id": 16,
+      "name": "UK 13",
+      "size_set_id": 5,
+      "composite_id": "5.16-UK"
+    },
+    {
+      "id": 17,
+      "name": "UK 13.5",
+      "size_set_id": 5,
+      "composite_id": "5.17-UK"
+    },
+    {
+      "id": 18,
+      "name": "UK 14",
+      "size_set_id": 5,
+      "composite_id": "5.18-UK"
+    },
+    {
+      "id": 25,
+      "name": "UK 14.5",
+      "size_set_id": 5,
+      "composite_id": "5.25-UK"
+    },
+    {
+      "id": 26,
+      "name": "UK 15",
+      "size_set_id": 5,
+      "composite_id": "5.26-UK"
+    },
+    {
+      "id": 19,
+      "name": "Other",
+      "size_set_id": 5,
+      "composite_id": "5.19-UK"
+    }
+  ],
+  "EUR": [
+    {
+      "id": 1,
+      "name": "ONE SIZE",
+      "size_set_id": 79,
+      "composite_id": "79.1-EUR"
+    },
+    {
+      "id": 20,
+      "name": "EUR 34",
+      "size_set_id": 79,
+      "composite_id": "79.20-EUR"
+    },
+    {
+      "id": 21,
+      "name": "EUR 35",
+      "size_set_id": 79,
+      "composite_id": "79.21-EUR"
+    },
+    {
+      "id": 22,
+      "name": "EUR 36",
+      "size_set_id": 79,
+      "composite_id": "79.22-EUR"
+    },
+    {
+      "id": 16,
+      "name": "EUR 37",
+      "size_set_id": 79,
+      "composite_id": "79.16-EUR"
+    },
+    {
+      "id": 17,
+      "name": "EUR 37.5",
+      "size_set_id": 79,
+      "composite_id": "79.17-EUR"
+    },
+    {
+      "id": 18,
+      "name": "EUR 38",
+      "size_set_id": 79,
+      "composite_id": "79.18-EUR"
+    },
+    {
+      "id": 19,
+      "name": "EUR 38.5",
+      "size_set_id": 79,
+      "composite_id": "79.19-EUR"
+    },
+    {
+      "id": 2,
+      "name": "EUR 39",
+      "size_set_id": 79,
+      "composite_id": "79.2-EUR"
+    },
+    {
+      "id": 3,
+      "name": "EUR 39.5",
+      "size_set_id": 79,
+      "composite_id": "79.3-EUR"
+    },
+    {
+      "id": 4,
+      "name": "EUR 40",
+      "size_set_id": 79,
+      "composite_id": "79.4-EUR"
+    },
+    {
+      "id": 5,
+      "name": "EUR 40.5",
+      "size_set_id": 79,
+      "composite_id": "79.5-EUR"
+    },
+    {
+      "id": 6,
+      "name": "EUR 41",
+      "size_set_id": 79,
+      "composite_id": "79.6-EUR"
+    },
+    {
+      "id": 7,
+      "name": "EUR 41.5",
+      "size_set_id": 79,
+      "composite_id": "79.7-EUR"
+    },
+    {
+      "id": 8,
+      "name": "EUR 42",
+      "size_set_id": 79,
+      "composite_id": "79.8-EUR"
+    },
+    {
+      "id": 9,
+      "name": "EUR 42.5",
+      "size_set_id": 79,
+      "composite_id": "79.9-EUR"
+    },
+    {
+      "id": 10,
+      "name": "EUR 43",
+      "size_set_id": 79,
+      "composite_id": "79.10-EUR"
+    },
+    {
+      "id": 11,
+      "name": "EUR 43.5",
+      "size_set_id": 79,
+      "composite_id": "79.11-EUR"
+    },
+    {
+      "id": 12,
+      "name": "EUR 44",
+      "size_set_id": 79,
+      "composite_id": "79.12-EUR"
+    },
+    {
+      "id": 13,
+      "name": "EUR 44.5",
+      "size_set_id": 79,
+      "composite_id": "79.13-EUR"
+    },
+    {
+      "id": 14,
+      "name": "EUR 45",
+      "size_set_id": 79,
+      "composite_id": "79.14-EUR"
+    },
+    {
+      "id": 23,
+      "name": "EUR 45.5",
+      "size_set_id": 79,
+      "composite_id": "79.23-EUR"
+    },
+    {
+      "id": 24,
+      "name": "EUR 46",
+      "size_set_id": 79,
+      "composite_id": "79.24-EUR"
+    },
+    {
+      "id": 25,
+      "name": "EUR 46.5",
+      "size_set_id": 79,
+      "composite_id": "79.25-EUR"
+    },
+    {
+      "id": 26,
+      "name": "EUR 47",
+      "size_set_id": 79,
+      "composite_id": "79.26-EUR"
+    },
+    {
+      "id": 27,
+      "name": "EUR 47.5",
+      "size_set_id": 79,
+      "composite_id": "79.27-EUR"
+    },
+    {
+      "id": 28,
+      "name": "EUR 48",
+      "size_set_id": 79,
+      "composite_id": "79.28-EUR"
+    },
+    {
+      "id": 29,
+      "name": "EUR 48.5",
+      "size_set_id": 79,
+      "composite_id": "79.29-EUR"
+    },
+    {
+      "id": 30,
+      "name": "EUR 49",
+      "size_set_id": 79,
+      "composite_id": "79.30-EUR"
+    },
+    {
+      "id": 15,
+      "name": "Other",
+      "size_set_id": 79,
+      "composite_id": "79.15-EUR"
+    }
+  ],
+  "AU": [
+    {
+      "id": 1,
+      "name": "ONE SIZE",
+      "size_set_id": 117,
+      "composite_id": "117.1-AU"
+    },
+    {
+      "id": 2,
+      "name": "AU 2",
+      "size_set_id": 117,
+      "composite_id": "117.2-AU"
+    },
+    {
+      "id": 3,
+      "name": "AU 3",
+      "size_set_id": 117,
+      "composite_id": "117.3-AU"
+    },
+    {
+      "id": 4,
+      "name": "AU 4",
+      "size_set_id": 117,
+      "composite_id": "117.4-AU"
+    },
+    {
+      "id": 5,
+      "name": "AU 5",
+      "size_set_id": 117,
+      "composite_id": "117.5-AU"
+    },
+    {
+      "id": 6,
+      "name": "AU 5.5",
+      "size_set_id": 117,
+      "composite_id": "117.6-AU"
+    },
+    {
+      "id": 7,
+      "name": "AU 6",
+      "size_set_id": 117,
+      "composite_id": "117.7-AU"
+    },
+    {
+      "id": 8,
+      "name": "AU 6.5",
+      "size_set_id": 117,
+      "composite_id": "117.8-AU"
+    },
+    {
+      "id": 9,
+      "name": "AU 7",
+      "size_set_id": 117,
+      "composite_id": "117.9-AU"
+    },
+    {
+      "id": 10,
+      "name": "AU 7.5",
+      "size_set_id": 117,
+      "composite_id": "117.10-AU"
+    },
+    {
+      "id": 11,
+      "name": "AU 8",
+      "size_set_id": 117,
+      "composite_id": "117.11-AU"
+    },
+    {
+      "id": 12,
+      "name": "AU 8.5",
+      "size_set_id": 117,
+      "composite_id": "117.12-AU"
+    },
+    {
+      "id": 13,
+      "name": "AU 9",
+      "size_set_id": 117,
+      "composite_id": "117.13-AU"
+    },
+    {
+      "id": 14,
+      "name": "AU 9.5",
+      "size_set_id": 117,
+      "composite_id": "117.14-AU"
+    },
+    {
+      "id": 15,
+      "name": "AU 10",
+      "size_set_id": 117,
+      "composite_id": "117.15-AU"
+    },
+    {
+      "id": 16,
+      "name": "AU 10.5",
+      "size_set_id": 117,
+      "composite_id": "117.16-AU"
+    },
+    {
+      "id": 17,
+      "name": "AU 11",
+      "size_set_id": 117,
+      "composite_id": "117.17-AU"
+    },
+    {
+      "id": 18,
+      "name": "AU 11.5",
+      "size_set_id": 117,
+      "composite_id": "117.18-AU"
+    },
+    {
+      "id": 19,
+      "name": "AU 12",
+      "size_set_id": 117,
+      "composite_id": "117.19-AU"
+    },
+    {
+      "id": 20,
+      "name": "AU 12.5",
+      "size_set_id": 117,
+      "composite_id": "117.20-AU"
+    },
+    {
+      "id": 21,
+      "name": "AU 13",
+      "size_set_id": 117,
+      "composite_id": "117.21-AU"
+    },
+    {
+      "id": 22,
+      "name": "AU 13.5",
+      "size_set_id": 117,
+      "composite_id": "117.22-AU"
+    },
+    {
+      "id": 23,
+      "name": "AU 14",
+      "size_set_id": 117,
+      "composite_id": "117.23-AU"
+    },
+    {
+      "id": 24,
+      "name": "AU 14.5",
+      "size_set_id": 117,
+      "composite_id": "117.24-AU"
+    },
+    {
+      "id": 25,
+      "name": "AU 15",
+      "size_set_id": 117,
+      "composite_id": "117.25-AU"
+    },
+    {
+      "id": 26,
+      "name": "Other",
+      "size_set_id": 117,
+      "composite_id": "117.26-AU"
+    }
+  ]
+}
