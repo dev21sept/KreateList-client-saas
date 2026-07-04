@@ -85,10 +85,8 @@ function getDepopBrandId(brandName) {
     return depopBrandMap.get(cleanName);
   }
 
-  // Fallback slugification
-  return cleanName
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  // Fallback to 'unbranded' (Other) if not found in Depop brands map
+  return 'unbranded';
 }
 
 // Helper: Download image (URLs or local S3 uploads) and return it as a Buffer
@@ -132,8 +130,18 @@ async function downloadImageBuffer(imageUrl) {
     responseType: 'arraybuffer'
   });
   
-  const response = await axios(axiosConfig);
-  return Buffer.from(response.data);
+  let lastErr = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const response = await axios(axiosConfig);
+      return Buffer.from(response.data);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Backend Publisher] Failed to download image from web (attempt ${i + 1}): ${err.message}. Retrying...`);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw lastErr;
 }
 
 // -------------------------------------------------------------
@@ -228,7 +236,7 @@ async function publishToDepop(listing, depopAccount) {
 
     // Navigate to Depop to establish browser context origin
     console.log('[Depop Publisher] Navigating to Depop to initialize session...');
-    await page.goto('https://www.depop.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://www.depop.com/', { waitUntil: 'networkidle2', timeout: 30000 });
 
     // Set authorization token in sessionStorage and localStorage
     await page.evaluate((token) => {
@@ -253,13 +261,32 @@ async function publishToDepop(listing, depopAccount) {
         return new Blob([uInt8Array], { type: contentType });
       };
 
+      const fetchWithRetry = async (url, options = {}, retries = 3, delayMs = 1500) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            const res = await window.fetch(url, options);
+            if (res.ok) return res;
+            if (res.status >= 500 || res.status === 429) {
+              console.warn(`[Fetch Retry] Status ${res.status} for ${url}. Retrying in ${delayMs}ms...`);
+              await new Promise(r => setTimeout(r, delayMs));
+              continue;
+            }
+            return res;
+          } catch (err) {
+            if (i === retries - 1) throw err;
+            console.warn(`[Fetch Retry] Network error: ${err.message} for ${url}. Retrying in ${delayMs}ms...`);
+            await new Promise(r => setTimeout(r, delayMs));
+          }
+        }
+      };
+
       try {
         const pictureIds = [];
         // Step A: Upload Images to Depop S3
         for (let i = 0; i < base64ImagesList.length; i++) {
           const imgBlob = base64ToBlob(base64ImagesList[i]);
 
-          const initRes = await window.fetch('https://webapi.depop.com/api/v4/pictures/', {
+          const initRes = await fetchWithRetry('https://webapi.depop.com/api/v4/pictures/', {
             method: 'POST',
             headers: {
               'Accept': 'application/json',
@@ -282,7 +309,7 @@ async function publishToDepop(listing, depopAccount) {
           const photoId = initData.id || initData.picture_id || initData.pictureId;
           const uploadUrl = initData.url || initData.upload_url || initData.uploadUrl;
 
-          const putRes = await window.fetch(uploadUrl, {
+          const putRes = await fetchWithRetry(uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'image/jpeg' },
             body: imgBlob
@@ -324,7 +351,7 @@ async function publishToDepop(listing, depopAccount) {
         let sellerCountry = "US";
 
         try {
-          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses', {
+          const addrRes = await fetchWithRetry('https://webapi.depop.com/api/v1/shop/seller-addresses', {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -345,7 +372,7 @@ async function publishToDepop(listing, depopAccount) {
                 lng: activeAddress.geo_position_lng || -95.712891
               };
 
-              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers`, {
+              const providersRes = await fetchWithRetry(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers`, {
                 method: 'GET',
                 headers: {
                   'Accept': 'application/json',
@@ -455,7 +482,7 @@ async function publishToDepop(listing, depopAccount) {
           quantity: null
         };
 
-        const saveRes = await window.fetch('https://webapi.depop.com/presentation/api/v1/listing/products/', {
+        const saveRes = await fetchWithRetry('https://webapi.depop.com/presentation/api/v1/listing/products/', {
           method: 'POST',
           headers: {
             'Accept': 'application/json',

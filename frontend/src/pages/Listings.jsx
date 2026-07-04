@@ -25,10 +25,10 @@ import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 import { DEPOP_BRANDS } from '../constants/depopBrands';
 
 const getDepopBrandId = (brandName) => {
-  if (!brandName) return '';
+  if (!brandName) return 'unbranded';
   const clean = brandName.trim().toLowerCase();
   const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
-  return found ? found.id : clean.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return found ? found.id : 'unbranded';
 };
 
 const NO_IMAGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect fill="%23f1f5f9" width="150" height="150"/><path d="M55 65 L75 85 L95 60 L115 90 L35 90 Z" fill="%23cbd5e1"/><circle cx="55" cy="50" r="8" fill="%23cbd5e1"/></svg>');

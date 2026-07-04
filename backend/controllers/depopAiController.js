@@ -353,6 +353,7 @@ ${descriptionInstruction}
 
 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate 'original_price' in USD.
 5. Attribute Extraction:
+    - Identify 'brand'. STRICT RULES: The brand name MUST be a valid and standard fashion brand. If the product is unbranded, handmade, custom, from an obscure/unknown brand, or not a widely recognized brand, you MUST return 'Other'. Do NOT output or invent obscure brand names.
     - Identify 'color'.
     - Identify 'size'. STRICT RULES: Output standard abbreviations for clothing (e.g., XS, S, M, L, XL, XXL). For shoes/footwear, output numbers (e.g., 8, 9, 10, 42) or standard shoe sizes. NEVER output full words like 'Large', 'Medium', or 'Small'.
     - Extract up to 3 style tags or keywords as comma-separated values (e.g., 'vintage, retro, streetwear') in 'style_tag'.

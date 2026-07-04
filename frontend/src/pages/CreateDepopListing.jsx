@@ -50,10 +50,10 @@ import {
 } from '../constants/depopSizes';
 
 const getDepopBrandId = (brandName) => {
-  if (!brandName) return '';
+  if (!brandName) return 'unbranded';
   const clean = brandName.trim().toLowerCase();
   const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
-  return found ? found.id : clean.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return found ? found.id : 'unbranded';
 };
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -604,7 +604,7 @@ const CreateDepopListing = () => {
           return found ? found.label : '';
         };
 
-        const resolvedBrand = findClosestMatch(result.brand, DEPOP_BRANDS) || result.brand || '';
+        const resolvedBrand = findClosestMatch(result.brand, DEPOP_BRANDS) || 'Other';
         const resolvedColor = findClosestMatch(result.color, DEPOP_COLOURS) || '';
         const resolvedStyle = findClosestMatch(result.styleTag, DEPOP_STYLES) || '';
         const resolvedAge = findClosestMatch(result.age, DEPOP_AGES) || '';

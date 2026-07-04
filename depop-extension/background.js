@@ -15,6 +15,25 @@ function setStorageData(key, value) {
   });
 }
 
+async function fetchWithRetry(url, options = {}, retries = 3, delayMs = 1500) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (res.status >= 500 || res.status === 429) {
+        console.warn(`[Background Fetch Retry] Status ${res.status} for ${url}. Retrying in ${delayMs}ms...`);
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      console.warn(`[Background Fetch Retry] Error: ${err.message} for ${url}. Retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Elister Depop Fast Automator Service Worker installed!');
 });
@@ -329,12 +348,12 @@ async function publishDepopBackground(listing, token) {
       try {
         console.log(`[Background Publisher] Downloading image ${i + 1} of ${images.length}...`);
         const cleanUrl = images[i].replace('//localhost:', '//127.0.0.1:');
-        const imgRes = await fetch(cleanUrl);
+        const imgRes = await fetchWithRetry(cleanUrl);
         if (!imgRes.ok) throw new Error(`Failed to download image: Status ${imgRes.status}`);
         const imgBlob = await imgRes.blob();
 
         console.log(`[Background Publisher] Initializing image upload ${i + 1} on Depop...`);
-        const initRes = await fetch('https://webapi.depop.com/api/v4/pictures/', {
+        const initRes = await fetchWithRetry('https://webapi.depop.com/api/v4/pictures/', {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
@@ -363,7 +382,7 @@ async function publishDepopBackground(listing, token) {
         }
 
         console.log(`[Background Publisher] Uploading image ${i + 1} to S3...`);
-        const putRes = await fetch(uploadUrl, {
+        const putRes = await fetchWithRetry(uploadUrl, {
           method: 'PUT',
           headers: {
             'Content-Type': 'image/jpeg'
@@ -412,7 +431,7 @@ async function publishDepopBackground(listing, token) {
 
     try {
       console.log('[Background Publisher] Fetching seller addresses...');
-      const addrRes = await fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
+      const addrRes = await fetchWithRetry('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -435,7 +454,7 @@ async function publishDepopBackground(listing, token) {
           };
 
           console.log(`[Background Publisher] Fetching shipping providers for address: ${addressId}`);
-          const providersRes = await fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
+          const providersRes = await fetchWithRetry(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -549,7 +568,7 @@ async function publishDepopBackground(listing, token) {
     };
 
     console.log('[Background Publisher] Step 2: Creating listing on Depop...');
-    const saveRes = await fetch('https://webapi.depop.com/presentation/api/v1/listing/products/', {
+    const saveRes = await fetchWithRetry('https://webapi.depop.com/presentation/api/v1/listing/products/', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',

@@ -13,32 +13,50 @@ function getAuthToken() {
   return sessionStorage.getItem('elister_captured_depop_token');
 }
 
-function backgroundFetch(url, options = {}, responseType = 'json') {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({
-      action: 'BACKGROUND_DEPOP_REQUEST',
-      data: {
-        url,
-        method: options.method || 'GET',
-        headers: options.headers || {},
-        body: options.body || null,
-        responseType
-      }
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        return reject(new Error(chrome.runtime.lastError.message));
-      }
-      if (!response || !response.success) {
-        return reject(new Error(response?.error || 'Unknown background fetch error'));
-      }
-      resolve({
-        ok: response.ok,
-        status: response.status,
-        json: async () => response.data,
-        text: async () => typeof response.data === 'object' && response.data !== null && response.data.type === 'base64' ? response.data.data : response.data
+async function backgroundFetch(url, options = {}, responseType = 'json') {
+  const retries = 3;
+  const delayMs = 1500;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'BACKGROUND_DEPOP_REQUEST',
+          data: {
+            url,
+            method: options.method || 'GET',
+            headers: options.headers || {},
+            body: options.body || null,
+            responseType
+          }
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          if (!response || !response.success) {
+            return reject(new Error(response?.error || 'Unknown background fetch error'));
+          }
+          resolve({
+            ok: response.ok,
+            status: response.status,
+            json: async () => response.data,
+            text: async () => typeof response.data === 'object' && response.data !== null && response.data.type === 'base64' ? response.data.data : response.data
+          });
+        });
       });
-    });
-  });
+
+      if (res.ok || (res.status < 500 && res.status !== 429)) {
+        return res;
+      }
+      
+      if (i === retries - 1) return res;
+      console.warn(`[Background Fetch Retry] Status ${res.status} for ${url}. Retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs));
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      console.warn(`[Background Fetch Retry] Error: ${err.message} for ${url}. Retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
 }
 
 let fetchRequestIdCounter = 0;
@@ -69,29 +87,47 @@ window.addEventListener('ELISTER_DEPOP_FETCH_RESPONSE', (event) => {
   }
 });
 
-function pageContextFetch(url, options = {}, responseType = 'json') {
-  return new Promise((resolve, reject) => {
-    const requestId = ++fetchRequestIdCounter;
-    pendingFetchRequests.set(requestId, { resolve, reject });
-    
-    window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_EXECUTE_FETCH', {
-      detail: {
-        requestId,
-        url,
-        method: options.method || 'GET',
-        headers: options.headers || {},
-        body: options.body || null,
-        responseType
+async function pageContextFetch(url, options = {}, responseType = 'json') {
+  const retries = 3;
+  const delayMs = 1500;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        const requestId = ++fetchRequestIdCounter;
+        pendingFetchRequests.set(requestId, { resolve, reject });
+        
+        window.dispatchEvent(new CustomEvent('ELISTER_DEPOP_EXECUTE_FETCH', {
+          detail: {
+            requestId,
+            url,
+            method: options.method || 'GET',
+            headers: options.headers || {},
+            body: options.body || null,
+            responseType
+          }
+        }));
+        
+        setTimeout(() => {
+          if (pendingFetchRequests.has(requestId)) {
+            pendingFetchRequests.delete(requestId);
+            reject(new Error('Page context fetch timed out'));
+          }
+        }, 30000);
+      });
+      
+      if (res.ok || (res.status < 500 && res.status !== 429)) {
+        return res;
       }
-    }));
-    
-    setTimeout(() => {
-      if (pendingFetchRequests.has(requestId)) {
-        pendingFetchRequests.delete(requestId);
-        reject(new Error('Page context fetch timed out'));
-      }
-    }, 45000);
-  });
+      
+      if (i === retries - 1) return res;
+      console.warn(`[Page Context Fetch Retry] Status ${res.status} for ${url}. Retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs));
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      console.warn(`[Page Context Fetch Retry] Error: ${err.message} for ${url}. Retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
 }
 
 function blobToBase64(blob) {
