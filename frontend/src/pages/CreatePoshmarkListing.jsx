@@ -387,7 +387,7 @@ const CreatePoshmarkListing = () => {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'poshmark';
-  const [step, setStep] = useState(editId ? 2 : 1);
+  const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -494,8 +494,7 @@ const CreatePoshmarkListing = () => {
               sku: listing.sku || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
             });
-            
-            setStep(2);
+            setHasScanned(true);
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
@@ -569,7 +568,7 @@ const CreatePoshmarkListing = () => {
       console.warn("Duplicate check failed, proceeding to scan:", dupErr);
     }
 
-    setStep(2);
+    setHasScanned(true);
     
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -770,20 +769,8 @@ const CreatePoshmarkListing = () => {
     }
   };
 
-  const nextStep = () => {
-    if (step === 1) {
-      startAIFetch();
-    } else if (step === 2) {
-      setStep(3); // Direct to step 3 for Poshmark (since step 3 is visual step 3, which maps to preview)
-    } else if (step === 3) {
-      handleSaveListing();
-    }
-  };
-  
-  const prevStep = () => setStep(step - 1);
-
   return (
-    <div className="max-w-[95%] mx-auto space-y-8 px-4">
+    <div className="max-w-[95%] mx-auto space-y-8 px-4 py-6">
       {/* Hidden image preloader to track loading status */}
       <div style={{ display: 'none' }}>
         {formData.images.map((img, idx) => (
@@ -795,78 +782,239 @@ const CreatePoshmarkListing = () => {
           />
         ))}
       </div>
+
       {/* Header */}
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit Poshmark Listing' : 'Create New Poshmark Listing'}
           </h1>
-          <p className="text-slate-500">
-            {step === 1 && "Step 1: Input Requirements"}
-            {step === 2 && "Step 2: AI Generated Content"}
-            {step === 3 && "Step 3: Preview & Save"}
+          <p className="text-slate-500 text-xs font-semibold mt-1">
+            Single Page AI-Powered Listing Creation
           </p>
-        </div>
-        <div className="flex gap-2 mb-1">
-          {[1, 2, 3].map(i => (
-            <div 
-              key={i} 
-              className={`w-12 h-1.5 rounded-full transition-all duration-500 ${step >= i ? 'bg-indigo-600' : 'bg-slate-200'}`}
-            />
-          ))}
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm min-h-[550px] flex flex-col relative overflow-hidden">
-        <AnimatePresence mode="popLayout">
-          {step === 1 && (
-            <motion.div 
-              key="step1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-10 flex-1"
-            >
-              {/* Selection Section */}
-              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em] flex items-center">
-                      <Sparkles size={16} className="mr-2 text-indigo-500" /> AI Configuration Setup
-                    </h3>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+      {/* Main Single Form Body */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8 relative">
+        
+        {/* SECTION 1: Product Images (Repositioned to the top!) */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+            <ImageIcon size={16} className="mr-2 text-indigo-500" /> 1. Product Images
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+              <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+              <input type="file" multiple className="hidden" onChange={handleImageUpload} />
+            </label>
+            {formData.images.map((img, i) => (
+              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
+                <img src={img} className="w-full h-full object-cover" alt="Product" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                   <button 
+                    type="button"
+                    onClick={() => {
+                      setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
+                      setFiles(files.filter((_, idx) => idx !== i));
+                    }}
+                    className="p-1.5 bg-red-650 rounded-lg text-white hover:bg-red-700"
+                    title="Delete Image"
+                   >
+                    <Trash2 size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === 0}
+                    onClick={() => moveImage(i, 'left')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Left"
+                   >
+                    <ArrowLeft size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === formData.images.length - 1}
+                    onClick={() => moveImage(i, 'right')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Right"
+                   >
+                    <ArrowRight size={14} />
+                   </button>
+                </div>
+                {i === 0 && (
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded shadow-sm">Cover</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 2: AI Configuration Setup */}
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-5">
+          <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+                <Sparkles size={16} className="mr-2 text-indigo-500" /> 2. AI Scanner Settings
+              </h3>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Model
+              </label>
+              <SearchableDropdown 
+                value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                options={modelOptions}
+                placeholder="Select model..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Listing Rule
+              </label>
+              <SearchableDropdown 
+                value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
+                onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
+                options={ruleOptions}
+                placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
+                disabled={rules.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Product Condition
+              </label>
+              <SearchableDropdown 
+                value={formData.selectedCondition}
+                onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
+                options={conditionOptions}
+                placeholder="Select condition..."
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={startAIFetch}
+            disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
+            className="w-full py-4 bg-[#0f172a] hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                Scanning & Extracting Image Data...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                ✨ Populate Form with AI Scan
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* LOADING SHIMMER */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-20 border border-dashed border-slate-100 rounded-3xl">
+            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+            <h3 className="font-bold text-slate-900">AI is analyzing product images...</h3>
+          </div>
+        )}
+
+        {/* SECTION 3: Generated Form Attributes (Only rendered when hasScanned is true) */}
+        {hasScanned && !loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 border-t border-slate-100 pt-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            
+            {/* Left Side fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                3. Listing Metadata Fields
+              </h3>
+
+              <div className="space-y-4">
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest ml-1">Product Title</label>
+                  <input 
+                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
-                    </label>
-                    <SearchableDropdown 
-                      value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                      onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                      options={modelOptions}
-                      placeholder="Select model..."
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Brand */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.brand}
+                      onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                      placeholder="Brand..."
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
-                    </label>
-                    <SearchableDropdown 
-                      value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                      onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
-                      options={ruleOptions}
-                      placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                      disabled={rules.length === 0}
+                  {/* Category */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Poshmark Category</label>
+                    <CategorySearchDropdown 
+                      value={formData.category}
+                      onSelect={(opt) => setFormData({
+                        ...formData, 
+                        category: opt.fullName, 
+                        categoryId: opt.categoryId || opt.id,
+                        departmentId: opt.departmentId || '',
+                        subcategoryIds: opt.subcategoryIds || []
+                      })}
+                      placeholder="Category..."
                     />
                   </div>
+                  {/* SKU */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 uppercase"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                      placeholder="SKU"
+                    />
+                  </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Listing Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  {/* Original Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">MSRP / Original Price</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.originalPrice}
+                        onChange={(e) => setFormData({...formData, originalPrice: e.target.value})}
+                        placeholder="MSRP"
+                      />
+                    </div>
+                  </div>
+                  {/* Condition */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
                       onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
@@ -876,546 +1024,151 @@ const CreatePoshmarkListing = () => {
                   </div>
                 </div>
 
-                {formData.selectedRule && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                      Sequence: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.slice(0, 3).join(' | ')}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.length > 3 ? '...' : ''}
-                    </span>
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                      Condition Note: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.slice(0, 50) || 'None'}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.length > 50 ? '...' : ''}
-                    </span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Color */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Color</label>
+                    <ColorMultiSelectDropdown 
+                      value={formData.color}
+                      onChange={(val) => setFormData({...formData, color: val})}
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Image Section */}
-              <div className="space-y-4">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
-                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
-                </label>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
-                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {formData.images.map((img, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
-                      <img src={img} className="w-full h-full object-cover" alt="Product" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button 
-                          onClick={() => {
-                            setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
-                            setFiles(files.filter((_, idx) => idx !== i));
-                          }}
-                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
-                         >
-                          <X size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div 
-              key="step2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-8 flex-1"
-            >
-              {loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
-                  <div className="relative">
-                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-indigo-400 absolute -top-2 -right-2 animate-bounce" />
+                  {/* Size */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.size}
+                      onChange={(e) => setFormData({...formData, size: e.target.value})}
+                      placeholder="e.g. M, L..."
+                    />
                   </div>
-                  <div className="text-center">
-                    <h3 className="font-bold text-slate-900">AI is analyzing your product...</h3>
-                    <p className="text-xs text-slate-400 mt-1">Generating Poshmark content details</p>
+                  {/* Quantity */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Quantity</label>
+                    <input 
+                      type="number"
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 1})}
+                      min="1"
+                    />
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  <div className="lg:col-span-4 space-y-4">
-                    <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
-                      <img src={formData.images[0]} className="w-full h-full object-cover" alt="Main Preview" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {formData.images.slice(1, 5).map((img, i) => (
-                        <div key={i} className="aspect-square bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
-                           <img src={img} className="w-full h-full object-cover" alt="Thumb" />
-                        </div>
+                  {/* Style Tag */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Style Tags</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.styleTag}
+                      onChange={(e) => setFormData({...formData, styleTag: e.target.value})}
+                      placeholder="Vintage, Boho..."
+                      list="poshmark-style-tags"
+                    />
+                    <datalist id="poshmark-style-tags">
+                      {POSHMARK_STYLE_TAGS.map(tag => (
+                        <option key={tag} value={tag} />
                       ))}
-                    </div>
-                    <div className="p-5 bg-indigo-50/30 rounded-[2rem] border border-indigo-100/50 space-y-5">
-                      <div className="flex items-center gap-2 pb-1 border-b border-indigo-100/40">
-                        <Sparkles size={16} className="text-indigo-600 animate-pulse" />
-                        <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">AI Settings & Regeneration</h4>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">AI Model</label>
-                          <SearchableDropdown 
-                            value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                            onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                            options={modelOptions}
-                            placeholder="Select model..."
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">AI Rule</label>
-                          <SearchableDropdown 
-                            value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                            onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
-                            options={ruleOptions}
-                            placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                            disabled={rules.length === 0}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">Condition</label>
-                          <SearchableDropdown 
-                            value={formData.selectedCondition}
-                            onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                            options={conditionOptions}
-                            placeholder="Select condition..."
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={startAIFetch}
-                          disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
-                          className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition-all shadow-md shadow-indigo-100 disabled:opacity-50 mt-2 cursor-pointer"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Regenerating...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={12} />
-                              Regenerate AI Content
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    </datalist>
                   </div>
-
-                  <div className="lg:col-span-8 space-y-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Generated Title</label>
-                      <input 
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                        value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.brand}
-                          onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                          placeholder="Enter brand name..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Category</label>
-                        <CategorySearchDropdown 
-                          value={formData.category}
-                          onSelect={(opt) => setFormData({
-                            ...formData, 
-                            category: opt.fullName, 
-                            categoryId: opt.categoryId || opt.id,
-                            departmentId: opt.departmentId || '',
-                            subcategoryIds: opt.subcategoryIds || []
-                          })}
-                          placeholder="Search and edit category..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
-                          value={formData.sku}
-                          onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                          placeholder="Enter SKU..."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Price</label>
-                        <div className="relative">
-                          <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 transition-all"
-                            value={formData.price}
-                            onChange={(e) => setFormData({...formData, price: e.target.value})}
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Original Price (MSRP)</label>
-                        <div className="relative">
-                          <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all"
-                            value={formData.originalPrice}
-                            onChange={(e) => setFormData({...formData, originalPrice: e.target.value})}
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
-                        <SearchableDropdown 
-                          value={formData.selectedCondition}
-                          onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                          options={conditionOptions}
-                          placeholder="Select condition..."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
-                        <ColorMultiSelectDropdown 
-                          value={formData.color}
-                          onChange={(val) => setFormData({...formData, color: val})}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.size}
-                          onChange={(e) => setFormData({...formData, size: e.target.value})}
-                          placeholder="e.g. M, L, 10..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Quantity</label>
-                        <input 
-                          type="number"
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                          value={formData.quantity}
-                          onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 1})}
-                          min="1"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.styleTag}
-                          onChange={(e) => setFormData({...formData, styleTag: e.target.value})}
-                          placeholder="e.g. Vintage, Boho..."
-                          list="poshmark-style-tags"
-                        />
-                        <datalist id="poshmark-style-tags">
-                          {POSHMARK_STYLE_TAGS.map(tag => (
-                            <option key={tag} value={tag} />
-                          ))}
-                        </datalist>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
-                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                          <button 
-                            onClick={() => setDescriptionMode('preview')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Eye size={12} /> Preview
-                          </button>
-                          <button 
-                            onClick={() => setDescriptionMode('edit')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Code size={12} /> Edit
-                          </button>
-                        </div>
-                      </div>
-
-                      {descriptionMode === 'edit' ? (
-                        <textarea 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-700 leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
-                          value={formData.description}
-                          onChange={(e) => setFormData({...formData, description: e.target.value})}
-                          placeholder="Enter description..."
-                        />
-                      ) : (
-                        <div 
-                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-sm font-semibold text-slate-700 leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
-                          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                        >
-                          {formData.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-10 flex-1"
-            >
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-3xl space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shrink-0">
-                      <CheckCircle2 size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-emerald-900">Ready to Save</h3>
-                      <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-widest">Final Review Mode</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Poshmark Platform Setup</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Poshmark listings are stored as drafts in eLister. You can copy details (Title, Price, Description, Images) to Poshmark easily using the <b>Copy Details</b> feature in listings.
-                  </p>
                 </div>
               </div>
+            </div>
 
-              <div className="lg:col-span-8 space-y-8 overflow-y-auto max-h-[700px] pr-4 custom-scrollbar">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.1em]">Manage Image Order</h3>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{formData.images.length} Photos</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {formData.images.map((img, i) => (
-                      <div 
-                        key={img.substring(0, 100) + '-' + i} 
-                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 flex flex-col shadow-sm"
+            {/* Right Side: Description preview & Setup details */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                4. Description & Poshmark Info
+              </h3>
+
+              <div className="space-y-4">
+                {/* Description input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('preview')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                       >
-                        <img src={img} className="w-full h-full object-cover" alt={`Product ${i + 1}`} />
-                        
-                        {/* Control overlay */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3 z-10">
-                          <div className="flex justify-between items-start">
-                            <span className="bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[9px] font-bold">
-                              {i === 0 ? 'Cover' : `#${i + 1}`}
-                            </span>
-                            <button 
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteImage(i);
-                              }}
-                              className="p-1.5 bg-rose-500/90 rounded-xl text-white hover:bg-rose-600 transition-colors shadow-sm"
-                              title="Delete Image"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                          
-                          <div className="flex justify-center gap-2">
-                            <button
-                              type="button"
-                              disabled={i === 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'left');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === 0 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Left"
-                            >
-                              <ArrowLeft size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={i === formData.images.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'right');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === formData.images.length - 1 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Right"
-                            >
-                              <ArrowRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        {i === 0 && (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg pointer-events-none">Main</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Title</label>
-                      <p className="text-sm font-bold text-slate-900 leading-snug">{formData.title}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Category</label>
-                      <p className="text-sm font-bold text-indigo-600">{formData.category}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Brand</label>
-                      <p className="text-sm font-bold text-slate-700">{formData.brand || 'No Brand'}</p>
+                        <Eye size={11} /> Preview
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('edit')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Code size={11} /> Edit
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Price</label>
-                      <p className="text-lg font-black text-emerald-600">${formData.price || '0.00'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Original Price</label>
-                      <p className="text-lg font-black text-slate-400">${formData.originalPrice || '0.00'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condition</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.selectedCondition}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</label>
-                      <p className="text-xs font-mono font-bold text-slate-500 uppercase">{formData.sku || 'Auto-Generated'}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Color</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.color || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Size</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.size || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.quantity || '1'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Style Tags</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.styleTag || 'N/A'}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-6 border-t border-slate-50">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description Preview</label>
+                  {descriptionMode === 'edit' ? (
+                    <textarea 
+                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[250px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Enter description..."
+                    />
+                  ) : (
                     <div 
-                      className="text-xs text-slate-600 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
+                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[250px] overflow-y-auto max-h-[300px] shadow-inner"
                       style={{ whiteSpace: 'pre-wrap' }}
                     >
                       {formData.description}
                     </div>
-                  </div>
+                  )}
+                </div>
+
+                <div className="p-5 bg-indigo-50/40 border border-indigo-100 rounded-2xl space-y-3">
+                  <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">eLister Listing Setup</h4>
+                  <p className="text-[11px] text-indigo-755 leading-relaxed font-semibold">
+                    Poshmark listings are stored as drafts in eLister. You can copy details (Title, Price, Description, Images) to Poshmark easily using the <b>Copy Details</b> feature in listings.
+                  </p>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
 
-        {/* Footer Navigation */}
-        <div className="mt-auto pt-8 flex justify-between items-center border-t border-slate-50">
-          <button 
-            onClick={prevStep}
-            disabled={step === 1 || loading}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all ${
-              step === 1 || loading ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <ChevronLeft size={20} /> Back
-          </button>
-          
-          <div className="flex items-center gap-4">
-            {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
-                <Loader2 size={12} className="animate-spin text-indigo-500" />
-                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
-              </span>
-            )}
-            {step === 3 ? (
-              <>
-                <button 
-                  onClick={() => handleSaveListing(null)}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
-                >
-                  Save Draft
-                </button>
-                <button 
-                  onClick={() => handleSaveListing('direct')}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
-                >
-                  {loading ? 'Working...' : 'List via Direct API'}
-                </button>
-                <button 
-                  onClick={() => handleSaveListing('extension')}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
-                >
-                  {loading ? 'Working...' : 'List via Extension'}
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={nextStep}
-                disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
-                className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
-              >
-                {loading ? (
-                  <>Working...</>
-                ) : (
-                  <>Continue</>
-                )}
-              </button>
-            )}
           </div>
-        </div>
+        )}
+
+        {/* Form Bottom Submission Control (Only visible when scanned) */}
+        {hasScanned && !loading && (
+          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <button 
+              type="button"
+              onClick={() => navigate('/listings')}
+              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing(null)}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              Save Draft
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing('direct')}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Working...' : 'List via Direct API'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing('extension')}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Working...' : 'List via Extension'}
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );

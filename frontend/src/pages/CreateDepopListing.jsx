@@ -251,7 +251,7 @@ const CreateDepopListing = () => {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'depop';
-  const [step, setStep] = useState(editId ? 2 : 1);
+  const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -499,7 +499,7 @@ const CreateDepopListing = () => {
               sku: listing.sku || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
             });
-            setStep(2);
+            setHasScanned(true);
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
@@ -573,7 +573,7 @@ const CreateDepopListing = () => {
       console.warn("Duplicate check failed, proceeding to scan:", dupErr);
     }
 
-    setStep(2);
+    setHasScanned(true);
     
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -994,20 +994,8 @@ const CreateDepopListing = () => {
     }
   };
 
-  const nextStep = () => {
-    if (step === 1) {
-      startAIFetch();
-    } else if (step === 2) {
-      setStep(3);
-    } else if (step === 3) {
-      handleSaveListing(false);
-    }
-  };
-  
-  const prevStep = () => setStep(step - 1);
-
   return (
-    <div className="max-w-[95%] mx-auto space-y-8 px-4">
+    <div className="max-w-[95%] mx-auto space-y-8 px-4 py-6">
       {/* Hidden image preloader to track loading status */}
       <div style={{ display: 'none' }}>
         {formData.images.map((img, idx) => (
@@ -1019,75 +1007,234 @@ const CreateDepopListing = () => {
           />
         ))}
       </div>
-      <div className="flex justify-between items-end">
+
+      {/* Header */}
+      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit Depop Listing' : 'Create New Depop Listing'}
           </h1>
-          <p className="text-slate-500">
-            {step === 1 && "Step 1: Input Requirements"}
-            {step === 2 && "Step 2: AI Generated Content"}
-            {step === 3 && "Step 3: Preview & Save"}
+          <p className="text-slate-500 text-xs font-semibold mt-1">
+            Single Page AI-Powered Listing Creation
           </p>
-        </div>
-        <div className="flex gap-2 mb-1">
-          {[1, 2, 3].map(i => (
-            <div 
-              key={i} 
-              className={`w-12 h-1.5 rounded-full transition-all duration-500 ${step >= i ? 'bg-indigo-600' : 'bg-slate-200'}`}
-            />
-          ))}
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm min-h-[550px] flex flex-col relative overflow-hidden">
-        <AnimatePresence mode="popLayout">
-          {step === 1 && (
-            <motion.div 
-              key="step1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-10 flex-1"
-            >
-              {/* Selection Section */}
-              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em] flex items-center">
-                      <Sparkles size={16} className="mr-2 text-indigo-500" /> AI Configuration Setup
-                    </h3>
+      {/* Main Single Form Body */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8 relative">
+        
+        {/* SECTION 1: Product Images (Repositioned to the top!) */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+            <ImageIcon size={16} className="mr-2 text-indigo-500" /> 1. Product Images
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+              <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+              <input type="file" multiple className="hidden" onChange={handleImageUpload} />
+            </label>
+            {formData.images.map((img, i) => (
+              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
+                <img src={img} className="w-full h-full object-cover" alt="Product" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                   <button 
+                    type="button"
+                    onClick={() => {
+                      setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
+                      setFiles(files.filter((_, idx) => idx !== i));
+                    }}
+                    className="p-1.5 bg-red-655 rounded-lg text-white hover:bg-red-700"
+                    title="Delete Image"
+                   >
+                    <Trash2 size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === 0}
+                    onClick={() => moveImage(i, 'left')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Left"
+                   >
+                    <ArrowLeft size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === formData.images.length - 1}
+                    onClick={() => moveImage(i, 'right')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Right"
+                   >
+                    <ArrowRight size={14} />
+                   </button>
+                </div>
+                {i === 0 && (
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded shadow-sm">Cover</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 2: AI Configuration Setup */}
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-5">
+          <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+                <Sparkles size={16} className="mr-2 text-indigo-500" /> 2. AI Scanner Settings
+              </h3>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Model
+              </label>
+              <SearchableDropdown 
+                value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                options={modelOptions}
+                placeholder="Select model..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Listing Rule
+              </label>
+              <SearchableDropdown 
+                value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
+                onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
+                options={ruleOptions}
+                placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
+                disabled={rules.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+                Product Condition
+              </label>
+              <SearchableDropdown 
+                value={formData.selectedCondition}
+                onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
+                options={conditionOptions}
+                placeholder="Select condition..."
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={startAIFetch}
+            disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
+            className="w-full py-4 bg-[#0f172a] hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                Scanning & Extracting Image Data...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                ✨ Populate Form with AI Scan
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* LOADING SHIMMER */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-20 border border-dashed border-slate-100 rounded-3xl">
+            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+            <h3 className="font-bold text-slate-900">AI is analyzing product images...</h3>
+          </div>
+        )}
+
+        {/* SECTION 3: Generated Form Attributes (Only rendered when hasScanned is true) */}
+        {hasScanned && !loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 border-t border-slate-100 pt-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            
+            {/* Left Side fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                3. Listing Metadata Fields
+              </h3>
+
+              <div className="space-y-4">
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest ml-1">Product Title</label>
+                  <input 
+                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
-                    </label>
-                    <SearchableDropdown 
-                      value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                      onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                      options={modelOptions}
-                      placeholder="Select model..."
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Brand */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.brand}
+                      onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                      placeholder="Brand..."
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
-                    </label>
-                    <SearchableDropdown 
-                      value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                      onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
-                      options={ruleOptions}
-                      placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                      disabled={rules.length === 0}
+                  {/* Category */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Depop Category</label>
+                    <CategorySearchDropdown 
+                      value={formData.category}
+                      onSelect={(opt) => setFormData({
+                        ...formData, 
+                        category: opt.fullName, 
+                        categoryId: opt.categoryId || opt.id
+                      })}
+                      placeholder="Category..."
                     />
                   </div>
+                  {/* SKU */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 uppercase"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                      placeholder="SKU"
+                    />
+                  </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Listing Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  {/* Color */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Color</label>
+                    <SearchableDropdown 
+                      value={formData.color}
+                      onSelect={(opt) => setFormData({...formData, color: opt.label})}
+                      options={DEPOP_COLORS}
+                      placeholder="Select Color..."
+                    />
+                  </div>
+                  {/* Condition */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
                       onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
@@ -1097,604 +1244,264 @@ const CreateDepopListing = () => {
                   </div>
                 </div>
 
-                {formData.selectedRule && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                      Sequence: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.slice(0, 3).join(' | ')}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.length > 3 ? '...' : ''}
-                    </span>
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                      Condition Note: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.slice(0, 50) || 'None'}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.length > 50 ? '...' : ''}
-                    </span>
+                {/* Size Selector */}
+                {kidsSizesOptions.length > 0 && (
+                  <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 block">Select Size</label>
+                    {activeSizeDataset && !activeSizeDataset.plain && (
+                      <div className="flex gap-2 mb-3">
+                        {['US', 'UK', 'EUR', 'AU'].map((scale) => {
+                          const hasScale = activeSizeDataset[scale] && activeSizeDataset[scale].length > 0;
+                          if (!hasScale) return null;
+                          return (
+                            <button
+                              type="button"
+                              key={scale}
+                              onClick={() => {
+                                setKidsSizeScale(scale);
+                                setFormData(prev => ({ ...prev, size: '' }));
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all border ${kidsSizeScale === scale ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                            >
+                              {scale}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <SearchableDropdown 
+                      value={kidsSizeLabel || getDisplaySize}
+                      onSelect={(opt) => setFormData({...formData, size: opt.id})}
+                      options={kidsSizesOptions}
+                      placeholder="Select matching size..."
+                    />
                   </div>
                 )}
-              </div>
 
-              {/* Image Section */}
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('preview')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Eye size={11} /> Preview
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('edit')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Code size={11} /> Edit
+                      </button>
+                    </div>
+                  </div>
+
+                  {descriptionMode === 'edit' ? (
+                    <textarea 
+                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-750 leading-relaxed min-h-[200px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Enter description..."
+                    />
+                  ) : (
+                    <div 
+                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold text-slate-750 leading-relaxed min-h-[200px] overflow-y-auto max-h-[300px] shadow-inner"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                    >
+                      {formData.description}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Specific Attributes & custom fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                4. Custom Depop Attributes & Shipping
+              </h3>
+
               <div className="space-y-4">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
-                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
-                </label>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
-                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {formData.images.map((img, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
-                      <img src={img} className="w-full h-full object-cover" alt="Product" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button 
-                          onClick={() => deleteImage(i)}
-                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
-                         >
-                          <X size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div 
-              key="step2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-8 flex-1"
-            >
-              {loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
-                  <div className="relative">
-                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-indigo-400 absolute -top-2 -right-2 animate-bounce" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Age */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Style Age</label>
+                    <SearchableDropdown 
+                      value={formData.age}
+                      onSelect={(opt) => setFormData({...formData, age: opt.label})}
+                      options={DEPOP_AGES}
+                      placeholder="Select Age..."
+                    />
                   </div>
-                  <div className="text-center">
-                    <h3 className="font-bold text-slate-900">AI is analyzing your product...</h3>
-                    <p className="text-xs text-slate-400 mt-1">Generating Depop content details</p>
+                  {/* Source */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Source / Origin</label>
+                    <SearchableDropdown 
+                      value={formData.source}
+                      onSelect={(opt) => setFormData({...formData, source: opt.label})}
+                      options={DEPOP_SOURCES}
+                      placeholder="Select Source..."
+                    />
+                  </div>
+                  {/* Material */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Material</label>
+                    <SearchableDropdown 
+                      value={formData.material}
+                      onSelect={(opt) => setFormData({...formData, material: opt.label})}
+                      options={DEPOP_MATERIALS}
+                      placeholder="Select Material..."
+                    />
+                  </div>
+                  {/* Style Tag */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Style tags</label>
+                    <SearchableDropdown 
+                      value={formData.styleTag}
+                      onSelect={(opt) => setFormData({...formData, styleTag: opt.label})}
+                      options={DEPOP_STYLE_TAGS}
+                      placeholder="Select Style..."
+                    />
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  <div className="lg:col-span-4 space-y-4">
-                    <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
-                      <img src={formData.images[0]} className="w-full h-full object-cover" alt="Main Preview" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {formData.images.slice(1, 5).map((img, i) => (
-                        <div key={i} className="aspect-square bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
-                           <img src={img} className="w-full h-full object-cover" alt="Thumb" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="lg:col-span-8 space-y-6">
+                {/* Conditional Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                  {categoryVisibilities.bodyFit && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Generated Title</label>
-                      <input 
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                        value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Body Fit</label>
+                      <SearchableDropdown 
+                        value={formData.bodyFit}
+                        onSelect={(opt) => setFormData({...formData, bodyFit: opt.label})}
+                        options={DEPOP_BODY_FITS}
+                        placeholder="Select Fit..."
                       />
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
-                        <SearchableDropdown 
-                          value={formData.brand}
-                          onSelect={(opt) => setFormData({...formData, brand: opt.label})}
-                          options={brandOptions}
-                          placeholder="Select brand..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Depop Category</label>
-                        <CategorySearchDropdown 
-                          value={formData.category}
-                          onSelect={(opt) => {
-                            setFormData({...formData, category: opt.fullName, categoryId: opt.id});
-                            setActiveAttributesState(opt.attribute_ids || []);
-                          }}
-                          placeholder="Search and edit category..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
+                  {categoryVisibilities.occasion && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Occasion</label>
+                      <SearchableDropdown 
+                        value={formData.occasion}
+                        onSelect={(opt) => setFormData({...formData, occasion: opt.label})}
+                        options={DEPOP_OCCASIONS}
+                        placeholder="Select Occasion..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryVisibilities.type && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">{typeFieldLabel}</label>
+                      <SearchableDropdown 
+                        value={formData.depopType}
+                        onSelect={(opt) => setFormData({...formData, depopType: opt.label})}
+                        options={typeFieldOptions}
+                        placeholder="Select Type..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryVisibilities.fastening && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Fastening</label>
+                      <SearchableDropdown 
+                        value={formData.fastening}
+                        onSelect={(opt) => setFormData({...formData, fastening: opt.label})}
+                        options={DEPOP_FASTENINGS}
+                        placeholder="Select Fastening..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryVisibilities.fit && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">{fitFieldLabel}</label>
+                      <SearchableDropdown 
+                        value={formData.fit}
+                        onSelect={(opt) => setFormData({...formData, fit: opt.label})}
+                        options={fitFieldOptions}
+                        placeholder="Select Fit..."
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Shipping info */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 pt-4">
+                  <h4 className="text-[10px] font-black text-slate-455 uppercase tracking-widest">Shipping Information</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase">National Shipping Cost</label>
+                      <div className="relative">
+                        <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
-                          value={formData.sku}
-                          onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                          className="w-full pl-9 pr-3 h-10 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                          value={formData.shippingPrice}
+                          onChange={(e) => setFormData({...formData, shippingPrice: e.target.value})}
                         />
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Price</label>
-                        <div className="relative">
-                          <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 transition-all"
-                            value={formData.price}
-                            onChange={(e) => setFormData({...formData, price: e.target.value})}
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
-                        <SearchableDropdown 
-                          value={formData.selectedCondition}
-                          onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                          options={conditionOptions}
-                          placeholder="Select condition..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
-                        <SearchableDropdown 
-                          value={formData.color}
-                          onSelect={(opt) => setFormData({...formData, color: opt.label})}
-                          options={colorOptions}
-                          placeholder="Select color..."
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dynamic Fields Section */}
-                    <AnimatePresence>
-                      {/* Row: Type, Fastening, Fit */}
-                      {(categoryVisibilities.type || categoryVisibilities.fastening || categoryVisibilities.fit) && (
-                        <motion.div 
-                          key="depop-type-fastening-fit"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                        >
-                          {categoryVisibilities.type && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{typeFieldLabel}</label>
-                              <SearchableDropdown 
-                                value={formData.depopType}
-                                onSelect={(opt) => setFormData({...formData, depopType: opt.label})}
-                                options={typeOptions}
-                                placeholder={`Select ${typeFieldLabel.toLowerCase()}...`}
-                              />
-                            </div>
-                          )}
-                          {categoryVisibilities.fastening && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Fastening</label>
-                              <SearchableDropdown 
-                                value={formData.fastening}
-                                onSelect={(opt) => setFormData({...formData, fastening: opt.label})}
-                                options={fasteningOptions}
-                                placeholder="Select fastening..."
-                              />
-                            </div>
-                          )}
-                          {categoryVisibilities.fit && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{fitFieldLabel}</label>
-                              <SearchableDropdown 
-                                value={formData.fit}
-                                onSelect={(opt) => setFormData({...formData, fit: opt.label})}
-                                options={fitOptions}
-                                placeholder={`Select ${fitFieldLabel.toLowerCase()}...`}
-                              />
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-
-                      {/* Row: Size, Style tags */}
-                      {(categoryVisibilities.size || categoryVisibilities.enhanceAttrs) && (
-                        <motion.div 
-                          key="depop-size-style"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                        >
-                          {categoryVisibilities.size && (
-                            <div className="space-y-3">
-                              {activeSizeDataset ? (
-                                <>
-                                  <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size Region / Scale</label>
-                                    <div className="flex gap-1.5 flex-wrap">
-                                      {['US', 'UK', 'EUR', 'AU'].map((scale) => {
-                                        const isEmpty = (activeSizeDataset[scale] || []).length === 0;
-                                        if (isEmpty) return null;
-                                        
-                                        return (
-                                          <button
-                                            key={scale}
-                                            type="button"
-                                            onClick={() => {
-                                              setKidsSizeScale(scale);
-                                              const currentSizeObj = (activeSizeDataset[kidsSizeScale] || []).find(s => s.composite_id === formData.size);
-                                              if (currentSizeObj) {
-                                                const nextSizeObj = (activeSizeDataset[scale] || []).find(s => s.name === currentSizeObj.name);
-                                                if (nextSizeObj) {
-                                                  setFormData(prev => ({ ...prev, size: nextSizeObj.composite_id }));
-                                                  return;
-                                                }
-                                              }
-                                              setFormData(prev => ({ ...prev, size: '' }));
-                                            }}
-                                            className={`px-3.5 py-1.5 text-xs font-black rounded-xl border transition-all ${
-                                              kidsSizeScale === scale
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
-                                            }`}
-                                          >
-                                            {scale}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                                    <SearchableDropdown
-                                      value={kidsSizeLabel}
-                                      onSelect={(opt) => setFormData({...formData, size: opt.id})}
-                                      options={kidsSizesOptions}
-                                      placeholder="Select size..."
-                                    />
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                                  <input 
-                                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all h-12"
-                                    value={formData.size}
-                                    onChange={(e) => setFormData({...formData, size: e.target.value})}
-                                    placeholder="Size..."
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {categoryVisibilities.enhanceAttrs && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (aesthetic tags)</label>
-                              <SearchableDropdown 
-                                value={formData.styleTag}
-                                onSelect={(opt) => setFormData({...formData, styleTag: opt.label})}
-                                options={styleOptions}
-                                placeholder="Select style..."
-                              />
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-
-                      {/* Row: Age, Source */}
-                      {categoryVisibilities.enhanceAttrs && (
-                        <motion.div 
-                          key="depop-age-source"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                        >
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Age</label>
-                            <SearchableDropdown 
-                              value={formData.age}
-                              onSelect={(opt) => setFormData({...formData, age: opt.label})}
-                              options={ageOptions}
-                              placeholder="Select age..."
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Source</label>
-                            <SearchableDropdown 
-                              value={formData.source}
-                              onSelect={(opt) => setFormData({...formData, source: opt.label})}
-                              options={sourceOptions}
-                              placeholder="Select source..."
-                            />
-                          </div>
-                        </motion.div>
-                      )}
-
-                      {/* Row: Material, Body Fit, Occasion */}
-                      {(categoryVisibilities.material || categoryVisibilities.bodyFit || categoryVisibilities.occasion) && (
-                        <motion.div 
-                          key="depop-material-bodyfit-occasion"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                        >
-                          {categoryVisibilities.material && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Material</label>
-                              <SearchableDropdown 
-                                value={formData.material}
-                                onSelect={(opt) => setFormData({...formData, material: opt.label})}
-                                options={materialOptions}
-                                placeholder="Select material..."
-                              />
-                            </div>
-                          )}
-                          {categoryVisibilities.bodyFit && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Body Fit</label>
-                              <SearchableDropdown 
-                                value={formData.bodyFit}
-                                onSelect={(opt) => setFormData({...formData, bodyFit: opt.label})}
-                                options={bodyFitOptions}
-                                placeholder="Select body fit..."
-                              />
-                            </div>
-                          )}
-                          {categoryVisibilities.occasion && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Occasion</label>
-                              <SearchableDropdown 
-                                value={formData.occasion}
-                                onSelect={(opt) => setFormData({...formData, occasion: opt.label})}
-                                options={occasionOptions}
-                                placeholder="Select occasion..."
-                              />
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 space-y-6">
-                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Shipping</h3>
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-1.5 max-w-xs">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Shipping Price</label>
-                          <div className="relative">
-                            <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input 
-                              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.shippingPrice}
-                              onChange={(e) => setFormData({...formData, shippingPrice: e.target.value})}
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center ml-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</label>
-                        <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-                          <button 
-                            type="button"
-                            onClick={() => setDescriptionMode('preview')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                          >
-                            Preview Text
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => setDescriptionMode('edit')}
-                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                          >
-                            Edit Text
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {descriptionMode === 'preview' ? (
-                        <div className="w-full min-h-[160px] p-4 bg-slate-50 border border-slate-250 rounded-2xl text-slate-700 text-xs leading-relaxed overflow-y-auto max-h-[300px] whitespace-pre-wrap">
-                          {formData.description}
-                        </div>
-                      ) : (
-                        <textarea 
-                          rows={6}
-                          className="w-full px-4 py-3 bg-white border border-slate-250 rounded-2xl text-xs font-semibold outline-none focus:border-indigo-500 transition-all leading-relaxed"
-                          value={formData.description}
-                          onChange={(e) => setFormData({...formData, description: e.target.value})}
-                        />
-                      )}
+                    <div className="flex items-center gap-3 pt-4">
+                      <input 
+                        type="checkbox"
+                        id="worldwideShipping"
+                        checked={formData.worldwideShipping}
+                        onChange={(e) => setFormData({...formData, worldwideShipping: e.target.checked})}
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                      />
+                      <label htmlFor="worldwideShipping" className="text-xs font-bold text-slate-650 cursor-pointer">Offer International Shipping</label>
                     </div>
                   </div>
                 </div>
-              )}
-            </motion.div>
-          )}
+              </div>
+            </div>
 
-          {step === 3 && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-8 flex-1"
-            >
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                  <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-                  <span className="text-xs font-bold text-indigo-900">Your Depop listing is ready to be saved as a draft.</span>
-                </div>
-
-                <div className="border border-slate-200 rounded-[2rem] overflow-hidden bg-white shadow-sm">
-                  <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <div>
-                       <h3 className="font-bold text-slate-900 text-sm">{formData.title}</h3>
-                       <p className="text-[10px] text-indigo-600 font-bold uppercase mt-0.5 tracking-wider">{formData.category}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-lg font-black text-slate-950">${formData.price}</span>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Selling Price</p>
-                    </div>
-                  </div>
-
-                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Item Specifications</h4>
-                      <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <p className="text-slate-400">Brand</p>
-                          <p className="font-bold text-slate-700">{formData.brand || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Condition</p>
-                          <p className="font-bold text-slate-700">{formData.selectedCondition}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Size</p>
-                          <p className="font-bold text-slate-700">{getDisplaySize}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Color</p>
-                          <p className="font-bold text-slate-700">{formData.color || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Style Tags</p>
-                          <p className="font-bold text-slate-700">{formData.styleTag || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Age</p>
-                          <p className="font-bold text-slate-700">{formData.age || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Source</p>
-                          <p className="font-bold text-slate-700">{formData.source || 'None'}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Material</p>
-                          <p className="font-bold text-slate-700">{formData.material || 'None'}</p>
-                        </div>
-                        {categoryVisibilities.bodyFit && formData.bodyFit && (
-                          <div>
-                            <p className="text-slate-400">Body Fit</p>
-                            <p className="font-bold text-slate-700">{formData.bodyFit}</p>
-                          </div>
-                        )}
-                        {categoryVisibilities.occasion && formData.occasion && (
-                          <div>
-                            <p className="text-slate-400">Occasion</p>
-                            <p className="font-bold text-slate-700">{formData.occasion}</p>
-                          </div>
-                        )}
-                        {categoryVisibilities.type && formData.depopType && (
-                          <div>
-                            <p className="text-slate-400">{typeFieldLabel}</p>
-                            <p className="font-bold text-slate-700">{formData.depopType}</p>
-                          </div>
-                        )}
-                        {categoryVisibilities.fastening && formData.fastening && (
-                          <div>
-                            <p className="text-slate-400">Fastening</p>
-                            <p className="font-bold text-slate-700">{formData.fastening}</p>
-                          </div>
-                        )}
-                        {categoryVisibilities.fit && formData.fit && (
-                          <div>
-                            <p className="text-slate-400">{fitFieldLabel}</p>
-                            <p className="font-bold text-slate-700">{formData.fit}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Product Images</h4>
-                        <div className="flex gap-2">
-                          {formData.images.slice(0, 4).map((img, i) => (
-                            <div key={i} className="w-14 h-14 rounded-lg overflow-hidden border border-slate-100">
-                              <img src={img} className="w-full h-full object-cover" alt="Preview Thumbnail" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">Shipping</h4>
-                        <div className="grid grid-cols-1 gap-4 text-xs">
-                          <div>
-                            <p className="text-slate-400">Shipping Price</p>
-                            <p className="font-bold text-slate-700">${formData.shippingPrice || '0.00'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
-          <button
-            type="button"
-            disabled={loading || step === 1}
-            onClick={prevStep}
-            className="h-12 px-6 border border-slate-200 rounded-2xl text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <ChevronLeft size={16} /> Back
-          </button>
-
-          <div className="flex items-center gap-4">
-            {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
-                <Loader2 size={12} className="animate-spin text-indigo-500" />
-                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
-              </span>
-            )}
-            {step === 3 ? (
-              <>
-                <button 
-                  onClick={() => handleSaveListing(null)}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  Save Draft
-                </button>
-                <button 
-                  onClick={() => handleSaveListing('direct')}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50 cursor-pointer"
-                >
-                  {loading ? 'Working...' : 'Save & Publish (Direct API)'}
-                </button>
-                <button 
-                  onClick={() => handleSaveListing('extension')}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer"
-                >
-                  {loading ? 'Working...' : 'Save & Publish (Extension)'}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && formData.images.length === 0)}
-                onClick={nextStep}
-                className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <>
-                  Next Step <ChevronLeft size={16} className="rotate-180" />
-                </>
-              </button>
-            )}
           </div>
-        </div>
+        )}
+
+        {/* Form Bottom Submission Control (Only visible when scanned) */}
+        {hasScanned && !loading && (
+          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <button 
+              type="button"
+              onClick={() => navigate('/listings')}
+              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing(null)}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              Save Draft
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing('direct')}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Working...' : 'Save & Publish (Direct API)'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing('extension')}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Working...' : 'Save & Publish (Extension)'}
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );

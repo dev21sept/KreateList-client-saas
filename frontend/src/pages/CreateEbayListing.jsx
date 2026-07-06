@@ -226,7 +226,7 @@ const CreateEbayListing = () => {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'ebay';
-  const [step, setStep] = useState(editId ? 2 : 1);
+  const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -366,8 +366,7 @@ const CreateEbayListing = () => {
                 console.error("Error fetching aspects in edit mode:", err);
               }
             }
-            
-            setStep(2);
+            setHasScanned(true);
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
@@ -441,7 +440,7 @@ const CreateEbayListing = () => {
       console.warn("Duplicate check failed, proceeding to scan:", dupErr);
     }
 
-    setStep(2);
+    setHasScanned(true);
     
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -686,47 +685,44 @@ const CreateEbayListing = () => {
     }
   };
 
-  const nextStep = () => {
-    if (step === 1) {
-      startAIFetch();
-    } else if (step === 3) {
-      const invalidAspects = [];
-      aspects.forEach(aspect => {
-        const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
-        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
-        if (isRequired || isRecommended) {
-          const vals = aspect.aspectValues || aspect.values || [];
-          if (vals.length > 0) {
-            const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
-            if (currentVal) {
-              const matchesDropdown = vals.some(v => {
-                const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
-              });
-              if (!matchesDropdown) {
-                invalidAspects.push(aspect.localizedAspectName);
-              }
+  // We can validate aspects on publish
+  const validateAspects = () => {
+    const invalidAspects = [];
+    aspects.forEach(aspect => {
+      const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+      const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+      if (isRequired || isRecommended) {
+        const vals = aspect.aspectValues || aspect.values || [];
+        if (vals.length > 0) {
+          const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
+          if (currentVal) {
+            const matchesDropdown = vals.some(v => {
+              const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+              return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
+            });
+            if (!matchesDropdown) {
+              invalidAspects.push(aspect.localizedAspectName);
             }
           }
         }
-      });
-
-      if (invalidAspects.length > 0) {
-        toast.warning(`Value is not from the Dropdown for: ${invalidAspects.join(', ')}`);
-        return;
       }
-      setStep(step + 1);
-    } else if (step === 4) {
+    });
+
+    if (invalidAspects.length > 0) {
+      toast.warning(`Value is not from the Dropdown for: ${invalidAspects.join(', ')}`);
+      return false;
+    }
+    return true;
+  };
+
+  const handlePublishClick = () => {
+    if (validateAspects()) {
       handlePublishListing();
-    } else {
-      setStep(step + 1);
     }
   };
-  
-  const prevStep = () => setStep(step - 1);
 
   return (
-    <div className="max-w-[95%] mx-auto space-y-8 px-4">
+    <div className="max-w-[95%] mx-auto space-y-8 px-4 py-6">
       {/* Hidden image preloader to track loading status */}
       <div style={{ display: 'none' }}>
         {formData.images.map((img, idx) => (
@@ -738,844 +734,500 @@ const CreateEbayListing = () => {
           />
         ))}
       </div>
+
       {/* Header */}
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit eBay Listing' : 'Create New eBay Listing'}
           </h1>
-          <p className="text-slate-500">
-            {step === 1 && "Step 1: Input Requirements"}
-            {step === 2 && "Step 2: AI Generated Content"}
-            {step === 3 && "Step 3: Item Specifics"}
-            {step === 4 && "Step 4: Preview & Publish"}
+          <p className="text-slate-500 text-xs font-semibold mt-1">
+            Single Page AI-Powered Listing Creation
           </p>
-        </div>
-        <div className="flex gap-2 mb-1">
-          {[1, 2, 3, 4].map(i => (
-            <div 
-              key={i} 
-              className={`w-12 h-1.5 rounded-full transition-all duration-500 ${step >= i ? 'bg-indigo-600' : 'bg-slate-200'}`}
-            />
-          ))}
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm min-h-[550px] flex flex-col relative overflow-hidden">
-        <AnimatePresence mode="popLayout">
-          {step === 1 && (
-            <motion.div 
-              key="step1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-10 flex-1"
-            >
-              {/* Selection Section */}
-              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em] flex items-center">
-                      <Sparkles size={16} className="mr-2 text-indigo-500" /> AI Configuration Setup
-                    </h3>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+      {/* Main Single Form Body */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8 relative">
+        
+        {/* SECTION 1: Product Images (Repositioned to the top!) */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+            <ImageIcon size={16} className="mr-2 text-indigo-500" /> 1. Product Images
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+              <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+              <input type="file" multiple className="hidden" onChange={handleImageUpload} />
+            </label>
+            {formData.images.map((img, i) => (
+              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
+                <img src={img} className="w-full h-full object-cover" alt="Product" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                   <button 
+                    onClick={() => {
+                      setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
+                      setFiles(files.filter((_, idx) => idx !== i));
+                    }}
+                    className="p-1.5 bg-red-650 rounded-lg text-white hover:bg-red-700"
+                    title="Delete Image"
+                   >
+                    <Trash2 size={14} />
+                   </button>
+                   <button
+                    disabled={i === 0}
+                    onClick={() => moveImage(i, 'left')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Left"
+                   >
+                    <ArrowLeft size={14} />
+                   </button>
+                   <button
+                    disabled={i === formData.images.length - 1}
+                    onClick={() => moveImage(i, 'right')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Right"
+                   >
+                    <ArrowRight size={14} />
+                   </button>
+                </div>
+                {i === 0 && (
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded shadow-sm">Cover</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 2: AI Configuration Setup */}
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-5">
+          <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+                <Sparkles size={16} className="mr-2 text-indigo-500" /> 2. AI Scanner Settings
+              </h3>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Model
+              </label>
+              <SearchableDropdown 
+                value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                options={modelOptions}
+                placeholder="Select model..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Listing Rule
+              </label>
+              <SearchableDropdown 
+                value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
+                onSelect={(opt) => {
+                  const rule = rules.find(r => (r._id || r.id) === opt.id);
+                  setFormData({
+                    ...formData,
+                    selectedRule: opt.id,
+                    packageWeight: rule?.packageWeight || { lbs: '', oz: '' },
+                    packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' },
+                    fulfillmentPolicyId: rule?.fulfillmentPolicyId || '',
+                    paymentPolicyId: rule?.paymentPolicyId || '',
+                    returnPolicyId: rule?.returnPolicyId || '',
+                    locationKey: rule?.locationKey || ''
+                  });
+                }}
+                options={ruleOptions}
+                placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
+                disabled={rules.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+                Product Condition
+              </label>
+              <SearchableDropdown 
+                value={formData.selectedCondition}
+                onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
+                options={conditionOptions}
+                placeholder="Select condition..."
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={startAIFetch}
+            disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
+            className="w-full py-4 bg-[#0f172a] hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                Scanning & Extracting Image Data...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                ✨ Populate Form with AI Scan
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* LOADING SHIMMER */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-20 border border-dashed border-slate-100 rounded-3xl">
+            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+            <h3 className="font-bold text-slate-900">AI is analyzing product images...</h3>
+          </div>
+        )}
+
+        {/* SECTION 3: Generated Form Attributes (Only rendered when hasScanned is true) */}
+        {hasScanned && !loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 border-t border-slate-100 pt-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            
+            {/* Left Side fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                3. Listing Metadata Fields
+              </h3>
+
+              <div className="space-y-4">
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest ml-1">Product Title</label>
+                  <input 
+                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
-                    </label>
-                    <SearchableDropdown 
-                      value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                      onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                      options={modelOptions}
-                      placeholder="Select model..."
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Category */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">eBay Category</label>
+                    <CategorySearchDropdown 
+                      value={formData.category}
+                      onSelect={handleCategoryChange}
+                      placeholder="Category..."
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-505 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
-                    </label>
-                    <SearchableDropdown 
-                      value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                      onSelect={(opt) => {
-                        const rule = rules.find(r => (r._id || r.id) === opt.id);
-                        setFormData({
-                          ...formData,
-                          selectedRule: opt.id,
-                          packageWeight: rule?.packageWeight || { lbs: '', oz: '' },
-                          packageDimensions: rule?.packageDimensions || { length: '', width: '', height: '' },
-                          fulfillmentPolicyId: rule?.fulfillmentPolicyId || '',
-                          paymentPolicyId: rule?.paymentPolicyId || '',
-                          returnPolicyId: rule?.returnPolicyId || '',
-                          locationKey: rule?.locationKey || ''
-                        });
-                      }}
-                      options={ruleOptions}
-                      placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                      disabled={rules.length === 0}
+                  {/* Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-450" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  {/* SKU */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 uppercase"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                      placeholder="SKU"
                     />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Condition selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
                       onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
                       options={conditionOptions}
-                      placeholder="Select condition..."
+                      placeholder="Select Condition..."
+                    />
+                  </div>
+                  {/* Condition Note */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition Note</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.conditionNote}
+                      onChange={(e) => setFormData({...formData, conditionNote: e.target.value})}
+                      placeholder="Note..."
                     />
                   </div>
                 </div>
 
-                {formData.selectedRule && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                      Sequence: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.slice(0, 3).join(' | ')}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.length > 3 ? '...' : ''}
-                    </span>
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                      Condition Note: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.slice(0, 50) || 'None'}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.length > 50 ? '...' : ''}
-                    </span>
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('preview')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Eye size={11} /> Preview
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('edit')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Code size={11} /> HTML
+                      </button>
+                    </div>
+                  </div>
+
+                  {descriptionMode === 'edit' ? (
+                    <textarea 
+                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-[11px] font-mono leading-relaxed min-h-[250px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Enter raw HTML description..."
+                    />
+                  ) : (
+                    <div 
+                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold leading-relaxed min-h-[250px] overflow-y-auto max-h-[400px] shadow-inner"
+                      dangerouslySetInnerHTML={{ __html: formData.description }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Aspects & Policies */}
+            <div className="lg:col-span-6 space-y-6">
+              
+              {/* Specifics Header */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
+                  <span>4. Item Specifics (Aspects)</span>
+                  <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg">Category: {formData.categoryId}</span>
+                </h3>
+
+                {aspects.length === 0 ? (
+                  <p className="text-xs text-slate-400 font-semibold p-4 bg-slate-50 rounded-xl border border-dashed text-center">No aspects required for this category.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 border border-slate-100 p-4 rounded-2xl bg-slate-50/30">
+                    {aspects.map((aspect) => {
+                      const vals = aspect.aspectValues || aspect.values || [];
+                      const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+                      const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+                      const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
+                      
+                      let hasDropdownError = false;
+                      if ((isRequired || isRecommended) && vals.length > 0 && currentVal) {
+                        const matchesDropdown = vals.some(v => {
+                          const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                          return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
+                        });
+                        if (!matchesDropdown) {
+                          hasDropdownError = true;
+                        }
+                      }
+
+                      return (
+                        <div key={aspect.localizedAspectName} className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1 flex items-center gap-1">
+                            {aspect.localizedAspectName}
+                            {isRequired && <span className="text-rose-500">*</span>}
+                            {isRecommended && <span className="text-[8px] text-slate-400 normal-case font-bold">(Rec)</span>}
+                          </label>
+                          
+                          {vals.length > 0 ? (
+                            <div>
+                              <SearchableDropdown 
+                                value={currentVal}
+                                onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
+                                options={vals.map(v => {
+                                  const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
+                                  return { id: text, label: text };
+                                })}
+                                placeholder={`Select...`}
+                                error={hasDropdownError}
+                              />
+                            </div>
+                          ) : (
+                            <input 
+                              className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                              value={currentVal}
+                              onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
+                              placeholder={`Enter...`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Image Section */}
-              <div className="space-y-4">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
-                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
-                </label>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
-                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {formData.images.map((img, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
-                      <img src={img} className="w-full h-full object-cover" alt="Product" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button 
-                          onClick={() => {
-                            setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
-                            setFiles(files.filter((_, idx) => idx !== i));
-                          }}
-                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
-                         >
-                          <X size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
+              {/* Policies Header */}
+              <div className="space-y-4 pt-2">
+                <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  5. eBay Policies & Shipping
+                </h3>
 
-          {step === 2 && (
-            <motion.div 
-              key="step2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-8 flex-1"
-            >
-              {loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
-                  <div className="relative">
-                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-indigo-400 absolute -top-2 -right-2 animate-bounce" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Fulfillment Policy */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Shipping Policy</label>
+                    <SearchableDropdown
+                      value={selectedFulfillmentLabel}
+                      onSelect={(opt) => setFormData({ ...formData, fulfillmentPolicyId: opt.id })}
+                      options={ebayPolicies.fulfillment}
+                      placeholder="Select Shipping Policy..."
+                    />
                   </div>
-                  <div className="text-center">
-                    <h3 className="font-bold text-slate-900">AI is analyzing your product...</h3>
-                    <p className="text-xs text-slate-400 mt-1">Fetching perfect category and generating details</p>
+                  {/* Payment Policy */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Payment Policy</label>
+                    <SearchableDropdown
+                      value={selectedPaymentLabel}
+                      onSelect={(opt) => setFormData({ ...formData, paymentPolicyId: opt.id })}
+                      options={ebayPolicies.payment}
+                      placeholder="Select Payment Policy..."
+                    />
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  <div className="lg:col-span-4 space-y-4">
-                    <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
-                      <img src={formData.images[0]} className="w-full h-full object-cover" alt="Main Preview" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {formData.images.slice(1, 5).map((img, i) => (
-                        <div key={i} className="aspect-square bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
-                           <img src={img} className="w-full h-full object-cover" alt="Thumb" />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-5 bg-indigo-50/30 rounded-[2rem] border border-indigo-100/50 space-y-5">
-                      <div className="flex items-center gap-2 pb-1 border-b border-indigo-100/40">
-                        <Sparkles size={16} className="text-indigo-600 animate-pulse" />
-                        <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">AI Settings & Regeneration</h4>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">AI Model</label>
-                          <SearchableDropdown 
-                            value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                            onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                            options={modelOptions}
-                            placeholder="Select model..."
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">AI Rule</label>
-                          <SearchableDropdown 
-                            value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                            onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
-                            options={ruleOptions}
-                            placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                            disabled={rules.length === 0}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block">Condition</label>
-                          <SearchableDropdown 
-                            value={formData.selectedCondition}
-                            onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                            options={conditionOptions}
-                            placeholder="Select condition..."
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={startAIFetch}
-                          disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
-                          className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition-all shadow-md shadow-indigo-100 disabled:opacity-50 mt-2 cursor-pointer"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Regenerating...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={12} />
-                              Regenerate AI Content
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                  {/* Return Policy */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Return Policy</label>
+                    <SearchableDropdown
+                      value={selectedReturnLabel}
+                      onSelect={(opt) => setFormData({ ...formData, returnPolicyId: opt.id })}
+                      options={ebayPolicies.returns}
+                      placeholder="Select Return Policy..."
+                    />
                   </div>
-
-                  <div className="lg:col-span-8 space-y-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Generated Title</label>
-                      <input 
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                        value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Category</label>
-                        <CategorySearchDropdown 
-                          value={formData.category}
-                          onSelect={handleCategoryChange}
-                          placeholder="Search and edit category..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Suggested Price</label>
-                        <div className="relative">
-                          <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 transition-all"
-                            value={formData.price}
-                            onChange={(e) => setFormData({...formData, price: e.target.value})}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
-                          value={formData.sku}
-                          onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                          placeholder="Enter SKU..."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
-                        <SearchableDropdown 
-                          value={formData.selectedCondition}
-                          onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                          options={conditionOptions}
-                          placeholder="Select condition..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition Note</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                          value={formData.conditionNote}
-                          onChange={(e) => setFormData({...formData, conditionNote: e.target.value})}
-                          placeholder="Condition details..."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Package Weight */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Package Weight</label>
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <input 
-                              type="number"
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.packageWeight?.lbs || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                packageWeight: { ...formData.packageWeight, lbs: parseFloat(e.target.value) || 0 }
-                              })}
-                              placeholder="lbs"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">lbs</span>
-                          </div>
-                          <div className="relative flex-1">
-                            <input 
-                              type="number"
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.packageWeight?.oz || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                packageWeight: { ...formData.packageWeight, oz: parseFloat(e.target.value) || 0 }
-                              })}
-                              placeholder="oz"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">oz</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Package Dimensions */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Dimensions (L x W x H)</label>
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <input 
-                              type="number"
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.packageDimensions?.length || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                packageDimensions: { ...formData.packageDimensions, length: parseFloat(e.target.value) || 0 }
-                              })}
-                              placeholder="L"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
-                          </div>
-                          <div className="relative flex-1">
-                            <input 
-                              type="number"
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.packageDimensions?.width || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                packageDimensions: { ...formData.packageDimensions, width: parseFloat(e.target.value) || 0 }
-                              })}
-                              placeholder="W"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
-                          </div>
-                          <div className="relative flex-1">
-                            <input 
-                              type="number"
-                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.packageDimensions?.height || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                packageDimensions: { ...formData.packageDimensions, height: parseFloat(e.target.value) || 0 }
-                              })}
-                              placeholder="H"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">in</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
-                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                          <button 
-                            onClick={() => setDescriptionMode('preview')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Eye size={12} /> Preview
-                          </button>
-                          <button 
-                            onClick={() => setDescriptionMode('edit')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Code size={12} /> HTML
-                          </button>
-                        </div>
-                      </div>
-
-                      {descriptionMode === 'edit' ? (
-                        <textarea 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-mono leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
-                          value={formData.description}
-                          onChange={(e) => setFormData({...formData, description: e.target.value})}
-                          placeholder="Enter raw HTML description..."
-                        />
-                      ) : (
-                        <div 
-                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-[13px] font-medium leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
-                          dangerouslySetInnerHTML={{ __html: formData.description }}
-                          style={{ wordBreak: 'break-word' }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 flex-1"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Item Specifics</h3>
-                  <p className="text-xs text-slate-500">Fine-tune your listing details for better search visibility on eBay.</p>
-                </div>
-                <div className="px-4 py-2 bg-indigo-50 rounded-xl border border-indigo-100 text-[10px] font-black text-indigo-700 uppercase tracking-widest">
-                  Category ID: {formData.categoryId}
-                </div>
-              </div>
-
-              {aspects.length === 0 ? (
-                <div className="py-20 flex flex-col items-center justify-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200 text-slate-400">
-                  <List size={40} className="mb-4 opacity-20" />
-                  <p className="text-sm font-medium">No item specifics required for this category.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 overflow-y-auto max-h-[400px] pr-4">
-                  {aspects.map((aspect) => {
-                    const vals = aspect.aspectValues || aspect.values || [];
-                    const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
-                    const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
-                    const currentVal = formData.selectedAspects[aspect.localizedAspectName]?.[0] || '';
-                    
-                    let hasDropdownError = false;
-                    if ((isRequired || isRecommended) && vals.length > 0 && currentVal) {
-                      const matchesDropdown = vals.some(v => {
-                        const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                        return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
-                      });
-                      if (!matchesDropdown) {
-                        hasDropdownError = true;
-                      }
-                    }
-
-                    return (
-                      <div key={aspect.localizedAspectName} className="space-y-2">
-                        <div className="flex items-center justify-between ml-1">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            {aspect.localizedAspectName}
-                            {isRequired && <span className="text-rose-500">*</span>}
-                            {isRecommended && <span className="text-[9px] font-bold text-slate-400 normal-case">(Recommended)</span>}
-                          </label>
-                        </div>
-                        
-                        {(() => {
-                          if (vals.length > 0) {
-                            const options = vals.map(v => {
-                              const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
-                              return { id: valText, label: valText };
-                            });
-                            return (
-                              <div>
-                                <SearchableDropdown 
-                                  value={currentVal}
-                                  onSelect={(opt) => handleAspectChange(aspect.localizedAspectName, opt.label)}
-                                  options={options}
-                                  placeholder={`Select ${aspect.localizedAspectName}...`}
-                                  error={hasDropdownError}
-                                />
-                                {hasDropdownError && (
-                                  <p className="text-[11px] font-semibold text-rose-500 mt-1.5 animate-pulse">
-                                    Value is not from the Dropdown
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          } else {
-                            return (
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all shadow-sm"
-                                value={currentVal}
-                                onChange={(e) => handleAspectChange(aspect.localizedAspectName, e.target.value)}
-                                placeholder={`Enter ${aspect.localizedAspectName}...`}
-                              />
-                            );
-                          }
-                        })()}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {step === 4 && (
-            <motion.div 
-              key="step4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-10 flex-1"
-            >
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-3xl space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shrink-0">
-                      <CheckCircle2 size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-emerald-900">Ready to Publish</h3>
-                      <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-widest">Final Review Mode</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Applied eBay Policies</h4>
-                   <div className="space-y-4 text-left">
-                     <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Shipping Policy</span>
-                        <SearchableDropdown
-                          value={selectedFulfillmentLabel}
-                          onSelect={(opt) => setFormData({ ...formData, fulfillmentPolicyId: opt.id })}
-                          options={ebayPolicies.fulfillment}
-                          placeholder="Select Shipping Policy..."
-                        />
-                     </div>
-                     <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Payment Policy</span>
-                        <SearchableDropdown
-                          value={selectedPaymentLabel}
-                          onSelect={(opt) => setFormData({ ...formData, paymentPolicyId: opt.id })}
-                          options={ebayPolicies.payment}
-                          placeholder="Select Payment Policy..."
-                        />
-                     </div>
-                     <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Return Policy</span>
-                        <SearchableDropdown
-                          value={selectedReturnLabel}
-                          onSelect={(opt) => setFormData({ ...formData, returnPolicyId: opt.id })}
-                          options={ebayPolicies.returns}
-                          placeholder="Select Return Policy..."
-                        />
-                     </div>
-                     <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Item Location</span>
-                        <SearchableDropdown
-                          value={selectedLocationLabel}
-                          onSelect={(opt) => setFormData({ ...formData, locationKey: opt.id })}
-                          options={ebayPolicies.locations}
-                          placeholder="Select Item Location..."
-                        />
-                     </div>
-                   </div>
-                </div>
-
-                <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Weight & Dimensions</h4>
-                   
-                   <div className="space-y-1.5 text-left">
-                     <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Weight</label>
-                     <div className="flex gap-2">
-                       <div className="relative flex-1">
-                         <input 
-                           type="number"
-                           className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                           value={formData.packageWeight?.lbs ?? ''}
-                           onChange={(e) => setFormData({
-                             ...formData,
-                             packageWeight: { ...formData.packageWeight, lbs: parseFloat(e.target.value) || 0 }
-                           })}
-                           placeholder="lbs"
-                         />
-                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">lbs</span>
-                       </div>
-                       <div className="relative flex-1">
-                         <input 
-                           type="number"
-                           className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                           value={formData.packageWeight?.oz ?? ''}
-                           onChange={(e) => setFormData({
-                             ...formData,
-                             packageWeight: { ...formData.packageWeight, oz: parseFloat(e.target.value) || 0 }
-                           })}
-                           placeholder="oz"
-                         />
-                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">oz</span>
-                       </div>
-                     </div>
-                   </div>
-
-                   <div className="space-y-1.5 text-left">
-                     <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Dimensions (L x W x H)</label>
-                     <div className="flex gap-2">
-                       <div className="relative flex-1">
-                         <input 
-                           type="number"
-                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                           value={formData.packageDimensions?.length ?? ''}
-                           onChange={(e) => setFormData({
-                             ...formData,
-                             packageDimensions: { ...formData.packageDimensions, length: parseFloat(e.target.value) || 0 }
-                           })}
-                           placeholder="L"
-                         />
-                       </div>
-                       <div className="relative flex-1">
-                         <input 
-                           type="number"
-                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                           value={formData.packageDimensions?.width ?? ''}
-                           onChange={(e) => setFormData({
-                             ...formData,
-                             packageDimensions: { ...formData.packageDimensions, width: parseFloat(e.target.value) || 0 }
-                           })}
-                           placeholder="W"
-                         />
-                       </div>
-                       <div className="relative flex-1">
-                         <input 
-                           type="number"
-                           className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                           value={formData.packageDimensions?.height ?? ''}
-                           onChange={(e) => setFormData({
-                             ...formData,
-                             packageDimensions: { ...formData.packageDimensions, height: parseFloat(e.target.value) || 0 }
-                           })}
-                           placeholder="H"
-                         />
-                       </div>
-                     </div>
-                   </div>
-                </div>
-
-                <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
-                  <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
-                    All eBay listing fees will be calculated upon submission. Ensure your business policies are correctly set in settings.
-                  </p>
-                </div>
-              </div>
-
-              <div className="lg:col-span-8 space-y-8 overflow-y-auto max-h-[700px] pr-4 custom-scrollbar">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.1em]">Manage Image Order</h3>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{formData.images.length} Photos</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {formData.images.map((img, i) => (
-                      <div 
-                        key={img.substring(0, 100) + '-' + i} 
-                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 flex flex-col shadow-sm"
-                      >
-                        <img src={img} className="w-full h-full object-cover" alt={`Product ${i + 1}`} />
-                        
-                        {/* Control overlay */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3 z-10">
-                          <div className="flex justify-between items-start">
-                            <span className="bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[9px] font-bold">
-                              {i === 0 ? 'Cover' : `#${i + 1}`}
-                            </span>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteImage(i);
-                              }}
-                              className="p-1.5 bg-red-600/80 backdrop-blur-sm rounded-xl text-white hover:bg-red-600 transition-colors shadow-sm"
-                              title="Delete Image"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                          
-                          <div className="flex justify-center gap-2">
-                            <button
-                              disabled={i === 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'left');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === 0 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Left"
-                            >
-                              <ArrowLeft size={14} />
-                            </button>
-                            <button
-                              disabled={i === formData.images.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'right');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === formData.images.length - 1 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Right"
-                            >
-                              <ArrowRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        {i === 0 && (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg pointer-events-none">Main</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8 space-y-8">
-                  <div className="grid grid-cols-2 gap-8">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Title</label>
-                      <p className="text-sm font-bold text-slate-900 leading-snug">{formData.title}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Category</label>
-                      <p className="text-sm font-bold text-indigo-600">{formData.category}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-6 pt-4 border-t border-slate-50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price</label>
-                      <p className="text-lg font-black text-slate-900">${formData.price}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condition</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.selectedCondition}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</label>
-                      <p className="text-xs font-mono font-bold text-slate-500 uppercase">Auto-Generated</p>
-                    </div>
-                  </div>
-
-                  {formData.conditionNote && (
-                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-1">
-                      <label className="text-[9px] font-black text-amber-900 uppercase tracking-widest">Condition Note</label>
-                      <p className="text-[11px] text-amber-800 font-medium">{formData.conditionNote}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                      <Tag size={14} className="text-indigo-500" /> Item Specifics Review
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {Object.entries(formData.selectedAspects).map(([key, val]) => (
-                        <div key={key} className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">{key}</label>
-                          <span className="text-[11px] font-bold text-slate-700">{val[0] || 'N/A'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-6 border-t border-slate-50">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description Preview</label>
-                    <div 
-                      className="text-[11px] text-slate-600 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
-                      dangerouslySetInnerHTML={{ __html: formData.description }}
+                  {/* Location Key */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Item Location</label>
+                    <SearchableDropdown
+                      value={selectedLocationLabel}
+                      onSelect={(opt) => setFormData({ ...formData, locationKey: opt.id })}
+                      options={ebayPolicies.locations}
+                      placeholder="Select Location..."
                     />
                   </div>
                 </div>
+
+                {/* Weight & Dimensions */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Package Weight</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input 
+                          type="number"
+                          className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                          value={formData.packageWeight?.lbs ?? ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            packageWeight: { ...formData.packageWeight, lbs: parseFloat(e.target.value) || 0 }
+                          })}
+                          placeholder="lbs"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-black">LBS</span>
+                      </div>
+                      <div className="relative flex-1">
+                        <input 
+                          type="number"
+                          className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                          value={formData.packageWeight?.oz ?? ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            packageWeight: { ...formData.packageWeight, oz: parseFloat(e.target.value) || 0 }
+                          })}
+                          placeholder="oz"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-black">OZ</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-455 uppercase ml-1">Dimensions (L x W x H)</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="number"
+                        className="w-full px-2 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.packageDimensions?.length ?? ''}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          packageDimensions: { ...formData.packageDimensions, length: parseFloat(e.target.value) || 0 }
+                        })}
+                        placeholder="L"
+                      />
+                      <input 
+                        type="number"
+                        className="w-full px-2 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.packageDimensions?.width ?? ''}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          packageDimensions: { ...formData.packageDimensions, width: parseFloat(e.target.value) || 0 }
+                        })}
+                        placeholder="W"
+                      />
+                      <input 
+                        type="number"
+                        className="w-full px-2 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.packageDimensions?.height ?? ''}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          packageDimensions: { ...formData.packageDimensions, height: parseFloat(e.target.value) || 0 }
+                        })}
+                        placeholder="H"
+                      />
+                    </div>
+                  </div>
+                </div>
+
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Footer Navigation */}
-        <div className="mt-auto pt-8 flex justify-between items-center border-t border-slate-50">
-          <button 
-            onClick={prevStep}
-            disabled={step === 1 || loading}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all ${
-              step === 1 || loading ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <ChevronLeft size={20} /> Back
-          </button>
-          
-          <div className="flex items-center gap-4">
-            {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
-                <Loader2 size={12} className="animate-spin text-indigo-500" />
-                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
-              </span>
-            )}
-            {step === 4 && (
-              <button 
-                onClick={handleSaveDraft}
-                disabled={loading || isConvertingImages || !allImagesLoaded}
-                className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-              >
-                Save as Draft
-              </button>
-            )}
+            </div>
 
+          </div>
+        )}
+
+        {/* Form Bottom Submission Control (Only visible when scanned) */}
+        {hasScanned && !loading && (
+          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
             <button 
-              onClick={nextStep}
-              disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && (!formData.selectedRule || !formData.selectedCondition || formData.images.length === 0))}
-              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+              type="button"
+              onClick={() => navigate('/listings')}
+              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
             >
-              {loading ? (
-                <>Working...</>
-              ) : step === 4 ? (
-                <>Publish to eBay</>
-              ) : (
-                <>Continue</>
-              )}
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              Save as Draft
+            </button>
+            <button 
+              type="button"
+              onClick={handlePublishClick}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-7 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
+            >
+              Publish to eBay
             </button>
           </div>
-        </div>
+        )}
+
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { AnimatePresence } from 'framer-motion';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
+import NewDashboardLayout from './layouts/NewDashboardLayout';
 
 // Pages
 import Home from './pages/Home';
@@ -20,7 +21,9 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
-import Listings from './pages/Listings';
+import Listings from './pages/NewListings';
+import Orders from './pages/Orders';
+import Analytics from './pages/Analytics';
 import CreateListing from './pages/CreateListing';
 import CreateEbayListing from './pages/CreateEbayListing';
 import BulkListingEbay from './pages/BulkListingEbay';
@@ -140,9 +143,13 @@ const App = () => {
 
           {/* User Protected Routes */}
           <Route element={<ProtectedRoute adminOnly={false} />}>
-            <Route element={<DashboardLayout isAdmin={false} />}>
+            <Route element={<NewDashboardLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/listings" element={<Listings />} />
+              <Route path="/crosslisting" element={<Listings />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/integrations" element={<EbayAccounts />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
               <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />

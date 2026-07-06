@@ -94,6 +94,10 @@ const userSchema = new mongoose.Schema({
     username: String,
     accessToken: String,
     sessionCookie: String,
+    usePartnerApi: {
+      type: Boolean,
+      default: false
+    },
     connectedAt: Date
   },
   currency: {

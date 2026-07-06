@@ -148,12 +148,20 @@ async function downloadImageBuffer(imageUrl) {
 // Depop Backend Publisher
 // -------------------------------------------------------------
 async function publishToDepop(listing, depopAccount) {
-  const authToken = depopAccount.accessToken;
-  const sessionCookie = depopAccount.sessionCookie;
+  const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || (depopAccount && depopAccount.usePartnerApi));
+  const authToken = process.env.DEPOP_PARTNER_API_KEY || depopAccount?.accessToken;
 
   if (!authToken) {
-    throw new Error('Depop access token is missing. Please connect your Depop account.');
+    throw new Error('Depop access token / partner API key is missing. Please connect your Depop account.');
   }
+
+  if (isPartner) {
+    console.log('[Depop Publisher] Routing request through official Depop Partner API...');
+    const { publishToDepopPartner } = require('./depopPartnerService');
+    return await publishToDepopPartner(listing, authToken);
+  }
+
+  const sessionCookie = depopAccount.sessionCookie;
 
   // Resolve brand name to Depop brand ID using depopBrands.json
   const resolvedBrand = getDepopBrandId(listing.brand);

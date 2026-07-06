@@ -193,6 +193,22 @@ exports.deleteListing = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
 
+    // If listing is published on Depop and Partner API key is available, delete it from Depop
+    const user = await User.findById(req.user.id);
+    const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || (user && user.depopAccount && user.depopAccount.usePartnerApi));
+    const apiKey = process.env.DEPOP_PARTNER_API_KEY || user?.depopAccount?.accessToken;
+
+    if (listing.platform === 'depop' && listing.status === 'published' && isPartner && apiKey && listing.sku) {
+      try {
+        console.log(`[Listing Controller] Deleting listing from Depop via Partner API... SKU: ${listing.sku}`);
+        const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+        await deleteFromDepopPartner(listing.sku, apiKey);
+      } catch (depopErr) {
+        console.error(`[Listing Controller] Failed to delete listing from Depop platform:`, depopErr.message);
+        // We proceed with local deletion regardless
+      }
+    }
+
     // Delete associated image files from server disk
     if (listing.images && Array.isArray(listing.images)) {
       const fs = require('fs');

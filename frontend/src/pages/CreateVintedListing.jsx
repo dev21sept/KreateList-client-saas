@@ -618,7 +618,7 @@ const CreateVintedListing = () => {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const platform = 'vinted';
-  const [step, setStep] = useState(editId ? 2 : 1);
+  const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -769,7 +769,7 @@ const CreateVintedListing = () => {
                 });
             }
 
-            setStep(2);
+            setHasScanned(true);
           }
         } catch (error) {
           console.error("Error fetching listing for edit:", error);
@@ -902,7 +902,7 @@ const CreateVintedListing = () => {
       console.warn("Duplicate check failed, proceeding to scan:", dupErr);
     }
 
-    setStep(2);
+    setHasScanned(true);
     
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
     
@@ -1120,29 +1120,10 @@ const CreateVintedListing = () => {
     }
   };
 
-  const nextStep = () => {
-    if (step === 1) {
-      startAIFetch();
-    } else if (step === 2) {
-      const selectedMats = formData.material ? formData.material.split(',').map(s => s.trim()).filter(Boolean) : [];
-      if (selectedMats.length === 0) {
-        toast.warning("Please select at least 1 material.");
-        return;
-      }
-      if (selectedMats.length > 3) {
-        toast.warning("You can select a maximum of 3 materials.");
-        return;
-      }
-      setStep(3);
-    } else if (step === 3) {
-      handleSaveListing(false);
-    }
-  };
-  
-  const prevStep = () => setStep(step - 1);
+
 
   return (
-    <div className="max-w-[95%] mx-auto space-y-8 px-4">
+    <div className="max-w-[95%] mx-auto space-y-8 px-4 py-6">
       {/* Hidden image preloader to track loading status */}
       <div style={{ display: 'none' }}>
         {formData.images.map((img, idx) => (
@@ -1154,75 +1135,264 @@ const CreateVintedListing = () => {
           />
         ))}
       </div>
-      <div className="flex justify-between items-end">
+
+      {/* Header */}
+      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit Vinted Listing' : 'Create New Vinted Listing'}
           </h1>
-          <p className="text-slate-500">
-            {step === 1 && "Step 1: Input Requirements"}
-            {step === 2 && "Step 2: AI Generated Content"}
-            {step === 3 && "Step 3: Preview & Save"}
+          <p className="text-slate-500 text-xs font-semibold mt-1">
+            Single Page AI-Powered Listing Creation
           </p>
-        </div>
-        <div className="flex gap-2 mb-1">
-          {[1, 2, 3].map(i => (
-            <div 
-              key={i} 
-              className={`w-12 h-1.5 rounded-full transition-all duration-500 ${step >= i ? 'bg-indigo-600' : 'bg-slate-200'}`}
-            />
-          ))}
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm min-h-[550px] flex flex-col relative overflow-hidden">
-        <AnimatePresence mode="popLayout">
-          {step === 1 && (
-            <motion.div 
-              key="step1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-10 flex-1"
-            >
-              {/* Selection Section */}
-              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em] flex items-center">
-                      <Sparkles size={16} className="mr-2 text-indigo-500" /> AI Configuration Setup
-                    </h3>
+      {/* Main Single Form Body */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8 relative">
+        {/* SECTION 1: Product Images (Repositioned to the top!) */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+            <ImageIcon size={16} className="mr-2 text-indigo-500" /> 1. Product Images
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+              <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+              <input type="file" multiple className="hidden" onChange={handleImageUpload} />
+            </label>
+            {formData.images.map((img, i) => (
+              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
+                <img src={img} className="w-full h-full object-cover" alt="Product" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                   <button 
+                    type="button"
+                    onClick={() => {
+                      setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
+                      setFiles(files.filter((_, idx) => idx !== i));
+                    }}
+                    className="p-1.5 bg-red-655 rounded-lg text-white hover:bg-red-700"
+                    title="Delete Image"
+                   >
+                    <Trash2 size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === 0}
+                    onClick={() => moveImage(i, 'left')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Left"
+                   >
+                    <ArrowLeft size={14} />
+                   </button>
+                   <button
+                    type="button"
+                    disabled={i === formData.images.length - 1}
+                    onClick={() => moveImage(i, 'right')}
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    title="Move Right"
+                   >
+                    <ArrowRight size={14} />
+                   </button>
+                </div>
+                {i === 0 && (
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded shadow-sm">Cover</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 2: AI Configuration Setup */}
+        <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-5">
+          <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
+                <Sparkles size={16} className="mr-2 text-indigo-500" /> 2. AI Scanner Settings
+              </h3>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Model
+              </label>
+              <SearchableDropdown 
+                value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
+                options={modelOptions}
+                placeholder="Select model..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+                Select AI Listing Rule
+              </label>
+              <SearchableDropdown 
+                value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
+                onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
+                options={ruleOptions}
+                placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
+                disabled={rules.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+                Product Condition
+              </label>
+              <SearchableDropdown 
+                value={formData.selectedCondition}
+                onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
+                options={conditionOptions}
+                placeholder="Select condition..."
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={startAIFetch}
+            disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
+            className="w-full py-4 bg-[#0f172a] hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                Scanning & Extracting Image Data...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                ✨ Populate Form with AI Scan
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* LOADING SHIMMER */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-20 border border-dashed border-slate-100 rounded-3xl">
+            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+            <h3 className="font-bold text-slate-900">AI is analyzing product images...</h3>
+          </div>
+        )}
+
+        {/* SECTION 3: Generated Form Attributes (Only rendered when hasScanned is true) */}
+        {hasScanned && !loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 border-t border-slate-100 pt-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            
+            {/* Left Side fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                3. Listing Metadata Fields
+              </h3>
+
+              <div className="space-y-4">
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Product Title</label>
+                  <input 
+                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Sparkles size={14} className="mr-1.5 text-indigo-600" /> Select AI Model
-                    </label>
-                    <SearchableDropdown 
-                      value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
-                      onSelect={(opt) => setFormData({...formData, selectedModel: opt.id})}
-                      options={modelOptions}
-                      placeholder="Select model..."
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Category */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Vinted Category</label>
+                    <CategorySearchDropdown 
+                      value={formData.category}
+                      onSelect={handleCategorySelect}
+                      placeholder="Category..."
                     />
                   </div>
+                  {/* Listing Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  {/* Original Price */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Original Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.originalPrice}
+                        onChange={(e) => setFormData({...formData, originalPrice: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Zap size={14} className="mr-1.5 text-indigo-600" /> Select AI Listing Rule
-                    </label>
-                    <SearchableDropdown 
-                      value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
-                      onSelect={(opt) => setFormData({...formData, selectedRule: opt.id})}
-                      options={ruleOptions}
-                      placeholder={rules.length ? 'Choose a rule...' : 'No rules found'}
-                      disabled={rules.length === 0}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Brand field (Conditional) */}
+                  {categoryFields.brand_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
+                      <BrandSearchDropdown 
+                        value={formData.brand}
+                        onSelect={(brand) => setFormData({...formData, brand})}
+                        options={categoryBrands.map(b => ({ id: b.id, label: b.name }))}
+                        loading={fetchingBrands}
+                        placeholder="Search brand..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Size field (Conditional) */}
+                  {categoryFields.size_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
+                      <SizeSearchDropdown 
+                        value={formData.size}
+                        onSelect={(size) => setFormData({...formData, size})}
+                        options={categorySizes.map(s => ({ id: s.id, label: s.title }))}
+                        loading={fetchingSizes}
+                        placeholder="Select size..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Color field (Conditional) */}
+                  {categoryFields.color_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Color</label>
+                      <ColorSearchDropdown 
+                        value={formData.color}
+                        onSelect={(color) => setFormData({...formData, color})}
+                        options={vintedColors.map(c => ({ id: c.id, label: c.title }))}
+                        loading={fetchingColors}
+                        placeholder="Select color..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Material selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Material (1-3 max)</label>
+                    <MaterialMultiSelectDropdown 
+                      value={formData.material}
+                      onChange={(material) => setFormData({...formData, material})}
                     />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
-                      <Info size={14} className="mr-1.5 text-indigo-600" /> Product Condition
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Condition dropdown */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
                       onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
@@ -1230,560 +1400,187 @@ const CreateVintedListing = () => {
                       placeholder="Select condition..."
                     />
                   </div>
-                </div>
-
-                {formData.selectedRule && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                      Sequence: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.slice(0, 3).join(' | ')}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.title_sequence.length > 3 ? '...' : ''}
-                    </span>
-                    <span className="px-3 py-1.5 bg-white border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 shadow-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                      Condition Note: {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.slice(0, 50) || 'None'}
-                      {rules.find(r => (r._id || r.id) === formData.selectedRule)?.condition_note?.length > 50 ? '...' : ''}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Image Section */}
-              <div className="space-y-4">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center">
-                  <ImageIcon size={16} className="mr-2 text-indigo-600" /> Product Images
-                </label>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                  <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
-                    <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {formData.images.map((img, i) => (
-                    <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100">
-                      <img src={img} className="w-full h-full object-cover" alt="Product" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button 
-                          onClick={() => deleteImage(i)}
-                          className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40"
-                         >
-                          <X size={16} />
-                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div 
-              key="step2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-8 flex-1"
-            >
-              {loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
-                  <div className="relative">
-                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-indigo-400 absolute -top-2 -right-2 animate-bounce" />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="font-bold text-slate-900">AI is analyzing your product...</h3>
-                    <p className="text-xs text-slate-400 mt-1">Generating Vinted content details</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  <div className="lg:col-span-4 space-y-4">
-                    <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
-                      <img src={formData.images[0]} className="w-full h-full object-cover" alt="Main Preview" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {formData.images.slice(1, 5).map((img, i) => (
-                        <div key={i} className="aspect-square bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
-                           <img src={img} className="w-full h-full object-cover" alt="Thumb" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-8 space-y-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Generated Title</label>
-                      <input 
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                        value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                      />
-                    </div>
-
-                    {/* Row 1: Category, SKU, and Brand (if visible) */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5 md:col-span-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Vinted Category</label>
-                        <CategorySearchDropdown 
-                          value={formData.category}
-                          onSelect={handleCategorySelect}
-                          placeholder="Search and edit category..."
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
-                        <input 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
-                          value={formData.sku}
-                          onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                        />
-                      </div>
-                      {categoryFields.brand_field_visibility && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
-                          <BrandSearchDropdown 
-                            value={formData.brand}
-                            onSelect={(val) => setFormData({...formData, brand: val})}
-                            options={categoryBrands}
-                            loading={fetchingBrands}
-                            placeholder="Search or type brand..."
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Row 2: Listing Price, Condition, and Color (if visible) */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Price</label>
-                        <div className="relative">
-                          <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
-                          <input 
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 transition-all"
-                            value={formData.price}
-                            onChange={(e) => setFormData({...formData, price: e.target.value})}
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
-                        <SearchableDropdown 
-                          value={formData.selectedCondition}
-                          onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
-                          options={conditionOptions}
-                          placeholder="Select condition..."
-                        />
-                      </div>
-                      {categoryFields.color_field_visibility && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
-                          <ColorSearchDropdown 
-                            value={formData.color}
-                            onSelect={(val) => setFormData({...formData, color: val})}
-                            options={vintedColors}
-                            loading={fetchingColors}
-                            placeholder="Search or type color..."
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Row 3: Size (if visible) and Material (recommended) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {categoryFields.size_field_visibility && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
-                          <SizeSearchDropdown 
-                            value={formData.size}
-                            onSelect={(val) => setFormData({...formData, size: val})}
-                            options={categorySizes}
-                            loading={fetchingSizes}
-                            placeholder="Search or type size..."
-                          />
-                        </div>
-                      )}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Material (recommended)</label>
-                        <MaterialMultiSelectDropdown 
-                          value={formData.material || ''}
-                          onChange={(val) => setFormData({...formData, material: val})}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Category Specific Dynamic Fields (Book and Game Details) */}
-                    {(categoryFields.isbn_field_visibility || 
-                      categoryFields.author_field_visibility || 
-                      categoryFields.book_title_field_visibility || 
-                      categoryFields.video_game_rating_field_visibility || 
-                      categoryFields.measurements_field_visibility) && (
-                      <div className="p-6 bg-slate-50/50 border border-slate-100 rounded-[2rem] space-y-4">
-                        <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60">
-                          <Sparkles size={14} className="text-indigo-600" />
-                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-wider">Additional Category Fields</h4>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {categoryFields.book_title_field_visibility && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Book Title</label>
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                                value={formData.bookTitle}
-                                onChange={(e) => setFormData({...formData, bookTitle: e.target.value})}
-                                placeholder="Book Title..."
-                              />
-                            </div>
-                          )}
-                          {categoryFields.author_field_visibility && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Author</label>
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                                value={formData.author}
-                                onChange={(e) => setFormData({...formData, author: e.target.value})}
-                                placeholder="Author..."
-                              />
-                            </div>
-                          )}
-                          {categoryFields.isbn_field_visibility && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ISBN</label>
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                                value={formData.isbn}
-                                onChange={(e) => setFormData({...formData, isbn: e.target.value})}
-                                placeholder="ISBN..."
-                              />
-                            </div>
-                          )}
-                          {categoryFields.video_game_rating_field_visibility && (
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Video Game Rating</label>
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                                value={formData.videoGameRating}
-                                onChange={(e) => setFormData({...formData, videoGameRating: e.target.value})}
-                                placeholder="Video game rating..."
-                              />
-                            </div>
-                          )}
-                          {categoryFields.measurements_field_visibility && (
-                            <div className="space-y-1.5 md:col-span-2">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Measurements</label>
-                              <input 
-                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-indigo-500 transition-all"
-                                value={formData.measurements}
-                                onChange={(e) => setFormData({...formData, measurements: e.target.value})}
-                                placeholder="e.g. Pit to pit: 21 in, Length: 28 in..."
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
-                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                          <button 
-                            type="button"
-                            onClick={() => setDescriptionMode('preview')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Eye size={12} /> Preview
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => setDescriptionMode('edit')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                            <Code size={12} /> HTML
-                          </button>
-                        </div>
-                      </div>
-
-                      {descriptionMode === 'edit' ? (
-                        <textarea 
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-mono leading-relaxed min-h-[300px] outline-none focus:border-indigo-500 transition-all shadow-inner"
-                          value={formData.description}
-                          onChange={(e) => setFormData({...formData, description: e.target.value})}
-                          placeholder="Enter description..."
-                        />
-                      ) : (
-                        <div 
-                          className="w-full px-6 py-6 bg-slate-50/50 border border-slate-100 rounded-2xl text-[13px] font-medium leading-relaxed min-h-[300px] overflow-y-auto max-h-[500px] shadow-inner overscroll-contain transform-gpu [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]"
-                          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                        >
-                          {formData.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-10 flex-1"
-            >
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-3xl space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shrink-0">
-                      <CheckCircle2 size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-emerald-900">Ready to Save</h3>
-                      <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-widest">Final Review Mode</p>
-                    </div>
+                  {/* Condition Note */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition Note</label>
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.conditionNote}
+                      onChange={(e) => setFormData({...formData, conditionNote: e.target.value})}
+                      placeholder="Condition details..."
+                    />
                   </div>
                 </div>
 
-                <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
-                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Vinted Platform Setup</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Vinted listings can be published directly via our high-speed API through the extension. Once saved, you can click <b>Save & Publish to Vinted</b> to publish it to your profile immediately.
-                  </p>
-                </div>
-              </div>
-
-              <div className="lg:col-span-8 space-y-8 overflow-y-auto max-h-[700px] pr-4 custom-scrollbar">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.1em]">Manage Image Order</h3>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{formData.images.length} Photos</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {formData.images.map((img, i) => (
-                      <div 
-                        key={img.substring(0, 100) + '-' + i} 
-                        className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-200 flex flex-col shadow-sm"
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('preview')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                       >
-                        <img src={img} className="w-full h-full object-cover" alt={`Product ${i + 1}`} />
-                        
-                        {/* Control overlay */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-3 z-10">
-                          <div className="flex justify-between items-start">
-                            <span className="bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[9px] font-bold">
-                              {i === 0 ? 'Cover' : `#${i + 1}`}
-                            </span>
-                            <button 
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteImage(i);
-                              }}
-                              className="p-1.5 bg-rose-500/90 rounded-xl text-white hover:bg-rose-600 transition-colors shadow-sm"
-                              title="Delete Image"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                          
-                          <div className="flex justify-center gap-2">
-                            <button
-                              type="button"
-                              disabled={i === 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'left');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === 0 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Left"
-                            >
-                              <ArrowLeft size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={i === formData.images.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveImage(i, 'right');
-                              }}
-                              className={`p-2 rounded-xl backdrop-blur-sm text-white transition-all ${
-                                i === formData.images.length - 1 
-                                  ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                                  : 'bg-white/25 hover:bg-white/45 active:scale-95'
-                              }`}
-                              title="Move Right"
-                            >
-                              <ArrowRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        {i === 0 && (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg pointer-events-none">Main</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm p-8 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Title</label>
-                      <p className="text-sm font-bold text-slate-900 leading-snug">{formData.title}</p>
+                        <Eye size={11} /> Preview
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setDescriptionMode('edit')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black transition-all ${descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        <Code size={11} /> Edit
+                      </button>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Category</label>
-                      <p className="text-sm font-bold text-indigo-600">{formData.category}</p>
-                    </div>
-                    {categoryFields.brand_field_visibility && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Brand</label>
-                        <p className="text-sm font-bold text-slate-700">{formData.brand || 'No Brand'}</p>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Price</label>
-                      <p className="text-lg font-black text-emerald-600">${formData.price || '0.00'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condition</label>
-                      <p className="text-xs font-bold text-slate-700">{formData.selectedCondition}</p>
-                    </div>
-                    {categoryFields.size_field_visibility && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Size</label>
-                        <p className="text-xs font-bold text-slate-700">{formData.size || 'N/A'}</p>
-                      </div>
-                    )}
-                    {categoryFields.color_field_visibility && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Color</label>
-                        <p className="text-xs font-bold text-slate-700">{formData.color || 'N/A'}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {(formData.material || formData.sku || categoryFields.isbn_field_visibility || categoryFields.author_field_visibility || categoryFields.book_title_field_visibility || categoryFields.video_game_rating_field_visibility || categoryFields.measurements_field_visibility) && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-50">
-                      {formData.material && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Material</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.material}</p>
-                        </div>
-                      )}
-                      {formData.sku && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</label>
-                          <p className="text-xs font-mono font-bold text-slate-500 uppercase">{formData.sku}</p>
-                        </div>
-                      )}
-                      {categoryFields.book_title_field_visibility && formData.bookTitle && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Book Title</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.bookTitle}</p>
-                        </div>
-                      )}
-                      {categoryFields.author_field_visibility && formData.author && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Author</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.author}</p>
-                        </div>
-                      )}
-                      {categoryFields.isbn_field_visibility && formData.isbn && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ISBN</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.isbn}</p>
-                        </div>
-                      )}
-                      {categoryFields.video_game_rating_field_visibility && formData.videoGameRating && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Game Rating</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.videoGameRating}</p>
-                        </div>
-                      )}
-                      {categoryFields.measurements_field_visibility && formData.measurements && (
-                        <div className="col-span-2 space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Measurements</label>
-                          <p className="text-xs font-bold text-slate-700">{formData.measurements}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="space-y-3 pt-6 border-t border-slate-50">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description Preview</label>
+                  {descriptionMode === 'edit' ? (
+                    <textarea 
+                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[200px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Enter description..."
+                    />
+                  ) : (
                     <div 
-                      className="text-xs text-slate-650 leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar opacity-80"
-                      style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[200px] overflow-y-auto max-h-[300px] shadow-inner"
+                      style={{ whiteSpace: 'pre-wrap' }}
                     >
                       {formData.description}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
-          <button
-            type="button"
-            disabled={loading || step === 1}
-            onClick={prevStep}
-            className="h-12 px-6 border border-slate-200 rounded-2xl text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <ChevronLeft size={16} /> Back
-          </button>
+            {/* Right Side: Specific Attributes & custom fields */}
+            <div className="lg:col-span-6 space-y-6">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                4. Custom Vinted Attributes & Info
+              </h3>
 
-          <div className="flex items-center gap-4">
-            {(isConvertingImages || !allImagesLoaded) && (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl shadow-sm animate-pulse mr-2">
-                <Loader2 size={12} className="animate-spin text-indigo-500" />
-                {isConvertingImages ? 'Converting images...' : `Loading images (${Object.keys(loadedImages).length}/${formData.images.length})...`}
-              </span>
-            )}
-            {step === 3 ? (
-              <>
-                <button 
-                  onClick={() => handleSaveListing(false)}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  Save Draft
-                </button>
-                <button 
-                  onClick={() => handleSaveListing(true)}
-                  disabled={loading || isConvertingImages || !allImagesLoaded}
-                  className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50 cursor-pointer"
-                >
-                  {loading ? 'Working...' : 'Save & Publish to Vinted'}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                disabled={loading || isConvertingImages || !allImagesLoaded || (step === 1 && formData.images.length === 0)}
-                onClick={nextStep}
-                className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <>
-                  Next Step <ChevronLeft size={16} className="rotate-180" />
-                </>
-              </button>
-            )}
+              <div className="space-y-4">
+                {/* SKU */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU</label>
+                  <input 
+                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 uppercase"
+                    value={formData.sku}
+                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                    placeholder="SKU"
+                  />
+                </div>
+
+                {/* Conditional book/video game inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                  {categoryFields.isbn_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">ISBN</label>
+                      <input 
+                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.isbn}
+                        onChange={(e) => setFormData({...formData, isbn: e.target.value})}
+                        placeholder="ISBN..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryFields.author_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Author</label>
+                      <input 
+                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.author}
+                        onChange={(e) => setFormData({...formData, author: e.target.value})}
+                        placeholder="Author name..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryFields.book_title_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Book Title</label>
+                      <input 
+                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.bookTitle}
+                        onChange={(e) => setFormData({...formData, bookTitle: e.target.value})}
+                        placeholder="Book title..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryFields.video_game_rating_field_visibility && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Video Game Rating</label>
+                      <input 
+                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.videoGameRating}
+                        onChange={(e) => setFormData({...formData, videoGameRating: e.target.value})}
+                        placeholder="Game rating..."
+                      />
+                    </div>
+                  )}
+
+                  {categoryFields.measurements_field_visibility && (
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Measurements</label>
+                      <textarea 
+                        className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 min-h-[100px]"
+                        value={formData.measurements}
+                        onChange={(e) => setFormData({...formData, measurements: e.target.value})}
+                        placeholder="Item measurements details..."
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5 bg-indigo-50/40 border border-indigo-100 rounded-2xl space-y-3">
+                  <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Vinted Publish Setup</h4>
+                  <p className="text-[11px] text-indigo-755 leading-relaxed font-semibold">
+                    Vinted listings are published using the eLister Chrome Extension. Ensure the extension is active before pushing publishing queue triggers.
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
-        </div>
+        )}
+
+        {/* Form Bottom Submission Control (Only visible when scanned) */}
+        {hasScanned && !loading && (
+          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <button 
+              type="button"
+              onClick={() => navigate('/listings')}
+              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleSaveListing(false)}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              Save Draft
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                const selectedMats = formData.material ? formData.material.split(',').map(s => s.trim()).filter(Boolean) : [];
+                if (selectedMats.length === 0) {
+                  toast.warning("Please select at least 1 material.");
+                  return;
+                }
+                handleSaveListing(true);
+              }}
+              disabled={loading || isConvertingImages || !allImagesLoaded}
+              className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
+            >
+              Save & Publish to Vinted
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

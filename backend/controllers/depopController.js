@@ -121,6 +121,7 @@ exports.depopConnect = async (req, res) => {
       username: resolvedUsername,
       accessToken: accessToken.trim(),
       sessionCookie: (req.body.sessionCookie || '').trim(),
+      usePartnerApi: !!req.body.usePartnerApi,
       connectedAt: new Date()
     };
 
@@ -350,17 +351,27 @@ exports.depopGetLive = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Depop account is not connected.' });
     }
     
-    const depopAccount = user.depopAccount || {};
-    const username = depopAccount.username;
-    console.log(`[Depop Controller] Fetching live inventory for Depop (${username})`);
-    
-    const liveListings = await scrapeDepopShop(username, depopAccount);
+    const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || (user.depopAccount && user.depopAccount.usePartnerApi));
+    const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
 
-    if (depopAccount.username && user.depopAccount.username !== depopAccount.username) {
-      user.depopAccount.username = depopAccount.username;
-      user.markModified('depopAccount');
-      await user.save();
-      console.log(`[Depop Controller] Saved resolved username (${depopAccount.username}) to DB in getLive`);
+    let liveListings = [];
+    if (isPartner && apiKey) {
+      console.log(`[Depop Controller] Fetching live inventory via official Partner API`);
+      const { getListingsFromDepopPartner } = require('../services/depopPartnerService');
+      liveListings = await getListingsFromDepopPartner(apiKey);
+    } else {
+      const depopAccount = user.depopAccount || {};
+      const username = depopAccount.username;
+      console.log(`[Depop Controller] Fetching live inventory for Depop (${username}) via Scraping`);
+      
+      liveListings = await scrapeDepopShop(username, depopAccount);
+
+      if (depopAccount.username && user.depopAccount.username !== depopAccount.username) {
+        user.depopAccount.username = depopAccount.username;
+        user.markModified('depopAccount');
+        await user.save();
+        console.log(`[Depop Controller] Saved resolved username (${depopAccount.username}) to DB in getLive`);
+      }
     }
     
     res.status(200).json({

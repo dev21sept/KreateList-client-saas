@@ -1,0 +1,90 @@
+2026-07-04T12:31:09.917Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:31:15.568Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:31:17.651Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:34:14.102Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:35:42.269Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:44:44.895Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:53:33.499Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T12:54:11.773Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
+2026-07-04T13:02:59.622Z
+Error Message: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+Stack Trace:
+Error: 400 Error while downloading http://localhost:5000/uploads/img_1783083423869_z7n4tv.jpg.
+    at APIError.generate (D:\Project\elister\backend\node_modules\openai\core\error.js:45:20)
+    at OpenAI.makeStatusError (D:\Project\elister\backend\node_modules\openai\client.js:258:32)
+    at OpenAI.makeRequest (D:\Project\elister\backend\node_modules\openai\client.js:449:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
+
