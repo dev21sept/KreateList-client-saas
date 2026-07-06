@@ -3,7 +3,6 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   List, 
-  Layers, 
   ShoppingBag, 
   BarChart3, 
   Settings, 
@@ -75,7 +74,6 @@ const NewDashboardLayout = () => {
   const sidebarItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
-    { name: 'Crosslisting', icon: <Layers size={20} />, path: '/crosslisting' },
     { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
