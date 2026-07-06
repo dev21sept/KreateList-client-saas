@@ -31,7 +31,7 @@ import CreateVintedListing from '../pages/CreateVintedListing';
 
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -97,19 +97,36 @@ const NewDashboardLayout = () => {
     return 'Listings';
   };
 
+  const getPlanLimit = (planName) => {
+    const plan = String(planName || 'free').toLowerCase();
+    switch (plan) {
+      case 'basic': return 500;
+      case 'pro': return 3000;
+      case 'enterprise': return 10000;
+      case 'free':
+      default: return 0;
+    }
+  };
+
+  const getFetchLimit = (planName) => {
+    return getPlanLimit(planName);
+  };
+
   // Dynamic user data computations
-  const usage = user?.usage || { listingsCount: 2456, listingLimit: 10000, aiFetchLimit: 500, daysLeft: 30 };
-  const listingsCount = usage.listingsCount ?? 2456;
-  const listingLimit = usage.listingLimit ?? 10000;
-  const aiFetchLimit = usage.aiFetchLimit ?? 500;
-  const daysLeft = usage.daysLeft ?? 30;
+  const plan = user?.subscription?.plan || 'free';
+  const listingLimit = getPlanLimit(plan);
+  const aiFetchLimit = getFetchLimit(plan);
+  const listingsCount = user?.usage?.listingsCount ?? 0;
+  const fetchesCount = user?.usage?.fetchesCount ?? 0;
+  const daysLeft = user?.usage?.daysLeft ?? 0;
   
   const progressPct = listingLimit > 0 ? Math.min(100, Math.round((listingsCount / listingLimit) * 100)) : 0;
-  const aiFetchPct = aiFetchLimit > 0 ? Math.min(100, Math.round((listingsCount / aiFetchLimit) * 100)) : 0;
+  const aiFetchPct = aiFetchLimit > 0 ? Math.min(100, Math.round((fetchesCount / aiFetchLimit) * 100)) : 0;
   
   const firstName = user?.firstName || 'John';
   const lastName = user?.lastName || 'Doe';
-  const planName = user?.subscription?.plan || 'Pro';
+  const rawPlan = user?.subscription?.plan || 'Pro';
+  const planName = rawPlan.charAt(0).toUpperCase() + rawPlan.slice(1);
   const planStatus = user?.subscription?.status || 'Active';
 
   return (
@@ -125,25 +142,19 @@ const NewDashboardLayout = () => {
 
       {/* SIDEBAR */}
       <aside 
+        onMouseEnter={() => setIsSidebarOpen(true)}
+        onMouseLeave={() => setIsSidebarOpen(false)}
         className={`fixed inset-y-0 left-0 z-45 bg-white border-r border-[#f1f3f9] flex flex-col justify-between transition-all duration-300 ${
-          isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full md:w-20 md:translate-x-0 overflow-hidden'
+          isSidebarOpen ? 'w-64 translate-x-0 shadow-xl' : 'w-0 -translate-x-full md:w-20 md:translate-x-0 overflow-hidden'
         }`}
       >
         <div className="flex flex-col flex-1">
           {/* Logo Section */}
-          <div className="h-20 px-6 flex items-center gap-2.5 select-none border-b border-[#fbfcfe]">
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
-              {/* Rocket icon mimicking logo */}
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4.5 16.5c-1.5 1.25-2.5 3.5-2.5 3.5s2.25-1 3.5-2.5L16.5 6.5c1.5-1.5 1.5-4 0-5.5s-4-1.5-5.5 0L4.5 16.5z" />
-                <path d="M12 12l9 9" />
-                <path d="M16 16l4 4" />
-              </svg>
-            </div>
-            {isSidebarOpen && (
-              <span className="text-xl font-extrabold text-[#111827] tracking-tight">
-                elister<span className="text-indigo-600 font-semibold">.ai</span>
-              </span>
+          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-[#fbfcfe]">
+            {isSidebarOpen ? (
+              <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain transition-all duration-300" />
+            ) : (
+              <img src="/icon.png" alt="Elister.ai" className="h-9 w-9 object-contain transition-all duration-300" />
             )}
           </div>
 
@@ -155,6 +166,7 @@ const NewDashboardLayout = () => {
                 <Link
                   key={item.name}
                   to={item.path}
+                  onClick={() => setIsSidebarOpen(false)}
                   className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all group font-bold text-sm ${
                     isActive 
                       ? 'bg-[#f4f5ff] text-indigo-600' 
@@ -171,42 +183,22 @@ const NewDashboardLayout = () => {
           </nav>
         </div>
 
-        {/* Pro Plan Quota Card */}
-        {isSidebarOpen && (
-          <div className="p-4 border-t border-[#f1f3f9] bg-white">
-            <div className="bg-[#fcfcff] border border-[#f3f4f6] rounded-2xl p-4 space-y-3.5 shadow-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-extrabold text-[#111827]">{planName} Plan</span>
-                <span className="bg-emerald-50 text-emerald-600 text-[10px] font-extrabold px-2 py-0.5 rounded-full capitalize">
-                  {planStatus}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                <span className="text-xs font-semibold text-slate-400">Listings Used</span>
-                <div className="flex justify-between text-xs font-bold text-[#111827]">
-                  <span>{listingsCount.toLocaleString()} / {listingLimit.toLocaleString()}</span>
-                  <span className="text-indigo-600">{progressPct}%</span>
-                </div>
-                <div className="w-full bg-[#f1f3f9] rounded-full h-1.5 overflow-hidden">
-                  <div 
-                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" 
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              </div>
-              <button 
-                onClick={() => navigate('/subscription')}
-                className="w-full py-2 bg-white border border-[#e5e7eb] hover:bg-[#fafbfe] text-xs font-bold text-[#111827] rounded-xl transition-all shadow-sm cursor-pointer"
-              >
-                Manage Plan
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Logout Section */}
+        <div className="p-4 border-t border-[#f1f3f9] bg-white">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-[#6b7280] hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
+          >
+            <span className="text-slate-400 group-hover:text-rose-500 transition-colors shrink-0">
+              <LogOut size={18} />
+            </span>
+            {isSidebarOpen && <span>Logout</span>}
+          </button>
+        </div>
       </aside>
 
       {/* MAIN VIEW CONTENT CONTAINER */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-20'}`}>
+      <div className="flex-1 flex flex-col md:ml-20 transition-all duration-300">
         
         {/* TOP HEADER */}
         <header className="h-20 bg-white border-b border-[#f1f3f9] flex items-center justify-between px-8 sticky top-0 z-40">
@@ -324,7 +316,7 @@ const NewDashboardLayout = () => {
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] font-bold text-slate-500">
                           <span>AI Fetches Used</span>
-                          <span className="font-extrabold text-slate-800">{listingsCount.toLocaleString()} / {aiFetchLimit.toLocaleString()}</span>
+                          <span className="font-extrabold text-slate-800">{fetchesCount.toLocaleString()} / {aiFetchLimit.toLocaleString()}</span>
                         </div>
                         <div className="w-full h-1.5 bg-[#f1f3f9] rounded-full overflow-hidden">
                           <div 

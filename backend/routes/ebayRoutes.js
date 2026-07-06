@@ -15,6 +15,7 @@ const {
   getSyncedInventory
 } = require('../controllers/ebayController');
 const { protect } = require('../middleware/auth');
+const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.delete('/disconnect', protect, disconnectEbay);
 
 // Sync and Auxiliary Routes
 router.post('/sync/orders', protect, syncOrders);
-router.post('/sync/inventory', protect, syncInventory);
+router.post('/sync/inventory', protect, requireWithinFetchLimit, syncInventory);
 router.get('/inventory', protect, getSyncedInventory);
 router.get('/locations', protect, getInventoryLocations);
 router.get('/conditions', protect, getCategoryConditions);

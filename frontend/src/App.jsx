@@ -36,6 +36,7 @@ import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
 import Checkout from './pages/Checkout';
 import Testimonials from './pages/Testimonials';
+import HelpSupport from './pages/HelpSupport';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -87,7 +88,8 @@ const DomainRedirect = ({ children }) => {
       '/subscription',
       '/settings',
       '/checkout',
-      '/admin'
+      '/admin',
+      '/help'
     ];
 
     const isAppPath = appPaths.some(path => 
@@ -134,6 +136,7 @@ const App = () => {
             <Route path="/terms-conditions" element={<TermsConditions />} />
             <Route path="/refund-policy" element={<RefundPolicy />} />
             <Route path="/shipping-policy" element={<ShippingPolicy />} />
+            <Route path="/support" element={<HelpSupport />} />
           </Route>
 
           {/* Auth Routes */}
@@ -166,6 +169,7 @@ const App = () => {
               <Route path="/subscription" element={<Subscription />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/checkout" element={<Checkout />} />
+              <Route path="/help" element={<HelpSupport />} />
             </Route>
           </Route>
 

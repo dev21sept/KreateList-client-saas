@@ -1,5 +1,6 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
+const Product = require('../models/Product');
 const { normalizeProductImages, generateThumbnail } = require('../utils/imageProcessor');
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
@@ -48,6 +49,133 @@ exports.getDashboardStats = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5);
 
+    // Fetch raw data from DB in one go
+    const allUserListings = await Listing.find({ user: userId }).select('status createdAt platform source');
+    const allUserProducts = await Product.find({ user: userId }).select('source updated_at createdAt');
+
+    // 1. Listings Overview Line Chart Data (Weekly, Monthly, Yearly)
+    // Weekly (Last 7 Days)
+    const weeklyChartData = [];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      weeklyChartData.push({
+        label: days[d.getDay()],
+        dateStr: d.toLocaleDateString(),
+        dayNum: d.getDate(),
+        monthNum: d.getMonth(),
+        year: d.getFullYear(),
+        total: 0,
+        published: 0,
+        draft: 0
+      });
+    }
+
+    allUserListings.forEach(l => {
+      if (!l.createdAt) return;
+      const date = new Date(l.createdAt);
+      const bucket = weeklyChartData.find(b => b.dayNum === date.getDate() && b.monthNum === date.getMonth() && b.year === date.getFullYear());
+      if (bucket) {
+        bucket.total++;
+        if (l.status === 'published') bucket.published++;
+        if (l.status === 'draft') bucket.draft++;
+      }
+    });
+
+    // Monthly (Last 6 Months)
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyChartData = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      monthlyChartData.push({
+        label: months[d.getMonth()],
+        monthName: months[d.getMonth()],
+        year: d.getFullYear(),
+        monthNum: d.getMonth(),
+        total: 0,
+        published: 0,
+        draft: 0
+      });
+    }
+
+    allUserListings.forEach(l => {
+      if (!l.createdAt) return;
+      const date = new Date(l.createdAt);
+      const bucket = monthlyChartData.find(b => b.monthNum === date.getMonth() && b.year === date.getFullYear());
+      if (bucket) {
+        bucket.total++;
+        if (l.status === 'published') bucket.published++;
+        if (l.status === 'draft') bucket.draft++;
+      }
+    });
+
+    // Yearly (Last 12 Months)
+    const yearlyChartData = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      yearlyChartData.push({
+        label: months[d.getMonth()],
+        monthName: months[d.getMonth()],
+        year: d.getFullYear(),
+        monthNum: d.getMonth(),
+        total: 0,
+        published: 0,
+        draft: 0
+      });
+    }
+
+    allUserListings.forEach(l => {
+      if (!l.createdAt) return;
+      const date = new Date(l.createdAt);
+      const bucket = yearlyChartData.find(b => b.monthNum === date.getMonth() && b.year === date.getFullYear());
+      if (bucket) {
+        bucket.total++;
+        if (l.status === 'published') bucket.published++;
+        if (l.status === 'draft') bucket.draft++;
+      }
+    });
+
+    // 2. Platform Metrics Chart Data (Weekly, Monthly, Yearly)
+    const now = Date.now();
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const oneYearAgo = now - 5 * 365 * 24 * 60 * 60 * 1000; // Extend to 5 years to cover all seeded/historical listings
+
+    const getMetricsForTimeframe = (sinceDate) => {
+      const fetched = { ebay: 0, poshmark: 0, depop: 0, vinted: 0 };
+      const listed = { ebay: 0, poshmark: 0, depop: 0, vinted: 0 };
+
+      allUserListings.forEach(l => {
+        const date = l.createdAt ? new Date(l.createdAt).getTime() : 0;
+        if (date >= sinceDate) {
+          // Fetched mode counts all generated/fetched listings grouped by their platform
+          const src = (l.platform || 'ebay').toLowerCase();
+          if (src === 'ebay') fetched.ebay++;
+          else if (src === 'poshmark') fetched.poshmark++;
+          else if (src === 'depop') fetched.depop++;
+          else if (src === 'vinted') fetched.vinted++;
+
+          // Listed mode counts only active published listings grouped by target platform
+          if (l.status === 'published') {
+            if (l.platform === 'ebay') listed.ebay++;
+            else if (l.platform === 'poshmark') listed.poshmark++;
+            else if (l.platform === 'depop') listed.depop++;
+            else if (l.platform === 'vinted') listed.vinted++;
+          }
+        }
+      });
+
+      return { fetched, listed };
+    };
+
+    const weeklyMetrics = getMetricsForTimeframe(oneWeekAgo);
+    const monthlyMetrics = getMetricsForTimeframe(oneMonthAgo);
+    const yearlyMetrics = getMetricsForTimeframe(oneYearAgo);
+    const allTimeMetrics = getMetricsForTimeframe(0);
+
     res.status(200).json({
       success: true,
       data: {
@@ -58,7 +186,20 @@ exports.getDashboardStats = async (req, res) => {
           scheduled: scheduledListings,
           failed: failedListings
         },
-        recentActivity
+        recentActivity,
+        charts: {
+          lineChart: {
+            weekly: weeklyChartData,
+            monthly: monthlyChartData,
+            yearly: yearlyChartData
+          },
+          pieChart: {
+            weekly: weeklyMetrics,
+            monthly: monthlyMetrics,
+            yearly: yearlyMetrics,
+            allTime: allTimeMetrics
+          }
+        }
       }
     });
   } catch (err) {

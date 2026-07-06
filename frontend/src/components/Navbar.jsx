@@ -20,6 +20,7 @@ const Navbar = () => {
     { name: 'Features', href: '/features', isHash: false },
     { name: 'Pricing', href: '/pricing', isHash: false },
     { name: 'Testimonials', href: '/testimonials', isHash: false },
+    { name: 'Support', href: '/support', isHash: false },
   ];
 
   return (

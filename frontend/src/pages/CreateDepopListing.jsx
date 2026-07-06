@@ -1228,7 +1228,7 @@ const CreateDepopListing = () => {
                     <SearchableDropdown 
                       value={formData.color}
                       onSelect={(opt) => setFormData({...formData, color: opt.label})}
-                      options={DEPOP_COLORS}
+                      options={DEPOP_COLOURS}
                       placeholder="Select Color..."
                     />
                   </div>

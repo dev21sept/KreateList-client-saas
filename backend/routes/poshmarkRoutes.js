@@ -8,6 +8,7 @@ const {
   poshmarkGetLive 
 } = require('../controllers/poshmarkController');
 const { protect } = require('../middleware/auth');
+const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.use(protect);
 router.post('/connect', poshmarkConnect);
 router.post('/connect-password', poshmarkConnectPassword);
 router.post('/verify-2fa', poshmarkVerify2FA);
-router.post('/import', poshmarkImportCloset);
+router.post('/import', requireWithinFetchLimit, poshmarkImportCloset);
 router.post('/publish/:id', poshmarkPublish);
 router.get('/live', poshmarkGetLive);
 

@@ -169,14 +169,15 @@ exports.getMe = async (req, res) => {
 
     const Listing = require('../models/Listing');
     
-    // Count listings created by the user in the current calendar month
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
+    // Count active listings created by the user
     const listingsCount = await Listing.countDocuments({
       user: req.user.id,
-      createdAt: { $gte: startOfMonth }
+      status: 'published'
+    });
+
+    // Count total listings created/fetched by the user in the database
+    const fetchesCount = await Listing.countDocuments({
+      user: req.user.id
     });
 
     const plan = user.subscription?.plan || 'free';
@@ -198,7 +199,7 @@ exports.getMe = async (req, res) => {
     };
 
     const listingLimit = planLimits[plan.toLowerCase()] || 0;
-    const aiFetchLimit = aiLimits[plan.toLowerCase()] || 10;
+    const aiFetchLimit = listingLimit;
 
     let daysLeft = 0;
     if (expiresAt) {
@@ -210,6 +211,7 @@ exports.getMe = async (req, res) => {
     userData.usage = {
       listingsCount,
       listingLimit,
+      fetchesCount,
       aiFetchLimit,
       daysLeft
     };

@@ -236,7 +236,10 @@ const BrandSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sea
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(opt => opt.label.toLowerCase().includes(q));
+    return options.filter(opt => {
+      const label = typeof opt === 'string' ? opt : (opt?.label || opt?.title || opt?.name || '');
+      return label.toLowerCase().includes(q);
+    });
   }, [searchTerm, options]);
 
   return (
@@ -322,7 +325,10 @@ const ColorSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sea
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(opt => opt.label.toLowerCase().includes(q));
+    return options.filter(opt => {
+      const label = typeof opt === 'string' ? opt : (opt?.label || opt?.title || opt?.name || '');
+      return label.toLowerCase().includes(q);
+    });
   }, [searchTerm, options]);
 
   return (
@@ -408,7 +414,10 @@ const SizeSearchDropdown = ({ value, onSelect, options = [], placeholder = 'Sear
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(opt => opt.label.toLowerCase().includes(q));
+    return options.filter(opt => {
+      const label = typeof opt === 'string' ? opt : (opt?.label || opt?.title || opt?.name || '');
+      return label.toLowerCase().includes(q);
+    });
   }, [searchTerm, options]);
 
   return (
@@ -1344,7 +1353,7 @@ const CreateVintedListing = () => {
                       <BrandSearchDropdown 
                         value={formData.brand}
                         onSelect={(brand) => setFormData({...formData, brand})}
-                        options={categoryBrands.map(b => ({ id: b.id, label: b.name }))}
+                        options={(categoryBrands || []).map(b => b ? { id: b.id, label: b.name || '' } : null).filter(Boolean)}
                         loading={fetchingBrands}
                         placeholder="Search brand..."
                       />
@@ -1358,7 +1367,7 @@ const CreateVintedListing = () => {
                       <SizeSearchDropdown 
                         value={formData.size}
                         onSelect={(size) => setFormData({...formData, size})}
-                        options={categorySizes.map(s => ({ id: s.id, label: s.title }))}
+                        options={(categorySizes || []).map(s => s ? { id: s.id, label: s.title || '' } : null).filter(Boolean)}
                         loading={fetchingSizes}
                         placeholder="Select size..."
                       />
@@ -1372,7 +1381,7 @@ const CreateVintedListing = () => {
                       <ColorSearchDropdown 
                         value={formData.color}
                         onSelect={(color) => setFormData({...formData, color})}
-                        options={vintedColors.map(c => ({ id: c.id, label: c.title }))}
+                        options={(vintedColors || []).map(c => c ? { id: c.id, label: c.title || '' } : null).filter(Boolean)}
                         loading={fetchingColors}
                         placeholder="Select color..."
                       />
