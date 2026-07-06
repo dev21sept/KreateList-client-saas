@@ -196,9 +196,9 @@ const NewListings = () => {
   const [selectedListing, setSelectedListing] = useState(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
 
-  // Pagination Mock
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchListings = async () => {
     setLoading(true);
@@ -271,6 +271,49 @@ const NewListings = () => {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination Calculations
+  const totalPages = Math.ceil(filteredListings.length / itemsPerPage) || 1;
+  const activePage = Math.min(currentPage, totalPages);
+  const startIndex = (activePage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredListings.length);
+  const paginatedListings = filteredListings.slice(startIndex, endIndex);
+
+  // Reset currentPage to 1 when filters or items per page change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, itemsPerPage]);
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      
+      const start = Math.max(2, activePage - 1);
+      const end = Math.min(totalPages - 1, activePage + 1);
+      
+      if (start > 2) {
+        pages.push('...');
+      }
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      
+      if (end < totalPages - 1) {
+        pages.push('...');
+      }
+      
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   // Helper for computing last updated string
   const formatTimeAgo = (dateStr) => {
@@ -546,8 +589,8 @@ const NewListings = () => {
                     Loading inventory data...
                   </td>
                 </tr>
-              ) : filteredListings.length > 0 ? (
-                filteredListings.slice(0, itemsPerPage).map((item) => (
+              ) : paginatedListings.length > 0 ? (
+                paginatedListings.map((item) => (
                   <tr key={item._id} className="hover:bg-[#fafbfe]/40 transition-colors">
                     
                     {/* Checkbox */}
@@ -650,47 +693,68 @@ const NewListings = () => {
         {/* Bottom Pagination */}
         <div className="px-6 py-4 bg-[#fcfcff] border-t border-[#f3f4f6] flex items-center justify-between">
           <p className="text-xs font-extrabold text-slate-400 select-none">
-            Showing 1 to {Math.min(filteredListings.length, itemsPerPage)} of {filteredListings.length.toLocaleString()} listings
+            Showing {filteredListings.length === 0 ? 0 : startIndex + 1} to {endIndex} of {filteredListings.length.toLocaleString()} listings
           </p>
           
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-1">
               <button 
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-50"
-                disabled={currentPage === 1}
+                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                disabled={activePage === 1}
               >
                 <ChevronLeft size={16} />
               </button>
               
-              <button className="w-8 h-8 flex items-center justify-center rounded-lg border-2 border-indigo-600 bg-white text-indigo-600 font-extrabold text-xs">
-                1
-              </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50 font-bold text-xs">
-                2
-              </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50 font-bold text-xs">
-                3
-              </button>
-              <span className="px-1 text-slate-400 text-xs font-extrabold">...</span>
-              <button className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50 font-bold text-xs">
-                307
-              </button>
+              {getPageNumbers().map((page, index) => {
+                if (page === '...') {
+                  return (
+                    <span key={`dots-${index}`} className="px-1 text-slate-400 text-xs font-extrabold select-none">
+                      ...
+                    </span>
+                  );
+                }
+                const isCurrent = page === activePage;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg font-extrabold text-xs transition-all ${
+                      isCurrent 
+                        ? 'border-2 border-indigo-600 bg-white text-indigo-600' 
+                        : 'text-slate-500 hover:bg-slate-50 font-bold cursor-pointer'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
 
               <button 
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                disabled={activePage === totalPages}
               >
                 <ChevronRight size={16} />
               </button>
             </div>
 
             {/* page count indicator */}
-            <div className="relative">
-              <button className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#e5e7eb] hover:border-indigo-200 rounded-lg text-xs font-bold text-slate-700">
-                10 / page
-                <ChevronDown size={14} className="text-slate-400" />
-              </button>
+            <div className="relative flex items-center">
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-[#e5e7eb] hover:border-indigo-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
+              >
+                <option value={5}>5 / page</option>
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
+              <ChevronDown size={14} className="text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </div>
