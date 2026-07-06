@@ -150,6 +150,11 @@ export const NotificationProvider = ({ children }) => {
   const showToast = useCallback((message, type = 'info') => {
     const id = Date.now() + Math.random().toString(36).substr(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
+    try {
+      window.dispatchEvent(new CustomEvent('elister-toast', { detail: { message, type } }));
+    } catch (e) {
+      console.error('Failed to dispatch toast event:', e.message);
+    }
   }, []);
 
   const toast = {
