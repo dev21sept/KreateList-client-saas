@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, Loader2, ShieldCheck, ChevronDown, ShoppingBag, Search, Check, Tag, Info, Eye, Code } from 'lucide-react';
 import { aiService, listingService, ruleService, externalImportService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -19,7 +20,7 @@ import { DEPOP_OCCASIONS } from '../constants/depopOccasions';
 import { DEPOP_FASTENINGS } from '../constants/depopFastenings';
 import { DEPOP_FITS } from '../constants/depopFits';
 import { DEPOP_TYPES } from '../constants/depopTypes';
-import { DEPOP_ATTRIBUTE_OPTIONS } from '../constants/depopCategoryAttributes';
+import { DEPOP_ATTRIBUTE_OPTIONS, DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 import { VINTED_MATERIALS } from '../constants/vintedMaterials';
 import {
   DEPOP_KIDS_APPAREL_SIZES,
@@ -534,6 +535,13 @@ const MaterialMultiSelectDropdown = ({ value, onChange, placeholder = 'Select ma
   );
 };
 
+const getDepopBrandId = (brandName) => {
+  if (!brandName) return 'unbranded';
+  const clean = brandName.trim().toLowerCase();
+  const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
+  return found ? found.id : 'unbranded';
+};
+
 const htmlToPlainText = (html = '') => {
   if (!html) return '';
   let text = html;
@@ -569,6 +577,7 @@ const htmlToPlainText = (html = '') => {
 
 const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, isEditMode = false }) => {
   const { toast } = useNotification();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -1247,8 +1256,8 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     }));
   };
 
-  const handlePublish = async (e) => {
-    e.preventDefault();
+  const handlePublish = async (e, publishMethod = 'api') => {
+    if (e) e.preventDefault();
     setLoading(true);
     try {
       const selectedRuleObj = rules.find(r => (r._id || r.id) === selectedRule);
@@ -1301,37 +1310,27 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         images: formData.images
       };
 
-      if (isEditMode) {
-        const response = await listingService.update(listing._id, updatedFields);
-        if (response.data?.success) {
-          toast.success("Listing updated successfully!");
-          onSyncSuccess();
-          onClose();
-        }
-      } else {
-        // Save first
-        await listingService.update(listing._id, updatedFields);
+      // Save listing changes to DB first
+      await listingService.update(listing._id, updatedFields);
 
-        // Trigger cross-list publish API
-        if (platform === 'ebay') {
-          const publishRes = await listingService.publish(listing._id);
-          if (publishRes.data?.success) {
-            toast.success('Listing published on eBay!');
-          }
-        } else if (platform === 'poshmark') {
-          const publishRes = await externalImportService.publish(listing._id, { platform: 'poshmark' });
-          if (publishRes.data?.success) {
-            toast.success('Listing published on Poshmark!');
-          }
-        } else if (platform === 'depop') {
-          const publishRes = await externalImportService.publish(listing._id, { platform: 'depop' });
-          if (publishRes.data?.success) {
-            toast.success('Listing published on Depop!');
-          }
-        } else if (platform === 'vinted') {
-          const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
+      if (isEditMode || publishMethod === 'draft') {
+        toast.success(publishMethod === 'draft' ? "Draft saved successfully!" : "Listing updated successfully!");
+        onSyncSuccess();
+        onClose();
+        return;
+      }
+
+      // Publish flows:
+      if (platform === 'ebay') {
+        const publishRes = await listingService.publish(listing._id);
+        if (publishRes.data?.success) {
+          toast.success('Listing published on eBay!');
+        }
+      } else if (platform === 'poshmark') {
+        if (publishMethod === 'extension') {
+          const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
           if (!isExtensionInstalled) {
-            toast.warning("Install and reload the Vinted extension to list automatically!");
+            toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
             setLoading(false);
             return;
           }
@@ -1342,7 +1341,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
             : 'http://localhost:5000/api';
 
           window.postMessage({
-            action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
+            action: 'ELISTER_LIST_ITEM_TRIGGER',
             data: {
               listingId: listing._id,
               token,
@@ -1352,20 +1351,115 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
               brand: formData.brand || "",
               price: parseFloat(formData.price) || 0.0,
               originalPrice: parseFloat(formData.originalPrice) || 0.0,
-              size: formData.size || "",
-              color: formData.color || "",
-              material: formData.material || "",
-              conditionId: selectedConditionId || "very_good",
-              categoryId: formData.categoryId || "1807",
+              size: formData.size || "OS",
+              colors: formData.color 
+                ? formData.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
+                : [],
+              condition: selectedConditionId || "uln",
+              styleTags: formData.styleTag ? formData.styleTag.split(',').map(t => t.trim()) : [],
+              departmentId: formData.departmentId || "01008c10d97b4e1245005764",
+              categoryId: formData.categoryId || "07008c10d97b4e1245005764",
+              subcategoryIds: formData.subcategoryIds ? (Array.isArray(formData.subcategoryIds) ? formData.subcategoryIds : [formData.subcategoryIds]) : [],
               images: formData.images || []
             }
           }, "*");
-          toast.success("Vinted publisher queue launched!");
+          toast.success("Opening Poshmark and launching publisher queue...");
+        } else {
+          const publishRes = await externalImportService.publish(listing._id, { platform: 'poshmark' });
+          if (publishRes.data?.success) {
+            toast.success('Listing successfully published to Poshmark via API!');
+          }
         }
+      } else if (platform === 'depop') {
+        if (publishMethod === 'extension') {
+          const isExtensionInstalled = document.body.dataset.elisterDepopExtensionInstalled === "true";
+          if (!isExtensionInstalled) {
+            toast.warning("Please install and reload the Elister Depop Chrome Extension to list automatically!");
+            setLoading(false);
+            return;
+          }
+          const plainDesc = formData.description;
+          const token = localStorage.getItem('token');
+          const backendUrl = import.meta.env.MODE === 'production'
+            ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+            : 'http://localhost:5000/api';
 
-        onSyncSuccess();
-        onClose();
+          window.postMessage({
+            action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
+            data: {
+              listingId: listing._id,
+              token,
+              backendUrl,
+              title: formData.title,
+              description: plainDesc,
+              brand: getDepopBrandId(formData.brand) || "",
+              price: parseFloat(formData.price) || 0.0,
+              originalPrice: parseFloat(formData.originalPrice) || 0.0,
+              size: formData.size || "",
+              color: formData.color || "",
+              material: formData.material || "",
+              conditionId: selectedConditionId || "3000",
+              categoryId: formData.categoryId || "",
+              category: formData.category || "",
+              allowedAttributes: DEPOP_CATEGORY_MAPPING[formData.categoryId] || [],
+              age: formData.age || "",
+              source: formData.source || "",
+              bodyFit: formData.bodyFit || "",
+              occasion: formData.occasion || "",
+              depopType: formData.depopType || "",
+              fastening: formData.fastening || "",
+              fit: formData.fit || "",
+              country: formData.country || "US",
+              shippingPrice: parseFloat(formData.shippingPrice) || 0.0,
+              worldwideShipping: !!formData.worldwideShipping,
+              quantity: parseInt(formData.quantity) || 1,
+              images: formData.images || []
+            }
+          }, "*");
+          toast.success("Opening Depop and launching publisher queue...");
+        } else {
+          const publishRes = await externalImportService.publish(listing._id, { platform: 'depop' });
+          if (publishRes.data?.success) {
+            toast.success('Listing successfully published to Depop via API!');
+          }
+        }
+      } else if (platform === 'vinted') {
+        const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
+        if (!isExtensionInstalled) {
+          toast.warning("Install and reload the Vinted extension to list automatically!");
+          setLoading(false);
+          return;
+        }
+        const plainDesc = formData.description;
+        const token = localStorage.getItem('token');
+        const backendUrl = import.meta.env.MODE === 'production'
+          ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+          : 'http://localhost:5000/api';
+
+        window.postMessage({
+          action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
+          data: {
+            listingId: listing._id,
+            token,
+            backendUrl,
+            title: formData.title,
+            description: plainDesc,
+            brand: formData.brand || "",
+            price: parseFloat(formData.price) || 0.0,
+            originalPrice: parseFloat(formData.originalPrice) || 0.0,
+            size: formData.size || "",
+            color: formData.color || "",
+            material: formData.material || "",
+            conditionId: selectedConditionId || "very_good",
+            categoryId: formData.categoryId || "1807",
+            images: formData.images || []
+          }
+        }, "*");
+        toast.success("Vinted publisher queue launched!");
       }
+
+      onSyncSuccess();
+      onClose();
     } catch (err) {
       console.error(`Error crosslisting to ${platform}:`, err);
       toast.error(err.response?.data?.message || `Failed to crosslist to ${platform}.`);
@@ -1391,12 +1485,29 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
               </h3>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-slate-650 transition-all cursor-pointer"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => {
+                navigate(`/create-listing?edit=${listing._id || listing.id}`);
+                onClose();
+              }}
+              title="Edit Master Listing"
+              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold rounded-2xl border border-indigo-100 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit Master
+            </button>
+            <button 
+              onClick={onClose}
+              className="p-2 hover:bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-slate-650 transition-all cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body Container */}
@@ -1577,7 +1688,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           {/* Form Section */}
           {hasScanned && (
             <div className="animate-in fade-in slide-in-from-top-4 duration-300">
-              <form onSubmit={handlePublish} className="space-y-6">
+              <form onSubmit={(e) => handlePublish(e, 'api')} className="space-y-6">
                 {platform === 'ebay' ? (
                   /* eBay 2-Column same-to-same Layout */
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans">
@@ -2461,7 +2572,8 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                 )}
 
                 {/* Bottom Actions */}
-                <div className="flex items-center justify-end gap-3 shrink-0">
+                {/* Bottom Actions */}
+                <div className="flex items-center justify-end gap-3 shrink-0 flex-wrap">
                   <button
                     type="button"
                     onClick={onClose}
@@ -2469,23 +2581,58 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-7 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-indigo-100"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        {isEditMode ? 'Saving Changes...' : `Publishing to ${platform}...`}
-                      </>
-                    ) : (
-                      <>
+                  
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={(e) => handlePublish(e, 'draft')}
+                      className="px-6 py-3 border border-indigo-200 hover:bg-indigo-50/50 rounded-2xl text-xs font-extrabold text-indigo-750 transition-all cursor-pointer"
+                    >
+                      Save Draft
+                    </button>
+                  )}
+
+                  {!isEditMode && (platform === 'poshmark' || platform === 'depop') ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={(e) => handlePublish(e, 'extension')}
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-indigo-100 font-sans"
+                      >
                         <ShoppingBag className="w-3.5 h-3.5" />
-                        {isEditMode ? 'Save Changes' : `Save & List on ${platform}`}
-                      </>
-                    )}
-                  </button>
+                        List to {platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Extension)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={(e) => handlePublish(e, 'api')}
+                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-emerald-100 font-sans"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        List to {platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Direct API)
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-7 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-indigo-100"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          {isEditMode ? 'Saving Changes...' : `Publishing to ${platform}...`}
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          {isEditMode ? 'Save Changes' : `Save & List on ${platform}`}
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
 
               </form>
