@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
   Check, 
+  CheckCircle,
   X, 
   Mail,
   Calendar,
@@ -14,7 +15,12 @@ import {
   BarChart2,
   Clock,
   ShieldAlert,
-  CreditCard
+  CreditCard,
+  RefreshCw,
+  Users,
+  Activity,
+  PlusCircle,
+  FileText
 } from 'lucide-react';
 import { adminService } from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
@@ -93,6 +99,16 @@ const AdminUsers = () => {
     setFilteredUsers(result);
   }, [searchTerm, planFilter, statusFilter, users]);
 
+  // Dynamic user lists calculations
+  const quickStats = useMemo(() => {
+    const total = users.length;
+    const premium = users.filter(u => u.subscription?.status === 'active' && u.subscription?.plan !== 'free').length;
+    const active = users.filter(u => u.subscription?.status === 'active').length;
+    const canceling = users.filter(u => u.subscription?.status === 'canceled').length;
+
+    return { total, premium, active, canceling };
+  }, [users]);
+
   // Days remaining logic
   const getSubscriptionInfo = (user) => {
     const sub = user.subscription;
@@ -120,7 +136,7 @@ const AdminUsers = () => {
     return { 
       text: `${diffDays} days left`, 
       color: diffDays <= 5 
-        ? 'text-amber-600 bg-amber-50 border-amber-100' 
+        ? 'text-amber-600 bg-amber-50 border-amber-100 animate-pulse' 
         : 'text-emerald-600 bg-emerald-50 border-emerald-100'
     };
   };
@@ -132,27 +148,26 @@ const AdminUsers = () => {
     const status = user.subscription?.status;
 
     if (!plan || plan === 'free') {
-      return { text: 'Free Tier', badgeColor: 'bg-slate-100 text-slate-600 border-slate-200' };
+      return { text: 'Free Tier', badgeColor: 'bg-slate-500/10 text-slate-500 border-slate-200/50' };
     }
 
     if (method === 'admin') {
-      return { text: 'Admin Activation', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200' };
+      return { text: 'Admin Override', badgeColor: 'bg-amber-500/10 text-amber-500 border-amber-500/20' };
     }
 
     if (method === 'razorpay') {
-      return { text: 'Razorpay Gateway', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+      return { text: 'Razorpay API', badgeColor: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' };
     }
 
     if (method === 'stripe') {
-      return { text: 'Stripe Gateway', badgeColor: 'bg-violet-50 text-violet-700 border-violet-200' };
+      return { text: 'Stripe Direct', badgeColor: 'bg-violet-500/10 text-violet-500 border-violet-500/20' };
     }
 
-    // Legacy fallback for previously active test users
     if (status === 'active') {
-      return { text: 'Razorpay (Legacy)', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+      return { text: 'Razorpay Gateway', badgeColor: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' };
     }
 
-    return { text: 'None', badgeColor: 'bg-slate-100 text-slate-500 border-slate-200' };
+    return { text: 'Unspecified', badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-200/50' };
   };
 
   const handleRowClick = (userId) => {
@@ -213,63 +228,120 @@ const AdminUsers = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">User Management</h1>
-          <p className="text-slate-500">Monitor and manage all Elister.ai customers.</p>
+      
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/20 rounded-full -mr-32 -mt-32 blur-2xl" />
+        <div className="relative">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Management</h1>
+          <p className="text-slate-500 font-medium text-sm mt-0.5">Control billing status, adjust subscription tiers, and review client details.</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="relative flex gap-3">
           <button 
             onClick={fetchUsers} 
-            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all"
+            disabled={loading}
+            className="flex items-center gap-2 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl text-xs font-black shadow-md shadow-indigo-100 active:scale-95 transition-all cursor-pointer"
           >
-            Refresh Data
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Sync Users
           </button>
         </div>
       </div>
 
+      {/* Aggregate Counts Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Total users */}
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+            <Users size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Registered</p>
+            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.total} accounts</p>
+          </div>
+        </div>
+
+        {/* Premium Users */}
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+            <Activity size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Active Premium</p>
+            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.premium} active</p>
+          </div>
+        </div>
+
+        {/* Active Accounts */}
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+            <CheckCircle size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Total Active</p>
+            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.active} accounts</p>
+          </div>
+        </div>
+
+        {/* Canceled Accounts */}
+        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
+            <X size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Canceled</p>
+            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.canceling} accounts</p>
+          </div>
+        </div>
+
+      </div>
+
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl font-bold">
-          {error}
+        <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl font-bold flex items-center gap-2">
+          <ShieldAlert size={16} />
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      {/* Filters Container */}
+      <div className="bg-white p-4.5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+        
+        {/* Search */}
         <div className="relative flex-grow w-full md:w-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 pointer-events-none" />
           <input 
             type="text" 
-            placeholder="Search by name, email or ID..." 
+            placeholder="Search accounts by name, email or database ID..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/10"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
 
         {/* Plan Filter */}
-        <div className="flex items-center space-x-2 w-full md:w-auto">
+        <div className="flex items-center space-x-2 w-full md:w-auto shrink-0">
           <Filter size={14} className="text-slate-400" />
           <select 
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10"
+            className="bg-slate-50 border border-slate-100 rounded-xl text-xs font-extrabold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full md:w-auto"
           >
-            <option value="All">All Plans</option>
-            <option value="free">Free</option>
-            <option value="basic">Basic</option>
-            <option value="pro">Pro</option>
+            <option value="All">All Tiers</option>
+            <option value="free">Free Plan</option>
+            <option value="basic">Basic Plan</option>
+            <option value="pro">Pro Plan</option>
             <option value="enterprise">Enterprise</option>
           </select>
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center space-x-2 w-full md:w-auto">
+        <div className="flex items-center space-x-2 w-full md:w-auto shrink-0">
           <Filter size={14} className="text-slate-400" />
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10"
+            className="bg-slate-50 border border-slate-100 rounded-xl text-xs font-extrabold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full md:w-auto"
           >
             <option value="All">All Statuses</option>
             <option value="active">Active</option>
@@ -277,20 +349,21 @@ const AdminUsers = () => {
             <option value="canceled">Canceled</option>
           </select>
         </div>
+
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider"></th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">User</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Plan</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Subscription Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Days Left</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                <th className="w-12 px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider"></th>
+                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">User Account</th>
+                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Tier Level</th>
+                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Billing Status</th>
+                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Time Remaining</th>
+                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider text-right pr-8">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -304,153 +377,186 @@ const AdminUsers = () => {
                     <React.Fragment key={user._id}>
                       <tr 
                         onClick={() => handleRowClick(user._id)}
-                        className="hover:bg-slate-50/50 cursor-pointer transition-all border-l-4 border-l-transparent hover:border-l-indigo-500"
+                        className={`hover:bg-slate-50/50 cursor-pointer transition-all border-l-4 ${
+                          isExpanded ? 'border-l-indigo-600 bg-indigo-50/10' : 'border-l-transparent'
+                        }`}
                       >
                         <td className="px-4 py-4 text-center">
-                          {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                          {isExpanded ? (
+                            <ChevronUp size={16} className="text-indigo-600 transition-transform" />
+                          ) : (
+                            <ChevronDown size={16} className="text-slate-400 transition-transform" />
+                          )}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          <div className="flex items-center space-x-3.5">
+                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-800 text-white rounded-full flex items-center justify-center font-black text-xs shadow-sm">
                               {`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'U'}
                             </div>
                             <div>
-                              <p className="font-bold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
-                              <p className="text-xs text-slate-400 flex items-center"><Mail size={12} className="mr-1" /> {user.email}</p>
+                              <p className="font-extrabold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
+                              <p className="text-xs text-slate-400 flex items-center mt-0.5 font-medium">
+                                <Mail size={12} className="mr-1 text-slate-400" /> 
+                                {user.email}
+                              </p>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                            user.subscription?.plan === 'enterprise' ? 'bg-indigo-100 text-indigo-600' : 
-                            user.subscription?.plan === 'pro' ? 'bg-violet-100 text-violet-600' : 
-                            user.subscription?.plan === 'basic' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'
+                          <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${
+                            user.subscription?.plan === 'enterprise' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 
+                            user.subscription?.plan === 'pro' ? 'bg-violet-50 text-violet-700 border-violet-100' : 
+                            user.subscription?.plan === 'basic' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-100'
                           }`}>
-                            {(user.subscription?.plan || 'free').toUpperCase()}
+                            {user.subscription?.plan || 'free'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center">
+                          <div className="flex items-center gap-1.5">
                             {user.subscription?.status === 'active' ? (
-                              <Check size={16} className="text-emerald-500 mr-2" />
+                              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase tracking-wider">
+                                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                Active
+                              </div>
                             ) : (
-                              <X size={16} className="text-rose-500 mr-2" />
+                              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-black uppercase tracking-wider">
+                                <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+                                {user.subscription?.status || 'Inactive'}
+                              </div>
                             )}
-                            <span className="text-sm font-medium text-slate-700">
-                              {(user.subscription?.status || 'inactive').toUpperCase()}
-                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-xl border ${subInfo.color}`}>
+                          <span className={`text-[10px] font-black px-3 py-1 rounded-xl border uppercase tracking-wider ${subInfo.color}`}>
                             {subInfo.text}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 text-right pr-8">
                           <button 
                             onClick={(e) => handleEditClick(user, e)}
-                            className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-all flex items-center justify-center"
+                            className="inline-flex p-2 bg-indigo-50 hover:bg-indigo-100/80 rounded-xl text-indigo-600 transition-all cursor-pointer shadow-xs border border-indigo-100/50"
                             title="Edit Plan"
                           >
-                            <Edit2 size={14} />
+                            <Edit2 size={13} />
                           </button>
                         </td>
                       </tr>
 
-                      {/* Collapsible details row */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/70">
-                          <td colSpan={6} className="px-8 py-6">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                              {/* Contact Details */}
-                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-                                <div>
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">User Details</h4>
-                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
-                                    <Phone size={12} className="mr-2 text-slate-400" /> {user.phone || 'No phone number'}
-                                  </p>
-                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
-                                    <Calendar size={12} className="mr-2 text-slate-400" /> Joined: {new Date(user.createdAt).toLocaleDateString()}
-                                  </p>
-                                  <p className="text-xs text-slate-600 flex items-center mb-1.5">
-                                    <CreditCard size={12} className="mr-2 text-slate-400" /> Payment: <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold border ${paymentInfo.badgeColor}`}>{paymentInfo.text}</span>
-                                  </p>
-                                  {user.subscription?.plan !== 'free' && (
-                                    <>
-                                      <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
-                                        Amount: <span className="font-bold text-slate-900 ml-1">${user.subscription?.paymentAmount || 0}</span>
-                                      </p>
-                                      {user.subscription?.paymentDate && (
-                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
-                                          Paid At: <span className="text-slate-900 ml-1">{new Date(user.subscription.paymentDate).toLocaleString()}</span>
+                      {/* Collapsible Details Drawer */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <tr className="bg-slate-50/30">
+                            <td colSpan={6} className="px-8 py-6">
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="grid grid-cols-1 md:grid-cols-4 gap-6 overflow-hidden"
+                              >
+                                {/* Contact Details Card */}
+                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex flex-col justify-between">
+                                  <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">User details</h4>
+                                    <p className="text-xs text-slate-700 flex items-center font-bold">
+                                      <Phone size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
+                                      {user.phone || 'No phone registered'}
+                                    </p>
+                                    <p className="text-xs text-slate-700 flex items-center font-bold">
+                                      <Calendar size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
+                                      Registered: {new Date(user.createdAt).toLocaleDateString()}
+                                    </p>
+                                    <p className="text-xs text-slate-700 flex items-center font-bold">
+                                      <CreditCard size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
+                                      Gateway: 
+                                      <span className={`ml-2 px-2 py-0.5 rounded-lg text-[9px] font-extrabold uppercase border ${paymentInfo.badgeColor}`}>
+                                        {paymentInfo.text}
+                                      </span>
+                                    </p>
+                                    {user.subscription?.plan !== 'free' && (
+                                      <div className="space-y-1.5 pt-2 border-t border-slate-50">
+                                        <p className="text-xs text-slate-650 flex justify-between font-bold">
+                                          <span>Amount Paid:</span> 
+                                          <span className="font-extrabold text-slate-900">${user.subscription?.paymentAmount || 0}</span>
                                         </p>
-                                      )}
-                                      {user.subscription?.razorpayPaymentId && (
-                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
-                                          Txn ID: <span className="font-mono text-slate-900 ml-1">{user.subscription.razorpayPaymentId}</span>
-                                        </p>
-                                      )}
-                                      {user.subscription?.stripeSubscriptionId && (
-                                        <p className="text-xs text-slate-600 flex items-center mb-1.5 pl-5">
-                                          Stripe ID: <span className="font-mono text-slate-900 ml-1">{user.subscription.stripeSubscriptionId}</span>
-                                        </p>
-                                      )}
-                                    </>
-                                  )}
+                                        {user.subscription?.paymentDate && (
+                                          <p className="text-[10px] text-slate-450 flex justify-between font-bold">
+                                            <span>Paid At:</span> 
+                                            <span className="text-slate-700">{new Date(user.subscription.paymentDate).toLocaleDateString()}</span>
+                                          </p>
+                                        )}
+                                        {user.subscription?.stripeSubscriptionId && (
+                                          <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
+                                            <span>Stripe ID:</span> 
+                                            <span className="text-slate-800 bg-slate-50 px-1 border rounded max-w-[120px] truncate">{user.subscription.stripeSubscriptionId}</span>
+                                          </p>
+                                        )}
+                                        {user.subscription?.razorpayPaymentId && (
+                                          <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
+                                            <span>Razorpay ID:</span> 
+                                            <span className="text-slate-800 bg-slate-50 px-1 border rounded max-w-[120px] truncate">{user.subscription.razorpayPaymentId}</span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-4 pt-3 border-t border-slate-100 text-[9px] font-mono text-slate-400 truncate">
+                                    DB REF: {user._id}
+                                  </div>
                                 </div>
-                                <div className="mt-4 pt-4 border-t border-slate-100 text-[10px] text-slate-400">
-                                  ID: {user._id}
-                                </div>
-                              </div>
 
-                              {/* Listing Stats / AI usage */}
-                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                                  <BarChart2 size={20} />
+                                {/* AI Listing Fetches stats card */}
+                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center space-x-4">
+                                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-inner">
+                                    <BarChart2 size={22} />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Listing Imports</h4>
+                                    <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.total || 0}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Fetched Listings</h4>
-                                  <p className="text-xl font-black text-slate-900 mt-1">{user.stats?.total || 0}</p>
-                                </div>
-                              </div>
 
-                              {/* Live Listings */}
-                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                                  <Check size={20} />
+                                {/* Live listings counts card */}
+                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center space-x-4">
+                                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 shadow-inner">
+                                    <Check size={22} />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Live Listings</h4>
+                                    <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.published || 0}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Live via API</h4>
-                                  <p className="text-xl font-black text-slate-900 mt-1">{user.stats?.published || 0}</p>
-                                </div>
-                              </div>
 
-                              {/* Draft / Scheduled */}
-                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs font-bold text-slate-500">Drafts:</span>
-                                  <span className="text-sm font-black text-slate-900">{user.stats?.draft || 0}</span>
+                                {/* Listings status summary */}
+                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex flex-col justify-between">
+                                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-2">Listing distribution</h4>
+                                  <div className="space-y-2.5">
+                                    <div className="flex justify-between items-center text-xs font-bold">
+                                      <span className="text-slate-500">Draft Listings:</span>
+                                      <span className="text-slate-800 font-mono">{user.stats?.draft || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs font-bold">
+                                      <span className="text-slate-500">Scheduled:</span>
+                                      <span className="text-slate-800 font-mono">{user.stats?.scheduled || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-slate-50">
+                                      <span className="text-rose-500">Failed / Errors:</span>
+                                      <span className="text-rose-600 font-mono font-black">{user.stats?.failed || 0}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between items-center mt-2">
-                                  <span className="text-xs font-bold text-slate-500">Scheduled:</span>
-                                  <span className="text-sm font-black text-slate-900">{user.stats?.scheduled || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
-                                  <span className="text-xs font-bold text-rose-500">Failed:</span>
-                                  <span className="text-sm font-black text-rose-600">{user.stats?.failed || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+
+                              </motion.div>
+                            </td>
+                          </tr>
+                        )}
+                      </AnimatePresence>
                     </React.Fragment>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                    No users found matching current filters.
+                  <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-bold text-xs">
+                    No matching user registrations found.
                   </td>
                 </tr>
               )}
@@ -462,51 +568,54 @@ const AdminUsers = () => {
       {/* Edit Subscription Modal */}
       <AnimatePresence>
         {editingUser && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden"
+              className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 w-full max-w-md overflow-hidden relative flex flex-col max-h-[90vh]"
             >
-              <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+              {/* Modal Header */}
+              <div className="p-6 pb-4 border-b border-slate-50 flex justify-between items-center">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-lg">Edit Subscription</h3>
-                  <p className="text-xs text-slate-500">{editingUser.firstName} {editingUser.lastName} ({editingUser.email})</p>
+                  <h3 className="font-extrabold text-slate-950 text-lg">Modify Subscription</h3>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">{editingUser.firstName} {editingUser.lastName} ({editingUser.email})</p>
                 </div>
                 <button 
                   onClick={() => setEditingUser(null)}
-                  className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                  className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
-                {/* Plan selection */}
+              {/* Form fields */}
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4 overflow-y-auto">
+                
+                {/* Subscription Tier */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subscription Plan</label>
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Subscription Tier</label>
                   <select 
                     name="plan"
                     value={editFormData.plan}
                     onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
                   >
-                    <option value="free">Free</option>
-                    <option value="basic">Basic</option>
-                    <option value="pro">Pro</option>
-                    <option value="enterprise">Enterprise</option>
+                    <option value="free">Free Tier</option>
+                    <option value="basic">Basic Plan</option>
+                    <option value="pro">Pro Plan</option>
+                    <option value="enterprise">Enterprise Plan</option>
                   </select>
                 </div>
 
-                {/* Status selection */}
+                {/* Status Selection */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subscription Status</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Billing Status</label>
                   <select 
                     name="status"
                     value={editFormData.status}
                     onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -517,61 +626,67 @@ const AdminUsers = () => {
 
                 {/* Expiry Date */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
-                    <Clock size={12} className="mr-1" /> Expiration Date
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest flex items-center">
+                    <Clock size={12} className="mr-1.5 text-slate-400" /> Account Expiration
                   </label>
                   <input 
                     type="date"
                     name="expiresAt"
                     value={editFormData.expiresAt}
                     onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
                   />
                 </div>
 
-                {/* Custom Payment Amount (only relevant if not Free) */}
+                {/* Custom Payment Metrics */}
                 {editFormData.plan !== 'free' && (
-                  <>
+                  <div className="pt-2.5 border-t border-slate-50 space-y-4">
+                    
+                    {/* Amount */}
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Amount (USD)</label>
+                      <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Payment Amount ($ USD)</label>
                       <input 
                         type="number"
                         name="paymentAmount"
                         value={editFormData.paymentAmount}
                         onChange={handleFormChange}
                         placeholder="e.g. 149"
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-450"
                       />
                     </div>
 
+                    {/* Date */}
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Date</label>
+                      <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Payment Transaction Date</label>
                       <input 
                         type="date"
                         name="paymentDate"
                         value={editFormData.paymentDate}
                         onChange={handleFormChange}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/10 font-medium"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
                       />
                     </div>
-                  </>
+
+                  </div>
                 )}
 
-                <div className="pt-4 flex space-x-2 justify-end">
+                {/* Action Buttons */}
+                <div className="pt-4 border-t border-slate-50 flex gap-3 justify-end">
                   <button 
                     type="button"
                     onClick={() => setEditingUser(null)}
-                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
+                    className="px-4.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all"
+                    className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm shadow-indigo-100"
                   >
-                    Save Changes
+                    Apply Settings
                   </button>
                 </div>
+
               </form>
             </motion.div>
           </div>

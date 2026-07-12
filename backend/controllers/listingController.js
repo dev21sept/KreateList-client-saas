@@ -83,36 +83,39 @@ exports.getDashboardStats = async (req, res) => {
       }
     });
 
-    // Monthly (Last 6 Months)
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    // Monthly (Last 30 Days in 5-day intervals)
     const monthlyChartData = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
+    const bucketLabels = ['Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30'];
+    for (let i = 0; i < 6; i++) {
       monthlyChartData.push({
-        label: months[d.getMonth()],
-        monthName: months[d.getMonth()],
-        year: d.getFullYear(),
-        monthNum: d.getMonth(),
+        label: bucketLabels[i],
         total: 0,
         published: 0,
         draft: 0
       });
     }
 
+    const now = new Date();
     allUserListings.forEach(l => {
       if (!l.createdAt) return;
       const date = new Date(l.createdAt);
-      const bucket = monthlyChartData.find(b => b.monthNum === date.getMonth() && b.year === date.getFullYear());
-      if (bucket) {
-        bucket.total++;
-        if (l.status === 'published') bucket.published++;
-        if (l.status === 'draft') bucket.draft++;
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 30) {
+        const group = Math.floor(diffDays / 5); // 0 to 6
+        const bucketIndex = Math.max(0, Math.min(5, 5 - group));
+        const bucket = monthlyChartData[bucketIndex];
+        if (bucket) {
+          bucket.total++;
+          if (l.status === 'published') bucket.published++;
+          if (l.status === 'draft') bucket.draft++;
+        }
       }
     });
 
     // Yearly (Last 12 Months)
     const yearlyChartData = [];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
@@ -139,10 +142,10 @@ exports.getDashboardStats = async (req, res) => {
     });
 
     // 2. Platform Metrics Chart Data (Weekly, Monthly, Yearly)
-    const now = Date.now();
-    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
-    const oneYearAgo = now - 5 * 365 * 24 * 60 * 60 * 1000; // Extend to 5 years to cover all seeded/historical listings
+    const nowMs = Date.now();
+    const oneWeekAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
+    const oneMonthAgo = nowMs - 30 * 24 * 60 * 60 * 1000;
+    const oneYearAgo = nowMs - 5 * 365 * 24 * 60 * 60 * 1000; // Extend to 5 years to cover all seeded/historical listings
 
     const getMetricsForTimeframe = (sinceDate) => {
       const fetched = { ebay: 0, poshmark: 0, depop: 0, vinted: 0 };

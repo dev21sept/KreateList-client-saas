@@ -21,8 +21,8 @@ const FAQS = [
   {
     id: 1,
     category: 'listing',
-    question: 'How do I publish a listing to eBay or Poshmark?',
-    answer: 'Simply click the "New Listing" button in the dashboard, select your target platform, fill out the listing details (titles, descriptions, categories, and specifics), and click "Publish". The system will process it and verify live URLs in real-time.'
+    question: 'How do I publish a listing to eBay, Poshmark, or Depop?',
+    answer: 'Simply click the "New Listing" button in the dashboard, select your target platform (eBay, Poshmark, or Depop), fill out the listing details (titles, descriptions, categories, and specifics), and click "Publish". The system will process it and verify live URLs in real-time.'
   },
   {
     id: 2,
@@ -33,8 +33,26 @@ const FAQS = [
   {
     id: 3,
     category: 'integrations',
-    question: 'How do I connect my eBay and Poshmark accounts?',
-    answer: 'Navigate to the "Integrations" page from the sidebar menu. Click "Connect Account" for the platform you want to add, and authorize Elister.ai to securely synchronize your inventory and listings.'
+    question: 'How do I connect my eBay, Poshmark, and Depop accounts?',
+    answer: 'Navigate to the "Integrations" page from the sidebar menu. Click the "Connect" button for your chosen platform (eBay, Poshmark, or Depop) and follow the step-by-step secure authorization flow (Redirection, Cloud Login, In-App Login, or Chrome Extension).'
+  },
+  {
+    id: 7,
+    category: 'integrations',
+    question: 'How do I connect my eBay account?',
+    answer: 'On the Integrations page, click "Connect eBay". You will be redirected to the secure official eBay portal. Log in to your seller account and authorize Elister.ai. Once authorized, you will be redirected back with a connected status.'
+  },
+  {
+    id: 8,
+    category: 'integrations',
+    question: 'How do I connect my Poshmark closet?',
+    answer: 'On the Integrations page, click "Connect Poshmark". Choose either: (1) Cloud Login: enter your username/email, password, select your Poshmark region, and click connect (if Poshmark requests a verification code, enter the OTP sent to your email); or (2) Chrome Extension: click Connect Automatically to pull your active session from the eLister Chrome extension.'
+  },
+  {
+    id: 9,
+    category: 'integrations',
+    question: 'How do I connect my Depop shop?',
+    answer: 'On the Integrations page, click "Connect Depop". Choose either: (1) In-App Login: click to open a secure login window, sign in to your Depop account, and Elister will securely connect; or (2) Chrome Extension: click Connect Automatically to pull your active session from Chrome using the extension.'
   },
   {
     id: 4,
@@ -52,7 +70,7 @@ const FAQS = [
     id: 6,
     category: 'general',
     question: 'Does Elister.ai support automatic inventory synchronization?',
-    answer: 'Yes! When an item sells on one connected platform, Elister.ai automatically detects the sale and updates the quantity or delists the item on your other active platforms to prevent double-selling.'
+    answer: 'Yes! When an item sells on one connected platform, Elister.ai automatically detects the sale and updates the quantity or delists the item on your other active platforms (eBay, Poshmark, and Depop) to prevent double-selling.'
   }
 ];
 

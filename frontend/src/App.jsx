@@ -24,7 +24,7 @@ import Dashboard from './pages/Dashboard';
 import Listings from './pages/NewListings';
 import Orders from './pages/Orders';
 import Analytics from './pages/Analytics';
-import CreateListing from './pages/CreateListing';
+import CreateListing from './pages/CreateMasterListing';
 import CreateEbayListing from './pages/CreateEbayListing';
 import BulkListingEbay from './pages/BulkListingEbay';
 import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
@@ -39,7 +39,7 @@ import Testimonials from './pages/Testimonials';
 import HelpSupport from './pages/HelpSupport';
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminDashboard from './pages/admin/NewAdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminSettings from './pages/admin/AdminSettings';
 

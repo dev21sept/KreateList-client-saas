@@ -10,30 +10,70 @@ const { logActivity } = require('../utils/activityUtils');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
 
-async function compressImageIfBase64(base64Str) {
-  if (!base64Str || !base64Str.startsWith('data:')) {
-    return base64Str;
-  }
-  try {
-    const commaIdx = base64Str.indexOf(',');
-    if (commaIdx === -1) return base64Str;
-    
-    const prefix = base64Str.substring(0, commaIdx);
-    if (!prefix.includes(';base64')) {
-      return base64Str;
+async function compressImageIfBase64(imageInput) {
+  if (!imageInput) return imageInput;
+  
+  const fs = require('fs');
+  const path = require('path');
+  let buffer = null;
+  
+  if (imageInput.startsWith('data:')) {
+    const commaIdx = imageInput.indexOf(',');
+    if (commaIdx !== -1) {
+      const base64Data = imageInput.substring(commaIdx + 1);
+      buffer = Buffer.from(base64Data, 'base64');
     }
-
-    const base64Data = base64Str.substring(commaIdx + 1);
-    const buffer = Buffer.from(base64Data, 'base64');
-    const compressedBuffer = await sharp(buffer)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    return `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`;
-  } catch (error) {
-    console.error('Image compression error:', error.message);
-    return base64Str;
+  } else if (imageInput.includes('/uploads/')) {
+    // It's a locally stored upload file! Read it from the uploads folder
+    try {
+      const filename = imageInput.split('/uploads/').pop();
+      const filepath = path.join(__dirname, '..', 'uploads', filename);
+      if (fs.existsSync(filepath)) {
+        buffer = fs.readFileSync(filepath);
+        console.log(`[Bulk eBay AI] Successfully read local file from uploads: ${filepath}`);
+      } else {
+        console.error(`[Bulk eBay AI] Local file not found: ${filepath}`);
+      }
+    } catch (err) {
+      console.error(`[Bulk eBay AI] Error reading local file:`, err.message);
+    }
   }
+  
+  if (!buffer) {
+    if (imageInput.startsWith('http://localhost') || imageInput.startsWith('http://127.0.0.1')) {
+      try {
+        const axios = require('axios');
+        const response = await axios.get(imageInput, { responseType: 'arraybuffer' });
+        buffer = Buffer.from(response.data, 'binary');
+        console.log(`[Bulk eBay AI] Fetched localhost image via HTTP: ${imageInput}`);
+      } catch (err) {
+        console.error(`[Bulk eBay AI] Failed to fetch localhost image via HTTP:`, err.message);
+      }
+    }
+  }
+
+  if (buffer) {
+    try {
+      // Resize to maximum 800px on the longest side and compress to JPEG (quality 80)
+      const compressedBuffer = await sharp(buffer)
+        .resize(800, 800, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      return `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`;
+    } catch (error) {
+      console.error('Bulk eBay AI Image compression error:', error.message);
+      if (imageInput.startsWith('data:')) {
+        return imageInput;
+      }
+      return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    }
+  }
+
+  return imageInput;
 }
 async function callOpenAiWithRetry(aiClient, params, maxRetries = 5, delayMs = 2000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

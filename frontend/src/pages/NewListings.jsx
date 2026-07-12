@@ -1,23 +1,43 @@
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   ChevronDown, 
   SlidersHorizontal, 
-  MoreHorizontal, 
   ChevronLeft, 
   ChevronRight, 
   AlertCircle,
   Edit,
   Trash2,
-  Eye,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  X,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { listingService, ebayService, externalImportService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import CrosslistingModal from '../components/CrosslistingModal';
+import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
+import { DEPOP_BRANDS } from '../constants/depopBrands';
+const getDepopBrandId = (brandName) => {
+  if (!brandName) return 'unbranded';
+  const clean = brandName.trim().toLowerCase();
+  const found = DEPOP_BRANDS.find(b => b.label.toLowerCase() === clean || b.id.toLowerCase() === clean);
+  return found ? found.id : 'unbranded';
+};
+
+const NO_IMAGE_PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150"><rect fill="%23f1f5f9" width="150" height="150"/><path d="M55 65 L75 85 L95 60 L115 90 L35 90 Z" fill="%23cbd5e1"/><circle cx="55" cy="50" r="8" fill="%23cbd5e1"/></svg>');
+
+const getImageSrc = (src) => {
+  if (!src) return NO_IMAGE_PLACEHOLDER;
+  if (typeof src === 'string' && src.startsWith('blob:')) {
+    return NO_IMAGE_PLACEHOLDER;
+  }
+  return src;
+};
 
 // Fallback listing data mimicking screenshot exactly if backend has no listings
 const MOCK_LISTINGS = [
@@ -184,6 +204,20 @@ const NewListings = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+
+  // Preview & Edit system states
+  const [previewListing, setPreviewListing] = useState(null);
+  const [activeImage, setActiveImage] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Publishing process states
+  const [publishingId, setPublishingId] = useState(null);
+  const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
+  const [poshmarkDirectPublishingId, setPoshmarkDirectPublishingId] = useState(null);
+  const [vintedPublishingId, setVintedPublishingId] = useState(null);
+  const [depopPublishingId, setDepopPublishingId] = useState(null);
+  const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
+  const [verifyingListingId, setVerifyingListingId] = useState(null);
 
   const handleDelete = async (id) => {
     if (await confirm("Are you sure you want to delete this listing?", { title: 'Delete Listing', destructive: true })) {
@@ -371,6 +405,543 @@ const NewListings = () => {
   useEffect(() => {
     fetchListings();
   }, []);
+
+  useEffect(() => {
+    if (previewListing && previewListing.images && previewListing.images.length > 0) {
+      setActiveImage(previewListing.images[0]);
+    } else {
+      setActiveImage(null);
+    }
+  }, [previewListing]);
+
+  useEffect(() => {
+    // Check if there is an active listing publishing from session storage
+    const activePublishingId = sessionStorage.getItem('elister_poshmark_publishing_id');
+    if (activePublishingId) {
+      setPoshmarkPublishingId(activePublishingId);
+    }
+
+    const handleMessage = (event) => {
+      const isAllowedOrigin = event.origin.includes('elister.ai') || event.origin.includes('localhost') || event.origin.includes('127.0.0.1');
+      if (!isAllowedOrigin) return;
+
+      if (event.data && event.data.action === 'ELISTER_PUBLISH_STATUS_UPDATE') {
+        const { status, message } = event.data;
+        console.log('[Listings] Received publish status update from extension:', event.data);
+        
+        if (status === 'success') {
+          toast.success("Listing successfully published to Poshmark!");
+          sessionStorage.removeItem('elister_poshmark_publishing_id');
+          setPoshmarkPublishingId(null);
+          fetchListings(); // Reload listings from backend
+        } else if (status === 'error') {
+          toast.error(`Publish failed: ${message}`);
+          sessionStorage.removeItem('elister_poshmark_publishing_id');
+          setPoshmarkPublishingId(null);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  const getStatusBadge = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'published':
+      case 'active':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100"><CheckCircle2 size={12} className="mr-1" /> Published</span>;
+      case 'draft':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200"><Clock size={12} className="mr-1" /> Draft</span>;
+      case 'scheduled':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100"><Clock size={12} className="mr-1" /> Scheduled</span>;
+      case 'failed':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100"><AlertCircle size={12} className="mr-1" /> Failed</span>;
+      default:
+        return null;
+    }
+  };
+
+  const handleOpenPreview = async (listing, platform) => {
+    try {
+      setPreviewListing({ ...listing, platform });
+      const res = await listingService.getOne(listing._id);
+      if (res.data?.success) {
+        setPreviewListing({ ...res.data.data, platform });
+      }
+    } catch (error) {
+      console.error("Error fetching full listing details:", error);
+    }
+  };
+
+  const handlePublish = async (id) => {
+    setPublishingId(id);
+    try {
+      await listingService.publish(id);
+      toast.success("Listing published to eBay successfully!");
+      setPreviewListing(null);
+      fetchListings();
+    } catch (error) {
+      console.error("Error publishing listing:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to eBay.");
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleVerifyAndOpen = async (listing) => {
+    setVerifyingListingId(listing._id);
+    try {
+      const res = await listingService.verifyLive(listing._id);
+      if (res.data?.success) {
+        if (res.data.isLive) {
+          let url = '';
+          if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
+          else if (listing.platform === 'ebay') url = listing.ebayUrl;
+          else if (listing.platform === 'vinted') url = listing.vintedUrl;
+          else if (listing.platform === 'depop') url = listing.depopUrl;
+          window.open(url, '_blank');
+        } else {
+          toast.warning(`Listing was deleted/not found on ${listing.platform}. Status reset to Draft!`);
+          setPreviewListing(res.data.data);
+          setListings(prev => prev.map(l => l._id === listing._id ? res.data.data : l));
+        }
+      }
+    } catch (err) {
+      console.error("Error verifying listing status:", err);
+      let url = '';
+      if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
+      else if (listing.platform === 'ebay') url = listing.ebayUrl;
+      else if (listing.platform === 'vinted') url = listing.vintedUrl;
+      else if (listing.platform === 'depop') url = listing.depopUrl;
+      window.open(url, '_blank');
+    } finally {
+      setVerifyingListingId(null);
+    }
+  };
+
+  const handlePoshmarkPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Chrome Extension to list automatically!");
+      return;
+    }
+
+    setPoshmarkPublishingId(listing._id);
+    sessionStorage.setItem('elister_poshmark_publishing_id', listing._id);
+    try {
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
+      }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        sessionStorage.removeItem('elister_poshmark_publishing_id');
+        setPoshmarkPublishingId(null);
+        return;
+      }
+
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: fullListing.brand || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "OS",
+          colors: fullListing.color 
+            ? fullListing.color.split(',').map(c => c.trim()).filter(Boolean).slice(0, 2) 
+            : [],
+          condition: fullListing.conditionId || "uln",
+          styleTags: fullListing.styleTag ? fullListing.styleTag.split(',').map(t => t.trim()) : [],
+          departmentId: fullListing.departmentId || "01008c10d97b4e1245005764",
+          categoryId: fullListing.categoryId || "07008c10d97b4e1245005764",
+          subcategoryIds: fullListing.subcategoryIds ? (Array.isArray(fullListing.subcategoryIds) ? fullListing.subcategoryIds : [fullListing.subcategoryIds]) : [],
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Listing execution started in background...");
+      setPreviewListing(null);
+    } catch (err) {
+      console.error("Error publishing to Poshmark:", err);
+      toast.error("Failed to load listing details. Please try again.");
+      sessionStorage.removeItem('elister_poshmark_publishing_id');
+      setPoshmarkPublishingId(null);
+    }
+  };
+
+  const handlePoshmarkDirectPublish = async (listing) => {
+    setPoshmarkDirectPublishingId(listing._id);
+    try {
+      const res = await externalImportService.publish(listing._id, { platform: 'poshmark' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Poshmark via API!");
+        setPreviewListing(null);
+        fetchListings();
+      }
+    } catch (error) {
+      console.error("Error publishing directly to Poshmark:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Poshmark directly.");
+    } finally {
+      setPoshmarkDirectPublishingId(null);
+    }
+  };
+
+  const handleDepopDirectPublish = async (listing) => {
+    setDepopDirectPublishingId(listing._id);
+    try {
+      toast.info("Publishing to Depop directly via API...");
+      const res = await externalImportService.publish(listing._id, { platform: 'depop' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Depop!");
+        setPreviewListing(null);
+        fetchListings();
+      }
+    } catch (error) {
+      console.error("Error publishing directly to Depop:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Depop directly.");
+    } finally {
+      setDepopDirectPublishingId(null);
+    }
+  };
+
+  const handleVintedPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Vinted Chrome Extension to list automatically!");
+      return;
+    }
+
+    setVintedPublishingId(listing._id);
+    try {
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
+      }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        return;
+      }
+
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: fullListing.brand || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "",
+          color: fullListing.color || "",
+          material: fullListing.material || "",
+          conditionId: fullListing.conditionId || "very_good",
+          categoryId: fullListing.categoryId || "1807",
+          isbn: fullListing.isbn || "",
+          author: fullListing.author || "",
+          bookTitle: fullListing.bookTitle || "",
+          videoGameRating: fullListing.videoGameRating || "",
+          measurements: fullListing.measurements || "",
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Opening Vinted and launching publisher queue...");
+      setPreviewListing(null);
+    } catch (err) {
+      console.error("Error publishing to Vinted:", err);
+      toast.error("Failed to load listing details. Please try again.");
+    } finally {
+      setVintedPublishingId(null);
+    }
+  };
+
+  const handleDepopPublish = async (listing) => {
+    const isExtensionInstalled = document.body.dataset.elisterDepopExtensionInstalled === "true";
+    if (!isExtensionInstalled) {
+      toast.warning("Please install and reload the Elister Depop Chrome Extension to list automatically!");
+      return;
+    }
+
+    setDepopPublishingId(listing._id);
+    try {
+      const res = await listingService.getOne(listing._id);
+      if (!res.data?.success || !res.data?.data) {
+        throw new Error("Failed to fetch full listing details from server.");
+      }
+      
+      const fullListing = res.data.data;
+      
+      if (!fullListing.images || fullListing.images.length === 0) {
+        toast.warning("Listing has no images. Please add images before publishing!");
+        return;
+      }
+
+      const plainDesc = fullListing.description 
+        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
+        : '';
+
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
+        : 'http://localhost:5000/api';
+
+      window.postMessage({
+        action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
+        data: {
+          listingId: fullListing._id,
+          token,
+          backendUrl,
+          title: fullListing.title,
+          description: plainDesc,
+          brand: getDepopBrandId(fullListing.brand) || "",
+          price: parseFloat(fullListing.price) || 0.0,
+          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
+          size: fullListing.size || "",
+          color: fullListing.color || "",
+          material: fullListing.material || "",
+          conditionId: fullListing.conditionId || "3000",
+          categoryId: fullListing.categoryId || "",
+          category: fullListing.category || "",
+          allowedAttributes: DEPOP_CATEGORY_MAPPING[fullListing.categoryId] || [],
+          age: fullListing.age || "",
+          source: fullListing.source || "",
+          bodyFit: fullListing.bodyFit || "",
+          occasion: fullListing.occasion || "",
+          depopType: fullListing.depopType || "",
+          fastening: fullListing.fastening || "",
+          fit: fullListing.fit || "",
+          country: fullListing.country || "US",
+          shippingPrice: parseFloat(fullListing.shippingPrice) || 0.0,
+          worldwideShipping: !!fullListing.worldwideShipping,
+          quantity: parseInt(fullListing.quantity) || 1,
+          images: fullListing.images || []
+        }
+      }, "*");
+
+      toast.success("Opening Depop and launching publisher queue...");
+      setPreviewListing(null);
+    } catch (err) {
+      console.error("Error publishing to Depop:", err);
+      toast.error("Failed to load listing details. Please try again.");
+    } finally {
+      setDepopPublishingId(null);
+    }
+  };
+
+  const renderModalFooter = () => {
+    if (!previewListing) return null;
+    if (previewListing.isChannelProduct) {
+      if (!previewListing.url) return null;
+      return (
+        <a 
+          href={previewListing.url}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5"
+        >
+          <ExternalLink size={16} />
+          View on {previewListing.platform === 'ebay' ? 'eBay' : previewListing.platform === 'poshmark' ? 'Poshmark' : 'Depop'}
+        </a>
+      );
+    }
+
+    return (
+      <>
+        {previewListing.platform === 'poshmark' && (
+          <>
+            {previewListing.status?.toLowerCase() === 'published' && previewListing.poshmarkUrl ? (
+              <button 
+                onClick={() => handleVerifyAndOpen(previewListing)}
+                disabled={verifyingListingId === previewListing._id}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {verifyingListingId === previewListing._id ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  'View on Poshmark'
+                )}
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => handlePoshmarkDirectPublish(previewListing)}
+                  disabled={poshmarkDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
+                >
+                  {poshmarkDirectPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing Direct...
+                    </>
+                  ) : (
+                    'List to Poshmark (Direct API)'
+                  )}
+                </button>
+                <button 
+                  onClick={() => handlePoshmarkPublish(previewListing)}
+                  disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkDirectPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {poshmarkPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to Poshmark (Extension)'
+                  )}
+                </button>
+              </>
+            )}
+          </>
+        )}
+        {previewListing.platform === 'ebay' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status?.toLowerCase() === 'published' && previewListing.ebayUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handlePublish(previewListing._id);
+              }
+            }}
+            disabled={publishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Verifying...
+              </>
+            ) : publishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                Listing...
+              </>
+            ) : (
+              'List to eBay (API)'
+            )}
+          </button>
+        )}
+        {previewListing.platform === 'vinted' && (
+          <button 
+            onClick={() => {
+              if (previewListing.status?.toLowerCase() === 'published' && previewListing.vintedUrl) {
+                handleVerifyAndOpen(previewListing);
+              } else {
+                handleVintedPublish(previewListing);
+              }
+            }}
+            disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {verifyingListingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Verifying...
+              </>
+            ) : vintedPublishingId === previewListing._id ? (
+              <>
+                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Listing...
+              </>
+            ) : previewListing.status?.toLowerCase() === 'published' && previewListing.vintedUrl ? (
+              'View on Vinted'
+            ) : (
+              'List to Vinted (API)'
+            )}
+          </button>
+        )}
+        {previewListing.platform === 'depop' && (
+          <>
+            {previewListing.status?.toLowerCase() === 'published' && previewListing.depopUrl ? (
+              <button 
+                onClick={() => handleVerifyAndOpen(previewListing)}
+                disabled={verifyingListingId === previewListing._id}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {verifyingListingId === previewListing._id ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  'View on Depop'
+                )}
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => handleDepopDirectPublish(previewListing)}
+                  disabled={depopDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
+                >
+                  {depopDirectPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing Direct...
+                    </>
+                  ) : (
+                    'List to Depop (Direct API)'
+                  )}
+                </button>
+                <button 
+                  onClick={() => handleDepopPublish(previewListing)}
+                  disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopDirectPublishingId === previewListing._id}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
+                >
+                  {depopPublishingId === previewListing._id ? (
+                    <>
+                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                      Listing...
+                    </>
+                  ) : (
+                    'List to Depop (Extension)'
+                  )}
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </>
+    );
+  };
 
   useEffect(() => {
     if (activeTab === 'channel') {
@@ -602,24 +1173,29 @@ const NewListings = () => {
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
     const isDraft = item.platform === platformName && item.status?.toLowerCase() === 'draft';
     const isListed = !!checkId;
-    const isNotListed = !isListed && !isDraft;
 
     if (isListed) {
       return (
-        <div className="flex flex-col items-center justify-center py-1 select-none">
-          <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0">
+        <div 
+          onClick={() => handleOpenPreview(item, platformName)}
+          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
+        >
+          <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
             <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
           </div>
-          <span className="text-[10px] font-black text-emerald-600 mt-1 select-none">Listed</span>
+          <span className="text-[10px] font-black text-emerald-600 mt-1 select-none group-hover:text-indigo-650">Listed</span>
         </div>
       );
     } else if (isDraft) {
       return (
-        <div className="flex flex-col items-center justify-center py-1 select-none">
-          <div className="w-8 h-8 rounded-full border border-orange-100 flex items-center justify-center bg-white shadow-sm shrink-0">
+        <div 
+          onClick={() => handleOpenPreview(item, platformName)}
+          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
+        >
+          <div className="w-8 h-8 rounded-full border border-orange-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
             <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
           </div>
-          <span className="text-[10px] font-black text-orange-500 mt-1 select-none">Draft</span>
+          <span className="text-[10px] font-black text-orange-500 mt-1 select-none group-hover:text-indigo-650">Draft</span>
         </div>
       );
     } else {
@@ -894,7 +1470,7 @@ const NewListings = () => {
               <SlidersHorizontal size={14} className="text-slate-400" />
               Filters
               {(filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-black bg-indigo-650 text-white rounded-full leading-none">
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-black bg-indigo-600 text-white rounded-full leading-none">
                   {(filterListedOn.length > 0 ? 1 : 0) + (filterNoListedOn.length > 0 ? 1 : 0) + (sortOption !== 'newest' ? 1 : 0)}
                 </span>
               )}
@@ -1025,13 +1601,6 @@ const NewListings = () => {
                       {/* Actions */}
                       <td className="px-6 py-4.5 text-center">
                         <div className="flex justify-center items-center gap-2">
-                          <button 
-                            onClick={() => navigate(item.platform === 'vinted' ? `/create-vinted-listing?edit=${item._id}` : `/create-listing?edit=${item._id}`)}
-                            className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-slate-400 transition-all cursor-pointer"
-                            title="Edit Listing"
-                          >
-                            <Edit size={16} />
-                          </button>
                           <button 
                             onClick={() => handleDelete(item._id)}
                             className="p-1.5 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-slate-400 transition-all cursor-pointer"
@@ -1513,11 +2082,330 @@ const NewListings = () => {
         onClose={() => {
           setModalOpen(false);
           setSelectedListing(null);
+          setIsEditMode(false);
         }}
         listing={selectedListing}
         platform={selectedPlatform}
+        isEditMode={isEditMode}
         onSyncSuccess={fetchListings}
       />
+
+      {/* Preview Modal */}
+      {previewListing && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview ({previewListing.platform?.toUpperCase()})</span>
+                <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
+              </div>
+              <button 
+                onClick={() => setPreviewListing(null)}
+                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
+              {/* Left Column - Gallery & Basic Details */}
+              <div className="md:col-span-5 space-y-6">
+                {/* Image Gallery */}
+                {previewListing.images && previewListing.images.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                      <img 
+                        src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
+                        alt="Main Preview" 
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    {previewListing.images.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
+                        {previewListing.images.map((img, i) => (
+                          <button 
+                            key={i}
+                            onClick={() => setActiveImage(img)}
+                            className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
+                              (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
+                            }`}
+                          >
+                            <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
+                    No Images Uploaded
+                  </div>
+                )}
+
+                {/* Logistics */}
+                {(previewListing.packageWeight || previewListing.packageDimensions) && (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {previewListing.packageWeight && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
+                          <p className="text-sm font-bold text-slate-800">
+                            {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
+                          </p>
+                        </div>
+                      )}
+                      {previewListing.packageDimensions && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
+                          <p className="text-sm font-bold text-slate-800">
+                            {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column - Specifics, Pricing & HTML Description */}
+              <div className="md:col-span-7 space-y-6 font-sans">
+                {/* Meta details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</p>
+                    <div className="mt-1">{getStatusBadge(previewListing.status)}</div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      {previewListing.platform === 'poshmark' ? 'Listing Price' : 'Price'}
+                    </p>
+                    <p className="text-base font-black text-slate-900 mt-1">
+                      ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
+                      <p className="text-base font-black text-slate-500 mt-1">
+                        ${previewListing.originalPrice ? parseFloat(previewListing.originalPrice || 0).toFixed(2) : '0.00'}
+                      </p>
+                    </div>
+                  )}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.brand || '-'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.color || '-'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
+                  </div>
+                  {previewListing.platform !== 'vinted' && (
+                    <>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.quantity || '1'}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Style Tags</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.styleTag || '-'}</p>
+                      </div>
+                    </>
+                  )}
+                  {(previewListing.platform === 'vinted' || previewListing.platform === 'depop') && previewListing.material && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.age && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Age</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.age}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.source && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Source</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.source}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.bodyFit && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Body Fit</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bodyFit}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.occasion && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Occasion</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.occasion}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.depopType && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Depop Type</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.depopType}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.fastening && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fastening</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fastening}</p>
+                    </div>
+                  )}
+                  {previewListing.platform === 'depop' && previewListing.fit && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fit</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fit}</p>
+                    </div>
+                  )}
+                  {previewListing.measurements && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Measurements</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.measurements}</p>
+                    </div>
+                  )}
+                  {previewListing.isbn && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ISBN</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.isbn}</p>
+                    </div>
+                  )}
+                  {previewListing.author && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Author</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.author}</p>
+                    </div>
+                  )}
+                  {previewListing.bookTitle && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Title</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bookTitle}</p>
+                    </div>
+                  )}
+                  {previewListing.videoGameRating && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Video Game Rating</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.videoGameRating}</p>
+                    </div>
+                  )}
+                  {previewListing.selectedCondition && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.selectedCondition}</p>
+                    </div>
+                  )}
+                  {previewListing.shippingPrice && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Shipping Price</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">
+                        ${parseFloat(previewListing.shippingPrice || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                  {previewListing.worldwideShipping !== undefined && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Worldwide Shipping</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">
+                        {previewListing.worldwideShipping ? 'Yes' : 'No'}
+                      </p>
+                    </div>
+                  )}
+                  {previewListing.country && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Country/Location</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.country}</p>
+                    </div>
+                  )}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.sku || '-'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.category || '-'}</p>
+                  </div>
+                </div>
+
+                {/* Condition note */}
+                {previewListing.platform !== 'poshmark' && previewListing.conditionNote && (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition Note</p>
+                    <p className="text-sm text-slate-700 mt-1 leading-relaxed">{previewListing.conditionNote}</p>
+                  </div>
+                )}
+
+                {/* Item Specifics */}
+                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'vinted' && previewListing.platform !== 'depop' && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
+                    {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.entries(previewListing.itemSpecifics).map(([key, val]) => {
+                          const displayVal = Array.isArray(val) ? val.join(', ') : val;
+                          return (
+                            <div key={key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-500">{key}</span>
+                              <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[150px]">{displayVal || '-'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No specifics configured.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Description Template */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Description</h4>
+                  <div 
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[300px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
+                    style={{ whiteSpace: 'pre-wrap' }}
+                    dangerouslySetInnerHTML={{ __html: previewListing.description }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-3 font-sans">
+              <button 
+                onClick={() => setPreviewListing(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-605 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Close
+              </button>
+
+              {!previewListing.isChannelProduct && (
+                <button
+                  onClick={() => {
+                    setSelectedListing(previewListing);
+                    setSelectedPlatform(previewListing.platform || 'ebay');
+                    setIsEditMode(true);
+                    setModalOpen(true);
+                    setPreviewListing(null);
+                  }}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-amber-100 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Edit size={16} />
+                  Edit Listing
+                </button>
+              )}
+
+              {renderModalFooter()}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

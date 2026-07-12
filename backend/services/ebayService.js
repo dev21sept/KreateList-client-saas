@@ -396,13 +396,22 @@ async function getCategorySuggestions(token, query, categoryTreeId = '0') {
     }
 }
 
+const aspectsCache = new Map();
+
 async function getItemAspectsForCategory(token, categoryId, categoryTreeId = '0') {
+    const cacheKey = `${categoryTreeId}:${categoryId}`;
+    if (aspectsCache.has(cacheKey)) {
+        console.log(`[eBay Service] Category aspects cache hit for ${cacheKey}`);
+        return aspectsCache.get(cacheKey);
+    }
+
     try {
         const response = await axios.get(`${API_BASE_URL}/commerce/taxonomy/v1/category_tree/${categoryTreeId}/get_item_aspects_for_category?category_id=${categoryId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
+        aspectsCache.set(cacheKey, response.data);
         return response.data;
     } catch (error) {
         console.error(`Error getting item aspects for category ${categoryId}:`, error.response?.data || error.message);

@@ -21,7 +21,8 @@ import {
   Server,
   Lock,
   ChevronRight,
-  Settings
+  Settings,
+  X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ebayService, externalImportService } from '../services/api';
@@ -37,23 +38,24 @@ const EbayAccounts = () => {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   
+  // Modals state
+  const [isPoshModalOpen, setIsPoshModalOpen] = useState(false);
+  const [isDepopModalOpen, setIsDepopModalOpen] = useState(false);
+
   // Poshmark Form state
   const [poshUsername, setPoshUsername] = useState('');
-  const [poshCookie, setPoshCookie] = useState('');
-  const [poshCsrf, setPoshCsrf] = useState('');
   const [poshLoading, setPoshLoading] = useState(false);
   const [poshPassword, setPoshPassword] = useState('');
   const [poshDomain, setPoshDomain] = useState('poshmark.com');
-  const [poshConnectMethod, setPoshConnectMethod] = useState('password'); // 'password', 'extension', 'manual'
+  const [poshConnectMethod, setPoshConnectMethod] = useState('password'); // 'password', 'extension'
   const [showPosh2fa, setShowPosh2fa] = useState(false);
   const [posh2faCode, setPosh2faCode] = useState('');
   const [posh2faSessionId, setPosh2faSessionId] = useState('');
 
   // Depop Form state
   const [depopUsername, setDepopUsername] = useState('');
-  const [depopToken, setDepopToken] = useState('');
   const [depopLoading, setDepopLoading] = useState(false);
-  const [depopConnectMethod, setDepopConnectMethod] = useState('interactive'); // 'interactive', 'extension', 'manual'
+  const [depopConnectMethod, setDepopConnectMethod] = useState('interactive'); // 'interactive', 'extension'
 
   // Sync state
   const [syncingPlatform, setSyncingPlatform] = useState(null);
@@ -240,35 +242,7 @@ const EbayAccounts = () => {
     }, '*');
   };
 
-  // Poshmark Connect/Disconnect
-  const handlePoshmarkConnect = async (e) => {
-    e.preventDefault();
-    if (!poshUsername || !poshCookie || !poshCsrf) {
-      toast.warning('Please fill in all Poshmark fields.');
-      return;
-    }
-    try {
-      setPoshLoading(true);
-      const res = await externalImportService.connect({
-        platform: 'poshmark',
-        username: poshUsername,
-        sessionCookie: poshCookie,
-        csrfToken: poshCsrf
-      });
-      if (res.data?.success) {
-        toast.success('Poshmark Connected Successfully!');
-        await loadUser();
-        setPoshUsername('');
-        setPoshCookie('');
-        setPoshCsrf('');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to connect Poshmark.');
-    } finally {
-      setPoshLoading(false);
-    }
-  };
+  // Poshmark connection handlers removed (Cloud & Extension only)
 
   const handlePoshmarkPasswordConnect = async (e) => {
     e.preventDefault();
@@ -355,33 +329,7 @@ const EbayAccounts = () => {
     }
   };
 
-  // Depop Connect/Disconnect
-  const handleDepopConnect = async (e) => {
-    e.preventDefault();
-    if (!depopUsername || !depopToken) {
-      toast.warning('Please fill in all Depop fields.');
-      return;
-    }
-    try {
-      setDepopLoading(true);
-      const res = await externalImportService.connect({
-        platform: 'depop',
-        username: depopUsername,
-        accessToken: depopToken
-      });
-      if (res.data?.success) {
-        toast.success('Depop Connected Successfully!');
-        await loadUser();
-        setDepopUsername('');
-        setDepopToken('');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to connect Depop.');
-    } finally {
-      setDepopLoading(false);
-    }
-  };
+  // Depop connection handler removed (In-App & Extension only)
 
   const handleDepopInteractiveConnect = async () => {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -392,7 +340,7 @@ const EbayAccounts = () => {
         toast.info('Redirecting to Depop login. Please log in, and eLister will capture your connection automatically.');
         triggerAutoConnect('depop');
       } else {
-        toast.info('Opening Depop login page. Please log in, then copy your token to the Manual Mode tab, or install the Chrome Extension for automatic connection.');
+        toast.info('Opening Depop login page. Please log in, then ensure the Chrome Extension is enabled to connect automatically.');
         window.open('https://www.depop.com/login/', '_blank');
       }
       return;
@@ -438,208 +386,405 @@ const EbayAccounts = () => {
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto py-2">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full -mr-32 -mt-32 blur-2xl transition-all duration-700" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Integrations</h1>
-            <div className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-200">
-              Production Live
+      {/* Header removed due to dynamic header in NewDashboardLayout */}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* 1. eBay Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <img src="/ebay.png" className="w-12 h-12 object-contain" alt="eBay" />
+                </div>
+                
+                <h3 className="text-lg font-black text-slate-800 mb-1">eBay</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Online Auction & Retail</p>
+
+                {/* Connection Badge */}
+                {ebay?.connected ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    Disconnected
+                  </div>
+                )}
+
+                {/* Info Area */}
+                {ebay?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{ebay.username}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Connected at {ebay.connectedAt ? new Date(ebay.connectedAt).toLocaleDateString() : 'Active'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Authorize eLister to publish listings and sync your live eBay inventory.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {ebay?.connected ? (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleDisconnect}
+                      disabled={loading}
+                      className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1"
+                    >
+                      Disconnect Channel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleConnect}
+                    disabled={loading}
+                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={14} /> : <>Connect eBay <ChevronRight size={14} /></>}
+                  </button>
+                )}
+                {statusMsg && <p className="text-indigo-600 font-bold text-[10px] mt-2 animate-pulse">{statusMsg}</p>}
+              </div>
+            </div>
+
+            {/* 2. Poshmark Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <img src="/poshmark.png" className="w-12 h-12 object-contain" alt="Poshmark" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 mb-1">Poshmark</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Social Commerce Closet</p>
+
+                {/* Connection Badge */}
+                {poshmark?.connected ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    Disconnected
+                  </div>
+                )}
+
+                {/* Info Area */}
+                {poshmark?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{poshmark.username}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Connected at {poshmark.connectedAt ? new Date(poshmark.connectedAt).toLocaleDateString() : 'Active'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Import and crosslist products directly to your Poshmark closet.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {poshmark?.connected ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleSyncCloset('poshmark', poshmark.username)}
+                      disabled={syncingPlatform === 'poshmark'}
+                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncingPlatform === 'poshmark' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                      Sync Closet
+                    </button>
+                    <button
+                      onClick={handlePoshmarkDisconnect}
+                      disabled={poshLoading}
+                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                    >
+                      Disconnect Channel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setPoshConnectMethod('password');
+                      setIsPoshModalOpen(true);
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    Connect Poshmark <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Depop Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <img src="/depop.png" className="w-12 h-12 object-contain" alt="Depop" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 mb-1">Depop</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Fashion Marketplace & Shop</p>
+
+                {/* Connection Badge */}
+                {depop?.connected ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    Disconnected
+                  </div>
+                )}
+
+                {/* Info Area */}
+                {depop?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{depop.username}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Connected at {depop.connectedAt ? new Date(depop.connectedAt).toLocaleDateString() : 'Active'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Connect to your Depop account to sync inventory and list items.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {depop?.connected ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleSyncCloset('depop', depop.username)}
+                      disabled={syncingPlatform === 'depop'}
+                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncingPlatform === 'depop' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                      Sync Shop
+                    </button>
+                    <button
+                      onClick={handleDepopDisconnect}
+                      disabled={depopLoading}
+                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                    >
+                      Disconnect Channel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setDepopConnectMethod('interactive');
+                      setIsDepopModalOpen(true);
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    Connect Depop <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Enterprise-Grade Security Card */}
+          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-8 md:p-10 rounded-[2.5rem] text-white relative overflow-hidden border border-slate-800 shadow-xl shadow-indigo-950/10 mt-6">
+            {/* Ambient Background Glows */}
+            <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
+
+            <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              {/* Left Info Column */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* Shield Icon */}
+                <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20 shadow-inner">
+                  <ShieldCheck size={28} className="animate-pulse" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h4 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                    Enterprise-Grade Security
+                  </h4>
+                  <p className="text-slate-400 text-xs md:text-sm leading-relaxed font-medium">
+                    Your credentials and API keys are fully protected. Elister uses cutting-edge cryptographic protocols and secure network channels to manage your multi-channel inventory.
+                  </p>
+                </div>
+
+                {/* Status footer badge */}
+                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Network Status</span>
+                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black uppercase tracking-wide">
+                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+                    Fully Secure (SSL/TLS 1.3)
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Features Column - 2x2 Grid */}
+              <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* AES-256 */}
+                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-300 space-y-3">
+                  <div className="w-9 h-9 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center">
+                    <Lock size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-slate-200">AES-256 Encryption</h5>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      All active sessions, local credentials, and cookies are encrypted at rest using military-grade AES-256 protocols.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Direct API */}
+                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-300 space-y-3">
+                  <div className="w-9 h-9 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center">
+                    <Server size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-slate-200">Direct API Integration</h5>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      Listing publishing, inventory retrieval, and updates use direct authorized API gateways to communicate with the marketplaces.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sync */}
+                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-300 space-y-3">
+                  <div className="w-9 h-9 bg-violet-500/10 text-violet-400 rounded-xl flex items-center justify-center">
+                    <Globe size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-slate-200">Multi-Channel Sync</h5>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      Event-driven webhooks automatically sync listings and quantity counts across eBay, Poshmark, and Depop.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Session Protection */}
+                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-300 space-y-3">
+                  <div className="w-9 h-9 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center">
+                    <ShieldCheck size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-slate-200">Session Guard</h5>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      Session tokens automatically expire when inactive. Local cookies are periodically purged to safeguard against session hijacking.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
-          <p className="text-slate-500 font-medium text-sm">Enterprise-grade multi-channel connectivity and real-time sync.</p>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Main Integrations Column */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* 1. eBay Integration Card */}
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">eBay Channel</h3>
-            {ebay?.connected ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative overflow-hidden"
-              >
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
-                    <span className="text-white text-xl font-black">{ebay.username?.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{ebay.username}</h2>
-                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">{ebay.name || 'Merchant Account'}</p>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-[10px] text-slate-400">Connected at {ebay.connectedAt ? new Date(ebay.connectedAt).toLocaleDateString() : 'Active'}</span>
-                      <button 
-                        onClick={handleDisconnect}
-                        disabled={loading}
-                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
-                      >
-                        Disconnect eBay
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ) : (
-              <div className="text-center py-6 space-y-4">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto border border-slate-100">
-                  <LinkIcon size={24} className="text-slate-300" />
-                </div>
+      {/* Connection Modals */}
+      {isPoshModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 overflow-hidden relative flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
+              <div className="flex items-center gap-3">
+                <img src="/poshmark.png" className="w-8 h-8 object-contain" alt="" />
                 <div>
-                  <h4 className="text-md font-bold text-slate-900">Connect eBay Channel</h4>
-                  <p className="text-slate-500 text-xs">Authorize eLister to publish directly and manage your eBay stock.</p>
+                  <h3 className="text-lg font-black text-slate-800">Connect Poshmark</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
                 </div>
-                <button 
-                  onClick={handleConnect}
-                  disabled={loading}
-                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={14} /> : <>Connect eBay <ChevronRight size={14} /></>}
-                </button>
-                {statusMsg && <p className="text-indigo-600 font-bold text-xs animate-pulse">{statusMsg}</p>}
               </div>
-            )}
-          </div>
-
-          {/* 2. Poshmark Integration Card */}
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Poshmark Channel</h3>
-            {poshmark?.connected ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative overflow-hidden"
+              <button 
+                onClick={() => {
+                  setIsPoshModalOpen(false);
+                  setShowPosh2fa(false);
+                }}
+                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
               >
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-16 h-16 bg-rose-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
-                    <span className="text-white text-xl font-black">{poshmark.username?.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{poshmark.username}</h2>
-                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">Poshmark Closet</p>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-[10px] text-slate-400">Connected at {poshmark.connectedAt ? new Date(poshmark.connectedAt).toLocaleDateString() : 'Active'}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">
-                      <button
-                        onClick={() => handleSyncCloset('poshmark', poshmark.username)}
-                        disabled={syncingPlatform === 'poshmark'}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {syncingPlatform === 'poshmark' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
-                        Sync Poshmark Closet
-                      </button>
-                      <button 
-                        onClick={handlePoshmarkDisconnect}
-                        disabled={poshLoading}
-                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
-                      >
-                        Disconnect Poshmark
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ) : (
-              <div className="space-y-4">
-                {/* Method selector tabs */}
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 max-w-md mx-auto">
-                  <button
-                    onClick={() => setPoshConnectMethod('password')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      poshConnectMethod === 'password' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Cloud Login
-                  </button>
-                  <button
-                    onClick={() => setPoshConnectMethod('extension')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      poshConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Chrome Extension
-                  </button>
-                  <button
-                    onClick={() => setPoshConnectMethod('manual')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      poshConnectMethod === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Manual Mode
-                  </button>
-                </div>
+                <X size={18} />
+              </button>
+            </div>
 
-                {poshConnectMethod === 'password' && (
-                  showPosh2fa ? (
-                    <form onSubmit={handlePoshmark2faSubmit} className="space-y-3 max-w-md mx-auto">
-                      <div className="text-center py-1">
-                        <h4 className="text-sm font-bold text-slate-800">Email Verification Required</h4>
-                        <p className="text-slate-500 text-[11px] mt-0.5">Please check your email for the code sent by Poshmark.</p>
-                      </div>
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {showPosh2fa ? (
+                <form onSubmit={handlePoshmark2faSubmit} className="space-y-4">
+                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center">
+                    <h4 className="text-xs font-bold text-indigo-900 mb-1">Email Verification Required</h4>
+                    <p className="text-[11px] text-indigo-700">Please enter the security verification code sent by Poshmark to your email.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Verification Code</label>
+                    <input 
+                      type="text" 
+                      placeholder="Enter OTP / verification code" 
+                      value={posh2faCode}
+                      onChange={(e) => setPosh2faCode(e.target.value)}
+                      className="w-full h-11 px-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none font-bold tracking-widest text-center focus:ring-2 focus:ring-indigo-500/10 transition-all text-slate-700"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowPosh2fa(false);
+                        setPosh2faCode('');
+                      }}
+                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                    >
+                      Back to Login
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={poshLoading}
+                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
+                    >
+                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Verify Code'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {/* Method selector tabs */}
+                  <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPoshConnectMethod('password')}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                        poshConnectMethod === 'password' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      Cloud Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPoshConnectMethod('extension')}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                        poshConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      Chrome Extension
+                    </button>
+                  </div>
+
+                  {poshConnectMethod === 'password' && (
+                    <form onSubmit={handlePoshmarkPasswordConnect} className="space-y-4">
                       <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Verification Code</label>
-                        <input 
-                          type="text" 
-                          placeholder="Enter OTP / verification code" 
-                          value={posh2faCode}
-                          onChange={(e) => setPosh2faCode(e.target.value)}
-                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold tracking-widest text-center"
-                        />
-                      </div>
-                      <div className="flex gap-2.5 pt-1">
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setShowPosh2fa(false);
-                            setPosh2faCode('');
-                          }}
-                          className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs transition-all"
-                        >
-                          Cancel
-                        </button>
-                        <button 
-                          type="submit"
-                          disabled={poshLoading}
-                          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-                        >
-                          {poshLoading ? <Loader2 className="animate-spin" size={12} /> : 'Verify Code'}
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <form onSubmit={handlePoshmarkPasswordConnect} className="space-y-3 max-w-md mx-auto">
-                      <div className="text-center py-1">
-                        <h4 className="text-sm font-bold text-slate-800">Cloud Password Login</h4>
-                        <p className="text-slate-500 text-[11px] mt-0.5">Logs in to Poshmark directly using your credentials.</p>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Region</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Poshmark Region</label>
                         <select
                           value={poshDomain}
                           onChange={(e) => setPoshDomain(e.target.value)}
-                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-slate-700"
+                          className="w-full h-11 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-slate-700"
                         >
                           <option value="poshmark.com">United States (poshmark.com)</option>
                           <option value="poshmark.ca">Canada (poshmark.ca)</option>
@@ -648,271 +793,194 @@ const EbayAccounts = () => {
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Username or Email</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Username or Email</label>
                         <input 
                           type="text" 
                           placeholder="e.g. posh_seller or email@example.com" 
                           value={poshUsername}
                           onChange={(e) => setPoshUsername(e.target.value)}
-                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                          className="w-full h-11 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-semibold text-slate-700"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Password</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Password</label>
                         <input 
                           type="password" 
                           placeholder="Your Poshmark password" 
                           value={poshPassword}
                           onChange={(e) => setPoshPassword(e.target.value)}
-                          className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
+                          className="w-full h-11 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-semibold"
                         />
                       </div>
-                      <button 
-                        type="submit"
-                        disabled={poshLoading}
-                        className="w-full py-2.5 mt-2 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark'}
-                      </button>
+                      <div className="pt-2 flex gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => setIsPoshModalOpen(false)}
+                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit"
+                          disabled={poshLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
+                        >
+                          {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Closet'}
+                        </button>
+                      </div>
                     </form>
-                  )
-                )}
+                  )}
 
-                {poshConnectMethod === 'extension' && (
-                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
-                    <h4 className="text-sm font-bold text-slate-800">1-Click Chrome Extension</h4>
-                    <p className="text-slate-500 text-xs">Grabs your active browser session automatically. Solves CAPTCHA issues instantly.</p>
-                    
-                    <button 
-                      onClick={() => triggerAutoConnect('poshmark')}
-                      disabled={poshLoading}
-                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
-                    >
-                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
-                    </button>
-                  </div>
-                )}
-
-                {poshConnectMethod === 'manual' && (
-                  <form onSubmit={handlePoshmarkConnect} className="space-y-3 max-w-md mx-auto">
-                    <div className="text-center py-1">
-                      <h4 className="text-sm font-bold text-slate-800">Manual Cookie Setup</h4>
-                      <p className="text-slate-500 text-[11px] mt-0.5">Directly input captured cookies and tokens from Developer Tools.</p>
+                  {poshConnectMethod === 'extension' && (
+                    <div className="space-y-4 py-2">
+                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
+                        <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                        <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
+                          <li>Requires eLister Chrome Extension.</li>
+                          <li>Make sure you are logged in to Poshmark on your Chrome browser.</li>
+                          <li>The extension will automatically pull your session.</li>
+                        </ul>
+                      </div>
+                      
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          type="button"
+                          onClick={() => setIsPoshModalOpen(false)}
+                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={() => {
+                            triggerAutoConnect('poshmark');
+                            setIsPoshModalOpen(false);
+                          }}
+                          disabled={poshLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                        >
+                          {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
+                        </button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Poshmark Username</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. posh_seller" 
-                        value={poshUsername}
-                        onChange={(e) => setPoshUsername(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Session Cookie (_poshmark_session)</label>
-                      <input 
-                        type="text" 
-                        placeholder="Paste complete _poshmark_session cookie value" 
-                        value={poshCookie}
-                        onChange={(e) => setPoshCookie(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">CSRF Token (x-xsrf-token / x-csrf-token)</label>
-                      <input 
-                        type="text" 
-                        placeholder="Paste csrf token value" 
-                        value={poshCsrf}
-                        onChange={(e) => setPoshCsrf(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <button 
-                      type="submit"
-                      disabled={poshLoading}
-                      className="w-full py-2.5 bg-rose-500 text-white rounded-xl font-black text-xs hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
-                    >
-                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Poshmark Manually'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-
+                  )}
+                </>
+              )}
+            </div>
           </div>
+        </div>
+      )}
 
-          {/* 3. Depop Integration Card */}
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Depop Channel</h3>
-            {depop?.connected ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative overflow-hidden"
+      {isDepopModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 overflow-hidden relative flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
+              <div className="flex items-center gap-3">
+                <img src="/depop.png" className="w-8 h-8 object-contain" alt="" />
+                <div>
+                  <h3 className="text-lg font-black text-slate-800">Connect Depop</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsDepopModalOpen(false)}
+                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
               >
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-16 h-16 bg-red-650 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white">
-                    <span className="text-white text-xl font-black">{depop.username?.charAt(0).toUpperCase()}</span>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* Method selector tabs */}
+              <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => setDepopConnectMethod('interactive')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                    depopConnectMethod === 'interactive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  In-App Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepopConnectMethod('extension')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                    depopConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Chrome Extension
+                </button>
+              </div>
+
+              {depopConnectMethod === 'interactive' && (
+                <div className="space-y-4 py-2">
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2 text-center">
+                    <h4 className="text-xs font-bold text-slate-800">Secure In-App Login</h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      We'll open a secure connection tab where you can log in to your Depop account. eLister will securely authorize and establish the connection.
+                    </p>
                   </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{depop.username}</h2>
-                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">Depop Closet</p>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black text-emerald-700 uppercase">Sync Active</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-[10px] text-slate-400">Connected at {depop.connectedAt ? new Date(depop.connectedAt).toLocaleDateString() : 'Active'}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">
-                      <button
-                        onClick={() => handleSyncCloset('depop', depop.username)}
-                        disabled={syncingPlatform === 'depop'}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {syncingPlatform === 'depop' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
-                        Sync Depop Shop
-                      </button>
-                      <button 
-                        onClick={handleDepopDisconnect}
-                        disabled={depopLoading}
-                        className="text-rose-500 hover:text-rose-600 font-bold text-xs"
-                      >
-                        Disconnect Depop
-                      </button>
-                    </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setIsDepopModalOpen(false)}
+                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleDepopInteractiveConnect();
+                        setIsDepopModalOpen(false);
+                      }}
+                      disabled={depopLoading}
+                      className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                    >
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Start Login Flow <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
+                    </button>
                   </div>
                 </div>
-              </motion.div>
-            ) : (
-              <div className="space-y-4">
-                {/* Method selector tabs */}
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 max-w-md mx-auto">
-                  <button
-                    onClick={() => setDepopConnectMethod('interactive')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      depopConnectMethod === 'interactive' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    In-App Login
-                  </button>
-                  <button
-                    onClick={() => setDepopConnectMethod('extension')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      depopConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Chrome Extension
-                  </button>
-                  <button
-                    onClick={() => setDepopConnectMethod('manual')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
-                      depopConnectMethod === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    Manual Mode
-                  </button>
+              )}
+
+              {depopConnectMethod === 'extension' && (
+                <div className="space-y-4 py-2">
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
+                    <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                    <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
+                      <li>Requires eLister Chrome Extension.</li>
+                      <li>Make sure you are logged in to Depop on your Chrome browser.</li>
+                      <li>The extension will automatically pull your session.</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setIsDepopModalOpen(false)}
+                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        triggerAutoConnect('depop');
+                        setIsDepopModalOpen(false);
+                      }}
+                      disabled={depopLoading}
+                      className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                    >
+                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
+                    </button>
+                  </div>
                 </div>
-
-                {depopConnectMethod === 'interactive' && (
-                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
-                    <h4 className="text-sm font-bold text-slate-800">Direct In-App Login</h4>
-                    <p className="text-slate-500 text-xs">Opens a secure browser window. Enter your details and log in manually, eLister will capture the session instantly.</p>
-                    
-                    <button 
-                      onClick={handleDepopInteractiveConnect}
-                      disabled={depopLoading}
-                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
-                    >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Depop Account <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
-                    </button>
-                  </div>
-                )}
-
-                {depopConnectMethod === 'extension' && (
-                  <div className="text-center py-4 flex flex-col items-center gap-2 max-w-md mx-auto">
-                    <h4 className="text-sm font-bold text-slate-800">1-Click Chrome Extension</h4>
-                    <p className="text-slate-500 text-xs">Grabs your active browser session automatically from Chrome.</p>
-                    
-                    <button 
-                      onClick={() => triggerAutoConnect('depop')}
-                      disabled={depopLoading}
-                      className="mt-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
-                    >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={14} className="text-yellow-400 fill-yellow-400" /></>}
-                    </button>
-                  </div>
-                )}
-
-                {depopConnectMethod === 'manual' && (
-                  <form onSubmit={handleDepopConnect} className="space-y-3 max-w-md mx-auto">
-                    <div className="text-center py-1">
-                      <h4 className="text-sm font-bold text-slate-800">Manual Token Setup</h4>
-                      <p className="text-slate-500 text-[11px] mt-0.5">Directly input captured username and Bearer token.</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Depop Username</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. depop_seller" 
-                        value={depopUsername}
-                        onChange={(e) => setDepopUsername(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Access Token (Bearer token)</label>
-                      <input 
-                        type="text" 
-                        placeholder="Paste complete authorization Bearer token" 
-                        value={depopToken}
-                        onChange={(e) => setDepopToken(e.target.value)}
-                        className="w-full h-10 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <button 
-                      type="submit"
-                      disabled={depopLoading}
-                      className="w-full py-2.5 bg-red-650 text-white rounded-xl font-black text-xs hover:bg-red-750 transition-all flex items-center justify-center gap-2"
-                    >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Depop Manually'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar Info Column */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white space-y-6 relative overflow-hidden">
-            <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-white/10">
-              <ShieldCheck size={24} />
-            </div>
-            <div className="space-y-2">
-              <h4 className="text-lg font-black tracking-tight">Secure Connection</h4>
-              <p className="text-slate-400 text-[10px] leading-relaxed font-medium">
-                Authorization tokens and cookies are encrypted using AES-256 standard and used solely to route direct api queries.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 text-[10px] font-bold text-slate-300">
-                <Lock size={14} className="text-emerald-400" /> Secure Storage
-              </div>
-              <div className="flex items-center gap-3 text-[10px] font-bold text-slate-300">
-                <Lock size={14} className="text-emerald-400" /> Direct API listing
-              </div>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

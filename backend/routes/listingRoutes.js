@@ -31,5 +31,6 @@ router.route('/:id')
 
 router.post('/:id/publish', requireActiveSubscription, publishListing);
 router.post('/:id/verify-live', verifyListingLive);
+router.get('/:id/cross-list-prep', require('../controllers/crossListController').prepareCrossList);
 
 module.exports = router;
