@@ -54,17 +54,24 @@ async function getShopInfo(accessToken) {
   try {
     // 1. Get User ID from Access Token prefix
     const userIdPrefix = accessToken.split('.')[0];
+    console.log('[Etsy Service] Parsed User ID Prefix:', userIdPrefix);
+    console.log('[Etsy Service] Access Token length:', accessToken ? accessToken.length : 0);
     if (!userIdPrefix) {
       throw new Error('Invalid access token format');
     }
 
     // 2. Fetch User's Shops
-    const response = await axios.get(`https://api.etsy.com/v3/application/users/${userIdPrefix}/shops`, {
+    const url = `https://api.etsy.com/v3/application/users/${userIdPrefix}/shops`;
+    console.log('[Etsy Service] Requesting shops from URL:', url);
+    const response = await axios.get(url, {
       headers: {
         'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
       }
     });
+
+    console.log('[Etsy Service] API Response status:', response.status);
+    console.log('[Etsy Service] API Response data:', JSON.stringify(response.data));
 
     const shops = response.data?.results || [];
     if (shops.length === 0) {
