@@ -16,7 +16,7 @@ import {
   Clock,
   CheckCircle2
 } from 'lucide-react';
-import { listingService, ebayService, externalImportService } from '../services/api';
+import { listingService, ebayService, externalImportService, etsyService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import CrosslistingModal from '../components/CrosslistingModal';
@@ -57,8 +57,8 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-1',
     depopUrl: 'https://depop.com',
-    vintedListingId: 'vinted-1',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-1',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-2',
@@ -76,8 +76,8 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-2',
     depopUrl: 'https://depop.com',
-    vintedListingId: 'vinted-2',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-2',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-3',
@@ -92,7 +92,7 @@ const MOCK_LISTINGS = [
     ebayListingId: '',
     poshmarkListingId: '',
     depopListingId: '',
-    vintedListingId: '',
+    etsyListingId: '',
   },
   {
     _id: 'mock-4',
@@ -110,8 +110,8 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-4',
     depopUrl: 'https://depop.com',
-    vintedListingId: 'vinted-4',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-4',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-5',
@@ -129,8 +129,8 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-5',
     depopUrl: 'https://depop.com',
-    vintedListingId: 'vinted-5',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-5',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-6',
@@ -147,8 +147,8 @@ const MOCK_LISTINGS = [
     poshmarkListingId: 'poshmark-6',
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: '', // Not Listed
-    vintedListingId: 'vinted-6',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-6',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-7',
@@ -166,8 +166,8 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-7',
     depopUrl: 'https://depop.com',
-    vintedListingId: 'vinted-7',
-    vintedUrl: 'https://vinted.com',
+    etsyListingId: 'etsy-7',
+    etsyUrl: 'https://etsy.com',
   },
   {
     _id: 'mock-8',
@@ -185,7 +185,7 @@ const MOCK_LISTINGS = [
     poshmarkUrl: 'https://poshmark.com',
     depopListingId: 'depop-8',
     depopUrl: 'https://depop.com',
-    vintedListingId: '', // Not Listed
+    etsyListingId: '', // Not Listed
   }
 ];
 
@@ -210,7 +210,7 @@ const groupListingsBySku = (rawListings) => {
       const existing = matchedGroup;
       
       // Add platform status documents or the item itself
-      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
       platforms.forEach(p => {
         if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
           if (!existing.listingsMap[p] || (new Date(item.createdAt || 0) > new Date(existing.listingsMap[p].createdAt || 0))) {
@@ -236,9 +236,9 @@ const groupListingsBySku = (rawListings) => {
         existing.depopListingId = item.depopListingId;
         existing.depopUrl = item.depopUrl;
       }
-      if (item.vintedListingId) {
-        existing.vintedListingId = item.vintedListingId;
-        existing.vintedUrl = item.vintedUrl;
+      if (item.etsyListingId) {
+        existing.etsyListingId = item.etsyListingId;
+        existing.etsyUrl = item.etsyUrl;
       }
 
       // If any of the listings is more recent, use its title/thumbnail/date and other details
@@ -278,7 +278,7 @@ const groupListingsBySku = (rawListings) => {
       };
 
       // Set the initial platform mappings
-      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
       platforms.forEach(p => {
         if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
           newGroup.listingsMap[p] = item;
@@ -317,7 +317,7 @@ const NewListings = () => {
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
   const [poshmarkDirectPublishingId, setPoshmarkDirectPublishingId] = useState(null);
-  const [vintedPublishingId, setVintedPublishingId] = useState(null);
+  const [etsyPublishingId, setEtsyPublishingId] = useState(null);
   const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
@@ -382,7 +382,7 @@ const NewListings = () => {
     if (platform === 'ebay') id = item.ebayListingId;
     else if (platform === 'poshmark') id = item.poshmarkListingId;
     else if (platform === 'depop') id = item.depopListingId;
-    else if (platform === 'vinted') id = item.vintedListingId;
+    else if (platform === 'etsy') id = item.etsyListingId;
     
     return !!id && id !== 'undefined' && id !== 'null' && id !== '';
   };
@@ -611,7 +611,7 @@ const NewListings = () => {
           let url = '';
           if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
           else if (listing.platform === 'ebay') url = listing.ebayUrl;
-          else if (listing.platform === 'vinted') url = listing.vintedUrl;
+          else if (listing.platform === 'etsy') url = listing.etsyUrl;
           else if (listing.platform === 'depop') url = listing.depopUrl;
           window.open(url, '_blank');
         } else {
@@ -625,7 +625,7 @@ const NewListings = () => {
       let url = '';
       if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
       else if (listing.platform === 'ebay') url = listing.ebayUrl;
-      else if (listing.platform === 'vinted') url = listing.vintedUrl;
+      else if (listing.platform === 'etsy') url = listing.etsyUrl;
       else if (listing.platform === 'depop') url = listing.depopUrl;
       window.open(url, '_blank');
     } finally {
@@ -735,68 +735,21 @@ const NewListings = () => {
     }
   };
 
-  const handleVintedPublish = async (listing) => {
-    const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
-    if (!isExtensionInstalled) {
-      toast.warning("Please install and reload the Elister Vinted Chrome Extension to list automatically!");
-      return;
-    }
-
-    setVintedPublishingId(listing._id);
+  const handleEtsyPublish = async (listing) => {
+    setEtsyPublishingId(listing._id);
     try {
-      const res = await listingService.getOne(listing._id);
-      if (!res.data?.success || !res.data?.data) {
-        throw new Error("Failed to fetch full listing details from server.");
+      toast.info("Publishing to Etsy directly via API...");
+      const res = await etsyService.publish(listing._id);
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Etsy!");
+        setPreviewListing(null);
+        fetchListings();
       }
-      
-      const fullListing = res.data.data;
-      
-      if (!fullListing.images || fullListing.images.length === 0) {
-        toast.warning("Listing has no images. Please add images before publishing!");
-        return;
-      }
-
-      const plainDesc = fullListing.description 
-        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
-        : '';
-
-      const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.MODE === 'production'
-        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-        : 'http://localhost:5000/api';
-
-      window.postMessage({
-        action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
-        data: {
-          listingId: fullListing._id,
-          token,
-          backendUrl,
-          title: fullListing.title,
-          description: plainDesc,
-          brand: fullListing.brand || "",
-          price: parseFloat(fullListing.price) || 0.0,
-          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
-          size: fullListing.size || "",
-          color: fullListing.color || "",
-          material: fullListing.material || "",
-          conditionId: fullListing.conditionId || "very_good",
-          categoryId: fullListing.categoryId || "1807",
-          isbn: fullListing.isbn || "",
-          author: fullListing.author || "",
-          bookTitle: fullListing.bookTitle || "",
-          videoGameRating: fullListing.videoGameRating || "",
-          measurements: fullListing.measurements || "",
-          images: fullListing.images || []
-        }
-      }, "*");
-
-      toast.success("Opening Vinted and launching publisher queue...");
-      setPreviewListing(null);
-    } catch (err) {
-      console.error("Error publishing to Vinted:", err);
-      toast.error("Failed to load listing details. Please try again.");
+    } catch (error) {
+      console.error("Error publishing to Etsy:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Etsy.");
     } finally {
-      setVintedPublishingId(null);
+      setEtsyPublishingId(null);
     }
   };
 
@@ -972,16 +925,16 @@ const NewListings = () => {
             )}
           </button>
         )}
-        {previewListing.platform === 'vinted' && (
+        {previewListing.platform === 'etsy' && (
           <button 
             onClick={() => {
-              if (previewListing.vintedUrl) {
+              if (previewListing.etsyUrl) {
                 handleVerifyAndOpen(previewListing);
               } else {
-                handleVintedPublish(previewListing);
+                handleEtsyPublish(previewListing);
               }
             }}
-            disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            disabled={etsyPublishingId === previewListing._id || verifyingListingId === previewListing._id}
             className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {verifyingListingId === previewListing._id ? (
@@ -989,15 +942,15 @@ const NewListings = () => {
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Verifying...
               </>
-            ) : vintedPublishingId === previewListing._id ? (
+            ) : etsyPublishingId === previewListing._id ? (
               <>
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Listing...
               </>
-            ) : previewListing.vintedUrl ? (
-              'View on Vinted'
+            ) : previewListing.etsyUrl ? (
+              'View on Etsy'
             ) : (
-              'List to Vinted (API)'
+              'List to Etsy (API)'
             )}
           </button>
         )}
@@ -1644,7 +1597,7 @@ const NewListings = () => {
                   <th className="py-2.5 text-center border-l border-[#f3f4f6] w-20">eBay</th>
                   <th className="py-2.5 text-center w-20">Poshmark</th>
                   <th className="py-2.5 text-center w-20">Depop</th>
-                  <th className="py-2.5 text-center w-20">Vinted</th>
+                  <th className="py-2.5 text-center w-20">Etsy</th>
                   <th />
                 </tr>
               </thead>
@@ -1721,7 +1674,7 @@ const NewListings = () => {
                         {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
                       </td>
                       <td className="border-r border-[#f3f4f6]">
-                        {renderCrosslistingCell(item, 'vinted', item.vintedListingId, '/vinted.jpg')}
+                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                       </td>
 
                       {/* Actions */}
@@ -2074,17 +2027,17 @@ const NewListings = () => {
                         </div>
                       </label>
 
-                      {/* Vinted */}
+                      {/* Etsy */}
                       <label className="flex items-center gap-3 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
-                          checked={tempListedOn.includes('vinted')}
-                          onChange={() => toggleTempListedOn('vinted')}
+                          checked={tempListedOn.includes('etsy')}
+                          onChange={() => toggleTempListedOn('etsy')}
                           className="w-4.5 h-4.5 text-emerald-650 border-[#d1d5db] rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/vinted.jpg" className="w-6 h-6 object-contain rounded-md" alt="" />
-                          <span className="text-[9px] font-bold text-slate-500">Vinted</span>
+                          <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md" alt="" />
+                          <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
                       </label>
                     </div>
@@ -2143,17 +2096,17 @@ const NewListings = () => {
                         </div>
                       </label>
 
-                      {/* Vinted */}
+                      {/* Etsy */}
                       <label className="flex items-center gap-3 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
-                          checked={tempNoListedOn.includes('vinted')}
-                          onChange={() => toggleTempNoListedOn('vinted')}
+                          checked={tempNoListedOn.includes('etsy')}
+                          onChange={() => toggleTempNoListedOn('etsy')}
                           className="w-4.5 h-4.5 text-rose-600 border-[#d1d5db] rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/vinted.jpg" className="w-6 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
-                          <span className="text-[9px] font-bold text-slate-500">Vinted</span>
+                          <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
+                          <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
                       </label>
                     </div>
@@ -2312,7 +2265,7 @@ const NewListings = () => {
                       ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
                     </p>
                   </div>
-                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
+                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'etsy' || previewListing.platform === 'depop') && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
                       <p className="text-base font-black text-slate-500 mt-1">
@@ -2332,7 +2285,7 @@ const NewListings = () => {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
                     <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
                   </div>
-                  {previewListing.platform !== 'vinted' && (
+                  {previewListing.platform !== 'etsy' && (
                     <>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
@@ -2344,7 +2297,7 @@ const NewListings = () => {
                       </div>
                     </>
                   )}
-                  {(previewListing.platform === 'vinted' || previewListing.platform === 'depop') && previewListing.material && (
+                  {(previewListing.platform === 'etsy' || previewListing.platform === 'depop') && previewListing.material && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
                       <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
@@ -2469,7 +2422,7 @@ const NewListings = () => {
                 )}
 
                 {/* Item Specifics */}
-                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'vinted' && previewListing.platform !== 'depop' && (
+                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'etsy' && previewListing.platform !== 'depop' && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
                     {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (

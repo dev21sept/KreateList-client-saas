@@ -28,7 +28,6 @@ import CreateEbayListing from '../pages/CreateEbayListing';
 import BulkListingEbay from '../pages/BulkListingEbay';
 import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
 import CreateDepopListing from '../pages/CreateDepopListing';
-import CreateVintedListing from '../pages/CreateVintedListing';
 
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
@@ -693,14 +692,7 @@ const NewDashboardLayout = () => {
                   <span className="text-xs font-black text-slate-800 mt-3 block">Depop</span>
                 </button>
 
-                {/* Vinted */}
-                <button 
-                  onClick={() => setSelectedPlatform('vinted')}
-                  className="col-span-2 flex items-center justify-center gap-4 p-5 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/vinted.jpg" className="w-8 h-8 object-contain rounded group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 block">Vinted Listing</span>
-                </button>
+
               </div>
             </div>
           ) : (
@@ -728,7 +720,6 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing />}
                 {selectedPlatform === 'depop' && <CreateDepopListing />}
-                {selectedPlatform === 'vinted' && <CreateVintedListing />}
               </div>
             </div>
           )}

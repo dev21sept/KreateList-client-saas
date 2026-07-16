@@ -362,7 +362,7 @@ const Dashboard = () => {
         { label: 'eBay', value: counts.ebay || 0, color: '#4f46e5' },
         { label: 'Poshmark', value: counts.poshmark || 0, color: '#f43f5e' },
         { label: 'Depop', value: counts.depop || 0, color: '#111827' },
-        { label: 'Vinted', value: counts.vinted || 0, color: '#06b6d4' }
+        { label: 'Etsy', value: counts.etsy || 0, color: '#f55d3e' }
       ];
     } else {
       const counts = timeframeData.listed || {};
@@ -370,7 +370,7 @@ const Dashboard = () => {
         { label: 'eBay', value: counts.ebay || 0, color: '#4f46e5' },
         { label: 'Poshmark', value: counts.poshmark || 0, color: '#f43f5e' },
         { label: 'Depop', value: counts.depop || 0, color: '#111827' },
-        { label: 'Vinted', value: counts.vinted || 0, color: '#06b6d4' }
+        { label: 'Etsy', value: counts.etsy || 0, color: '#f55d3e' }
       ];
     }
   }, [pieMode, pieTimeframe, statsData]);

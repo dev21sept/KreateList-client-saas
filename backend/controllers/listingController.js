@@ -148,8 +148,8 @@ exports.getDashboardStats = async (req, res) => {
     const oneYearAgo = nowMs - 5 * 365 * 24 * 60 * 60 * 1000; // Extend to 5 years to cover all seeded/historical listings
 
     const getMetricsForTimeframe = (sinceDate) => {
-      const fetched = { ebay: 0, poshmark: 0, depop: 0, vinted: 0 };
-      const listed = { ebay: 0, poshmark: 0, depop: 0, vinted: 0 };
+       const fetched = { ebay: 0, poshmark: 0, depop: 0, etsy: 0 };
+      const listed = { ebay: 0, poshmark: 0, depop: 0, etsy: 0 };
 
       allUserListings.forEach(l => {
         const date = l.createdAt ? new Date(l.createdAt).getTime() : 0;
@@ -159,14 +159,14 @@ exports.getDashboardStats = async (req, res) => {
           if (src === 'ebay') fetched.ebay++;
           else if (src === 'poshmark') fetched.poshmark++;
           else if (src === 'depop') fetched.depop++;
-          else if (src === 'vinted') fetched.vinted++;
+          else if (src === 'etsy') fetched.etsy++;
 
           // Listed mode counts only active published listings grouped by target platform
           if (l.status === 'published') {
             if (l.platform === 'ebay') listed.ebay++;
             else if (l.platform === 'poshmark') listed.poshmark++;
             else if (l.platform === 'depop') listed.depop++;
-            else if (l.platform === 'vinted') listed.vinted++;
+            else if (l.platform === 'etsy') listed.etsy++;
           }
         }
       });
@@ -245,13 +245,13 @@ exports.createListing = async (req, res) => {
 
     const existing = await Listing.findOne({ user: req.user.id, sku: req.body.sku });
     if (existing) {
-      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
       platforms.forEach(p => {
         if (existing[`${p}Status`] && existing[`${p}Status`] !== 'none' && !req.body[`${p}Status`]) {
           req.body[`${p}Status`] = existing[`${p}Status`];
         }
       });
-      const idFields = ['ebayListingId', 'ebayUrl', 'poshmarkListingId', 'poshmarkUrl', 'depopListingId', 'depopUrl', 'vintedListingId', 'vintedUrl'];
+      const idFields = ['ebayListingId', 'ebayUrl', 'poshmarkListingId', 'poshmarkUrl', 'depopListingId', 'depopUrl', 'etsyListingId', 'etsyUrl'];
       idFields.forEach(f => {
         if (existing[f] && !req.body[f]) {
           req.body[f] = existing[f];
@@ -893,8 +893,8 @@ exports.verifyListingLive = async (req, res) => {
       url = listing.poshmarkUrl;
     } else if (listing.platform === 'ebay') {
       url = listing.ebayUrl;
-    } else if (listing.platform === 'vinted') {
-      url = listing.vintedUrl;
+    } else if (listing.platform === 'etsy') {
+      url = listing.etsyUrl;
     } else if (listing.platform === 'depop') {
       url = listing.depopUrl;
     }
@@ -918,10 +918,10 @@ exports.verifyListingLive = async (req, res) => {
         listing.ebayListingId = undefined;
         listing.ebayUrl = undefined;
         listing.ebayStatus = 'draft';
-      } else if (listing.platform === 'vinted') {
-        listing.vintedListingId = undefined;
-        listing.vintedUrl = undefined;
-        listing.vintedStatus = 'draft';
+      } else if (listing.platform === 'etsy') {
+        listing.etsyListingId = undefined;
+        listing.etsyUrl = undefined;
+        listing.etsyStatus = 'draft';
       } else if (listing.platform === 'depop') {
         listing.depopListingId = undefined;
         listing.depopUrl = undefined;

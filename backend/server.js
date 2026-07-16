@@ -22,6 +22,19 @@ connectDB();
 const { initCronJobs } = require('./utils/cronJobs');
 initCronJobs();
 
+// Copy Etsy Logo from Artifacts to Frontend Public assets
+try {
+  const fs = require('fs');
+  const src = 'C:/Users/user/.gemini/antigravity-ide/brain/0ae77b4d-3028-418f-b4de-f21f18c2e413/media__1784215768653.png';
+  const dest = 'd:/Project/elister/frontend/public/etsy.png';
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    console.log('[Startup] Successfully copied Etsy logo to public assets.');
+  }
+} catch (e) {
+  console.error('[Startup] Failed to copy Etsy logo:', e.message);
+}
+
 const app = express();
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
@@ -63,6 +76,8 @@ app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/poshmark', require('./routes/poshmarkRoutes'));
 // Depop Routes
 app.use('/api/depop', require('./routes/depopRoutes'));
+// Etsy Routes
+app.use('/api/etsy', require('./routes/etsyRoutes'));
 
 
 // Error Handler

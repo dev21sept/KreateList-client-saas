@@ -64,13 +64,13 @@ const listingSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['ebay', 'poshmark', 'vinted', 'depop'],
+    enum: ['ebay', 'poshmark', 'etsy', 'depop'],
     default: 'ebay'
   },
   poshmarkListingId: String,
   poshmarkUrl: String,
-  vintedListingId: String,
-  vintedUrl: String,
+  etsyListingId: String,
+  etsyUrl: String,
   depopListingId: String,
   depopUrl: String,
   brand: String,
@@ -122,7 +122,7 @@ const listingSchema = new mongoose.Schema({
     enum: ['draft', 'published', 'failed', 'none'],
     default: 'none'
   },
-  vintedStatus: {
+  etsyStatus: {
     type: String,
     enum: ['draft', 'published', 'failed', 'none'],
     default: 'none'

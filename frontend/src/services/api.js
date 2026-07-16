@@ -76,15 +76,16 @@ export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
   poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
   poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
-  vintedAnalyze: (data) => API.post('/ai/vinted-analyze', data),
-  vintedSuggestCategories: (query) => API.get(`/ai/vinted-categories?query=${query}`),
-  vintedGetCategoryDetails: (params) => API.get('/ai/vinted-category-details', { params }),
-  vintedGetCategoryBrands: (categoryId) => API.get(`/ai/vinted-brands?category_id=${categoryId}`),
-  vintedGetColors: () => API.get('/ai/vinted-colors'),
-  vintedGetCategorySizes: (catalogIds) => API.get(`/ai/vinted-sizes?catalog_ids=${catalogIds}`),
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
   depopGetCategoryDetails: (params) => API.get('/ai/depop-category-details', { params }),
+};
+
+export const etsyService = {
+  connect: () => API.get('/etsy/connect'),
+  disconnect: () => API.post('/etsy/disconnect'),
+  sync: () => API.post('/etsy/sync'),
+  publish: (id, data) => API.post(`/etsy/publish/${id}`, data)
 };
 
 export const adminService = {

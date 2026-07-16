@@ -25,7 +25,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ebayService, externalImportService } from '../services/api';
+import { ebayService, externalImportService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 
 const EbayAccounts = () => {
@@ -34,6 +34,44 @@ const EbayAccounts = () => {
   const ebay = user?.ebayAccount;
   const poshmark = user?.poshmarkAccount;
   const depop = user?.depopAccount;
+  const etsy = user?.etsyAccount;
+
+  const handleEtsyConnect = async () => {
+    try {
+      setLoading(true);
+      toast.success("Redirecting you to Etsy authorization page...");
+      const res = await etsyService.connect();
+      if (res.data?.success && res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Failed to generate Etsy connection link.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to initiate Etsy connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEtsyDisconnect = async () => {
+    const ok = await confirm("Are you sure you want to disconnect your Etsy account?");
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      const res = await etsyService.disconnect();
+      if (res.data?.success) {
+        toast.success("Etsy account disconnected successfully!");
+        loadUser();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to disconnect Etsy account.");
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -153,10 +191,13 @@ const EbayAccounts = () => {
       navigate('/ebay-accounts', { replace: true });
     } else if (success && !called.current) {
       called.current = true;
-      if (success === 'poshmark') {
+      const channel = searchParams.get('channel');
+      if (success === 'poshmark' || channel === 'poshmark') {
         toast.success('Poshmark Account Connected Successfully!');
-      } else if (success === 'depop') {
+      } else if (success === 'depop' || channel === 'depop') {
         toast.success('Depop Account Connected Successfully!');
+      } else if (success === 'etsy' || channel === 'etsy') {
+        toast.success('Etsy Account Connected Successfully!');
       } else {
         toast.success('Account Connected Successfully!');
       }
@@ -388,7 +429,7 @@ const EbayAccounts = () => {
     <div className="space-y-6 max-w-[1400px] mx-auto py-2">
       {/* Header removed due to dynamic header in NewDashboardLayout */}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* 1. eBay Integration Card */}
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
@@ -592,6 +633,64 @@ const EbayAccounts = () => {
                     className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     Connect Depop <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 4. Etsy Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <img src="/etsy.png" className="w-12 h-12 object-contain" alt="Etsy" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 mb-1">Etsy</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Handmade & Vintage Goods</p>
+
+                {/* Connection Badge */}
+                {etsy?.connected ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    Disconnected
+                  </div>
+                )}
+
+                {/* Info Area */}
+                {etsy?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{etsy.shopName || 'Etsy Shop'}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Shop ID: {etsy.shopId}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Connect to your Etsy account to cross-list and sync inventory.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {etsy?.connected ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleEtsyDisconnect}
+                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                    >
+                      Disconnect Channel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleEtsyConnect}
+                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    Connect Etsy <ChevronRight size={14} />
                   </button>
                 )}
               </div>

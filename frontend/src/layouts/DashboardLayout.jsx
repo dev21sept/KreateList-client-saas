@@ -83,7 +83,6 @@ const DashboardLayout = ({ isAdmin = false }) => {
           ]
         },
         { name: 'Poshmark Listing', path: '/create-poshmark-listing', logo: '/poshmark.png' },
-        { name: 'Vinted Listing', path: '/create-vinted-listing', logo: '/vinted.jpg' },
         { name: 'Depop Listing', path: '/create-depop-listing', logo: '/depop.png' }
       ]
     },

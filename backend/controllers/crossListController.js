@@ -1,6 +1,5 @@
 const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
 const { DEPOP_TAXONOMY } = require('../constants/depopTaxonomy');
-const { VINTED_TAXONOMY } = require('../constants/vintedTaxonomy');
 const Listing = require('../models/Listing');
 const ebayService = require('../services/ebayService');
 
@@ -279,27 +278,17 @@ exports.prepareCrossList = async (req, res) => {
         mappedConditionLabel = 'Fair';
       }
 
-    } else if (platform === 'vinted') {
-      mappedCategory = normalizeVintedCategory(listing.category || listing.title, gender);
-      const matchedTax = VINTED_TAXONOMY.find(c => c.path.toLowerCase() === mappedCategory.toLowerCase()) || {};
-      mappedCategoryId = String(matchedTax.id || '');
+    } else if (platform === 'etsy') {
+      mappedCategory = 'Clothing';
+      mappedCategoryId = '1091'; // Default Clothing Taxonomy ID
 
       const cond = String(listing.selectedCondition || '').toLowerCase();
-      if (cond.includes('brand') || (cond.includes('new') && !cond.includes('without'))) {
-        mappedConditionId = 'new_with_tags';
-        mappedConditionLabel = 'New with tags';
-      } else if (cond.includes('without')) {
-        mappedConditionId = 'new_without_tags';
-        mappedConditionLabel = 'New without tags';
-      } else if (cond.includes('excellent') || cond.includes('like') || cond.includes('very_good')) {
-        mappedConditionId = 'very_good';
-        mappedConditionLabel = 'Very good';
-      } else if (cond.includes('good')) {
-        mappedConditionId = 'good';
-        mappedConditionLabel = 'Good';
+      if (cond.includes('new')) {
+        mappedConditionId = 'new';
+        mappedConditionLabel = 'New';
       } else {
-        mappedConditionId = 'satisfactory';
-        mappedConditionLabel = 'Satisfactory';
+        mappedConditionId = 'used';
+        mappedConditionLabel = 'Used';
       }
 
     } else if (platform === 'ebay') {

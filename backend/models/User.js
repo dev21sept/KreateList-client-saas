@@ -100,6 +100,18 @@ const userSchema = new mongoose.Schema({
     },
     connectedAt: Date
   },
+  etsyCodeVerifier: String,
+  etsyAccount: {
+    connected: {
+      type: Boolean,
+      default: false
+    },
+    shopId: String,
+    shopName: String,
+    accessToken: String,
+    refreshToken: String,
+    tokenExpires: Date
+  },
   currency: {
     type: String,
     default: 'USD'

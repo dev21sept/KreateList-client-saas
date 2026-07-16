@@ -19,7 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { listingService, ebayService, externalImportService } from '../services/api';
+import { listingService, ebayService, externalImportService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 import { DEPOP_BRANDS } from '../constants/depopBrands';
@@ -80,7 +80,7 @@ const Listings = () => {
   const [publishingId, setPublishingId] = useState(null);
   const [poshmarkPublishingId, setPoshmarkPublishingId] = useState(null);
   const [poshmarkDirectPublishingId, setPoshmarkDirectPublishingId] = useState(null);
-  const [vintedPublishingId, setVintedPublishingId] = useState(null);
+  const [etsyPublishingId, setEtsyPublishingId] = useState(null);
   const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
@@ -409,7 +409,7 @@ const Listings = () => {
           let url = '';
           if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
           else if (listing.platform === 'ebay') url = listing.ebayUrl;
-          else if (listing.platform === 'vinted') url = listing.vintedUrl;
+          else if (listing.platform === 'etsy') url = listing.etsyUrl;
           else if (listing.platform === 'depop') url = listing.depopUrl;
           window.open(url, '_blank');
         } else {
@@ -423,7 +423,7 @@ const Listings = () => {
       let url = '';
       if (listing.platform === 'poshmark') url = listing.poshmarkUrl;
       else if (listing.platform === 'ebay') url = listing.ebayUrl;
-      else if (listing.platform === 'vinted') url = listing.vintedUrl;
+      else if (listing.platform === 'etsy') url = listing.etsyUrl;
       else if (listing.platform === 'depop') url = listing.depopUrl;
       window.open(url, '_blank');
     } finally {
@@ -575,68 +575,21 @@ const Listings = () => {
     }
   };
 
-  const handleVintedPublish = async (listing) => {
-    const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
-    if (!isExtensionInstalled) {
-      toast.warning("Please install and reload the Elister Vinted Chrome Extension to list automatically!");
-      return;
-    }
-
-    setVintedPublishingId(listing._id);
+  const handleEtsyPublish = async (listing) => {
+    setEtsyPublishingId(listing._id);
     try {
-      const res = await listingService.getOne(listing._id);
-      if (!res.data?.success || !res.data?.data) {
-        throw new Error("Failed to fetch full listing details from server.");
+      toast.info("Publishing to Etsy directly via API...");
+      const res = await etsyService.publish(listing._id);
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Etsy!");
+        setPreviewListing(null);
+        fetchListings();
       }
-      
-      const fullListing = res.data.data;
-      
-      if (!fullListing.images || fullListing.images.length === 0) {
-        toast.warning("Listing has no images. Please add images before publishing!");
-        return;
-      }
-
-      const plainDesc = fullListing.description 
-        ? fullListing.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') 
-        : '';
-
-      const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.MODE === 'production'
-        ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-        : 'http://localhost:5000/api';
-
-      window.postMessage({
-        action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
-        data: {
-          listingId: fullListing._id,
-          token,
-          backendUrl,
-          title: fullListing.title,
-          description: plainDesc,
-          brand: fullListing.brand || "",
-          price: parseFloat(fullListing.price) || 0.0,
-          originalPrice: parseFloat(fullListing.originalPrice) || 0.0,
-          size: fullListing.size || "",
-          color: fullListing.color || "",
-          material: fullListing.material || "",
-          conditionId: fullListing.conditionId || "very_good",
-          categoryId: fullListing.categoryId || "1807",
-          isbn: fullListing.isbn || "",
-          author: fullListing.author || "",
-          bookTitle: fullListing.bookTitle || "",
-          videoGameRating: fullListing.videoGameRating || "",
-          measurements: fullListing.measurements || "",
-          images: fullListing.images || []
-        }
-      }, "*");
-
-      toast.success("Opening Vinted and launching publisher queue...");
-      setPreviewListing(null);
-    } catch (err) {
-      console.error("Error publishing to Vinted:", err);
-      toast.error("Failed to load listing details. Please try again.");
+    } catch (error) {
+      console.error("Error publishing to Etsy:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Etsy.");
     } finally {
-      setVintedPublishingId(null);
+      setEtsyPublishingId(null);
     }
   };
 
@@ -903,16 +856,16 @@ const Listings = () => {
             )}
           </button>
         )}
-        {previewListing.platform === 'vinted' && (
+        {previewListing.platform === 'etsy' && (
           <button 
             onClick={() => {
-              if (previewListing.status === 'published' && previewListing.vintedUrl) {
+              if (previewListing.status === 'published' && previewListing.etsyUrl) {
                 handleVerifyAndOpen(previewListing);
               } else {
-                handleVintedPublish(previewListing);
+                handleEtsyPublish(previewListing);
               }
             }}
-            disabled={vintedPublishingId === previewListing._id || verifyingListingId === previewListing._id}
+            disabled={etsyPublishingId === previewListing._id || verifyingListingId === previewListing._id}
             className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {verifyingListingId === previewListing._id ? (
@@ -920,15 +873,15 @@ const Listings = () => {
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Verifying...
               </>
-            ) : vintedPublishingId === previewListing._id ? (
+            ) : etsyPublishingId === previewListing._id ? (
               <>
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Listing...
               </>
-            ) : previewListing.status === 'published' && previewListing.vintedUrl ? (
-              'View on Vinted'
+            ) : previewListing.status === 'published' && previewListing.etsyUrl ? (
+              'View on Etsy'
             ) : (
-              'List to Vinted (API)'
+              'List to Etsy (API)'
             )}
           </button>
         )}
@@ -1096,6 +1049,7 @@ const Listings = () => {
                 <option value="ebay">eBay Channel</option>
                 <option value="poshmark">Poshmark Channel</option>
                 <option value="depop">Depop Channel</option>
+                <option value="etsy">Etsy Channel</option>
               </select>
               <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
@@ -1110,7 +1064,7 @@ const Listings = () => {
                 <option value="all">All Inventory</option>
                 <option value="ebay">eBay Inventory</option>
                 <option value="poshmark">Poshmark Inventory</option>
-                <option value="vinted">Vinted Inventory</option>
+                <option value="etsy">Etsy Inventory</option>
                 <option value="depop">Depop Inventory</option>
               </select>
               <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -1185,7 +1139,7 @@ const Listings = () => {
                       </td>
                       <td className="px-6 py-4">{getStatusBadge(listing.status)}</td>
                       <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                        {listing.platform === 'poshmark' ? (listing.poshmarkListingId || '-') : (listing.ebayListingId || '-')}
+                        {listing.platform === 'poshmark' ? (listing.poshmarkListingId || '-') : listing.platform === 'depop' ? (listing.depopListingId || '-') : listing.platform === 'etsy' ? (listing.etsyListingId || '-') : (listing.ebayListingId || '-')}
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900 text-sm">
                         ${(typeof listing.price === 'number' ? listing.price : parseFloat(listing.price) || 0).toFixed(2)}
@@ -1201,7 +1155,7 @@ const Listings = () => {
                             <Eye size={16} />
                           </button>
                           <button 
-                            onClick={() => navigate(listing.platform === 'vinted' ? `/create-vinted-listing?edit=${listing._id}` : `/create-listing?edit=${listing._id}`)}
+                            onClick={() => navigate(`/create-listing?edit=${listing._id}`)}
                             className="p-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-400 transition-all"
                             title="Edit Listing"
                           >
@@ -1217,8 +1171,8 @@ const Listings = () => {
                               <ExternalLink size={16} />
                             </a>
                           )}
-                          {listing.platform === 'vinted' && listing.vintedUrl && (
-                            <a href={listing.vintedUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on Vinted">
+                          {listing.platform === 'etsy' && listing.etsyUrl && (
+                            <a href={listing.etsyUrl} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-slate-400 transition-all" title="View on Etsy">
                               <ExternalLink size={16} />
                             </a>
                           )}
@@ -1406,7 +1360,7 @@ const Listings = () => {
                       ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
                     </p>
                   </div>
-                      {(previewListing.platform === 'poshmark' || previewListing.platform === 'vinted' || previewListing.platform === 'depop') && (
+                      {(previewListing.platform === 'poshmark' || previewListing.platform === 'etsy' || previewListing.platform === 'depop') && (
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
                           <p className="text-base font-black text-slate-500 mt-1">
@@ -1426,7 +1380,7 @@ const Listings = () => {
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
                         <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
                       </div>
-                      {previewListing.platform !== 'vinted' && (
+                      {previewListing.platform !== 'etsy' && (
                         <>
                           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
@@ -1438,7 +1392,7 @@ const Listings = () => {
                           </div>
                         </>
                       )}
-                      {(previewListing.platform === 'vinted' || previewListing.platform === 'depop') && previewListing.material && (
+                      {(previewListing.platform === 'etsy' || previewListing.platform === 'depop') && previewListing.material && (
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
                           <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
@@ -1563,7 +1517,7 @@ const Listings = () => {
                 )}
 
                 {/* Item Specifics */}
-                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'vinted' && previewListing.platform !== 'depop' && (
+                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'etsy' && previewListing.platform !== 'depop' && (
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
                     {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (

@@ -2,12 +2,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, Loader2, ShieldCheck, ChevronDown, ShoppingBag, Search, Check, Tag, Info, Eye, Code } from 'lucide-react';
-import { aiService, listingService, ruleService, externalImportService, ebayService } from '../services/api';
+import { aiService, listingService, ruleService, externalImportService, ebayService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
-import { VINTED_CONDITIONS } from '../constants/vintedConditions';
 import { DEPOP_COLOURS } from '../constants/depopColours';
 import { DEPOP_STYLES } from '../constants/depopStyles';
 import { DEPOP_AGES } from '../constants/depopAges';
@@ -21,7 +20,6 @@ import { DEPOP_FASTENINGS } from '../constants/depopFastenings';
 import { DEPOP_FITS } from '../constants/depopFits';
 import { DEPOP_TYPES } from '../constants/depopTypes';
 import { DEPOP_ATTRIBUTE_OPTIONS, DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
-import { VINTED_MATERIALS } from '../constants/vintedMaterials';
 import {
   DEPOP_KIDS_APPAREL_SIZES,
   DEPOP_KIDS_SHOE_SIZES,
@@ -182,8 +180,15 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
           response = await ebayService.suggestCategories(searchTerm);
         } else if (platform === 'depop') {
           response = await aiService.depopSuggestCategories(searchTerm);
-        } else if (platform === 'vinted') {
-          response = await aiService.vintedSuggestCategories(searchTerm);
+        } else if (platform === 'etsy') {
+          response = {
+            data: {
+              success: true,
+              data: [
+                { id: '1091', label: 'Clothing', fullName: 'Clothing' }
+              ]
+            }
+          };
         }
 
         if (response && response.data) {
@@ -594,22 +599,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
   const [descriptionMode, setDescriptionMode] = useState('preview');
 
   // Dynamic lists from Vinted/Depop/eBay APIs
-  const [categoryBrands, setCategoryBrands] = useState([]);
-  const [fetchingBrands, setFetchingBrands] = useState(false);
-  const [categorySizes, setCategorySizes] = useState([]);
-  const [fetchingSizes, setFetchingSizes] = useState(false);
-  const [vintedColors, setVintedColors] = useState([]);
-  const [fetchingColors, setFetchingColors] = useState(false);
-  const [categoryFields, setCategoryFields] = useState({
-    brand_field_visibility: true,
-    size_field_visibility: true,
-    color_field_visibility: true,
-    isbn_field_visibility: false,
-    author_field_visibility: false,
-    book_title_field_visibility: false,
-    video_game_rating_field_visibility: false,
-    measurements_field_visibility: false
-  });
+
 
   const [activeAttributesState, setActiveAttributesState] = useState([]);
   const [kidsSizeScale, setKidsSizeScale] = useState('US');
@@ -666,7 +656,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       case 'ebay': return EBAY_CONDITIONS;
       case 'poshmark': return POSHMARK_CONDITIONS;
       case 'depop': return DEPOP_CONDITIONS;
-      case 'vinted': return VINTED_CONDITIONS;
+      case 'etsy': return [
+        { id: 'new', label: 'New' },
+        { id: 'used', label: 'Used' }
+      ];
       default: return [];
     }
   };
@@ -848,43 +841,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         })
         .catch(err => console.error("Error fetching eBay aspects:", err));
     }
-  }, [isOpen, platform, formData.categoryId]);
-
-  // Vinted Static Colors Fetching
-  useEffect(() => {
-    if (isOpen && platform === 'vinted') {
-      setFetchingColors(true);
-      aiService.vintedGetColors()
-        .then(res => {
-          if (res.data.success) setVintedColors(res.data.data);
-        })
-        .catch(err => console.error("Vinted colors error:", err))
-        .finally(() => setFetchingColors(false));
-    }
-  }, [isOpen, platform]);
-
-  // Vinted Category Brands & Sizes
-  useEffect(() => {
-    if (isOpen && platform === 'vinted' && formData.categoryId) {
-      setFetchingBrands(true);
-      aiService.vintedGetCategoryBrands(formData.categoryId)
-        .then(res => {
-          if (res.data.success) setCategoryBrands(res.data.data);
-        })
-        .catch(err => console.error(err))
-        .finally(() => setFetchingBrands(false));
-
-      setFetchingSizes(true);
-      aiService.vintedGetCategorySizes(formData.categoryId)
-        .then(res => {
-          if (res.data.success) setCategorySizes(res.data.data);
-        })
-        .catch(err => console.error(err))
-        .finally(() => setFetchingSizes(false));
-    }
-  }, [isOpen, platform, formData.categoryId]);
-
-  // Depop Category detail visibilities
+  }, [isOpen, platform, formData.categoryId]);  // Depop Category detail visibilities
   useEffect(() => {
     if (isOpen && platform === 'depop' && formData.categoryId) {
       aiService.depopGetCategoryDetails({ id: formData.categoryId })
@@ -896,32 +853,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         .catch(err => console.error("Error loading Depop details:", err));
     }
   }, [isOpen, platform, formData.categoryId]);
-
-  // Vinted category details on load
-  useEffect(() => {
-    if (isOpen && platform === 'vinted' && formData.categoryId) {
-      aiService.vintedGetCategoryDetails({ path: formData.category, id: formData.categoryId })
-        .then(catRes => {
-          if (catRes.data.success && catRes.data.data) {
-            const cat = catRes.data.data;
-            setCategoryFields({
-              brand_field_visibility: cat.brand_field_visibility,
-              size_field_visibility: cat.size_field_visibility,
-              color_field_visibility: cat.color_field_visibility,
-              isbn_field_visibility: cat.isbn_field_visibility,
-              author_field_visibility: cat.author_field_visibility,
-              book_title_field_visibility: cat.book_title_field_visibility,
-              video_game_rating_field_visibility: cat.video_game_rating_field_visibility,
-              measurements_field_visibility: cat.measurements_field_visibility
-            });
-          }
-        })
-        .catch(err => console.error("Error fetching Vinted category visibilities:", err));
-    }
-  }, [isOpen, platform, formData.categoryId]);
-
-
-
   // Depop Sizes Resolution Dataset
   const activeSizeDataset = useMemo(() => {
     if (platform !== 'depop' || !formData.category) return null;
@@ -1072,32 +1003,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     }
   }, [isOpen, platform, formData.color]);
 
-  useEffect(() => {
-    if (isOpen && platform === 'vinted' && categoryBrands.length > 0 && formData.brand) {
-      const currentBrand = String(formData.brand).trim().toLowerCase();
-      const matched = categoryBrands.find(opt => {
-        const name = String(opt.name || opt.title || opt.label || '').trim().toLowerCase();
-        return name === currentBrand;
-      });
-      if (matched && formData.brand !== (matched.name || matched.title || matched.label)) {
-        setFormData(prev => ({ ...prev, brand: matched.name || matched.title || matched.label }));
-      }
-    }
-  }, [isOpen, platform, categoryBrands, formData.brand]);
 
-  useEffect(() => {
-    if (isOpen && platform === 'vinted' && categorySizes.length > 0 && formData.size) {
-      const currentSize = String(formData.size).trim().toLowerCase();
-      const matched = categorySizes.find(opt => {
-        const title = String(opt.title || opt.name || opt.label || '').trim().toLowerCase();
-        return title === currentSize || 
-               title === (currentSize === 'm' ? 'medium' : currentSize === 's' ? 'small' : currentSize === 'l' ? 'large' : currentSize === 'xl' ? 'extra large' : currentSize);
-      });
-      if (matched && formData.size !== (matched.title || matched.name || matched.label)) {
-        setFormData(prev => ({ ...prev, size: matched.title || matched.name || matched.label }));
-      }
-    }
-  }, [isOpen, platform, categorySizes, formData.size]);
 
   if (!isOpen || !listing) return null;
 
@@ -1128,12 +1034,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       };
 
       let response;
-      if (platform === 'ebay') {
+      if (platform === 'ebay' || platform === 'etsy') {
         response = await aiService.analyze(payload);
       } else if (platform === 'poshmark') {
         response = await aiService.poshmarkAnalyze(payload);
-      } else if (platform === 'vinted') {
-        response = await aiService.vintedAnalyze(payload);
       } else if (platform === 'depop') {
         response = await aiService.depopAnalyze(payload);
       }
@@ -1218,18 +1122,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           packageDimensions: result.packageDimensions || selectedRuleObj?.packageDimensions || prev.packageDimensions,
         }));
 
-        if (platform === 'vinted' && result.categoryFields) {
-          setCategoryFields({
-            brand_field_visibility: result.categoryFields.brand_field_visibility,
-            size_field_visibility: result.categoryFields.size_field_visibility,
-            color_field_visibility: result.categoryFields.color_field_visibility,
-            isbn_field_visibility: result.categoryFields.isbn_field_visibility,
-            author_field_visibility: result.categoryFields.author_field_visibility,
-            book_title_field_visibility: result.categoryFields.book_title_field_visibility,
-            video_game_rating_field_visibility: result.categoryFields.video_game_rating_field_visibility,
-            measurements_field_visibility: result.categoryFields.measurements_field_visibility
-          });
-        }
         if (platform === 'depop' && result.attribute_ids) {
           setActiveAttributesState(result.attribute_ids);
         }
@@ -1463,39 +1355,11 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
             toast.success('Listing successfully published to Depop via API!');
           }
         }
-      } else if (platform === 'vinted') {
-        const isExtensionInstalled = document.body.dataset.elisterVintedExtensionInstalled === "true";
-        if (!isExtensionInstalled) {
-          toast.warning("Install and reload the Vinted extension to list automatically!");
-          setLoading(false);
-          return;
+      } else if (platform === 'etsy') {
+        const publishRes = await etsyService.publish(activeListingId);
+        if (publishRes.data?.success) {
+          toast.success('Listing successfully published to Etsy!');
         }
-        const plainDesc = formData.description;
-        const token = localStorage.getItem('token');
-        const backendUrl = import.meta.env.MODE === 'production'
-          ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-          : 'http://localhost:5000/api';
-
-        window.postMessage({
-          action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
-          data: {
-            listingId: activeListingId,
-            token,
-            backendUrl,
-            title: formData.title,
-            description: plainDesc,
-            brand: formData.brand || "",
-            price: parseFloat(formData.price) || 0.0,
-            originalPrice: parseFloat(formData.originalPrice) || 0.0,
-            size: formData.size || "",
-            color: formData.color || "",
-            material: formData.material || "",
-            conditionId: selectedConditionId || "very_good",
-            categoryId: formData.categoryId || "1807",
-            images: formData.images || []
-          }
-        }, "*");
-        toast.success("Vinted publisher queue launched!");
       }
 
       onSyncSuccess();
@@ -2156,18 +2020,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                               category: opt.fullName || opt.label,
                               categoryId: opt.id
                             }));
-                            if (platform === 'vinted') {
-                              setCategoryFields({
-                                brand_field_visibility: opt.brand_field_visibility ?? true,
-                                size_field_visibility: opt.size_field_visibility ?? true,
-                                color_field_visibility: opt.color_field_visibility ?? true,
-                                isbn_field_visibility: opt.isbn_field_visibility ?? false,
-                                author_field_visibility: opt.author_field_visibility ?? false,
-                                book_title_field_visibility: opt.book_title_field_visibility ?? false,
-                                video_game_rating_field_visibility: opt.video_game_rating_field_visibility ?? false,
-                                measurements_field_visibility: opt.measurements_field_visibility ?? false
-                              });
-                            }
                           }}
                           placeholder={`Search ${platform} category...`}
                         />
@@ -2201,7 +2053,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       </div>
 
                       {/* Original Price */}
-                      {(platform === 'poshmark' || platform === 'depop' || platform === 'vinted') && (
+                      {(platform === 'poshmark' || platform === 'depop' || platform === 'etsy') && (
                         <div>
                           <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block mb-1">Original Price ($)</label>
                           <input
@@ -2239,42 +2091,27 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       </div>
 
                       {/* Brand */}
-                      {platform !== 'vinted' ? (
-                        <div>
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Brand</label>
-                          {platform === 'depop' ? (
-                            <SearchableDropdown 
-                              value={formData.brand}
-                              onSelect={(opt) => handleInputChange('brand', opt.label)}
-                              options={DEPOP_BRANDS.map(b => ({ id: b.id, label: b.label }))}
-                              placeholder="Select Depop brand..."
-                            />
-                          ) : (
-                            <input
-                              type="text"
-                              value={formData.brand}
-                              onChange={(e) => handleInputChange('brand', e.target.value)}
-                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        categoryFields.brand_field_visibility && (
-                          <div>
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Vinted Brand</label>
-                            <SearchableDropdown 
-                              value={formData.brand}
-                              onSelect={(opt) => handleInputChange('brand', opt.label)}
-                              options={categoryBrands.map(b => ({ id: b.id, label: b.name || b.title || b.label }))}
-                              placeholder={fetchingBrands ? "Loading Brands..." : "Select Vinted brand..."}
-                              disabled={fetchingBrands}
-                            />
-                          </div>
-                        )
-                      )}
+                      <div>
+                        <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Brand</label>
+                        {platform === 'depop' ? (
+                          <SearchableDropdown 
+                            value={formData.brand}
+                            onSelect={(opt) => handleInputChange('brand', opt.label)}
+                            options={DEPOP_BRANDS.map(b => ({ id: b.id, label: b.label }))}
+                            placeholder="Select Depop brand..."
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={formData.brand}
+                            onChange={(e) => handleInputChange('brand', e.target.value)}
+                            className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                          />
+                        )}
+                      </div>
 
                       {/* Size */}
-                      {platform !== 'vinted' && platform !== 'depop' ? (
+                      {platform !== 'depop' ? (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Size</label>
                           <input
@@ -2284,19 +2121,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                             className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
                           />
                         </div>
-                      ) : platform === 'vinted' ? (
-                        categoryFields.size_field_visibility && (
-                          <div>
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Vinted Size</label>
-                            <SearchableDropdown 
-                              value={formData.size}
-                              onSelect={(opt) => handleInputChange('size', opt.label)}
-                              options={categorySizes.map(s => ({ id: s.id, label: s.title || s.name || s.label }))}
-                              placeholder={fetchingSizes ? "Loading Sizes..." : "Select Vinted size..."}
-                              disabled={fetchingSizes}
-                            />
-                          </div>
-                        )
                       ) : (
                         activeSizeDataset && (
                           <div>
@@ -2334,19 +2158,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                             onChange={(val) => handleInputChange('color', val)}
                           />
                         </div>
-                      ) : platform === 'vinted' ? (
-                        categoryFields.color_field_visibility && (
-                          <div>
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Vinted Color</label>
-                            <SearchableDropdown 
-                              value={formData.color}
-                              onSelect={(opt) => handleInputChange('color', opt.label)}
-                              options={vintedColors.map(c => ({ id: c.id, label: c.title || c.name || c.label }))}
-                              placeholder={fetchingColors ? "Loading Colors..." : "Select Vinted color..."}
-                              disabled={fetchingColors}
-                            />
-                          </div>
-                        )
                       ) : platform === 'depop' ? (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Depop Color</label>
@@ -2370,22 +2181,15 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       )}
 
                       {/* Material */}
-                      {(platform === 'vinted' || platform === 'depop') && (
+                      {platform === 'depop' && (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Material</label>
-                          {platform === 'vinted' ? (
-                            <MaterialMultiSelectDropdown 
-                              value={formData.material}
-                              onChange={(val) => handleInputChange('material', val)}
-                            />
-                          ) : (
-                            <SearchableDropdown 
-                              value={formData.material}
-                              onSelect={(opt) => handleInputChange('material', opt.label)}
-                              options={DEPOP_MATERIALS.map(m => ({ id: m.id, label: m.label }))}
-                              placeholder="Select Depop material..."
-                            />
-                          )}
+                          <SearchableDropdown 
+                            value={formData.material}
+                            onSelect={(opt) => handleInputChange('material', opt.label)}
+                            options={DEPOP_MATERIALS.map(m => ({ id: m.id, label: m.label }))}
+                            placeholder="Select Depop material..."
+                          />
                         </div>
                       )}
 
@@ -2527,66 +2331,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                         </>
                       )}
 
-                      {/* Vinted Specific Fields */}
-                      {platform === 'vinted' && (
-                        <>
-                          {categoryFields.isbn_field_visibility && (
-                            <div>
-                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">ISBN</label>
-                              <input
-                                type="text"
-                                value={formData.isbn}
-                                onChange={(e) => handleInputChange('isbn', e.target.value)}
-                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                              />
-                            </div>
-                          )}
-                          {categoryFields.author_field_visibility && (
-                            <div>
-                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Author</label>
-                              <input
-                                type="text"
-                                value={formData.author}
-                                onChange={(e) => handleInputChange('author', e.target.value)}
-                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                              />
-                            </div>
-                          )}
-                          {categoryFields.book_title_field_visibility && (
-                            <div>
-                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Book Title</label>
-                              <input
-                                type="text"
-                                value={formData.bookTitle}
-                                onChange={(e) => handleInputChange('bookTitle', e.target.value)}
-                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                              />
-                            </div>
-                          )}
-                          {categoryFields.video_game_rating_field_visibility && (
-                            <div>
-                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Video Game Rating</label>
-                              <input
-                                type="text"
-                                value={formData.videoGameRating}
-                                onChange={(e) => handleInputChange('videoGameRating', e.target.value)}
-                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                              />
-                            </div>
-                          )}
-                          {categoryFields.measurements_field_visibility && (
-                            <div>
-                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Measurements</label>
-                              <input
-                                type="text"
-                                value={formData.measurements}
-                                onChange={(e) => handleInputChange('measurements', e.target.value)}
-                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                              />
-                            </div>
-                          )}
-                        </>
-                      )}
+
 
                       {/* Product Condition & Condition Note (Synced) */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
