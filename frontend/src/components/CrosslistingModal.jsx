@@ -616,6 +616,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
 
   const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
   const [aspects, setAspects] = useState([]);
+  const [errors, setErrors] = useState({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -1258,6 +1259,40 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
 
   const handlePublish = async (e, publishMethod = 'api') => {
     if (e) e.preventDefault();
+
+    // Aspects validation check:
+    let isValid = true;
+    const newErrors = {};
+
+    if (platform === 'ebay') {
+      aspects.forEach(aspect => {
+        const name = aspect.localizedAspectName;
+        const isRequired = aspect.aspectConstraint?.aspectRequired === true || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const valOptions = (aspect.aspectValues || aspect.values || []).map(v => {
+          return typeof v === 'object' && v !== null ? (v.localizedValue || v.label || '') : String(v);
+        });
+        const currentVal = Array.isArray(formData.itemSpecifics?.[name]) 
+          ? (formData.itemSpecifics[name]?.[0] || '') 
+          : (formData.itemSpecifics?.[name] || '');
+
+        if (isRequired) {
+          if (!currentVal.trim()) {
+            newErrors[name] = true;
+            isValid = false;
+          } else if (valOptions.length > 0 && !valOptions.some(opt => opt.toLowerCase() === currentVal.trim().toLowerCase())) {
+            newErrors[name] = true;
+            isValid = false;
+          }
+        }
+      });
+    }
+
+    if (!isValid) {
+      setErrors(newErrors);
+      toast.error("Please fill all required aspects with valid values before proceeding.");
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedRuleObj = rules.find(r => (r._id || r.id) === selectedRule);
@@ -1310,8 +1345,13 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         images: formData.images
       };
 
+      let activeListingId = listing._id;
+
       // Save listing changes to DB first
-      await listingService.update(listing._id, updatedFields);
+      await listingService.update(listing._id, {
+        ...updatedFields,
+        [`${platform}Status`]: publishMethod === 'draft' ? 'draft' : 'none'
+      });
 
       if (isEditMode || publishMethod === 'draft') {
         toast.success(publishMethod === 'draft' ? "Draft saved successfully!" : "Listing updated successfully!");
@@ -1322,7 +1362,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
 
       // Publish flows:
       if (platform === 'ebay') {
-        const publishRes = await listingService.publish(listing._id);
+        const publishRes = await listingService.publish(activeListingId);
         if (publishRes.data?.success) {
           toast.success('Listing published on eBay!');
         }
@@ -1343,7 +1383,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           window.postMessage({
             action: 'ELISTER_LIST_ITEM_TRIGGER',
             data: {
-              listingId: listing._id,
+              listingId: activeListingId,
               token,
               backendUrl,
               title: formData.title,
@@ -1365,7 +1405,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           }, "*");
           toast.success("Opening Poshmark and launching publisher queue...");
         } else {
-          const publishRes = await externalImportService.publish(listing._id, { platform: 'poshmark' });
+          const publishRes = await externalImportService.publish(activeListingId, { platform: 'poshmark' });
           if (publishRes.data?.success) {
             toast.success('Listing successfully published to Poshmark via API!');
           }
@@ -1387,7 +1427,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           window.postMessage({
             action: 'ELISTER_DEPOP_LIST_ITEM_TRIGGER',
             data: {
-              listingId: listing._id,
+              listingId: activeListingId,
               token,
               backendUrl,
               title: formData.title,
@@ -1418,7 +1458,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           }, "*");
           toast.success("Opening Depop and launching publisher queue...");
         } else {
-          const publishRes = await externalImportService.publish(listing._id, { platform: 'depop' });
+          const publishRes = await externalImportService.publish(activeListingId, { platform: 'depop' });
           if (publishRes.data?.success) {
             toast.success('Listing successfully published to Depop via API!');
           }
@@ -1439,7 +1479,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         window.postMessage({
           action: 'ELISTER_VINTED_LIST_ITEM_TRIGGER',
           data: {
-            listingId: listing._id,
+            listingId: activeListingId,
             token,
             backendUrl,
             title: formData.title,
@@ -1653,10 +1693,12 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       onChange={(e) => setSelectedModel(e.target.value)}
                       className="w-full pl-3 pr-9 py-2.5 bg-slate-50 hover:bg-white border border-[#e2e8f0] rounded-xl text-xs font-bold text-slate-750 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none transition-all"
                     >
-                      <option value="gpt-4o-mini">GPT-4o Mini (Default)</option>
-                      <option value="gpt-4o">GPT-4o Premium</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                      <option value="gpt-4o-mini">GPT-4o Mini (OpenAI)</option>
+                      <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                      <option value="gpt-4-turbo">GPT-4 Turbo (OpenAI)</option>
+                      <option value="gemini-1.5-flash">1.5 Flash (AI Studio)</option>
+                      <option value="gemini-1.5-pro">1.5 Pro (AI Studio)</option>
+                      <option value="gemini-2.0-flash">2.0 Flash (AI Studio)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-455 pointer-events-none" />
                   </div>
@@ -1899,10 +1941,11 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                               const currentVal = Array.isArray(formData.itemSpecifics[name]) 
                                 ? (formData.itemSpecifics[name]?.[0] || '') 
                                 : (formData.itemSpecifics[name] || '');
+                              const hasError = !!errors[name];
 
                               return (
                                 <div key={name}>
-                                  <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block mb-1">
+                                  <label className={`text-[9px] font-black uppercase tracking-wider block mb-1 ${hasError ? 'text-rose-500' : 'text-slate-455'}`}>
                                     {name} {isRequired && <span className="text-rose-500">*</span>}
                                     {isRecommended && <span className="text-[8px] text-slate-400 normal-case font-bold ml-1">(Rec)</span>}
                                   </label>
@@ -1917,9 +1960,17 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                                             [name]: [opt.label]
                                           }
                                         }));
+                                        if (errors[name]) {
+                                          setErrors(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[name];
+                                            return copy;
+                                          });
+                                        }
                                       }}
                                       options={valOptions}
                                       placeholder={`Select ${name}...`}
+                                      error={hasError}
                                     />
                                   ) : (
                                     <input
@@ -1934,10 +1985,26 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                                             [name]: [val]
                                           }
                                         }));
+                                        if (errors[name]) {
+                                          setErrors(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[name];
+                                            return copy;
+                                          });
+                                        }
                                       }}
-                                      className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl outline-none text-xs font-bold text-slate-700"
+                                      className={`w-full px-4 h-12 bg-white border ${
+                                        hasError ? 'border-rose-500 focus:border-rose-500' : 'border-[#e2e8f0] focus:border-indigo-500'
+                                      } rounded-xl outline-none text-xs font-bold text-slate-700`}
                                       placeholder={`Enter ${name}...`}
                                     />
+                                  )}
+                                  {hasError && (
+                                    <span className="text-[9px] font-bold text-rose-500 mt-1 block">
+                                      {valOptions.length > 0 && currentVal.trim()
+                                        ? 'Please select a valid option from the dropdown'
+                                        : 'This field is required'}
+                                    </span>
                                   )}
                                 </div>
                               );

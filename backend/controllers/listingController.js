@@ -240,6 +240,28 @@ exports.createListing = async (req, res) => {
       });
     }
 
+    const platform = req.body.platform || 'ebay';
+    req.body[`${platform}Status`] = req.body.status || 'draft';
+
+    const existing = await Listing.findOne({ user: req.user.id, sku: req.body.sku });
+    if (existing) {
+      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      platforms.forEach(p => {
+        if (existing[`${p}Status`] && existing[`${p}Status`] !== 'none' && !req.body[`${p}Status`]) {
+          req.body[`${p}Status`] = existing[`${p}Status`];
+        }
+      });
+      const idFields = ['ebayListingId', 'ebayUrl', 'poshmarkListingId', 'poshmarkUrl', 'depopListingId', 'depopUrl', 'vintedListingId', 'vintedUrl'];
+      idFields.forEach(f => {
+        if (existing[f] && !req.body[f]) {
+          req.body[f] = existing[f];
+        }
+      });
+
+      const updated = await Listing.findByIdAndUpdate(existing._id, req.body, { new: true, runValidators: true });
+      return res.status(201).json({ success: true, data: updated });
+    }
+
     const listing = await Listing.create(req.body);
     res.status(201).json({ success: true, data: listing });
   } catch (err) {
@@ -315,6 +337,11 @@ exports.updateListing = async (req, res) => {
       } else {
         req.body.thumbnail = '';
       }
+    }
+
+    const platform = req.body.platform || listing.platform;
+    if (req.body.status) {
+      req.body[`${platform}Status`] = req.body.status;
     }
 
     listing = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
@@ -764,6 +791,7 @@ exports.publishListing = async (req, res) => {
 
     // 11. Save publication details in database
     listing.status = 'published';
+    listing.ebayStatus = 'published';
     listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
@@ -873,6 +901,8 @@ exports.verifyListingLive = async (req, res) => {
 
     if (!url) {
       listing.status = 'draft';
+      const platform = listing.platform || 'ebay';
+      listing[`${platform}Status`] = 'draft';
       await listing.save();
       return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
     }
@@ -883,15 +913,19 @@ exports.verifyListingLive = async (req, res) => {
       if (listing.platform === 'poshmark') {
         listing.poshmarkListingId = undefined;
         listing.poshmarkUrl = undefined;
+        listing.poshmarkStatus = 'draft';
       } else if (listing.platform === 'ebay') {
         listing.ebayListingId = undefined;
         listing.ebayUrl = undefined;
+        listing.ebayStatus = 'draft';
       } else if (listing.platform === 'vinted') {
         listing.vintedListingId = undefined;
         listing.vintedUrl = undefined;
+        listing.vintedStatus = 'draft';
       } else if (listing.platform === 'depop') {
         listing.depopListingId = undefined;
         listing.depopUrl = undefined;
+        listing.depopStatus = 'draft';
       }
       await listing.save();
       return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });

@@ -212,19 +212,33 @@ exports.depopImportCloset = async (req, res) => {
 
     for (const item of scrapedListings) {
       // Check for duplicate in DB for this user in Product collection
-      const duplicateQuery = { 
-        user: req.user.id, 
-        source: 'depop',
-        $or: [
-          { depopListingId: item.depopListingId },
-          { depopUrl: item.depopUrl },
-          { sku: item.sku }
-        ]
-      };
+      let existingProduct = null;
+      if (item.sku) {
+        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku });
+      }
 
-      const existingProduct = await Product.findOne(duplicateQuery);
+      if (!existingProduct) {
+        const duplicateQuery = { 
+          user: req.user.id, 
+          source: 'depop',
+          $or: [
+            { depopListingId: item.depopListingId },
+            { depopUrl: item.depopUrl }
+          ]
+        };
+        existingProduct = await Product.findOne(duplicateQuery);
+      }
 
       if (existingProduct) {
+        // If it exists, merge the Depop details
+        if (!existingProduct.depopListingId || !existingProduct.depopUrl) {
+          existingProduct.depopListingId = item.depopListingId;
+          existingProduct.depopUrl = item.depopUrl;
+          if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
+          if (item.size && !existingProduct.size) existingProduct.size = item.size;
+          existingProduct.updated_at = Date.now();
+          await existingProduct.save();
+        }
         duplicateCount++;
         continue;
       }
@@ -237,6 +251,7 @@ exports.depopImportCloset = async (req, res) => {
         selling_price: parseFloat(item.price) || 0,
         sku: item.sku,
         brand: item.brand || '',
+        size: item.size || '',
         images: item.images,
         source: 'depop',
         status: 'live',
@@ -303,6 +318,7 @@ exports.depopPublish = async (req, res) => {
 
     // Save publish outcome in listing document
     listing.status = 'published';
+    listing.depopStatus = 'published';
     listing.errorMessage = null;
     listing.depopListingId = publishResult.id;
     listing.depopUrl = publishResult.url;

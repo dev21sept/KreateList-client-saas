@@ -189,6 +189,109 @@ const MOCK_LISTINGS = [
   }
 ];
 
+const groupListingsBySku = (rawListings) => {
+  const groups = [];
+
+  rawListings.forEach(item => {
+    const sku = item.sku ? item.sku.trim() : '';
+    const thumbnail = item.thumbnail ? item.thumbnail.trim() : '';
+    
+    // Find if there is an existing group that matches by SKU or thumbnail
+    let matchedGroup = null;
+    if (sku && sku !== '-') {
+      matchedGroup = groups.find(g => g.skus.includes(sku));
+    }
+    if (!matchedGroup && thumbnail) {
+      matchedGroup = groups.find(g => g.thumbnails.includes(thumbnail));
+    }
+
+    if (matchedGroup) {
+      // Merge listing details
+      const existing = matchedGroup;
+      
+      // Add platform status documents or the item itself
+      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      platforms.forEach(p => {
+        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
+          if (!existing.listingsMap[p] || (new Date(item.createdAt || 0) > new Date(existing.listingsMap[p].createdAt || 0))) {
+            existing.listingsMap[p] = item;
+          }
+        }
+      });
+
+      // Keep both SKUs and thumbnails in the group's match arrays
+      if (sku && !existing.skus.includes(sku)) existing.skus.push(sku);
+      if (thumbnail && !existing.thumbnails.includes(thumbnail)) existing.thumbnails.push(thumbnail);
+
+      // Merge listing IDs/URLs
+      if (item.ebayListingId) {
+        existing.ebayListingId = item.ebayListingId;
+        existing.ebayUrl = item.ebayUrl;
+      }
+      if (item.poshmarkListingId) {
+        existing.poshmarkListingId = item.poshmarkListingId;
+        existing.poshmarkUrl = item.poshmarkUrl;
+      }
+      if (item.depopListingId) {
+        existing.depopListingId = item.depopListingId;
+        existing.depopUrl = item.depopUrl;
+      }
+      if (item.vintedListingId) {
+        existing.vintedListingId = item.vintedListingId;
+        existing.vintedUrl = item.vintedUrl;
+      }
+
+      // If any of the listings is more recent, use its title/thumbnail/date and other details
+      if (new Date(item.createdAt || 0) > new Date(existing.createdAt || 0)) {
+        existing.createdAt = item.createdAt;
+        if (item.title) existing.title = item.title;
+        if (item.thumbnail) existing.thumbnail = item.thumbnail;
+        if (item.size) existing.size = item.size;
+        if (item.brand) existing.brand = item.brand;
+        if (item.color) existing.color = item.color;
+        if (item.price) existing.price = item.price;
+        if (item.description) existing.description = item.description;
+        if (item.category) existing.category = item.category;
+        if (item.categoryId) existing.categoryId = item.categoryId;
+        if (item.itemSpecifics) existing.itemSpecifics = item.itemSpecifics;
+        if (item.conditionNote) existing.conditionNote = item.conditionNote;
+      }
+
+      const statusLower = item.status?.toLowerCase();
+      if (statusLower === 'active' || statusLower === 'published' || existing.status === 'Active' || existing.status === 'Published') {
+        existing.status = 'Active';
+      }
+      
+      // Keep track of all sub-document IDs in a list for deletion
+      if (!existing.allIds.includes(item._id)) {
+        existing.allIds.push(item._id);
+      }
+    } else {
+      // Create new group copying all listing document fields
+      const newGroup = {
+        ...item,
+        allIds: [item._id],
+        sku: sku || '-',
+        skus: sku ? [sku] : [],
+        thumbnails: thumbnail ? [thumbnail] : [],
+        listingsMap: {}
+      };
+
+      // Set the initial platform mappings
+      const platforms = ['ebay', 'poshmark', 'depop', 'vinted'];
+      platforms.forEach(p => {
+        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
+          newGroup.listingsMap[p] = item;
+        }
+      });
+
+      groups.push(newGroup);
+    }
+  });
+
+  return groups;
+};
+
 const NewListings = () => {
   const navigate = useNavigate();
   const { toast, confirm } = useNotification();
@@ -219,10 +322,18 @@ const NewListings = () => {
   const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
 
-  const handleDelete = async (id) => {
-    if (await confirm("Are you sure you want to delete this listing?", { title: 'Delete Listing', destructive: true })) {
+  const handleDelete = async (item) => {
+    const idsToDelete = item.allIds || (item.listingsMap ? Object.keys(item.listingsMap).map(k => item.listingsMap[k]._id) : [item._id]);
+    const hasMultiple = idsToDelete.length > 1;
+    const confirmMsg = hasMultiple
+      ? `Are you sure you want to delete this listing and all its drafts?`
+      : "Are you sure you want to delete this listing?";
+      
+    if (await confirm(confirmMsg, { title: 'Delete Listing', destructive: true })) {
       try {
-        await listingService.delete(id);
+        for (const id of idsToDelete) {
+          await listingService.delete(id);
+        }
         toast.success("Listing deleted successfully!");
         fetchListings();
       } catch (error) {
@@ -1008,8 +1119,12 @@ const NewListings = () => {
     setModalOpen(true);
   };
 
+  const groupedListingsList = React.useMemo(() => {
+    return groupListingsBySku(listings);
+  }, [listings]);
+
   // Filter listings
-  const filteredListings = listings.filter((item) => {
+  const filteredListings = groupedListingsList.filter((item) => {
     const matchesSearch = 
       item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.sku?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1034,13 +1149,19 @@ const NewListings = () => {
     // Listed On platforms filter
     let matchesListedOn = true;
     if (filterListedOn.length > 0) {
-      matchesListedOn = filterListedOn.includes(item.platform?.toLowerCase()) && isPublished;
+      matchesListedOn = Object.values(item.listingsMap || {}).some(sub => 
+        filterListedOn.includes(sub.platform?.toLowerCase()) && 
+        (sub.status?.toLowerCase() === 'active' || sub.status?.toLowerCase() === 'published')
+      );
     }
 
     // No Listed On platforms filter
     let matchesNoListedOn = true;
     if (filterNoListedOn.length > 0) {
-      matchesNoListedOn = filterNoListedOn.includes(item.platform?.toLowerCase()) && isUnpublished;
+      matchesNoListedOn = Object.values(item.listingsMap || {}).some(sub => 
+        filterNoListedOn.includes(sub.platform?.toLowerCase()) && 
+        (sub.status?.toLowerCase() === 'draft' || sub.status?.toLowerCase() === 'failed')
+      );
     }
 
     return matchesSearch && matchesStatus && matchesListedOn && matchesNoListedOn;
@@ -1173,13 +1294,15 @@ const NewListings = () => {
 
   // Render cross-listing badges
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
-    const isDraft = item.platform === platformName && item.status?.toLowerCase() === 'draft';
+    const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
+    const isDraft = (platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
+                    (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft');
     const isListed = !!checkId;
 
     if (isListed) {
       return (
         <div 
-          onClick={() => handleOpenPreview(item, platformName)}
+          onClick={() => handleOpenPreview(platformSpecificItem || item, platformName)}
           className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none w-full"
         >
           <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
@@ -1192,7 +1315,7 @@ const NewListings = () => {
     } else if (isDraft) {
       return (
         <div 
-          onClick={() => handleOpenPreview(item, platformName)}
+          onClick={() => handleOpenPreview(platformSpecificItem || item, platformName)}
           className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
         >
           <div className="w-8 h-8 rounded-full border border-orange-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
@@ -1205,7 +1328,7 @@ const NewListings = () => {
       // Not Listed status
       return (
         <div 
-          onClick={() => handleOpenCrosslisting(item, platformName)}
+          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
           className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
         >
           <div className="w-8 h-8 rounded-full border border-[#f3f4f6] flex items-center justify-center bg-[#fcfcff] text-[#9ca3af] shadow-sm shrink-0 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100">
@@ -1605,7 +1728,7 @@ const NewListings = () => {
                       <td className="px-6 py-4.5 text-center">
                         <div className="flex justify-center items-center gap-2">
                           <button 
-                            onClick={() => handleDelete(item._id)}
+                            onClick={() => handleDelete(item)}
                             className="p-1.5 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-slate-400 transition-all cursor-pointer"
                             title="Delete Listing"
                           >

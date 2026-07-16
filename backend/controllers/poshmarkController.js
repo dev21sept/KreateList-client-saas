@@ -195,19 +195,33 @@ exports.poshmarkImportCloset = async (req, res) => {
 
     for (const item of scrapedListings) {
       // Check for duplicate in DB for this user in Product collection
-      const duplicateQuery = { 
-        user: req.user.id, 
-        source: 'poshmark',
-        $or: [
-          { poshmarkListingId: item.poshmarkListingId },
-          { poshmarkUrl: item.poshmarkUrl },
-          { sku: item.sku }
-        ]
-      };
+      let existingProduct = null;
+      if (item.sku) {
+        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku });
+      }
 
-      const existingProduct = await Product.findOne(duplicateQuery);
+      if (!existingProduct) {
+        const duplicateQuery = { 
+          user: req.user.id, 
+          source: 'poshmark',
+          $or: [
+            { poshmarkListingId: item.poshmarkListingId },
+            { poshmarkUrl: item.poshmarkUrl }
+          ]
+        };
+        existingProduct = await Product.findOne(duplicateQuery);
+      }
 
       if (existingProduct) {
+        // If it exists, merge the Poshmark details
+        if (!existingProduct.poshmarkListingId || !existingProduct.poshmarkUrl) {
+          existingProduct.poshmarkListingId = item.poshmarkListingId;
+          existingProduct.poshmarkUrl = item.poshmarkUrl;
+          if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
+          if (item.size && !existingProduct.size) existingProduct.size = item.size;
+          existingProduct.updated_at = Date.now();
+          await existingProduct.save();
+        }
         duplicateCount++;
         continue;
       }
@@ -220,6 +234,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         selling_price: parseFloat(item.price) || 0,
         sku: item.sku,
         brand: item.brand || '',
+        size: item.size || '',
         images: item.images,
         source: 'poshmark',
         status: 'live',
@@ -292,6 +307,7 @@ exports.poshmarkPublish = async (req, res) => {
 
     // Save publish outcome in listing document
     listing.status = 'published';
+    listing.poshmarkStatus = 'published';
     listing.errorMessage = null;
     listing.poshmarkListingId = publishResult.id;
     listing.poshmarkUrl = publishResult.url;

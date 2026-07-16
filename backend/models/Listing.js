@@ -107,6 +107,26 @@ const listingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  ebayStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none'],
+    default: 'none'
+  },
+  poshmarkStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none'],
+    default: 'none'
+  },
+  depopStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none'],
+    default: 'none'
+  },
+  vintedStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none'],
+    default: 'none'
+  },
   createdAt: {
     type: Date,
     default: Date.now

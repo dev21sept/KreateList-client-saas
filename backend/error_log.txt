@@ -88,3 +88,10 @@ Error: 400 Error while downloading http://localhost:5000/uploads/img_17830834238
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:181:34)
 
+2026-07-16T10:14:14.759Z
+Error Message: OpenAI returned an empty or invalid JSON response.
+Stack Trace:
+Error: OpenAI returned an empty or invalid JSON response.
+    at exports.analyzeListing (D:\Project\elister\backend\controllers\aiController.js:403:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+

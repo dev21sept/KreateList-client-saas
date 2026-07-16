@@ -408,6 +408,14 @@ exports.syncInventory = async (req, res) => {
 
         const offerInfo = offersMap[item.sku] || { status: 'draft', listingId: null };
 
+        let sizeVal = '';
+        if (item.product.aspects) {
+          const sizeKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'size' || k.toLowerCase().includes('size ('));
+          if (sizeKey && item.product.aspects[sizeKey] && item.product.aspects[sizeKey].length > 0) {
+            sizeVal = item.product.aspects[sizeKey][0];
+          }
+        }
+
         // Map eBay item to our Product model
         const product = {
           user: userId,
@@ -415,6 +423,7 @@ exports.syncInventory = async (req, res) => {
           description: item.product.description,
           sku: item.sku,
           brand: item.product.brand,
+          size: sizeVal,
           images: item.product.imageUrls || [],
           selling_price: item.price?.value,
           source: 'ebay',
@@ -425,15 +434,31 @@ exports.syncInventory = async (req, res) => {
         };
 
         // Smart Deduplication: Match by SKU first, then by Title if SKU is missing
-        const searchCriteria = item.sku 
-          ? { sku: item.sku, user: userId } 
-          : { title: item.product.title, source: 'ebay', user: userId };
-        
-        await Product.findOneAndUpdate(
-          searchCriteria,
-          { ...product, updated_at: Date.now() },
-          { upsert: true, returnDocument: 'after' }
-        );
+        let existingProduct = null;
+        if (item.sku) {
+          existingProduct = await Product.findOne({ sku: item.sku, user: userId });
+        }
+
+        if (existingProduct) {
+          existingProduct.ebayListingId = offerInfo.listingId;
+          existingProduct.ebayUrl = offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null;
+          if (item.price?.value) existingProduct.selling_price = parseFloat(item.price.value);
+          existingProduct.status = offerInfo.status;
+          existingProduct.updated_at = Date.now();
+          if (item.product.title) existingProduct.title = item.product.title;
+          if (item.product.description) existingProduct.description = item.product.description;
+          if (item.product.brand) existingProduct.brand = item.product.brand;
+          if (sizeVal) existingProduct.size = sizeVal;
+          if (item.product.imageUrls && item.product.imageUrls.length > 0) existingProduct.images = item.product.imageUrls;
+          await existingProduct.save();
+        } else {
+          const searchCriteria = { title: item.product.title, source: 'ebay', user: userId };
+          await Product.findOneAndUpdate(
+            searchCriteria,
+            { ...product, updated_at: Date.now() },
+            { upsert: true, returnDocument: 'after' }
+          );
+        }
         totalSynced++;
       }
 
