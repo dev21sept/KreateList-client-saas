@@ -53,13 +53,13 @@ exports.etsyCallback = async (req, res) => {
   const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(/\/$/, '');
 
   if (!code || !state) {
-    return res.redirect(`${frontendUrl}/integrations?error=missing_parameters`);
+    return res.redirect(`${frontendUrl}/integrations?error=missing_parameters&channel=etsy`);
   }
 
   try {
     const user = await User.findById(state);
     if (!user) {
-      return res.redirect(`${frontendUrl}/integrations?error=user_not_found`);
+      return res.redirect(`${frontendUrl}/integrations?error=user_not_found&channel=etsy`);
     }
 
     const host = req.get('host');
@@ -103,7 +103,7 @@ exports.etsyCallback = async (req, res) => {
     res.redirect(`${frontendUrl}/integrations?success=true&channel=etsy`);
   } catch (err) {
     console.error('[Etsy Controller] Callback OAuth error:', err.response?.data || err.message);
-    res.redirect(`${frontendUrl}/integrations?error=oauth_failed`);
+    res.redirect(`${frontendUrl}/integrations?error=oauth_failed&channel=etsy`);
   }
 };
 

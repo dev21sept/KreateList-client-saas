@@ -187,7 +187,8 @@ const EbayAccounts = () => {
       handleCallback(code);
     } else if (error && !called.current) {
       called.current = true;
-      toast.error(`eBay Connection Error: ${error}`);
+      const channel = searchParams.get('channel');
+      toast.error(`${channel ? channel.charAt(0).toUpperCase() + channel.slice(1) : 'eBay'} Connection Error: ${error}`);
       navigate('/ebay-accounts', { replace: true });
     } else if (success && !called.current) {
       called.current = true;
