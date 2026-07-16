@@ -1,0 +1,25 @@
+61aa084 HEAD@{0}: reset: moving to 61aa084
+08e30b8 HEAD@{1}: commit: feat: implement CrosslistingModal component with platform-specific category search and attribute selection
+36f6ffc HEAD@{2}: commit: feat: implement CrosslistingModal component with platform-specific category search and attribute selection
+61aa084 HEAD@{3}: commit: feat: implement cross-listing infrastructure with new AI controllers, services, and routing, and add subdomain-based domain redirection in frontend App router.
+038c224 HEAD@{4}: commit: feat: add notification context for toast and confirmation modals and implement new dashboard layout structure
+9b8ee0f HEAD@{5}: commit: feat: implement Vinted listing interface, subscription checks, and backend route handlers for Poshmark, Depop, and eBay integration.
+7b67c90 HEAD@{6}: commit: feat: implement NewListings page with filtering, pagination, and cross-listing management functionality
+2f7f463 HEAD@{7}: commit: feat: implement NewDashboardLayout and update App router with domain-based redirection logic
+db54531 HEAD@{8}: commit: feat: implement new dashboard layout and modular listing creation pages
+9763580 HEAD@{9}: commit: feat: implement Depop browser extension integration with background services and frontend listing management
+1719b63 HEAD@{10}: commit: feat: add backend Depop listing service and new frontend pages for listing management
+67281ed HEAD@{11}: commit: feat: implement Depop size mapping and update listing page with footwear constants
+112caf0 HEAD@{12}: commit: feat: implement Depop listing publication service with Puppeteer-based API integration and browser extension content scripts
+da37e53 HEAD@{13}: commit: feat(depop): force fallback to nickssd if resolvedUsername/cleanUsername resolves to depop_user
+a9f8caf HEAD@{14}: commit: feat(footer): update copyright owner in Footer to Kreatelist Infotech Private Limited
+bc99de5 HEAD@{15}: commit: feat(shipping): update shipping policy with digital delivery and subscription support SLAs
+cb7245a HEAD@{16}: commit: feat(refund): update refund policy with subscription billing plans (//)
+94b115b HEAD@{17}: commit: feat: change company name from I & B to Kreatelist Infotech Private Limited in all policy pages
+6520e75 HEAD@{18}: commit: feat(depop): change fallback username from depop_user to nickssd
+7e3696a HEAD@{19}: commit: style(depop): remove warning banners and change button text to Connect Depop Account
+bad7cdf HEAD@{20}: commit: feat(depop): redirect to depop login directly on remote servers
+e7577ab HEAD@{21}: commit: fix(depop): handle interactive login X-Server display issue on remote servers gracefully
+3a0fee8 HEAD@{22}: commit: feat: implement depop listing service, content scripts, and size constants to support automated item creation
+a9570e6 HEAD@{23}: commit: feat: implement Depop backend publishing service with Puppeteer-based session handling and image processing
+07baf4c HEAD@{24}: commit: feat: initialize Express server with middleware, database connection, and API routes

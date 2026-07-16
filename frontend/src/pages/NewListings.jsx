@@ -783,7 +783,7 @@ const NewListings = () => {
       <>
         {previewListing.platform === 'poshmark' && (
           <>
-            {previewListing.status?.toLowerCase() === 'published' && previewListing.poshmarkUrl ? (
+            {previewListing.poshmarkUrl ? (
               <button 
                 onClick={() => handleVerifyAndOpen(previewListing)}
                 disabled={verifyingListingId === previewListing._id}
@@ -835,7 +835,7 @@ const NewListings = () => {
         {previewListing.platform === 'ebay' && (
           <button 
             onClick={() => {
-              if (previewListing.status?.toLowerCase() === 'published' && previewListing.ebayUrl) {
+              if (previewListing.ebayUrl) {
                 handleVerifyAndOpen(previewListing);
               } else {
                 handlePublish(previewListing._id);
@@ -854,6 +854,8 @@ const NewListings = () => {
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
                 Listing...
               </>
+            ) : previewListing.ebayUrl ? (
+              'View on eBay'
             ) : (
               'List to eBay (API)'
             )}
@@ -862,7 +864,7 @@ const NewListings = () => {
         {previewListing.platform === 'vinted' && (
           <button 
             onClick={() => {
-              if (previewListing.status?.toLowerCase() === 'published' && previewListing.vintedUrl) {
+              if (previewListing.vintedUrl) {
                 handleVerifyAndOpen(previewListing);
               } else {
                 handleVintedPublish(previewListing);
@@ -881,7 +883,7 @@ const NewListings = () => {
                 <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Listing...
               </>
-            ) : previewListing.status?.toLowerCase() === 'published' && previewListing.vintedUrl ? (
+            ) : previewListing.vintedUrl ? (
               'View on Vinted'
             ) : (
               'List to Vinted (API)'
@@ -890,7 +892,7 @@ const NewListings = () => {
         )}
         {previewListing.platform === 'depop' && (
           <>
-            {previewListing.status?.toLowerCase() === 'published' && previewListing.depopUrl ? (
+            {previewListing.depopUrl ? (
               <button 
                 onClick={() => handleVerifyAndOpen(previewListing)}
                 disabled={verifyingListingId === previewListing._id}
@@ -1178,12 +1180,13 @@ const NewListings = () => {
       return (
         <div 
           onClick={() => handleOpenPreview(item, platformName)}
-          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
+          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none w-full"
         >
           <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
             <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
           </div>
           <span className="text-[10px] font-black text-emerald-600 mt-1 select-none group-hover:text-indigo-650">Listed</span>
+          <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
         </div>
       );
     } else if (isDraft) {

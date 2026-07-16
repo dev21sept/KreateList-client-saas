@@ -1,0 +1,15 @@
+08e30b8 feat: implement CrosslistingModal component with platform-specific category search and attribute selection
+36f6ffc feat: implement CrosslistingModal component with platform-specific category search and attribute selection
+61aa084 feat: implement cross-listing infrastructure with new AI controllers, services, and routing, and add subdomain-based domain redirection in frontend App router.
+038c224 feat: add notification context for toast and confirmation modals and implement new dashboard layout structure
+9b8ee0f feat: implement Vinted listing interface, subscription checks, and backend route handlers for Poshmark, Depop, and eBay integration.
+7b67c90 feat: implement NewListings page with filtering, pagination, and cross-listing management functionality
+2f7f463 feat: implement NewDashboardLayout and update App router with domain-based redirection logic
+db54531 feat: implement new dashboard layout and modular listing creation pages
+9763580 feat: implement Depop browser extension integration with background services and frontend listing management
+1719b63 feat: add backend Depop listing service and new frontend pages for listing management
+67281ed feat: implement Depop size mapping and update listing page with footwear constants
+112caf0 feat: implement Depop listing publication service with Puppeteer-based API integration and browser extension content scripts
+da37e53 feat(depop): force fallback to nickssd if resolvedUsername/cleanUsername resolves to depop_user
+a9f8caf feat(footer): update copyright owner in Footer to Kreatelist Infotech Private Limited
+bc99de5 feat(shipping): update shipping policy with digital delivery and subscription support SLAs
