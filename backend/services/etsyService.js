@@ -59,7 +59,7 @@ async function getShopInfo(accessToken) {
     }
 
     // 2. Fetch User's Shops
-    const response = await axios.get(`https://openapi.etsy.com/v3/application/users/${userIdPrefix}/shops`, {
+    const response = await axios.get(`https://api.etsy.com/v3/application/users/${userIdPrefix}/shops`, {
       headers: {
         'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
@@ -96,7 +96,7 @@ async function createDraftListing(userId, shopId, listingData) {
   };
 
   try {
-    const response = await axios.post(`https://openapi.etsy.com/v3/application/shops/${shopId}/listings`, 
+    const response = await axios.post(`https://api.etsy.com/v3/application/shops/${shopId}/listings`, 
       new URLSearchParams(payload), {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -141,7 +141,7 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
   const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
   formData.append('image', blob, filename);
 
-  const url = `https://openapi.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/images`;
+  const url = `https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/images`;
   
   try {
     const response = await axios.post(url, formData, {
@@ -161,7 +161,7 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
 async function getEbayInventory(userId, shopId) {
   const accessToken = await getValidToken(userId);
   try {
-    const response = await axios.get(`https://openapi.etsy.com/v3/application/shops/${shopId}/listings/state/active?limit=48`, {
+    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/active?limit=48`, {
       headers: {
         'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
