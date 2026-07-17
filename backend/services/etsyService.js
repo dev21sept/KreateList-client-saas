@@ -73,14 +73,25 @@ async function getShopInfo(accessToken) {
     console.log('[Etsy Service] API Response status:', response.status);
     console.log('[Etsy Service] API Response data:', JSON.stringify(response.data));
 
-    const shops = response.data?.results || [];
-    if (shops.length === 0) {
+    const data = response.data;
+    let shopId = '';
+    let shopName = '';
+
+    if (data?.shop_id) {
+      shopId = String(data.shop_id);
+      shopName = data.shop_name;
+    } else if (data?.results && data.results.length > 0) {
+      shopId = String(data.results[0].shop_id);
+      shopName = data.results[0].shop_name;
+    }
+
+    if (!shopId) {
       throw new Error('No Etsy shops found for this account.');
     }
 
     return {
-      shopId: String(shops[0].shop_id),
-      shopName: shops[0].shop_name
+      shopId,
+      shopName
     };
   } catch (err) {
     console.error('[Etsy Service] Fetch shop info failed:', err.response?.data || err.message);
