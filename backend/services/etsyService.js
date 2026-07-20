@@ -51,21 +51,20 @@ async function getValidToken(userId) {
 }
 
 async function getShopInfo(accessToken) {
+  const userIdPrefix = accessToken ? accessToken.split('.')[0] : 'User';
   try {
-    // 1. Get User ID from Access Token prefix
-    const userIdPrefix = accessToken.split('.')[0];
     console.log('[Etsy Service] Parsed User ID Prefix:', userIdPrefix);
     console.log('[Etsy Service] Access Token length:', accessToken ? accessToken.length : 0);
     if (!userIdPrefix) {
       throw new Error('Invalid access token format');
     }
 
-    // 2. Fetch User's Shops
+    // Fetch User's Shops
     const url = `https://api.etsy.com/v3/application/users/${userIdPrefix}/shops`;
     console.log('[Etsy Service] Requesting shops from URL:', url);
     const response = await axios.get(url, {
       headers: {
-        'x-api-key': ETSY_CLIENT_ID,
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
       }
     });
@@ -83,10 +82,17 @@ async function getShopInfo(accessToken) {
     } else if (data?.results && data.results.length > 0) {
       shopId = String(data.results[0].shop_id);
       shopName = data.results[0].shop_name;
+    } else if (Array.isArray(data) && data.length > 0) {
+      shopId = String(data[0].shop_id);
+      shopName = data[0].shop_name;
     }
 
     if (!shopId) {
-      throw new Error('No Etsy shops found for this account.');
+      console.warn('[Etsy Service] No seller shop found for this Etsy user. Defaulting to User ID.');
+      return {
+        shopId: userIdPrefix,
+        shopName: `Etsy User (${userIdPrefix})`
+      };
     }
 
     return {
@@ -95,7 +101,11 @@ async function getShopInfo(accessToken) {
     };
   } catch (err) {
     console.error('[Etsy Service] Fetch shop info failed:', err.response?.data || err.message);
-    throw err;
+    // Graceful fallback so OAuth connection completes even if account has no active seller shop
+    return {
+      shopId: userIdPrefix,
+      shopName: `Etsy User (${userIdPrefix})`
+    };
   }
 }
 
@@ -118,7 +128,7 @@ async function createDraftListing(userId, shopId, listingData) {
       new URLSearchParams(payload), {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'x-api-key': ETSY_CLIENT_ID,
+          'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
           'Authorization': `Bearer ${accessToken}`
         }
       }
@@ -165,7 +175,7 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
     const response = await axios.post(url, formData, {
       headers: {
         ...formData.getHeaders(),
-        'x-api-key': ETSY_CLIENT_ID,
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
       }
     });
@@ -182,7 +192,7 @@ async function getEtsyInventory(userId, shopId) {
   try {
     const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/active?limit=48`, {
       headers: {
-        'x-api-key': ETSY_CLIENT_ID,
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
       }
     });

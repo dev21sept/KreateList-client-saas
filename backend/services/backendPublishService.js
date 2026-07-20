@@ -369,8 +369,9 @@ async function publishToDepop(listing, depopAccount) {
 
           if (addrRes.ok) {
             const addrData = await addrRes.json();
-            if (addrData && addrData.length > 0) {
-              const activeAddress = addrData[0];
+            const addresses = Array.isArray(addrData) ? addrData : (addrData?.addresses || addrData?.results || []);
+            if (addresses && addresses.length > 0) {
+              const activeAddress = addresses[0];
               const addressId = activeAddress.id || activeAddress.address_id;
               
               sellerAddress = activeAddress.city || activeAddress.town || "United States";
@@ -390,13 +391,14 @@ async function publishToDepop(listing, depopAccount) {
 
               if (providersRes.ok) {
                 const providersData = await providersRes.json();
-                if (providersData && providersData.length > 0) {
-                  const firstProvider = providersData[0];
+                const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
+                if (providers && providers.length > 0) {
+                  const firstProvider = providers[0];
                   const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
                   
                   shippingMethods = [{
-                    shipping_provider_id: firstProvider.id,
-                    parcel_size_id: sizeObj.id,
+                    shipping_provider_id: firstProvider.id || 1,
+                    parcel_size_id: sizeObj.id || 3,
                     shipping_type: 'depop',
                     price: parseFloat(listingData.shippingPrice || 0).toFixed(2)
                   }];
@@ -429,15 +431,15 @@ async function publishToDepop(listing, depopAccount) {
               }
             }
             
-            if (listingData.depopType) {
+            const catId = (listingData.categoryId || '').toLowerCase();
+            if (catId.includes('coat') || catId.includes('jacket')) {
+              attrs["coat-type"] = [listingData.depopType ? listingData.depopType.toLowerCase() : "other-coats-jackets"];
+            } else if (listingData.depopType) {
               const typeVal = listingData.depopType.toLowerCase();
-              const catId = (listingData.categoryId || '').toLowerCase();
               if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
                 attrs["bottom-style"] = [typeVal];
               } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
                 attrs["trainers-type"] = [typeVal];
-              } else if (catId.includes('coat') || catId.includes('jacket')) {
-                attrs["coat-type"] = [typeVal];
               }
             }
             return attrs;
@@ -487,7 +489,7 @@ async function publishToDepop(listing, depopAccount) {
             return { "4": qty }; // Default M
           })(),
           persistent_id: window.crypto.randomUUID(),
-          quantity: null
+          quantity: parseInt(listingData.quantity) || 1
         };
 
         const saveRes = await fetchWithRetry('https://webapi.depop.com/presentation/api/v1/listing/products/', {

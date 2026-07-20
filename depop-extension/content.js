@@ -509,19 +509,24 @@ async function executeDepopUpload(productData) {
       }
     }
 
-    if (productData.depopType) {
+    const catId = (productData.categoryId || '').toLowerCase();
+    if (catId.includes('coat') || catId.includes('jacket')) {
+      attributesPayload["coat-type"] = [productData.depopType ? productData.depopType.toLowerCase() : "other-coats-jackets"];
+    } else if (productData.depopType) {
       const typeVal = productData.depopType.toLowerCase();
-      const catId = (productData.categoryId || '').toLowerCase();
       if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
         attributesPayload["bottom-style"] = [typeVal];
       } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
         attributesPayload["trainers-type"] = [typeVal];
-      } else if (catId.includes('coat') || catId.includes('jacket')) {
-        attributesPayload["coat-type"] = [typeVal];
       }
     }
 
-    let shippingMethods = [];
+    let shippingMethods = [{
+      shipping_provider_id: 1,
+      parcel_size_id: 3, // Default to Medium size Depop Shipping
+      shipping_type: 'depop',
+      price: parseFloat(productData.shippingPrice || 0).toFixed(2)
+    }];
     let sellerAddress = countryName;
     let sellerGeo = geo;
     let sellerCountry = countryCode;
@@ -537,7 +542,8 @@ async function executeDepopUpload(productData) {
       }, 'json');
 
       if (addrRes && addrRes.ok) {
-        const addresses = await addrRes.json();
+        const addrData = await addrRes.json();
+        const addresses = Array.isArray(addrData) ? addrData : (addrData?.addresses || addrData?.results || []);
         if (addresses && addresses.length > 0) {
           const activeAddress = addresses[0];
           const addressId = activeAddress.id || activeAddress.address_id;
@@ -558,14 +564,15 @@ async function executeDepopUpload(productData) {
           }, 'json');
 
           if (providersRes && providersRes.ok) {
-            const providers = await providersRes.json();
+            const providersData = await providersRes.json();
+            const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
             if (providers && providers.length > 0) {
               const firstProvider = providers[0];
               const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
               
               shippingMethods = [{
-                shipping_provider_id: firstProvider.id,
-                parcel_size_id: sizeObj.id,
+                shipping_provider_id: firstProvider.id || 1,
+                parcel_size_id: sizeObj.id || 3,
                 shipping_type: 'depop',
                 price: parseFloat(productData.shippingPrice || 0).toFixed(2)
               }];
@@ -607,7 +614,7 @@ async function executeDepopUpload(productData) {
       variant_set: variantSet,
       variants: variantsPayload,
       persistent_id: persistentId,
-      quantity: null
+      quantity: parseInt(productData.quantity) || 1
     };
 
     console.log('[Elister Depop] Saving product with payload:', JSON.stringify(savePayload));
@@ -1105,8 +1112,9 @@ if (currentSite === 'depop') {
 
           if (addrRes.ok) {
             const addrData = await addrRes.json();
-            if (addrData && addrData.length > 0) {
-              const activeAddress = addrData[0];
+            const addresses = Array.isArray(addrData) ? addrData : (addrData?.addresses || addrData?.results || []);
+            if (addresses && addresses.length > 0) {
+              const activeAddress = addresses[0];
               const addressId = activeAddress.id || activeAddress.address_id;
               
               sellerAddress = activeAddress.city || activeAddress.town || "United States";
@@ -1128,13 +1136,14 @@ if (currentSite === 'depop') {
 
               if (providersRes.ok) {
                 const providersData = await providersRes.json();
-                if (providersData && providersData.length > 0) {
-                  const firstProvider = providersData[0];
+                const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
+                if (providers && providers.length > 0) {
+                  const firstProvider = providers[0];
                   const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
                   
                   shippingMethods = [{
-                    shipping_provider_id: firstProvider.id,
-                    parcel_size_id: sizeObj.id,
+                    shipping_provider_id: firstProvider.id || 1,
+                    parcel_size_id: sizeObj.id || 3,
                     shipping_type: 'depop',
                     price: parseFloat(listing.shippingPrice || 0).toFixed(2)
                   }];
@@ -1169,15 +1178,15 @@ if (currentSite === 'depop') {
               }
             }
             
-            if (listing.depopType) {
+            const catId = (listing.categoryId || '').toLowerCase();
+            if (catId.includes('coat') || catId.includes('jacket')) {
+              attrs["coat-type"] = [listing.depopType ? listing.depopType.toLowerCase() : "other-coats-jackets"];
+            } else if (listing.depopType) {
               const typeVal = listing.depopType.toLowerCase();
-              const catId = (listing.categoryId || '').toLowerCase();
               if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
                 attrs["bottom-style"] = [typeVal];
               } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
                 attrs["trainers-type"] = [typeVal];
-              } else if (catId.includes('coat') || catId.includes('jacket')) {
-                attrs["coat-type"] = [typeVal];
               }
             }
             return attrs;
@@ -1227,7 +1236,7 @@ if (currentSite === 'depop') {
             return { "4": qty }; // Default M
           })(),
           persistent_id: window.crypto.randomUUID(),
-          quantity: null
+          quantity: parseInt(listing.quantity) || 1
         };
 
         console.log('[Page Context Publisher] Step 2: Creating listing on Depop...');

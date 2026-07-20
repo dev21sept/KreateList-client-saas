@@ -424,7 +424,12 @@ async function publishDepopBackground(listing, token) {
       return 'unisex';
     };
 
-    let shippingMethods = [];
+    let shippingMethods = [{
+      shipping_provider_id: 1,
+      parcel_size_id: 3, // Default to Medium size Depop Shipping
+      shipping_type: 'depop',
+      price: parseFloat(listing.shippingPrice || 0).toFixed(2)
+    }];
     let sellerAddress = "United States";
     let sellerGeo = { lat: 37.09024, lng: -95.712891 };
     let sellerCountry = "US";
@@ -442,8 +447,9 @@ async function publishDepopBackground(listing, token) {
 
       if (addrRes.ok) {
         const addrData = await addrRes.json();
-        if (addrData && addrData.length > 0) {
-          const activeAddress = addrData[0];
+        const addresses = Array.isArray(addrData) ? addrData : (addrData?.addresses || addrData?.results || []);
+        if (addresses && addresses.length > 0) {
+          const activeAddress = addresses[0];
           const addressId = activeAddress.id || activeAddress.address_id;
           
           sellerAddress = activeAddress.city || activeAddress.town || "United States";
@@ -465,13 +471,14 @@ async function publishDepopBackground(listing, token) {
 
           if (providersRes.ok) {
             const providersData = await providersRes.json();
-            if (providersData && providersData.length > 0) {
-              const firstProvider = providersData[0];
+            const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
+            if (providers && providers.length > 0) {
+              const firstProvider = providers[0];
               const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
               
               shippingMethods = [{
-                shipping_provider_id: firstProvider.id,
-                parcel_size_id: sizeObj.id,
+                shipping_provider_id: firstProvider.id || 1,
+                parcel_size_id: sizeObj.id || 3,
                 shipping_type: 'depop',
                 price: parseFloat(listing.shippingPrice || 0).toFixed(2)
               }];
@@ -506,15 +513,15 @@ async function publishDepopBackground(listing, token) {
           }
         }
         
-        if (listing.depopType) {
+        const catId = (listing.categoryId || '').toLowerCase();
+        if (catId.includes('coat') || catId.includes('jacket')) {
+          attrs["coat-type"] = [listing.depopType ? listing.depopType.toLowerCase() : "other-coats-jackets"];
+        } else if (listing.depopType) {
           const typeVal = listing.depopType.toLowerCase();
-          const catId = (listing.categoryId || '').toLowerCase();
           if (catId.includes('bottom') || catId.includes('jeans') || catId.includes('trousers') || catId.includes('shorts')) {
             attrs["bottom-style"] = [typeVal];
           } else if (catId.includes('footwear') || catId.includes('shoes') || catId.includes('trainers') || catId.includes('boots')) {
             attrs["trainers-type"] = [typeVal];
-          } else if (catId.includes('coat') || catId.includes('jacket')) {
-            attrs["coat-type"] = [typeVal];
           }
         }
         return attrs;
@@ -564,7 +571,7 @@ async function publishDepopBackground(listing, token) {
         return { "4": qty }; // Default M
       })(),
       persistent_id: crypto.randomUUID(),
-      quantity: null
+      quantity: parseInt(listing.quantity) || 1
     };
 
     console.log('[Background Publisher] Step 2: Creating listing on Depop...');
