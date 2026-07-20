@@ -65,7 +65,7 @@ async function getShopInfo(accessToken) {
     console.log('[Etsy Service] Requesting shops from URL:', url);
     const response = await axios.get(url, {
       headers: {
-        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'x-api-key': ETSY_CLIENT_ID,
         'Authorization': `Bearer ${accessToken}`
       }
     });
@@ -118,7 +118,7 @@ async function createDraftListing(userId, shopId, listingData) {
       new URLSearchParams(payload), {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+          'x-api-key': ETSY_CLIENT_ID,
           'Authorization': `Bearer ${accessToken}`
         }
       }
@@ -155,16 +155,17 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
     throw new Error('Invalid image source');
   }
 
+  const FormData = require('form-data');
   const formData = new FormData();
-  const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
-  formData.append('image', blob, filename);
+  formData.append('image', imageBuffer, { filename: filename, contentType: 'image/jpeg' });
 
   const url = `https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/images`;
   
   try {
     const response = await axios.post(url, formData, {
       headers: {
-        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        ...formData.getHeaders(),
+        'x-api-key': ETSY_CLIENT_ID,
         'Authorization': `Bearer ${accessToken}`
       }
     });
@@ -176,12 +177,12 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
   }
 }
 
-async function getEbayInventory(userId, shopId) {
+async function getEtsyInventory(userId, shopId) {
   const accessToken = await getValidToken(userId);
   try {
     const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/active?limit=48`, {
       headers: {
-        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'x-api-key': ETSY_CLIENT_ID,
         'Authorization': `Bearer ${accessToken}`
       }
     });
@@ -197,7 +198,7 @@ module.exports = {
   getShopInfo,
   createDraftListing,
   uploadListingImage,
-  getEbayInventory,
+  getEtsyInventory,
   ETSY_CLIENT_ID,
   ETSY_CLIENT_SECRET
 };

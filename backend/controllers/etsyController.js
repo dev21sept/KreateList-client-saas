@@ -25,10 +25,10 @@ exports.etsyConnect = async (req, res) => {
     await user.save();
 
     const host = req.get('host');
-    const protocol = req.protocol;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const isProd = host.includes('elister.ai');
     const finalProtocol = isProd ? 'https' : protocol;
-    const redirectUri = `${finalProtocol}://${host}/api/etsy/callback`;
+    const redirectUri = process.env.ETSY_REDIRECT_URI || `${finalProtocol}://${host}/api/etsy/callback`;
 
     const scopes = 'listings_w listings_r shops_r';
     const state = req.user.id;
@@ -50,7 +50,8 @@ exports.etsyConnect = async (req, res) => {
 
 exports.etsyCallback = async (req, res) => {
   const { code, state } = req.query;
-  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(/\/$/, '');
+  const rawFrontendUrl = process.env.FRONTEND_URL || 'https://app.elister.ai';
+  const frontendUrl = rawFrontendUrl.trim().replace(/\/$/, '');
 
   if (!code || !state) {
     return res.redirect(`${frontendUrl}/integrations?error=missing_parameters&channel=etsy`);
@@ -63,10 +64,10 @@ exports.etsyCallback = async (req, res) => {
     }
 
     const host = req.get('host');
-    const protocol = req.protocol;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const isProd = host.includes('elister.ai');
     const finalProtocol = isProd ? 'https' : protocol;
-    const redirectUri = `${finalProtocol}://${host}/api/etsy/callback`;
+    const redirectUri = process.env.ETSY_REDIRECT_URI || `${finalProtocol}://${host}/api/etsy/callback`;
 
     // Exchange code for tokens
     const response = await axios.post('https://api.etsy.com/v3/public/oauth/token', 
@@ -103,7 +104,8 @@ exports.etsyCallback = async (req, res) => {
     res.redirect(`${frontendUrl}/integrations?success=true&channel=etsy`);
   } catch (err) {
     console.error('[Etsy Controller] Callback OAuth error:', err.response?.data || err.message);
-    res.redirect(`${frontendUrl}/integrations?error=oauth_failed&channel=etsy`);
+    const errDetails = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    res.redirect(`${frontendUrl}/integrations?error=${encodeURIComponent(errDetails)}&channel=etsy`);
   }
 };
 
@@ -131,7 +133,16 @@ exports.etsyDisconnect = async (req, res) => {
 };
 
 exports.syncEtsyInventory = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Etsy inventory sync complete.' });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
+      return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
+    }
+    const listings = await etsyService.getEtsyInventory(req.user.id, user.etsyAccount.shopId);
+    res.status(200).json({ success: true, message: 'Etsy inventory sync complete.', count: listings.length, listings });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 exports.etsyPublish = async (req, res) => {
