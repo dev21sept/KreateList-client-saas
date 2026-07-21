@@ -345,6 +345,105 @@ exports.updateListing = async (req, res) => {
     }
 
     listing = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+
+    // Live eBay Sync: If listing is listed on eBay, push ALL updates (Aspects/Specifics, Title, Price, Description, Images, Weight, Condition) directly to eBay Inventory API
+    if (listing.ebayListingId || (listing.platform === 'ebay' && listing.status === 'published')) {
+      try {
+        const token = await getValidToken(req.user.id);
+        if (token && listing.sku) {
+          console.log(`[Listing Controller] Live Syncing ALL data (Item Specifics, Aspects, Title, Price, Images, Condition) to eBay for SKU: ${listing.sku}`);
+          
+          // Build aspects dictionary
+          const aspects = {};
+          if (listing.itemSpecifics) {
+            const specsObj = listing.itemSpecifics instanceof Map ? Object.fromEntries(listing.itemSpecifics) : listing.itemSpecifics;
+            for (const [key, value] of Object.entries(specsObj)) {
+              if (value && value.length > 0) {
+                const filtered = (Array.isArray(value) ? value : [value])
+                  .map(v => String(v || ''))
+                  .filter(v => !isAspectValueInvalid(v));
+                if (filtered.length > 0) {
+                  aspects[key] = filtered;
+                }
+              }
+            }
+          }
+
+          if (listing.brand && !isAspectValueInvalid(listing.brand) && !aspects['Brand']) aspects['Brand'] = [listing.brand];
+          if (listing.color && !isAspectValueInvalid(listing.color) && !aspects['Color']) aspects['Color'] = [listing.color];
+          if (listing.size && !isAspectValueInvalid(listing.size) && !aspects['Size']) aspects['Size'] = [listing.size];
+          if (listing.material && !isAspectValueInvalid(listing.material) && !aspects['Material']) aspects['Material'] = [listing.material];
+          if (listing.styleTag && !isAspectValueInvalid(listing.styleTag) && !aspects['Style']) aspects['Style'] = [listing.styleTag];
+
+          const resolvedConditionId = resolveConditionForCategory(listing.conditionId, []);
+          const ebayConditionEnum = mapConditionIdToEnum(resolvedConditionId);
+
+          const packageWeightAndSize = {};
+          if (listing.packageWeight) {
+            const totalOunces = (listing.packageWeight.lbs || 0) * 16 + (listing.packageWeight.oz || 0);
+            if (totalOunces > 0) packageWeightAndSize.weight = { value: totalOunces, unit: 'OUNCE' };
+          }
+          if (listing.packageDimensions) {
+            const { length, width, height } = listing.packageDimensions;
+            if (length > 0 || width > 0 || height > 0) {
+              packageWeightAndSize.dimensions = { length: length || 0, width: width || 0, height: height || 0, unit: 'INCH' };
+            }
+          }
+
+          const inventoryItemData = {
+            availability: {
+              shipToLocationAvailability: {
+                quantity: listing.quantity || 1
+              }
+            },
+            condition: ebayConditionEnum,
+            product: {
+              title: listing.title ? listing.title.substring(0, 80) : '',
+              description: sanitizeEbayDescription(listing.description),
+              aspects: aspects,
+              imageUrls: listing.images && listing.images.length > 0 ? listing.images : ['https://via.placeholder.com/500']
+            }
+          };
+
+          if (listing.conditionNote) {
+            inventoryItemData.conditionDescription = listing.conditionNote;
+          }
+          if (packageWeightAndSize.weight || packageWeightAndSize.dimensions) {
+            inventoryItemData.packageWeightAndSize = packageWeightAndSize;
+          }
+
+          await ebayService.createOrReplaceInventoryItem(token, listing.sku, inventoryItemData);
+
+          // Update active offer price & description on eBay
+          const existingOffers = await ebayService.getOffers(token, listing.sku);
+          if (existingOffers && existingOffers.length > 0) {
+            for (const offer of existingOffers) {
+              try {
+                const updatedOfferPayload = {
+                  ...offer,
+                  pricingSummary: {
+                    price: {
+                      value: String(listing.price),
+                      currency: 'USD'
+                    }
+                  },
+                  availableQuantity: listing.quantity || 1,
+                  listingDescription: sanitizeEbayDescription(listing.description)
+                };
+                await ebayService.updateOffer(token, offer.offerId, updatedOfferPayload);
+              } catch (offErr) {
+                console.warn(`[Listing Controller] Offer price update note: ${offErr.message}`);
+              }
+            }
+          }
+
+          console.log(`[Listing Controller] Successfully synced ALL item specifics and data live to eBay for SKU: ${listing.sku}`);
+        }
+      } catch (ebayErr) {
+        console.warn(`[Listing Controller] Failed to sync live changes to eBay API:`, ebayErr.message);
+      }
+    }
+
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

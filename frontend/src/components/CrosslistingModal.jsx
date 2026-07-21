@@ -1245,8 +1245,26 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         [`${platform}Status`]: publishMethod === 'draft' ? 'draft' : 'none'
       });
 
-      if (isEditMode || publishMethod === 'draft') {
-        toast.success(publishMethod === 'draft' ? "Draft saved successfully!" : "Listing updated successfully!");
+      if (isEditMode) {
+        if (platform === 'ebay' && (listing.ebayListingId || listing.status === 'published')) {
+          try {
+            toast.info("Syncing updates to live eBay listing...");
+            await listingService.publish(activeListingId);
+            toast.success("✨ Live eBay listing updated successfully!");
+          } catch (ebayErr) {
+            console.error("Failed to sync live update to eBay:", ebayErr);
+            toast.warning("Saved locally. Could not sync live to eBay: " + (ebayErr.response?.data?.message || ebayErr.message));
+          }
+        } else {
+          toast.success("Listing updated successfully!");
+        }
+        onSyncSuccess();
+        onClose();
+        return;
+      }
+
+      if (publishMethod === 'draft') {
+        toast.success("Draft saved successfully!");
         onSyncSuccess();
         onClose();
         return;

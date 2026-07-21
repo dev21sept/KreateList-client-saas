@@ -1259,6 +1259,17 @@ const NewListings = () => {
     return '#';
   };
 
+  const handleEditListedItem = (item, platformName) => {
+    setActiveListedDropdown(null);
+    const targetItem = item.listingsMap && item.listingsMap[platformName] 
+      ? item.listingsMap[platformName] 
+      : item;
+    setSelectedListing(targetItem);
+    setSelectedPlatform(platformName);
+    setIsEditMode(true);
+    setModalOpen(true);
+  };
+
   const handleMoveToNewList = async (item, platformName) => {
     setActiveListedDropdown(null);
 
@@ -1363,6 +1374,14 @@ const NewListings = () => {
                 <ExternalLink size={13} className="text-indigo-500 shrink-0" />
                 View Listing
               </a>
+              <button
+                type="button"
+                onClick={() => handleEditListedItem(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Edit size={13} className="text-indigo-500 shrink-0" />
+                Edit Listing
+              </button>
               <button
                 type="button"
                 onClick={() => handleMoveToNewList(item, platformName)}
