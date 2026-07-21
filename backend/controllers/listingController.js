@@ -745,10 +745,8 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    // 6. Create/Update Inventory Item
-    // FORCE UNIQUE SKU for every attempt to ensure fresh data and prevent caching issues on eBay
-    const timestamp = Date.now().toString().substring(8);
-    const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
+    // Use exact listing.sku if present; fallback to auto-generated SKU
+    const sku = listing.sku ? listing.sku.trim() : `SKU-${listing._id.toString().substring(18)}`;
 
     // Fetch valid conditions from Taxonomy API for listing.categoryId
     let validConditionIds = [];
