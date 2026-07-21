@@ -1233,6 +1233,79 @@ const NewListings = () => {
     return 'Just now';
   };
 
+  // Active Listed Dropdown state
+  const [activeListedDropdown, setActiveListedDropdown] = useState(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveListedDropdown(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const getListingUrl = (item, platformName, checkId) => {
+    if (item[`${platformName}Url`]) return item[`${platformName}Url`];
+    const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
+    if (platformSpecificItem && platformSpecificItem.url) return platformSpecificItem.url;
+
+    if (platformName === 'depop') {
+      return `https://www.depop.com/products/${checkId}`;
+    } else if (platformName === 'ebay') {
+      return `https://www.ebay.com/itm/${checkId}`;
+    } else if (platformName === 'poshmark') {
+      return `https://poshmark.com/listing/${checkId}`;
+    } else if (platformName === 'etsy') {
+      return `https://www.etsy.com/listing/${checkId}`;
+    }
+    return '#';
+  };
+
+  const handleMoveToNewList = async (item, platformName) => {
+    setActiveListedDropdown(null);
+
+    try {
+      if (item._id && !String(item._id).startsWith('mock-')) {
+        // Create a brand new independent listing copy in DB
+        const newListingPayload = {
+          title: item.title || 'New Listing',
+          description: item.description || '',
+          price: item.price || 0,
+          originalPrice: item.originalPrice || 0,
+          brand: item.brand || '',
+          size: item.size || '',
+          color: item.color || '',
+          sku: item.sku ? `${item.sku}-NEW` : `KL${Date.now()}`,
+          category: item.category || '',
+          categoryId: item.categoryId || '',
+          material: item.material || '',
+          quantity: item.quantity || 1,
+          images: item.images || (item.thumbnail ? [item.thumbnail] : []),
+          age: item.age || '',
+          source: item.source || '',
+          bodyFit: item.bodyFit || '',
+          occasion: item.occasion || '',
+          depopType: item.depopType || '',
+          fastening: item.fastening || '',
+          fit: item.fit || '',
+          shippingPrice: item.shippingPrice || 0,
+          worldwideShipping: item.worldwideShipping || false,
+          country: item.country || 'US',
+          styleTag: item.styleTag || '',
+          status: 'draft',
+          platform: 'draft'
+        };
+
+        await listingService.create(newListingPayload);
+        toast.success(`✨ Created new draft listing! Original ${platformName.toUpperCase()} listed item remains untouched.`);
+        fetchListings();
+      } else {
+        toast.info("Created new draft copy!");
+      }
+    } catch (err) {
+      console.error('Error creating new listing copy:', err);
+      toast.error('Failed to create new listing copy.');
+    }
+  };
+
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -1248,27 +1321,64 @@ const NewListings = () => {
   // Render cross-listing badges
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
-    const isDraft = (platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
-                    (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft');
-    const isListed = !!checkId;
+    const isListed = !!checkId && checkId !== '-';
+    const isDraft = !isListed && ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
+                    (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
+    const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
 
     if (isListed) {
+      const liveUrl = getListingUrl(item, platformName, checkId);
+
       return (
-        <div 
-          onClick={() => handleOpenPreview(platformSpecificItem || item, platformName)}
-          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none w-full"
-        >
-          <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
-            <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
+        <div className="relative flex flex-col items-center justify-center py-1 select-none w-full">
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveListedDropdown(isDropdownOpen ? null : { itemId: item._id, platform: platformName });
+            }}
+            className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
+            title="Click for options"
+          >
+            <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-200">
+              <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
+            </div>
+            <span className="text-[10px] font-black text-emerald-600 mt-1 select-none group-hover:text-indigo-650 flex items-center gap-0.5">
+              Listed <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </span>
+            <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
           </div>
-          <span className="text-[10px] font-black text-emerald-600 mt-1 select-none group-hover:text-indigo-650">Listed</span>
-          <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
+
+          {isDropdownOpen && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-full mt-1 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-150 text-left"
+            >
+              <a
+                href={liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setActiveListedDropdown(null)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <ExternalLink size={13} className="text-indigo-500 shrink-0" />
+                View Listing
+              </a>
+              <button
+                type="button"
+                onClick={() => handleMoveToNewList(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <RefreshCw size={13} className="text-amber-500 shrink-0" />
+                Move to New List
+              </button>
+            </div>
+          )}
         </div>
       );
     } else if (isDraft) {
       return (
         <div 
-          onClick={() => handleOpenPreview(platformSpecificItem || item, platformName)}
+          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
           className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
         >
           <div className="w-8 h-8 rounded-full border border-orange-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
