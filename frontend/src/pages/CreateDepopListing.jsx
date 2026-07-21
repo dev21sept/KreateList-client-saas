@@ -16,14 +16,17 @@ import {
   Check,
   Tag,
   Eye,
-  Trash2
+  Trash2,
+  ArrowLeft,
+  ArrowRight,
+  Code
 } from 'lucide-react';
 import { ruleService, aiService, listingService, externalImportService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
 import { compressImage } from '../utils/imageCompressor';
 import { DEPOP_COLOURS } from '../constants/depopColours';
-import { DEPOP_STYLES } from '../constants/depopStyles';
+import { DEPOP_STYLES, DEPOP_STYLE_TAGS } from '../constants/depopStyles';
 import { DEPOP_AGES } from '../constants/depopAges';
 import { DEPOP_SOURCES } from '../constants/depopSources';
 import { DEPOP_BRANDS } from '../constants/depopBrands';
@@ -86,7 +89,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
           error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
         } rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
       >
-        <span className="truncate">{value || placeholder}</span>
+        <span className="truncate">{typeof value === 'object' && value !== null ? (value.label || value.name || value.id || '') : (value || placeholder)}</span>
         <div className="flex items-center gap-1.5 shrink-0">
           {value && !disabled && (
             <span
@@ -130,8 +133,8 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                 className={`w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors ${value === opt.label ? 'bg-indigo-50' : ''}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold">{opt.label}</span>
-                  {value === opt.label && <Check className="w-4 h-4" />}
+                  <span className="text-sm font-bold">{typeof opt === 'object' && opt !== null ? (opt.label || opt.name || opt.id || '') : String(opt || '')}</span>
+                  {value === (opt?.label || opt) && <Check className="w-4 h-4" />}
                 </div>
                 {opt.description && (
                   <p className={`text-[10px] mt-0.5 line-clamp-1 ${value === opt.label ? 'text-indigo-200' : 'text-slate-400'}`}>{opt.description}</p>
@@ -430,6 +433,22 @@ const CreateDepopListing = () => {
       return next;
     });
   }, [formData.images]);
+
+  const moveImage = (index, direction) => {
+    const newImages = [...formData.images];
+    const newFiles = [...files];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newImages.length) return;
+    
+    [newImages[index], newImages[targetIndex]] = [newImages[targetIndex], newImages[index]];
+    if (newFiles.length === newImages.length) {
+      [newFiles[index], newFiles[targetIndex]] = [newFiles[targetIndex], newFiles[index]];
+      setFiles(newFiles);
+    }
+    
+    setFormData(prev => ({ ...prev, images: newImages }));
+  };
 
   const modelOptions = useMemo(() => [
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
@@ -799,19 +818,19 @@ const CreateDepopListing = () => {
     return labels[activeFitAttribute] || "Fit";
   }, [activeFitAttribute]);
 
-  const typeOptions = useMemo(() => {
+  const typeFieldOptions = useMemo(() => {
     if (!activeTypeAttribute) return [];
     if (DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute]) {
-      return DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute];
+      return DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute].map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal });
     }
     if (activeTypeAttribute === "bottom-style") {
-      return DEPOP_TYPES.bottoms;
+      return DEPOP_TYPES.bottoms.map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal });
     }
     if (activeTypeAttribute === "beauty-type") {
-      return DEPOP_TYPES.beauty;
+      return DEPOP_TYPES.beauty.map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal });
     }
     if (activeTypeAttribute === "trainers-type" || activeTypeAttribute === "shoe-type") {
-      return DEPOP_TYPES.footwear;
+      return DEPOP_TYPES.footwear.map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal });
     }
     return [];
   }, [activeTypeAttribute]);
@@ -821,10 +840,10 @@ const CreateDepopListing = () => {
     label: f.label
   })), []);
 
-  const fitOptions = useMemo(() => {
+  const fitFieldOptions = useMemo(() => {
     if (!activeFitAttribute) return [];
     if (DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute]) {
-      return DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute];
+      return DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute].map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal });
     }
     if (activeFitAttribute === "bottom-fit") {
       return DEPOP_FITS.map(f => ({ id: f.id, label: f.label }));

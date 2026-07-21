@@ -419,8 +419,8 @@ async function executeDepopUpload(productData) {
     await delay(1500);
 
     const getCountryCode = (countryName) => {
-      const c = String(countryName).toLowerCase();
-      if (c === 'india' || c === 'in') return 'IN'; // Keep as IN
+      const c = String(countryName || '').toLowerCase();
+      if (c === 'india' || c === 'in') return 'IN';
       if (c === 'united kingdom' || c === 'uk' || c === 'gb') return 'GB';
       if (c === 'united states' || c === 'us' || c === 'usa') return 'US';
       if (c === 'australia' || c === 'au') return 'AU';
@@ -434,8 +434,54 @@ async function executeDepopUpload(productData) {
       return 'United States';
     };
 
+    const getCurrency = (code) => {
+      if (code === 'GB' || code === 'UK') return 'GBP';
+      if (code === 'AU') return 'AUD';
+      if (code === 'CA') return 'CAD';
+      if (['AT','BE','CY','EE','FI','FR','DE','GR','IE','IT','LV','LT','LU','MT','NL','PT','SK','SI','ES'].includes(code)) return 'EUR';
+      return 'USD';
+    };
+
+    const mapBrand = (brandStr) => {
+      if (!brandStr) return null;
+      const b = String(brandStr).trim().toLowerCase();
+      if (!b) return null;
+      
+      const brandMap = {
+        'eagle': 'american-eagle',
+        'american eagle': 'american-eagle',
+        'ae': 'american-eagle',
+        'nike': 'nike',
+        'adidas': 'adidas',
+        'zara': 'zara',
+        'h&m': 'hm',
+        'hm': 'hm',
+        'urban outfitters': 'urban-outfitters',
+        'uo': 'urban-outfitters',
+        'shein': 'shein',
+        'brandy melville': 'brandy-melville',
+        'levi\'s': 'levis',
+        'levis': 'levis',
+        'champion': 'champion',
+        'pacsun': 'pacsun',
+        'tommy hilfiger': 'tommy-hilfiger',
+        'ralph lauren': 'ralph-lauren',
+        'polo ralph lauren': 'ralph-lauren',
+        'gucci': 'gucci',
+        'supreme': 'supreme',
+        'stussy': 'stussy',
+        'north face': 'the-north-face',
+        'the north face': 'the-north-face',
+        'vintage': 'vintage'
+      };
+
+      if (brandMap[b]) return brandMap[b];
+      const slug = b.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      return slug || null;
+    };
+
     const mapCondition = (cond) => {
-      const c = String(cond).toLowerCase();
+      const c = String(cond || '').toLowerCase();
       if (c.includes('brand_new') || c.includes('brand new') || c.includes('nwt')) return 'brand_new';
       if (c.includes('like_new') || c.includes('like new') || c.includes('nwot') || c.includes('used_like_new')) return 'used_like_new';
       if (c.includes('excellent')) return 'used_excellent';
@@ -444,15 +490,45 @@ async function executeDepopUpload(productData) {
       return 'used_excellent';
     };
 
+    const mapColor = (col) => {
+      if (!col) return [];
+      const c = String(col).toLowerCase().trim();
+      if (c.includes('navy')) return ['blue'];
+      if (c.includes('gray')) return ['grey'];
+      if (c.includes('multi')) return ['multi'];
+      const validColors = ['black', 'white', 'blue', 'red', 'green', 'grey', 'pink', 'purple', 'brown', 'yellow', 'orange', 'silver', 'gold', 'multi', 'cream', 'beige', 'tan'];
+      for (const vc of validColors) {
+        if (c.includes(vc)) return [vc];
+      }
+      return [];
+    };
+
+    const mapProductType = (cat) => {
+      if (!cat) return 'shirts';
+      const c = String(cat).toLowerCase().trim();
+      if (c.includes('t-shirt') || c.includes('tshirt') || c.includes('tee')) return 'tshirts';
+      if (c.includes('shirt') || c.includes('top')) return 'shirts';
+      if (c.includes('jacket') || c.includes('coat')) return 'jackets';
+      if (c.includes('hoodie') || c.includes('sweatshirt')) return 'sweatshirts';
+      if (c.includes('sweater') || c.includes('jumper')) return 'jumpers';
+      if (c.includes('jean')) return 'jeans';
+      if (c.includes('trouser') || c.includes('pant')) return 'trousers';
+      if (c.includes('short')) return 'shorts';
+      if (c.includes('skirt')) return 'skirts';
+      if (c.includes('dress')) return 'dresses';
+      if (c.includes('shoe') || c.includes('sneaker') || c.includes('boot') || c.includes('trainer')) return 'trainers';
+      return c.replace(/[^a-z0-9]/g, '') || 'shirts';
+    };
+
     const getGender = (categoryPath) => {
-      const p = String(categoryPath).toLowerCase();
+      const p = String(categoryPath || '').toLowerCase();
       if (p.includes('women')) return 'female';
       if (p.includes('men')) return 'male';
       return 'unisex';
     };
 
     const isKids = (categoryPath) => {
-      return String(categoryPath).toLowerCase().includes('kids');
+      return String(categoryPath || '').toLowerCase().includes('kids');
     };
 
     const getGeo = (countryCode) => {
@@ -464,35 +540,45 @@ async function executeDepopUpload(productData) {
     const countryName = getCountryName(countryCode);
     const geo = getGeo(countryCode);
     const condition = mapCondition(productData.conditionId || productData.selectedCondition);
+    const gender = getGender(productData.category);
 
     let variantSet = 54; // default
     let variantsPayload = {};
+    const qty = parseInt(productData.quantity) || 1;
     if (productData.size) {
       const match = String(productData.size).match(/^(\d+)\.([\d.]+)-(\w+)$/);
       if (match) {
         variantSet = parseInt(match[1]);
         const sizeId = match[2];
-        variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
+        variantsPayload[sizeId] = qty;
       } else {
         const sizeName = String(productData.size).trim().toUpperCase();
         const standardSizes = {
           'XXS': '1', 'XS': '2', 'S': '3', 'M': '4', 'L': '5', 'XL': '6', 'XXL': '7', '3XL': '8', '4XL': '9',
           'ONE SIZE': '90', 'OS': '90'
         };
-        const sizeId = standardSizes[sizeName] || '4'; // Default to M
-        variantsPayload[sizeId] = parseInt(productData.quantity) || 1;
+        const sizeId = standardSizes[sizeName] || '4';
+        variantsPayload[sizeId] = qty;
       }
+    }
+    if (!Object.keys(variantsPayload).length) {
+      variantsPayload["4"] = qty; // Fallback default size M
     }
 
     const attributesPayload = {};
     if (productData.occasion) {
-      attributesPayload["occasion"] = [productData.occasion.toLowerCase()];
+      const cleanOcc = productData.occasion.toLowerCase();
+      const occMap = { 'casual': 'daytime', 'party': 'celebration', 'going out': 'going-out-evening', 'formal': 'special-occasion', 'sports': 'sport-workout', 'workout': 'sport-workout', 'business': 'work', 'vacation': 'holiday' };
+      attributesPayload["occasion"] = [occMap[cleanOcc] || cleanOcc];
     }
     if (productData.material) {
       attributesPayload["material"] = [productData.material.toLowerCase()];
     }
     if (productData.bodyFit) {
-      attributesPayload["body-fit"] = [productData.bodyFit.toLowerCase()];
+      const bf = productData.bodyFit.toLowerCase();
+      if (gender === 'female' || bf !== 'petite') {
+        attributesPayload["body-fit"] = [bf];
+      }
     }
     if (productData.fastening) {
       attributesPayload["fastening"] = [productData.fastening.toLowerCase()];
@@ -521,22 +607,18 @@ async function executeDepopUpload(productData) {
       }
     }
 
-    let shippingMethods = [{
-      shipping_provider_id: 1,
-      parcel_size_id: 3, // Default to Medium size Depop Shipping
-      shipping_type: 'depop',
-      price: parseFloat(productData.shippingPrice || 0).toFixed(2)
-    }];
+    let shippingMethods = [];
     let sellerAddress = countryName;
     let sellerGeo = geo;
     let sellerCountry = countryCode;
 
     try {
       updateStatus("Resolving shipping preferences...", 70);
+      const bearerHeader = authToken.startsWith('Bearer ') ? authToken : `Bearer ${authToken}`;
       const addrRes = await backgroundFetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
         method: 'GET',
         headers: {
-          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+          'Authorization': bearerHeader,
           'Accept': 'application/json'
         }
       }, 'json');
@@ -555,29 +637,20 @@ async function executeDepopUpload(productData) {
             lng: activeAddress.geo_position_lng || geo.lng
           };
 
-          const providersRes = await backgroundFetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers/`, {
-            method: 'GET',
-            headers: {
-              'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-              'Accept': 'application/json'
-            }
-          }, 'json');
-
-          if (providersRes && providersRes.ok) {
-            const providersData = await providersRes.json();
-            const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
-            if (providers && providers.length > 0) {
-              const firstProvider = providers[0];
-              const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
-              
-              shippingMethods = [{
-                shipping_provider_id: firstProvider.id || 1,
-                parcel_size_id: sizeObj.id || 3,
-                shipping_type: 'depop',
-                price: parseFloat(productData.shippingPrice || 0).toFixed(2)
-              }];
-              console.log('[Elister Depop] Resolved shipping method dynamically:', shippingMethods);
-            }
+          if (sellerCountry === 'US') {
+            shippingMethods = [{
+              payer: 'buyer',
+              parcel_size: 'under_1lb',
+              shipping_provider_id: 'USPS',
+              ship_from_address_id: addressId
+            }];
+          } else if (sellerCountry === 'GB') {
+            shippingMethods = [{
+              payer: 'buyer',
+              parcel_size: 'medium',
+              shipping_provider_id: 'Evri',
+              ship_from_address_id: addressId
+            }];
           }
         }
       }
@@ -587,17 +660,19 @@ async function executeDepopUpload(productData) {
 
     const listingLifecycleId = generateUUID();
     const persistentId = generateUUID();
+    const currency = getCurrency(sellerCountry);
+    const mappedBrand = mapBrand(productData.brand);
 
     const savePayload = {
       age: productData.age ? [productData.age.toLowerCase()] : ["modern"],
       address: sellerAddress,
       attributes: attributesPayload,
-      brand: (productData.brand || '').toLowerCase(),
-      colour: productData.color ? [productData.color.toLowerCase()] : [],
+      boost: { status: "inactive" },
+      colour: mapColor(productData.color),
       condition: condition,
       country: sellerCountry,
       description: productData.description || '',
-      gender: getGender(productData.category),
+      gender: gender,
       geo_position_lat: sellerGeo.lat,
       geo_position_lng: sellerGeo.lng,
       is_kids: isKids(productData.category),
@@ -605,8 +680,8 @@ async function executeDepopUpload(productData) {
       national_shipping_cost: parseFloat(productData.shippingPrice || 0).toFixed(2),
       picture_ids: assignedPhotos,
       price_amount: parseFloat(productData.price || 0).toFixed(2),
-      price_currency: "USD",
-      product_type: productData.categoryId || "shirts",
+      price_currency: currency,
+      product_type: mapProductType(productData.categoryId || productData.category),
       shipping_methods: shippingMethods,
       sku: productData.sku || `KL${Date.now()}`,
       source: productData.source ? [productData.source.toLowerCase()] : ["preloved"],
@@ -614,8 +689,12 @@ async function executeDepopUpload(productData) {
       variant_set: variantSet,
       variants: variantsPayload,
       persistent_id: persistentId,
-      quantity: parseInt(productData.quantity) || 1
+      quantity: 1
     };
+
+    if (mappedBrand) {
+      savePayload.brand = mappedBrand;
+    }
 
     console.log('[Elister Depop] Saving product with payload:', JSON.stringify(savePayload));
 
@@ -1082,6 +1161,36 @@ if (currentSite === 'depop') {
           return 'used_excellent';
         };
 
+        const mapColor = (col) => {
+          if (!col) return [];
+          const c = String(col).toLowerCase().trim();
+          if (c.includes('navy')) return ['blue'];
+          if (c.includes('gray')) return ['grey'];
+          if (c.includes('multi')) return ['multi'];
+          const validColors = ['black', 'white', 'blue', 'red', 'green', 'grey', 'pink', 'purple', 'brown', 'yellow', 'orange', 'silver', 'gold', 'multi', 'cream', 'beige', 'tan'];
+          for (const vc of validColors) {
+            if (c.includes(vc)) return [vc];
+          }
+          return [];
+        };
+
+        const mapProductType = (cat) => {
+          if (!cat) return 'shirts';
+          const c = String(cat).toLowerCase().trim();
+          if (c.includes('t-shirt') || c.includes('tshirt') || c.includes('tee')) return 'tshirts';
+          if (c.includes('shirt') || c.includes('top')) return 'shirts';
+          if (c.includes('jacket') || c.includes('coat')) return 'jackets';
+          if (c.includes('hoodie') || c.includes('sweatshirt')) return 'sweatshirts';
+          if (c.includes('sweater') || c.includes('jumper')) return 'jumpers';
+          if (c.includes('jean')) return 'jeans';
+          if (c.includes('trouser') || c.includes('pant')) return 'trousers';
+          if (c.includes('short')) return 'shorts';
+          if (c.includes('skirt')) return 'skirts';
+          if (c.includes('dress')) return 'dresses';
+          if (c.includes('shoe') || c.includes('sneaker') || c.includes('boot') || c.includes('trainer')) return 'trainers';
+          return c.replace(/[^a-z0-9]/g, '') || 'shirts';
+        };
+
         const getGender = (cat) => {
           const c = String(cat || '').toLowerCase();
           if (c.includes('women')) return 'female';
@@ -1089,23 +1198,65 @@ if (currentSite === 'depop') {
           return 'unisex';
         };
 
-        let shippingMethods = [{
-          shipping_provider_id: 1,
-          parcel_size_id: 3, // Medium size
-          shipping_type: 'depop',
-          price: parseFloat(listing.shippingPrice || 0).toFixed(2)
-        }];
+        const getCurrency = (code) => {
+          if (code === 'GB' || code === 'UK') return 'GBP';
+          if (code === 'AU') return 'AUD';
+          if (code === 'CA') return 'CAD';
+          if (['AT','BE','CY','EE','FI','FR','DE','GR','IE','IT','LV','LT','LU','MT','NL','PT','SK','SI','ES'].includes(code)) return 'EUR';
+          return 'USD';
+        };
+
+        const mapBrand = (brandStr) => {
+          if (!brandStr) return null;
+          const b = String(brandStr).trim().toLowerCase();
+          if (!b) return null;
+          
+          const brandMap = {
+            'eagle': 'american-eagle',
+            'american eagle': 'american-eagle',
+            'ae': 'american-eagle',
+            'nike': 'nike',
+            'adidas': 'adidas',
+            'zara': 'zara',
+            'h&m': 'hm',
+            'hm': 'hm',
+            'urban outfitters': 'urban-outfitters',
+            'uo': 'urban-outfitters',
+            'shein': 'shein',
+            'brandy melville': 'brandy-melville',
+            'levi\'s': 'levis',
+            'levis': 'levis',
+            'champion': 'champion',
+            'pacsun': 'pacsun',
+            'tommy hilfiger': 'tommy-hilfiger',
+            'ralph lauren': 'ralph-lauren',
+            'polo ralph lauren': 'ralph-lauren',
+            'gucci': 'gucci',
+            'supreme': 'supreme',
+            'stussy': 'stussy',
+            'north face': 'the-north-face',
+            'the north face': 'the-north-face',
+            'vintage': 'vintage'
+          };
+
+          if (brandMap[b]) return brandMap[b];
+          const slug = b.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          return slug || null;
+        };
+
+        let shippingMethods = [];
         let sellerAddress = "United States";
         let sellerGeo = { lat: 37.09024, lng: -95.712891 };
         let sellerCountry = "US";
 
         try {
           console.log('[Page Context Publisher] Fetching seller addresses...');
-          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses', {
+          const bearerHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+          const addrRes = await window.fetch('https://webapi.depop.com/api/v1/shop/seller-addresses/', {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
-              'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+              'Authorization': bearerHeader
             },
             credentials: 'include'
           });
@@ -1124,31 +1275,20 @@ if (currentSite === 'depop') {
                 lng: activeAddress.geo_position_lng || -95.712891
               };
 
-              console.log(`[Page Context Publisher] Fetching shipping providers for address: ${addressId}`);
-              const providersRes = await window.fetch(`https://webapi.depop.com/api/v1/shop/seller-addresses/${addressId}/shipping-providers`, {
-                method: 'GET',
-                headers: {
-                  'Accept': 'application/json',
-                  'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
-                },
-                credentials: 'include'
-              });
-
-              if (providersRes.ok) {
-                const providersData = await providersRes.json();
-                const providers = Array.isArray(providersData) ? providersData : (providersData?.providers || providersData?.shipping_providers || providersData?.results || []);
-                if (providers && providers.length > 0) {
-                  const firstProvider = providers[0];
-                  const sizeObj = (firstProvider.parcel_sizes && firstProvider.parcel_sizes.find(s => s.name === 'medium')) || (firstProvider.parcel_sizes && firstProvider.parcel_sizes[0]) || {};
-                  
-                  shippingMethods = [{
-                    shipping_provider_id: firstProvider.id || 1,
-                    parcel_size_id: sizeObj.id || 3,
-                    shipping_type: 'depop',
-                    price: parseFloat(listing.shippingPrice || 0).toFixed(2)
-                  }];
-                  console.log('[Page Context Publisher] Dynamically resolved shipping method:', shippingMethods);
-                }
+              if (sellerCountry === 'US') {
+                shippingMethods = [{
+                  payer: 'buyer',
+                  parcel_size: 'under_1lb',
+                  shipping_provider_id: 'USPS',
+                  ship_from_address_id: addressId
+                }];
+              } else if (sellerCountry === 'GB') {
+                shippingMethods = [{
+                  payer: 'buyer',
+                  parcel_size: 'medium',
+                  shipping_provider_id: 'Evri',
+                  ship_from_address_id: addressId
+                }];
               }
             }
           }
@@ -1156,15 +1296,28 @@ if (currentSite === 'depop') {
           console.error('[Page Context Publisher] Failed to resolve shipping details dynamically:', shipErr.message);
         }
 
+        const currency = getCurrency(sellerCountry);
+        const gender = getGender(listing.category);
+        const mappedBrand = mapBrand(listing.brand);
+
         // Build listing creation payload
         const savePayload = {
           age: listing.age ? [listing.age.toLowerCase()] : ["modern"],
           address: sellerAddress,
           attributes: (() => {
             const attrs = {};
-            if (listing.occasion) attrs["occasion"] = [listing.occasion.toLowerCase()];
+            if (listing.occasion) {
+              const cleanOcc = listing.occasion.toLowerCase();
+              const occMap = { 'casual': 'daytime', 'party': 'celebration', 'going out': 'going-out-evening', 'formal': 'special-occasion', 'sports': 'sport-workout', 'workout': 'sport-workout', 'business': 'work', 'vacation': 'holiday' };
+              attrs["occasion"] = [occMap[cleanOcc] || cleanOcc];
+            }
             if (listing.material) attrs["material"] = [listing.material.toLowerCase()];
-            if (listing.bodyFit) attrs["body-fit"] = [listing.bodyFit.toLowerCase()];
+            if (listing.bodyFit) {
+              const bf = listing.bodyFit.toLowerCase();
+              if (gender === 'female' || bf !== 'petite') {
+                attrs["body-fit"] = [bf];
+              }
+            }
             if (listing.fastening) attrs["fastening"] = [listing.fastening.toLowerCase()];
             
             if (listing.fit) {
@@ -1191,21 +1344,21 @@ if (currentSite === 'depop') {
             }
             return attrs;
           })(),
-          brand: (listing.brand || '').toLowerCase(),
-          colour: listing.color ? [listing.color.toLowerCase()] : [],
+          boost: { status: "inactive" },
+          colour: mapColor(listing.color),
           condition: mapCondition(listing.selectedCondition || listing.conditionId),
           country: sellerCountry,
           description: listing.description || '',
-          gender: getGender(listing.category),
+          gender: gender,
           geo_position_lat: sellerGeo.lat,
           geo_position_lng: sellerGeo.lng,
-          is_kids: String(listing.category).toLowerCase().includes('kids'),
+          is_kids: String(listing.category || '').toLowerCase().includes('kids'),
           listing_lifecycle_id: window.crypto.randomUUID(),
           national_shipping_cost: parseFloat(listing.shippingPrice || 0).toFixed(2),
           picture_ids: pictureIds,
           price_amount: parseFloat(listing.price || 0).toFixed(2),
-          price_currency: "USD",
-          product_type: listing.categoryId || "shirts",
+          price_currency: currency,
+          product_type: mapProductType(listing.categoryId || listing.category),
           shipping_methods: shippingMethods,
           sku: listing.sku || `KL${Date.now()}`,
           source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
@@ -1236,8 +1389,12 @@ if (currentSite === 'depop') {
             return { "4": qty }; // Default M
           })(),
           persistent_id: window.crypto.randomUUID(),
-          quantity: parseInt(listing.quantity) || 1
+          quantity: 1
         };
+
+        if (mappedBrand) {
+          savePayload.brand = mappedBrand;
+        }
 
         console.log('[Page Context Publisher] Step 2: Creating listing on Depop...');
         const saveRes = await window.fetch('https://webapi.depop.com/presentation/api/v1/listing/products/', {

@@ -89,7 +89,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
           error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
         } rounded-2xl text-left flex items-center justify-between text-xs font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
       >
-        <span className="truncate">{value || placeholder}</span>
+        <span className="truncate">{typeof value === 'object' && value !== null ? (value.label || value.name || value.id || '') : (value || placeholder)}</span>
         <div className="flex items-center gap-1.5 shrink-0">
           {value && !disabled && (
             <span
@@ -133,8 +133,8 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                 className={`w-full text-left px-4 py-3 border-b border-slate-55 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors ${value === opt.label ? 'bg-indigo-50' : ''}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold">{opt.label}</span>
-                  {value === opt.label && <Check className="w-4 h-4 text-indigo-600" />}
+                  <span className="text-xs font-bold">{typeof opt === 'object' && opt !== null ? (opt.label || opt.name || opt.id || '') : String(opt || '')}</span>
+                  {value === (opt?.label || opt) && <Check className="w-4 h-4 text-indigo-600" />}
                 </div>
                 {opt.description && (
                   <p className={`text-[9px] mt-0.5 line-clamp-1 ${value === opt.label ? 'text-indigo-200' : 'text-slate-400'}`}>{opt.description}</p>
@@ -1130,13 +1130,13 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         }
 
         setHasScanned(true);
-        toast.success('✨ AI scan completed successfully! Form loaded below.');
       } else {
         toast.error('AI Scan returned unsuccessful response.');
       }
     } catch (err) {
       console.error('AI scan error:', err);
-      toast.error('Failed to fetch data using AI. Ensure API key is configured.');
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to fetch data using AI.';
+      toast.error(errMsg);
     } finally {
       setScanning(false);
     }
@@ -2269,7 +2269,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                                 value={formData.depopType}
                                 onSelect={(opt) => handleInputChange('depopType', opt.label)}
                                 options={
-                                  (DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute] || []).map(optVal => ({ id: optVal, label: optVal }))
+                                  (DEPOP_ATTRIBUTE_OPTIONS[activeTypeAttribute] || []).map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal })
                                 }
                                 placeholder={`Select ${typeFieldLabel.toLowerCase()}...`}
                               />
@@ -2293,7 +2293,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                                 value={formData.fit}
                                 onSelect={(opt) => handleInputChange('fit', opt.label)}
                                 options={
-                                  (DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute] || []).map(optVal => ({ id: optVal, label: optVal }))
+                                  (DEPOP_ATTRIBUTE_OPTIONS[activeFitAttribute] || []).map(optVal => typeof optVal === 'object' && optVal !== null ? optVal : { id: optVal, label: optVal })
                                 }
                                 placeholder={`Select ${fitFieldLabel.toLowerCase()}...`}
                               />

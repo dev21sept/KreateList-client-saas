@@ -415,7 +415,11 @@ async function publishToDepop(listing, depopAccount) {
           address: sellerAddress,
           attributes: (() => {
             const attrs = {};
-            if (listingData.occasion) attrs["occasion"] = [listingData.occasion.toLowerCase()];
+            if (listingData.occasion) {
+              const cleanOcc = listingData.occasion.toLowerCase();
+              const occMap = { 'casual': 'daytime', 'party': 'celebration', 'going out': 'going-out-evening', 'formal': 'special-occasion', 'sports': 'sport-workout', 'workout': 'sport-workout', 'business': 'work', 'vacation': 'holiday' };
+              attrs["occasion"] = [occMap[cleanOcc] || cleanOcc];
+            }
             if (listingData.material) attrs["material"] = [listingData.material.toLowerCase()];
             if (listingData.bodyFit) attrs["body-fit"] = [listingData.bodyFit.toLowerCase()];
             if (listingData.fastening) attrs["fastening"] = [listingData.fastening.toLowerCase()];

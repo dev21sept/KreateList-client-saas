@@ -32,3 +32,6 @@ export const DEPOP_STYLES = [
     { id: "coquette", label: "Coquette" },
     { id: "whimsygoth", label: "Whimsygoth" }
 ];
+
+export const DEPOP_STYLE_TAGS = DEPOP_STYLES;
+
