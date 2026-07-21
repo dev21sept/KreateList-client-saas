@@ -681,56 +681,57 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
   }, [isOpen]);
 
   useEffect(() => {
-    if (listing && isEditMode) {
-      setFormData({
-        title: listing.title || '',
-        description: (platform === 'ebay') ? (listing.description || '') : (listing.description ? listing.description.replace(/<[^>]*>/g, '') : ''),
-        price: listing.price || '',
-        originalPrice: listing.originalPrice || '',
-        brand: listing.brand || '',
-        size: listing.size || '',
-        color: listing.color || '',
-        sku: listing.sku || '',
-        category: listing.category || '',
-        material: listing.material || '',
-        quantity: String(listing.quantity || '1'),
-        age: listing.age || '',
-        source: listing.source || '',
-        bodyFit: listing.bodyFit || '',
-        occasion: listing.occasion || '',
-        shippingPrice: listing.shippingPrice || '0.00',
-        worldwideShipping: !!listing.worldwideShipping,
-        country: listing.country || 'US',
-        styleTag: listing.styleTag || '',
-        categoryId: listing.categoryId || '',
-        departmentId: listing.departmentId || '',
-        subcategoryIds: listing.subcategoryIds || [],
-        conditionNote: listing.conditionNote || '',
-        isbn: listing.isbn || '',
-        author: listing.author || '',
-        bookTitle: listing.bookTitle || '',
-        videoGameRating: listing.videoGameRating || '',
-        measurements: listing.measurements || '',
-        depopType: listing.depopType || '',
-        fastening: listing.fastening || '',
-        fit: listing.fit || '',
-        packageWeight: listing.packageWeight || { lbs: 0, oz: 0 },
-        packageDimensions: listing.packageDimensions || { length: 0, width: 0, height: 0 },
-        returnPolicyId: listing.returnPolicyId || '',
-        locationKey: listing.locationKey || '',
-        fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
-        paymentPolicyId: listing.paymentPolicyId || '',
-        itemSpecifics: listing.itemSpecifics || {},
-        images: listing.images || [],
-      });
-      
+    if (isOpen && listing) {
+      const targetId = listing._id || listing.id;
+
+      const normalizedSpecs = (raw) => {
+        if (!raw) return {};
+        if (raw instanceof Map) return Object.fromEntries(raw);
+        if (typeof raw === 'object') {
+          const res = {};
+          for (const [k, v] of Object.entries(raw)) {
+            if (v !== undefined && v !== null) {
+              res[k] = Array.isArray(v) ? v : [String(v)];
+            }
+          }
+          return res;
+        }
+        return {};
+      };
+
+      // 1. Initial quick state from passed listing prop
+      setFormData(prev => ({
+        ...prev,
+        title: listing.title || prev.title || '',
+        description: listing.description || prev.description || '',
+        price: listing.price || prev.price || '',
+        originalPrice: listing.originalPrice || prev.originalPrice || '',
+        brand: listing.brand || prev.brand || '',
+        size: listing.size || prev.size || '',
+        color: listing.color || prev.color || '',
+        sku: listing.sku || prev.sku || '',
+        category: listing.category || prev.category || '',
+        categoryId: listing.categoryId || prev.categoryId || '',
+        material: listing.material || prev.material || '',
+        quantity: String(listing.quantity || prev.quantity || '1'),
+        images: (listing.images && listing.images.length > 0) ? listing.images : (listing.thumbnail ? [listing.thumbnail] : prev.images || []),
+        packageWeight: listing.packageWeight || prev.packageWeight || { lbs: 0, oz: 0 },
+        packageDimensions: listing.packageDimensions || prev.packageDimensions || { length: 0, width: 0, height: 0 },
+        itemSpecifics: normalizedSpecs(listing.itemSpecifics || listing.item_specifics),
+        returnPolicyId: listing.returnPolicyId || prev.returnPolicyId || '',
+        locationKey: listing.locationKey || prev.locationKey || '',
+        fulfillmentPolicyId: listing.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
+        paymentPolicyId: listing.paymentPolicyId || prev.paymentPolicyId || '',
+        conditionNote: listing.conditionNote || prev.conditionNote || '',
+      }));
+
       if (listing.images && listing.images.length > 0) {
         setActiveImage(listing.images[0]);
-      } else {
-        setActiveImage(listing.thumbnail || '');
+      } else if (listing.thumbnail) {
+        setActiveImage(listing.thumbnail);
       }
 
-      // Pre-select first condition matching list
+      // Pre-select condition matching list
       const condList = getConditions();
       if (condList.length > 0) {
         setSelectedCondition(listing.selectedCondition || condList[0].label);
@@ -738,65 +739,64 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       }
       setHasScanned(isEditMode);
       setScanning(false);
-    }
-  }, [listing, platform, isEditMode]);
 
-  useEffect(() => {
-    if (isOpen && listing && !isEditMode) {
-      setPrepLoading(true);
-      listingService.getCrossListPrep(listing._id || listing.id, platform)
-        .then(res => {
-          if (res.data?.success && res.data?.data) {
-            const result = res.data.data;
-            setFormData(prev => ({
-              ...prev,
-              title: result.title || '',
-              description: result.description || '',
-              price: result.price || '',
-              originalPrice: result.originalPrice || '',
-              brand: result.brand || '',
-              size: result.size || '',
-              color: result.color || '',
-              sku: result.sku || '',
-              category: result.category || '',
-              categoryId: result.categoryId || '',
-              departmentId: result.departmentId || '',
-              conditionId: result.conditionId || '',
-              selectedCondition: result.selectedCondition || '',
-              material: result.material || '',
-              quantity: String(result.quantity || '1'),
-              age: result.age || '',
-              source: result.source || '',
-              bodyFit: result.bodyFit || '',
-              occasion: result.occasion || '',
-              depopType: result.depopType || '',
-              fastening: result.fastening || '',
-              fit: result.fit || '',
-              packageWeight: result.packageWeight || { lbs: 0, oz: 0 },
-              packageDimensions: result.packageDimensions || { length: 0, width: 0, height: 0 },
-              images: result.images || [],
-            }));
-            if (result.selectedCondition) {
-              setSelectedCondition(result.selectedCondition);
-            }
-            if (result.conditionId) {
-              setSelectedConditionId(result.conditionId);
-            }
-            setHasScanned(true);
-          }
-        })
-        .catch(err => {
-          console.error("Error prepping cross list:", err);
-          toast.error("Failed to map fields for this platform automatically.");
-        })
-        .finally(() => {
-          setPrepLoading(false);
-        });
+      // 2. Fetch complete master listing from DB to guarantee 100% full data (Description, Images, ItemSpecifics, etc.)
+      if (targetId && !String(targetId).startsWith('mock-')) {
+        setPrepLoading(true);
+        listingService.getOne(targetId)
+          .then(res => {
+            if (res.data?.success && res.data?.data) {
+              const fullItem = res.data.data;
+              const specsObj = normalizedSpecs(fullItem.itemSpecifics || fullItem.item_specifics);
 
-      if (listing.images && listing.images.length > 0) {
-        setActiveImage(listing.images[0]);
-      } else {
-        setActiveImage(listing.thumbnail || '');
+              setFormData(prev => ({
+                ...prev,
+                title: fullItem.title || prev.title || '',
+                description: fullItem.description || prev.description || '',
+                price: fullItem.price || prev.price || '',
+                originalPrice: fullItem.originalPrice || prev.originalPrice || '',
+                brand: fullItem.brand || prev.brand || '',
+                size: fullItem.size || prev.size || '',
+                color: fullItem.color || prev.color || '',
+                sku: fullItem.sku || prev.sku || '',
+                category: fullItem.category || prev.category || '',
+                categoryId: fullItem.categoryId || prev.categoryId || '',
+                departmentId: fullItem.departmentId || prev.departmentId || '',
+                conditionId: fullItem.conditionId || prev.conditionId || '',
+                selectedCondition: fullItem.selectedCondition || prev.selectedCondition || '',
+                material: fullItem.material || prev.material || '',
+                quantity: String(fullItem.quantity || '1'),
+                age: fullItem.age || prev.age || '',
+                source: fullItem.source || prev.source || '',
+                bodyFit: fullItem.bodyFit || prev.bodyFit || '',
+                occasion: fullItem.occasion || prev.occasion || '',
+                depopType: fullItem.depopType || prev.depopType || '',
+                fastening: fullItem.fastening || prev.fastening || '',
+                fit: fullItem.fit || prev.fit || '',
+                packageWeight: fullItem.packageWeight || prev.packageWeight || { lbs: 0, oz: 0 },
+                packageDimensions: fullItem.packageDimensions || prev.packageDimensions || { length: 0, width: 0, height: 0 },
+                images: (fullItem.images && fullItem.images.length > 0) ? fullItem.images : (fullItem.thumbnail ? [fullItem.thumbnail] : prev.images || []),
+                itemSpecifics: Object.keys(specsObj).length > 0 ? specsObj : prev.itemSpecifics,
+                returnPolicyId: fullItem.returnPolicyId || prev.returnPolicyId || '',
+                locationKey: fullItem.locationKey || prev.locationKey || '',
+                fulfillmentPolicyId: fullItem.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
+                paymentPolicyId: fullItem.paymentPolicyId || prev.paymentPolicyId || '',
+                conditionNote: fullItem.conditionNote || prev.conditionNote || '',
+              }));
+
+              if (fullItem.images && fullItem.images.length > 0) {
+                setActiveImage(fullItem.images[0]);
+              }
+              if (fullItem.selectedCondition) {
+                setSelectedCondition(fullItem.selectedCondition);
+              }
+              if (fullItem.conditionId) {
+                setSelectedConditionId(fullItem.conditionId);
+              }
+            }
+          })
+          .catch(err => console.error("Error loading full master listing data:", err))
+          .finally(() => setPrepLoading(false));
       }
     }
   }, [isOpen, listing, platform, isEditMode]);
