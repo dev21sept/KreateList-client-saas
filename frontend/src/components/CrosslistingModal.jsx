@@ -1236,6 +1236,11 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       });
     }
 
+    if (platform === 'etsy' && !formData.shipping_profile_id) {
+      toast.error("Please select an Etsy Delivery Profile before listing.");
+      return;
+    }
+
     if (!isValid) {
       setErrors(newErrors);
       toast.error("Please fill all required aspects with valid values before proceeding.");

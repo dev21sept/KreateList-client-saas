@@ -503,6 +503,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
   };
 
   const handleSaveAndPublish = async () => {
+    if (targetPlatform === 'etsy' && !formData.shipping_profile_id) {
+      toast.error("Please select an Etsy Delivery Profile before listing.");
+      return;
+    }
     setLoading(true);
     const listingData = {
       title: formData.title,
