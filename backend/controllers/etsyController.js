@@ -166,7 +166,14 @@ exports.etsyPublish = async (req, res) => {
     console.log(`[Etsy Controller] Creating draft listing for SKU: ${listing.sku} on shop: ${shopId}`);
 
     const tags = listing.styleTag 
-      ? listing.styleTag.split(',').map(t => t.trim()).filter(Boolean).slice(0, 13)
+      ? listing.styleTag.split(',')
+          .map(t => {
+            let clean = t.replace(/[-/]/g, ' '); // replace hyphens and slashes with spaces
+            clean = clean.replace(/[^a-zA-Z0-9\s]/g, ''); // keep only letters, numbers, and spaces
+            return clean.replace(/\s+/g, ' ').trim(); // normalize spaces
+          })
+          .filter(Boolean)
+          .slice(0, 13)
       : [];
     const materials = listing.material
       ? listing.material.split(',').map(m => m.trim()).filter(Boolean).slice(0, 13)
