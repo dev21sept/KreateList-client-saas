@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Sparkles, Loader2, ShieldCheck, ChevronDown, ShoppingBag, Search, Check, Tag, Info, Eye, Code } from 'lucide-react';
+import { X, Sparkles, Loader2, ShieldCheck, ChevronDown, ShoppingBag, Search, Check, Tag, Info, Eye, Code, RefreshCw } from 'lucide-react';
 import CategorySearchDropdown from './CategorySearchDropdown';
 import { aiService, listingService, ruleService, externalImportService, ebayService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -717,6 +717,22 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       }
     }
   }, [isOpen, listing, platform, isEditMode]);
+
+  const handleRefreshShippingProfiles = async () => {
+    try {
+      toast.info("Fetching shipping profiles from Etsy...");
+      const response = await etsyService.getShippingProfiles();
+      if (response.data?.success) {
+        setShippingProfiles(response.data.data);
+        toast.success("Shipping profiles updated!");
+      } else {
+        toast.error("Failed to fetch shipping profiles.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch Etsy shipping profiles:", err);
+      toast.error("Error loading shipping profiles.");
+    }
+  };
 
   // eBay policy fetching
   useEffect(() => {
@@ -2488,13 +2504,26 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                           </div>
 
                           <div className="col-span-1 sm:col-span-2">
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Etsy Delivery Profile</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">Etsy Delivery Profile</label>
+                              <button 
+                                type="button" 
+                                onClick={handleRefreshShippingProfiles}
+                                className="text-[9px] font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <RefreshCw className="w-3 h-3 animate-spin-hover" /> Refresh Profiles
+                              </button>
+                            </div>
                             <select
                               value={formData.shipping_profile_id || ''}
                               onChange={(e) => handleInputChange('shipping_profile_id', e.target.value)}
                               className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
                             >
-                              <option value="">-- Select Shipping Profile --</option>
+                              <option value="">
+                                {shippingProfiles.length === 0 
+                                  ? "-- No Shipping Profiles Found (Refresh or Create on Etsy) --" 
+                                  : "-- Select Shipping Profile --"}
+                              </option>
                               {shippingProfiles.map(profile => (
                                 <option key={profile.shipping_profile_id} value={profile.shipping_profile_id}>
                                   {profile.title} ({profile.processing_days_display_label || 'Calculated shipping'})

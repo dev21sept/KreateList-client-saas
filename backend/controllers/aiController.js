@@ -379,6 +379,24 @@ ${descriptionInstruction}
     
 4. Pricing: Estimate a realistic 'selling_price' in USD.
 
+5. Etsy Classification Attributes (CRITICAL):
+   - Extract 'who_made': Who made the product? Choose exactly one of:
+     * 'i_did' (if made by the seller/handmade)
+     * 'collective' (if made by a collective/shop member)
+     * 'someone_else' (if commercial/vintage/made by another company or person)
+   - Extract 'when_made': When was it made? Choose exactly one of:
+     * '2020_2026'
+     * '2010_2019'
+     * '2007_2009'
+     * '2000_2006'
+     * '1990s' (Vintage - if 20+ years old)
+     * '1980s' (Vintage - if 20+ years old)
+     * '1970s' (Vintage)
+     * '1960s' (Vintage)
+     * '1950s' (Vintage)
+     * 'before_1950' (Vintage)
+   - Extract 'is_supply': Is it a supply or tool to make things? (boolean: true/false).
+
 Context: Gender: ${gender}, Category: ${categoryPath}.
 
 Response ONLY as JSON: {
@@ -387,7 +405,10 @@ Response ONLY as JSON: {
   "title_parts": { "AttributeName": "Value", ... },
   "description": "HTML content",
   "item_specifics": { "FieldName": "Value", ... },
-  "selling_price": 0.00
+  "selling_price": 0.00,
+  "who_made": "i_did",
+  "when_made": "2020_2026",
+  "is_supply": false
 }`
                         },
                         ...imageContent

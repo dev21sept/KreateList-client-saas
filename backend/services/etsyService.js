@@ -127,6 +127,8 @@ async function createDraftListing(userId, shopId, listingData) {
     payload.shipping_profile_id = parseInt(listingData.shipping_profile_id);
   }
 
+  console.log('[Etsy Service] Outgoing createDraftListing payload:', JSON.stringify(payload, null, 2));
+
   const params = new URLSearchParams(payload);
   
   if (listingData.tags && listingData.tags.length > 0) {
@@ -142,6 +144,7 @@ async function createDraftListing(userId, shopId, listingData) {
   }
 
   try {
+    console.log('[Etsy Service] Sending POST request to Etsy listings endpoint...');
     const response = await axios.post(`https://api.etsy.com/v3/application/shops/${shopId}/listings`, 
       params, {
         headers: {
@@ -152,6 +155,7 @@ async function createDraftListing(userId, shopId, listingData) {
       }
     );
 
+    console.log('[Etsy Service] Etsy API success response:', JSON.stringify(response.data, null, 2));
     return response.data;
   } catch (err) {
     console.error('[Etsy Service] Create draft listing failed:', err.response?.data || err.message);

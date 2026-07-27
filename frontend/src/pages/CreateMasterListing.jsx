@@ -16,7 +16,8 @@ import {
   Trash2,
   ArrowLeft,
   ArrowRight,
-  ShoppingBag
+  ShoppingBag,
+  RefreshCw
 } from 'lucide-react';
 import { ruleService, aiService, listingService, etsyService } from '../services/api';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
@@ -252,6 +253,22 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     }
   }, [editId]);
 
+  const handleRefreshShippingProfiles = async () => {
+    try {
+      toast.info("Fetching shipping profiles from Etsy...");
+      const response = await etsyService.getShippingProfiles();
+      if (response.data?.success) {
+        setShippingProfiles(response.data.data);
+        toast.success("Shipping profiles updated!");
+      } else {
+        toast.error("Failed to fetch shipping profiles.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch Etsy shipping profiles:", err);
+      toast.error("Error loading shipping profiles.");
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
     setFiles([...files, ...uploadedFiles]);
@@ -346,7 +363,11 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
             size: result.size || '',
             color: result.color || '',
             images: result.images || prev.images,
-            packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' }
+            packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' },
+            who_made: result.who_made || 'i_did',
+            when_made: result.when_made || '2020_2026',
+            is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
+            renewal: result.renewal || 'manual',
           }));
         }
         toast.success("AI Scan complete! Preview or save listing below.");
@@ -841,13 +862,26 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                 <div className="grid grid-cols-1 gap-4 mb-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Etsy Delivery Profile</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block">Etsy Delivery Profile</label>
+                      <button 
+                        type="button" 
+                        onClick={handleRefreshShippingProfiles}
+                        className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3 animate-spin-hover" /> Refresh Profiles
+                      </button>
+                    </div>
                     <select
                       value={formData.shipping_profile_id || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, shipping_profile_id: e.target.value }))}
                       className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
                     >
-                      <option value="">-- Select Shipping Profile --</option>
+                      <option value="">
+                        {shippingProfiles.length === 0 
+                          ? "-- No Shipping Profiles Found (Refresh or Create on Etsy) --" 
+                          : "-- Select Shipping Profile --"}
+                      </option>
                       {shippingProfiles.map(profile => (
                         <option key={profile.shipping_profile_id} value={profile.shipping_profile_id}>
                           {profile.title} ({profile.processing_days_display_label || 'Calculated shipping'})
