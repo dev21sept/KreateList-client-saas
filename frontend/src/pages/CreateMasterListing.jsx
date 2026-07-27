@@ -15,9 +15,11 @@ import {
   Eye,
   Trash2,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  ShoppingBag
 } from 'lucide-react';
-import { ruleService, aiService, listingService } from '../services/api';
+import { ruleService, aiService, listingService, etsyService } from '../services/api';
+import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { useNotification } from '../context/NotificationContext';
 import { compressImage } from '../utils/imageCompressor';
 
@@ -117,9 +119,10 @@ const MASTER_CONDITIONS = [
   { id: "fair", label: "Fair", description: "Obvious wear or minor blemishes." }
 ];
 
-const CreateMasterListing = () => {
+const CreateMasterListing = ({ platform = 'ebay' }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
+  const [targetPlatform, setTargetPlatform] = useState(platform);
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const [hasScanned, setHasScanned] = useState(editId ? true : false);
@@ -143,9 +146,17 @@ const CreateMasterListing = () => {
     color: '',
     selectedModel: 'gpt-4o-mini',
     packageWeight: { lbs: '', oz: '' },
+    who_made: 'i_did',
+    when_made: '2020_2026',
+    is_supply: 'false',
+    renewal: 'manual',
+    styleTag: '',
+    material: '',
+    quantity: '1',
   });
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
+  const [etsyUrlInput, setEtsyUrlInput] = useState('');
 
   const modelOptions = useMemo(() => [
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
@@ -185,6 +196,7 @@ const CreateMasterListing = () => {
           const response = await listingService.getOne(editId);
           if (response.data.success) {
             const listing = response.data.data;
+            setTargetPlatform(listing.platform || platform);
             setFormData({
               images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
               selectedRule: listing.selectedRule || '',
@@ -202,6 +214,13 @@ const CreateMasterListing = () => {
               color: listing.color || '',
               selectedModel: listing.selectedModel || 'gpt-4o-mini',
               packageWeight: listing.packageWeight || { lbs: '', oz: '' },
+              who_made: listing.etsyWhoMade || 'i_did',
+              when_made: listing.etsyWhenMade || '2020_2026',
+              is_supply: String(listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false'),
+              renewal: listing.etsyRenewal || 'manual',
+              styleTag: listing.styleTag || '',
+              material: listing.material || '',
+              quantity: String(listing.quantity || '1'),
             });
             setHasScanned(true);
           }
@@ -253,15 +272,101 @@ const CreateMasterListing = () => {
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
 
     try {
-      const response = await aiService.analyze({
-        images: formData.images,
-        platform: 'ebay', // ebay/general fallback
+      const response = targetPlatform === 'etsy'
+        ? await aiService.etsyAnalyze({
+            images: formData.images,
+            title_sequence: selectedRuleObj?.title_sequence || [],
+            description_prompt: selectedRuleObj?.description_prompt || '',
+            description_template: selectedRuleObj?.description_template || '',
+            condition_name: formData.selectedCondition,
+            model: formData.selectedModel || 'gpt-4o-mini'
+          })
+        : await aiService.analyze({
+            images: formData.images,
+            platform: 'ebay',
+            title_sequence: selectedRuleObj?.title_sequence || [],
+            description_prompt: selectedRuleObj?.description_prompt || '',
+            description_template: selectedRuleObj?.description_template || '',
+            condition_note: selectedRuleObj?.condition_note || '',
+            condition_name: formData.selectedCondition,
+            model: formData.selectedModel || 'gpt-4o-mini'
+          });
+
+      if (response.data.success) {
+        const result = response.data.data;
+        if (targetPlatform === 'etsy') {
+          setFormData(prev => ({
+            ...prev,
+            title: result.title,
+            price: result.price,
+            description: result.description,
+            conditionNote: selectedRuleObj?.condition_note || '',
+            category: result.category,
+            sku: result.sku || '',
+            brand: result.brand || '',
+            size: result.size || '',
+            color: result.color || '',
+            images: result.images || prev.images,
+            who_made: result.who_made || 'i_did',
+            when_made: result.when_made || '2020_2026',
+            is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
+            renewal: result.renewal || 'manual',
+            styleTag: result.styleTag || '',
+            material: result.material || '',
+            quantity: String(result.quantity || '1'),
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            title: result.title,
+            price: result.price,
+            description: result.description,
+            conditionNote: selectedRuleObj?.condition_note || '',
+            category: result.category_name || result.category,
+            categoryId: result.category_id,
+            sku: result.sku || '',
+            brand: result.brand || '',
+            size: result.size || '',
+            color: result.color || '',
+            images: result.images || prev.images,
+            packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' }
+          }));
+        }
+        toast.success("AI Scan complete! Preview or save listing below.");
+      }
+    } catch (error) {
+      console.error("AI Scan Error:", error);
+      toast.error("Failed to analyze image with AI.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEtsyFetch = async () => {
+    if (!etsyUrlInput) {
+      toast.warning("Please enter an Etsy listing URL.");
+      return;
+    }
+    if (!formData.selectedRule) {
+      toast.warning("Please select an AI Rule.");
+      return;
+    }
+
+    setLoading(true);
+    setHasScanned(true);
+
+    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+
+    try {
+      const response = await aiService.etsyFetch({
+        url: etsyUrlInput,
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         description_template: selectedRuleObj?.description_template || '',
-        condition_note: selectedRuleObj?.condition_note || '',
-        condition_name: formData.selectedCondition,
-        model: formData.selectedModel || 'gpt-4o-mini'
+        condition_name: formData.selectedCondition || 'Pre-owned',
+        model: formData.selectedModel || 'gpt-4o-mini',
+        platform: targetPlatform,
+        gender: 'Unisex'
       });
 
       if (response.data.success) {
@@ -272,19 +377,25 @@ const CreateMasterListing = () => {
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
-          category: result.category_name || result.category,
-          categoryId: result.category_id,
+          category: result.category,
           sku: result.sku || '',
           brand: result.brand || '',
           size: result.size || '',
           color: result.color || '',
-          packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' }
+          images: result.images || [],
+          who_made: result.who_made || 'i_did',
+          when_made: result.when_made || '2020_2026',
+          is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
+          renewal: result.renewal || 'manual',
+          styleTag: result.styleTag || '',
+          material: result.material || '',
+          quantity: String(result.quantity || '1'),
         }));
-        toast.success("AI Scan complete! Preview or save listing below.");
+        toast.success("Etsy AI Fetch complete! Preview or save listing below.");
       }
     } catch (error) {
-      console.error("AI Scan Error:", error);
-      toast.error("Failed to analyze image with AI.");
+      console.error("Etsy AI Fetch Error:", error);
+      toast.error(error.response?.data?.error || "Failed to fetch Etsy listing using AI.");
     } finally {
       setLoading(false);
     }
@@ -326,7 +437,14 @@ const CreateMasterListing = () => {
       size: formData.size,
       color: formData.color,
       status: 'draft',
-      platform: 'ebay' // fallback platform
+      platform: targetPlatform,
+      etsyWhoMade: formData.who_made,
+      etsyWhenMade: formData.when_made,
+      etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
+      etsyRenewal: formData.renewal,
+      styleTag: formData.styleTag,
+      material: formData.material,
+      quantity: parseInt(formData.quantity) || 1
     };
 
     try {
@@ -340,6 +458,63 @@ const CreateMasterListing = () => {
     } catch (error) {
       console.error("Error saving listing:", error);
       toast.error(error.response?.data?.message || "Failed to save listing.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAndPublish = async () => {
+    setLoading(true);
+    const listingData = {
+      title: formData.title,
+      description: formData.description,
+      price: formData.price,
+      sku: formData.sku,
+      category: formData.category,
+      categoryId: formData.categoryId,
+      images: formData.images,
+      selectedRule: formData.selectedRule,
+      selectedCondition: formData.selectedCondition,
+      conditionId: formData.conditionId,
+      selectedModel: formData.selectedModel || 'gpt-4o-mini',
+      packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
+      brand: formData.brand,
+      size: formData.size,
+      color: formData.color,
+      status: 'draft',
+      platform: targetPlatform,
+      etsyWhoMade: formData.who_made,
+      etsyWhenMade: formData.when_made,
+      etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
+      etsyRenewal: formData.renewal,
+      styleTag: formData.styleTag,
+      material: formData.material,
+      quantity: parseInt(formData.quantity) || 1
+    };
+
+    try {
+      const response = editId
+        ? await listingService.update(editId, listingData)
+        : await listingService.create(listingData);
+      
+      if (response.data.success) {
+        const createdListing = response.data.data;
+        const activeListingId = editId || createdListing._id || createdListing.id;
+        
+        toast.info(`Saved locally. Publishing to ${targetPlatform}...`);
+        
+        if (targetPlatform === 'etsy') {
+          const publishRes = await etsyService.publish(activeListingId);
+          if (publishRes.data?.success) {
+            toast.success('Listing successfully published to Etsy!');
+          }
+        }
+        
+        navigate('/listings');
+      }
+    } catch (error) {
+      console.error("Error saving and listing:", error);
+      toast.error(error.response?.data?.message || "Failed to save or list.");
     } finally {
       setLoading(false);
     }
@@ -360,16 +535,17 @@ const CreateMasterListing = () => {
       <div className="flex justify-between items-end border-b border-slate-100 pb-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900">
-            {editId ? 'Edit Product Listing' : 'Create Master Product Listing'}
+            {editId ? 'Edit Product Listing' : targetPlatform === 'etsy' ? 'Create Etsy Product Listing' : 'Create Master Product Listing'}
           </h1>
           <p className="text-slate-500 text-xs font-semibold mt-1">
-            Single Image Scan to Prefill All Marketplace Listings
+            {targetPlatform === 'etsy' ? 'Prefill Etsy Listing Details and Images using AI Scan' : 'Prefill All Marketplace Listings from Image Scan'}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-5 space-y-6">
+
           <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <ImageIcon className="text-indigo-500" size={16} /> Product Images
@@ -484,42 +660,165 @@ const CreateMasterListing = () => {
 
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">AI Suggest Category Path</label>
-                  <input
+                  <CategorySearchDropdown
                     value={formData.category}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                    platform={targetPlatform}
+                    onSelect={(opt) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        category: opt.fullName || opt.label,
+                        categoryId: opt.id
+                      }));
+                    }}
+                    placeholder="Search category path..."
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Brand</label>
-                    <input
-                      value={formData.brand}
-                      onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      placeholder="Brand..."
-                    />
+                {targetPlatform !== 'etsy' ? (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Brand</label>
+                      <input
+                        value={formData.brand}
+                        onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="Brand..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
+                      <input
+                        value={formData.size}
+                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="Size..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
+                      <input
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="Color..."
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
-                    <input
-                      value={formData.size}
-                      onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      placeholder="Size..."
-                    />
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
+                      <input
+                        value={formData.size}
+                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="Size..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
+                      <input
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="Color..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Quantity</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formData.quantity}
+                        onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="1"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
-                    <input
-                      value={formData.color}
-                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      placeholder="Color..."
-                    />
-                  </div>
-                </div>
+                )}
+
+                {targetPlatform === 'etsy' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Materials</label>
+                        <input
+                          value={formData.material}
+                          onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                          placeholder="e.g. Chenille, Cotton (up to 4)"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
+                        <input
+                          value={formData.styleTag}
+                          onChange={(e) => setFormData(prev => ({ ...prev, styleTag: e.target.value }))}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                          placeholder="e.g. vintage, cottagecore"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Who Made It?</label>
+                        <select
+                          value={formData.who_made || 'i_did'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
+                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                        >
+                          <option value="i_did">I did (Handmade)</option>
+                          <option value="collective">A member of my shop (Handmade)</option>
+                          <option value="someone_else">Another company or person (Vintage)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">What Is It?</label>
+                        <select
+                          value={formData.is_supply || 'false'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
+                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                        >
+                          <option value="false">A finished product</option>
+                          <option value="true">A supply or tool to make things</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">When Was It Made?</label>
+                        <select
+                          value={formData.when_made || '2020_2026'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
+                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                        >
+                          <option value="2020_2026">2020 - 2026</option>
+                          <option value="2010_2019">2010 - 2019</option>
+                          <option value="2000_2009">2000 - 2009</option>
+                          <option value="1990_1999">1990 - 1999 (Vintage)</option>
+                          <option value="1980_1989">1980 - 1989 (Vintage)</option>
+                          <option value="before_1980">Before 1980 (Vintage)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Renewal Options</label>
+                        <select
+                          value={formData.renewal || 'manual'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
+                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                        >
+                          <option value="automatic">Automatic</option>
+                          <option value="manual">Manual</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description</label>
@@ -539,6 +838,25 @@ const CreateMasterListing = () => {
                   >
                     Save Master Listing
                   </button>
+                  {targetPlatform === 'etsy' && (
+                    <button
+                      onClick={handleSaveAndPublish}
+                      disabled={loading}
+                      className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-black text-xs transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-indigo-100"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Publishing to Etsy...
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          Save & List on Etsy
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

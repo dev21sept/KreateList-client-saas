@@ -28,6 +28,7 @@ import CreateEbayListing from '../pages/CreateEbayListing';
 import BulkListingEbay from '../pages/BulkListingEbay';
 import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
 import CreateDepopListing from '../pages/CreateDepopListing';
+import CreateMasterListing from '../pages/CreateMasterListing';
 
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
@@ -655,7 +656,7 @@ const NewDashboardLayout = () => {
                 <p className="text-slate-400 text-xs font-semibold mt-1">Choose where you want to list your product</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {/* eBay Single */}
                 <button 
                   onClick={() => setSelectedPlatform('ebay')}
@@ -692,6 +693,14 @@ const NewDashboardLayout = () => {
                   <span className="text-xs font-black text-slate-800 mt-3 block">Depop</span>
                 </button>
 
+                {/* Etsy */}
+                <button 
+                  onClick={() => setSelectedPlatform('etsy')}
+                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
+                >
+                  <img src="/etsy.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
+                  <span className="text-xs font-black text-slate-800 mt-3 block">Etsy</span>
+                </button>
 
               </div>
             </div>
@@ -720,6 +729,7 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing />}
                 {selectedPlatform === 'depop' && <CreateDepopListing />}
+                {selectedPlatform === 'etsy' && <CreateMasterListing platform="etsy" />}
               </div>
             </div>
           )}

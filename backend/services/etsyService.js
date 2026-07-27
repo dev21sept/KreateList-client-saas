@@ -118,14 +118,28 @@ async function createDraftListing(userId, shopId, listingData) {
     description: listingData.description || 'Listing created via eLister',
     price: parseFloat(listingData.price || '0.00').toFixed(2),
     taxonomy_id: parseInt(listingData.taxonomy_id || '1091'), // Default Clothing taxonomy node
-    who_made: 'i_did',
-    when_made: '2020_2026',
-    is_supply: false
+    who_made: listingData.who_made || 'i_did',
+    when_made: listingData.when_made || '2020_2026',
+    is_supply: listingData.is_supply === true || listingData.is_supply === 'true'
   };
+
+  const params = new URLSearchParams(payload);
+  
+  if (listingData.tags && listingData.tags.length > 0) {
+    listingData.tags.forEach(tag => {
+      params.append('tags', tag.substring(0, 20));
+    });
+  }
+
+  if (listingData.materials && listingData.materials.length > 0) {
+    listingData.materials.forEach(mat => {
+      params.append('materials', mat.substring(0, 45));
+    });
+  }
 
   try {
     const response = await axios.post(`https://api.etsy.com/v3/application/shops/${shopId}/listings`, 
-      new URLSearchParams(payload), {
+      params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,

@@ -95,6 +95,22 @@ const listingSchema = new mongoose.Schema({
   depopType: String,
   fastening: String,
   fit: String,
+  etsyWhoMade: {
+    type: String,
+    default: 'i_did'
+  },
+  etsyWhenMade: {
+    type: String,
+    default: '2020_2026'
+  },
+  etsyIsSupply: {
+    type: Boolean,
+    default: false
+  },
+  etsyRenewal: {
+    type: String,
+    default: 'manual'
+  },
   country: {
     type: String,
     default: 'India'

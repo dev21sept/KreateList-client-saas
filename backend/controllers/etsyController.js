@@ -165,11 +165,24 @@ exports.etsyPublish = async (req, res) => {
     const { shopId } = user.etsyAccount;
     console.log(`[Etsy Controller] Creating draft listing for SKU: ${listing.sku} on shop: ${shopId}`);
 
+    const tags = listing.styleTag 
+      ? listing.styleTag.split(',').map(t => t.trim()).filter(Boolean).slice(0, 13)
+      : [];
+    const materials = listing.material
+      ? listing.material.split(',').map(m => m.trim()).filter(Boolean).slice(0, 13)
+      : [];
+
     const publishResult = await etsyService.createDraftListing(req.user.id, shopId, {
       title: listing.title,
       description: listing.description,
       price: listing.price,
-      quantity: listing.quantity
+      quantity: listing.quantity || 1,
+      taxonomy_id: listing.categoryId || '1091',
+      who_made: listing.etsyWhoMade || 'i_did',
+      when_made: listing.etsyWhenMade || '2020_2026',
+      is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
+      tags: tags,
+      materials: materials
     });
 
     const etsyListingId = publishResult.listing_id || publishResult.results?.[0]?.listing_id;

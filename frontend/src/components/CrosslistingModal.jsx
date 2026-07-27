@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, Loader2, ShieldCheck, ChevronDown, ShoppingBag, Search, Check, Tag, Info, Eye, Code } from 'lucide-react';
+import CategorySearchDropdown from './CategorySearchDropdown';
 import { aiService, listingService, ruleService, externalImportService, ebayService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
@@ -144,134 +145,6 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
               <div className="p-4 text-xs text-slate-400 text-center">No results found</div>
             )}
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Search category...' }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const wrapperRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setSuggestions([]);
-      return;
-    }
-    const delayDebounce = setTimeout(async () => {
-      setLoading(true);
-      try {
-        let response;
-        if (platform === 'poshmark') {
-          response = await aiService.poshmarkSuggestCategories(searchTerm);
-        } else if (platform === 'ebay') {
-          response = await ebayService.suggestCategories(searchTerm);
-        } else if (platform === 'depop') {
-          response = await aiService.depopSuggestCategories(searchTerm);
-        } else if (platform === 'etsy') {
-          response = {
-            data: {
-              success: true,
-              data: [
-                { id: '1091', label: 'Clothing', fullName: 'Clothing' }
-              ]
-            }
-          };
-        }
-
-        if (response && response.data) {
-          const rawData = response.data.success ? response.data.data : response.data;
-          const normalised = (rawData || []).map(opt => ({
-            id: opt.id || opt.categoryId || '',
-            label: opt.label || opt.name || opt.fullName || '',
-            fullName: opt.fullName || opt.label || opt.name || '',
-            brand_field_visibility: opt.brand_field_visibility,
-            size_field_visibility: opt.size_field_visibility,
-            color_field_visibility: opt.color_field_visibility,
-            isbn_field_visibility: opt.isbn_field_visibility,
-            author_field_visibility: opt.author_field_visibility,
-            book_title_field_visibility: opt.book_title_field_visibility,
-            video_game_rating_field_visibility: opt.video_game_rating_field_visibility,
-            measurements_field_visibility: opt.measurements_field_visibility
-          }));
-          setSuggestions(normalised);
-        }
-      } catch (err) {
-        console.error("Error fetching categories:", err);
-      } finally {
-        setLoading(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchTerm, platform]);
-
-  return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <div className="relative">
-        <Tag size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 z-10" />
-        <input 
-          className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all shadow-sm h-12"
-          value={isOpen ? searchTerm : (value || '')}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => {
-            setIsOpen(true);
-            setSearchTerm(value || '');
-          }}
-          placeholder={placeholder}
-        />
-        <ChevronDown 
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" 
-          onClick={() => {
-            setIsOpen(!isOpen);
-            if (!isOpen) setSearchTerm(value || '');
-          }}
-        />
-      </div>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
-          {loading && (
-            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Searching categories...</div>
-          )}
-          {!loading && suggestions.length === 0 && searchTerm.trim() && (
-            <div className="p-4 text-xs font-semibold text-slate-400 text-center">No categories found</div>
-          )}
-          {!loading && suggestions.length === 0 && !searchTerm.trim() && (
-            <div className="p-4 text-xs font-semibold text-slate-400 text-center">Type to search categories...</div>
-          )}
-          {suggestions.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => {
-                onSelect(opt);
-                setIsOpen(false);
-                setSearchTerm('');
-              }}
-              className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold text-slate-750 hover:text-inherit">{opt.fullName}</span>
-                {opt.id && <span className="text-[9px] opacity-75">ID: {opt.id}</span>}
-              </div>
-            </button>
-          ))}
         </div>
       )}
     </div>
@@ -590,6 +463,15 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
   const [hasScanned, setHasScanned] = useState(false);
   const [activeImage, setActiveImage] = useState('');
   
+  const isAlreadyPublished = useMemo(() => {
+    if (!listing) return false;
+    if (platform === 'ebay' && (listing.ebayStatus === 'published' || listing.ebayListingId)) return true;
+    if (platform === 'poshmark' && (listing.poshmarkStatus === 'published' || listing.poshmarkListingId)) return true;
+    if (platform === 'depop' && (listing.depopStatus === 'published' || listing.depopListingId)) return true;
+    if (platform === 'etsy' && (listing.etsyStatus === 'published' || listing.etsyListingId)) return true;
+    return false;
+  }, [listing, platform]);
+  
   // Rules and Options lists
   const [rules, setRules] = useState([]);
   const [selectedRule, setSelectedRule] = useState('');
@@ -597,6 +479,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
   const [selectedConditionId, setSelectedConditionId] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
   const [descriptionMode, setDescriptionMode] = useState('preview');
+  const [etsyUrlInput, setEtsyUrlInput] = useState('');
 
   // Dynamic lists from Vinted/Depop/eBay APIs
 
@@ -649,6 +532,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     paymentPolicyId: '',
     itemSpecifics: {},
     images: [],
+    who_made: 'i_did',
+    when_made: '2020_2026',
+    is_supply: 'false',
+    renewal: 'manual',
   });
 
   const getConditions = () => {
@@ -703,7 +590,9 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       setFormData(prev => ({
         ...prev,
         title: listing.title || prev.title || '',
-        description: listing.description || prev.description || '',
+        description: (platform === 'etsy' || platform === 'poshmark' || platform === 'depop')
+          ? htmlToPlainText(listing.description || prev.description || '')
+          : (listing.description || prev.description || ''),
         price: listing.price || prev.price || '',
         originalPrice: listing.originalPrice || prev.originalPrice || '',
         brand: listing.brand || prev.brand || '',
@@ -723,6 +612,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         fulfillmentPolicyId: listing.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
         paymentPolicyId: listing.paymentPolicyId || prev.paymentPolicyId || '',
         conditionNote: listing.conditionNote || prev.conditionNote || '',
+        who_made: listing.etsyWhoMade || prev.who_made || 'i_did',
+        when_made: listing.etsyWhenMade || prev.when_made || '2020_2026',
+        is_supply: String(listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false'),
+        renewal: listing.etsyRenewal || prev.renewal || 'manual',
       }));
 
       if (listing.images && listing.images.length > 0) {
@@ -737,7 +630,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         setSelectedCondition(listing.selectedCondition || condList[0].label);
         setSelectedConditionId(listing.conditionId || condList[0].id);
       }
-      setHasScanned(isEditMode);
+      setHasScanned(isEditMode || !!(listing.title || listing.description || listing.price));
       setScanning(false);
 
       // 2. Fetch complete master listing from DB to guarantee 100% full data (Description, Images, ItemSpecifics, etc.)
@@ -752,7 +645,9 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
               setFormData(prev => ({
                 ...prev,
                 title: fullItem.title || prev.title || '',
-                description: fullItem.description || prev.description || '',
+                description: (platform === 'etsy' || platform === 'poshmark' || platform === 'depop')
+                  ? htmlToPlainText(fullItem.description || prev.description || '')
+                  : (fullItem.description || prev.description || ''),
                 price: fullItem.price || prev.price || '',
                 originalPrice: fullItem.originalPrice || prev.originalPrice || '',
                 brand: fullItem.brand || prev.brand || '',
@@ -782,6 +677,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                 fulfillmentPolicyId: fullItem.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
                 paymentPolicyId: fullItem.paymentPolicyId || prev.paymentPolicyId || '',
                 conditionNote: fullItem.conditionNote || prev.conditionNote || '',
+                who_made: fullItem.etsyWhoMade || prev.who_made || 'i_did',
+                when_made: fullItem.etsyWhenMade || prev.when_made || '2020_2026',
+                is_supply: String(fullItem.etsyIsSupply !== undefined ? fullItem.etsyIsSupply : 'false'),
+                renewal: fullItem.etsyRenewal || prev.renewal || 'manual',
               }));
 
               if (fullItem.images && fullItem.images.length > 0) {
@@ -793,6 +692,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
               if (fullItem.conditionId) {
                 setSelectedConditionId(fullItem.conditionId);
               }
+              setHasScanned(true);
             }
           })
           .catch(err => console.error("Error loading full master listing data:", err))
@@ -1084,7 +984,9 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           ...prev,
           title: result.title || prev.title,
           price: result.price || prev.price,
-          description: result.description || prev.description,
+          description: (platform === 'etsy' || platform === 'poshmark' || platform === 'depop')
+            ? htmlToPlainText(result.description || prev.description || '')
+            : (result.description || prev.description),
           brand: resolvedBrand || prev.brand,
           size: result.size || prev.size,
           color: resolvedColor || prev.color,
@@ -1136,6 +1038,128 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     } catch (err) {
       console.error('AI scan error:', err);
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to fetch data using AI.';
+      toast.error(errMsg);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const triggerEtsyAIUrlFetch = async () => {
+    if (!etsyUrlInput) {
+      toast.warning("Please enter an Etsy listing URL.");
+      return;
+    }
+    setScanning(true);
+    toast.info(`✨ Fetching and parsing Etsy listing with AI for ${platform}...`);
+
+    const detectGender = (text = '') => {
+      const clean = text.toLowerCase();
+      if (clean.includes('women') || clean.includes('female') || clean.includes('womens') || clean.includes('girl')) {
+        return 'Women';
+      }
+      if (clean.includes('men') || clean.includes('male') || clean.includes('mens') || clean.includes('boy')) {
+        return 'Men';
+      }
+      return 'Unisex';
+    };
+
+    try {
+      const selectedRuleObj = rules.find(r => (r._id || r.id) === selectedRule);
+      const response = await aiService.etsyFetch({
+        url: etsyUrlInput,
+        title_sequence: selectedRuleObj?.title_sequence || [],
+        description_prompt: selectedRuleObj?.description_prompt || '',
+        description_template: selectedRuleObj?.description_template || '',
+        condition_name: selectedCondition,
+        model: selectedModel || 'gpt-4o-mini',
+        platform: platform,
+        gender: detectGender(formData.title || listing.title)
+      });
+
+      if (response && response.data?.success) {
+        const result = response.data.data;
+
+        const findClosestMatch = (val, list) => {
+          if (!val) return '';
+          const clean = String(val).toLowerCase().trim();
+          const found = list.find(item => 
+            item.label?.toLowerCase() === clean || 
+            item.id?.toLowerCase() === clean ||
+            clean.includes(item.label?.toLowerCase()) ||
+            clean.includes(item.id?.toLowerCase())
+          );
+          return found ? found.label : '';
+        };
+
+        const resolvedBrand = platform === 'depop' ? (findClosestMatch(result.brand, DEPOP_BRANDS) || 'Other') : (result.brand || '');
+        const resolvedColor = platform === 'depop' ? (findClosestMatch(result.color, DEPOP_COLOURS) || '') : (result.color || '');
+        const resolvedStyle = platform === 'depop' ? (findClosestMatch(result.styleTag, DEPOP_STYLES) || '') : (result.styleTag || '');
+        const resolvedAge = platform === 'depop' ? (findClosestMatch(result.age, DEPOP_AGES) || '') : '';
+        const resolvedSource = platform === 'depop' ? (findClosestMatch(result.source, DEPOP_SOURCES) || '') : '';
+        const resolvedMaterial = platform === 'depop' ? (findClosestMatch(result.material, DEPOP_MATERIALS) || '') : (result.material || '');
+        const resolvedBodyFit = platform === 'depop' ? (findClosestMatch(result.bodyFit, DEPOP_BODY_FITS) || '') : '';
+        const resolvedOccasion = platform === 'depop' ? (findClosestMatch(result.occasion, DEPOP_OCCASIONS) || '') : '';
+        const resolvedFastening = platform === 'depop' ? (findClosestMatch(result.fastening, DEPOP_FASTENINGS) || '') : '';
+
+        const allTypesList = [
+          ...DEPOP_TYPES.footwear, 
+          ...DEPOP_TYPES.bottoms, 
+          ...DEPOP_TYPES.beauty,
+          ...Object.values(DEPOP_ATTRIBUTE_OPTIONS).flat()
+        ];
+        const allFitsList = [
+          ...DEPOP_FITS,
+          ...Object.values(DEPOP_ATTRIBUTE_OPTIONS).flat()
+        ];
+        const resolvedFit = platform === 'depop' ? (findClosestMatch(result.fit, allFitsList) || result.fit || '') : '';
+        const resolvedDepopType = platform === 'depop' ? (findClosestMatch(result.depopType, allTypesList) || result.depopType || '') : '';
+
+        setFormData(prev => ({
+          ...prev,
+          title: result.title || prev.title,
+          price: result.price || prev.price,
+          description: (platform === 'etsy' || platform === 'poshmark' || platform === 'depop')
+            ? htmlToPlainText(result.description || prev.description || '')
+            : (result.description || prev.description),
+          brand: resolvedBrand || prev.brand,
+          size: result.size || prev.size,
+          color: result.color || resolvedColor || prev.color,
+          sku: result.sku || prev.sku,
+          category: result.category_name || result.category || prev.category,
+          categoryId: result.categoryId || result.category_id || prev.categoryId,
+          material: result.material || resolvedMaterial || prev.material,
+          originalPrice: result.originalPrice || prev.originalPrice,
+          styleTag: result.styleTag || resolvedStyle || prev.styleTag,
+          age: resolvedAge || prev.age,
+          source: resolvedSource || prev.source,
+          bodyFit: resolvedBodyFit || prev.bodyFit,
+          occasion: resolvedOccasion || prev.occasion,
+          depopType: resolvedDepopType || prev.depopType,
+          fastening: resolvedFastening || prev.fastening,
+          fit: resolvedFit || prev.fit,
+          images: result.images && result.images.length > 0 ? result.images : prev.images,
+          departmentId: result.departmentId || prev.departmentId,
+          subcategoryIds: result.subcategoryIds || prev.subcategoryIds,
+          attribute_ids: result.attribute_ids || prev.attribute_ids,
+          who_made: result.who_made || prev.who_made || 'i_did',
+          when_made: result.when_made || prev.when_made || '2020_2026',
+          is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
+          renewal: result.renewal || prev.renewal || 'manual',
+          quantity: String(result.quantity || prev.quantity || '1')
+        }));
+
+        if (result.images && result.images.length > 0) {
+          setActiveImage(result.images[0]);
+        }
+
+        setHasScanned(true);
+        toast.success("Etsy AI Fetch complete! Review and publish below.");
+      } else {
+        toast.error("Failed to fetch Etsy details.");
+      }
+    } catch (err) {
+      console.error("Etsy AI URL Fetch error:", err);
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to fetch Etsy listing using AI.';
       toast.error(errMsg);
     } finally {
       setScanning(false);
@@ -1234,7 +1258,11 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         selectedModel,
         status: 'draft',
         platform,
-        images: formData.images
+        images: formData.images,
+        etsyWhoMade: formData.who_made,
+        etsyWhenMade: formData.when_made,
+        etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
+        etsyRenewal: formData.renewal,
       };
 
       let activeListingId = listing._id;
@@ -1435,8 +1463,38 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         {/* Body Container */}
         <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8">
           
-          {/* Setup Configuration */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start shrink-0">
+          {isAlreadyPublished ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center my-auto min-h-[400px]">
+              <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100/50">
+                <ShieldCheck size={40} className="stroke-[2.5]" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 capitalize">
+                Already Listed on {platform}!
+              </h3>
+              <p className="text-slate-500 text-xs font-semibold mt-3 max-w-sm leading-relaxed">
+                This product has been successfully published to {platform}. You can view the live listing or manage it directly.
+              </p>
+              {listing[`${platform}Url`] && (
+                <a
+                  href={listing[`${platform}Url`]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-2xl transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"
+                >
+                  View Live Listing
+                </a>
+              )}
+              <button
+                onClick={onClose}
+                className="mt-4 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-2xl transition-all cursor-pointer"
+              >
+                Close Window
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Setup Configuration */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start shrink-0">
             {/* Visual scan frame */}
             <div className="md:col-span-5 flex flex-col gap-4">
               <div className="relative aspect-[4/3] max-h-[280px] w-full mx-auto bg-slate-50 border border-[#e2e8f0] rounded-3xl overflow-hidden flex items-center justify-center shadow-inner select-none">
@@ -2071,9 +2129,9 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       </div>
 
                       {/* Original Price */}
-                      {(platform === 'poshmark' || platform === 'depop' || platform === 'etsy') && (
+                      {(platform === 'poshmark' || platform === 'depop') && (
                         <div>
-                          <label className="text-[9px] font-black text-slate-450 uppercase tracking-wider block mb-1">Original Price ($)</label>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Original Price ($)</label>
                           <input
                             type="number"
                             step="0.01"
@@ -2109,24 +2167,26 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       </div>
 
                       {/* Brand */}
-                      <div>
-                        <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Brand</label>
-                        {platform === 'depop' ? (
-                          <SearchableDropdown 
-                            value={formData.brand}
-                            onSelect={(opt) => handleInputChange('brand', opt.label)}
-                            options={DEPOP_BRANDS.map(b => ({ id: b.id, label: b.label }))}
-                            placeholder="Select Depop brand..."
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={formData.brand}
-                            onChange={(e) => handleInputChange('brand', e.target.value)}
-                            className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                          />
-                        )}
-                      </div>
+                      {platform !== 'etsy' && (
+                        <div>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Brand</label>
+                          {platform === 'depop' ? (
+                            <SearchableDropdown 
+                              value={formData.brand}
+                              onSelect={(opt) => handleInputChange('brand', opt.label)}
+                              options={DEPOP_BRANDS.map(b => ({ id: b.id, label: b.label }))}
+                              placeholder="Select Depop brand..."
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={formData.brand}
+                              onChange={(e) => handleInputChange('brand', e.target.value)}
+                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                            />
+                          )}
+                        </div>
+                      )}
 
                       {/* Size */}
                       {platform !== 'depop' ? (
@@ -2349,42 +2409,100 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                         </>
                       )}
 
+                      {/* Etsy Specific Fields */}
+                      {platform === 'etsy' && (
+                        <>
+                          <div>
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Who Made It?</label>
+                            <select
+                              value={formData.who_made || 'i_did'}
+                              onChange={(e) => handleInputChange('who_made', e.target.value)}
+                              className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
+                            >
+                              <option value="i_did">I did (Handmade)</option>
+                              <option value="collective">A member of my shop (Handmade)</option>
+                              <option value="someone_else">Another company or person (Vintage)</option>
+                            </select>
+                          </div>
 
+                          <div>
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">What Is It?</label>
+                            <select
+                              value={formData.is_supply || 'false'}
+                              onChange={(e) => handleInputChange('is_supply', e.target.value)}
+                              className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
+                            >
+                              <option value="false">A finished product</option>
+                              <option value="true">A supply or tool to make things</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">When Was It Made?</label>
+                            <select
+                              value={formData.when_made || '2020_2026'}
+                              onChange={(e) => handleInputChange('when_made', e.target.value)}
+                              className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
+                            >
+                              <option value="2020_2026">2020 - 2026</option>
+                              <option value="2010_2019">2010 - 2019</option>
+                              <option value="2000_2009">2000 - 2009</option>
+                              <option value="1990_1999">1990 - 1999 (Vintage)</option>
+                              <option value="1980_1989">1980 - 1989 (Vintage)</option>
+                              <option value="before_1980">Before 1980 (Vintage)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Renewal Options</label>
+                            <select
+                              value={formData.renewal || 'manual'}
+                              onChange={(e) => handleInputChange('renewal', e.target.value)}
+                              className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
+                            >
+                              <option value="automatic">Automatic</option>
+                              <option value="manual">Manual</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
 
                       {/* Product Condition & Condition Note (Synced) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Product Condition</label>
-                          <div className="relative">
-                            <select
-                              value={selectedCondition}
-                              onChange={handleConditionChange}
-                              className="w-full pl-3 pr-9 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none h-12 transition-all font-sans"
-                            >
-                              {getConditions().map(c => (
-                                  <option key={c.id} value={c.label}>{c.label}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                          </div>
-                        </div>
-                        {platform !== 'poshmark' ? (
+                      {platform !== 'etsy' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Condition Description / Note</label>
-                            <input
-                              type="text"
-                              value={formData.conditionNote}
-                              onChange={(e) => handleInputChange('conditionNote', e.target.value)}
-                              placeholder="Note down condition details..."
-                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
-                            />
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Product Condition</label>
+                            <div className="relative">
+                              <select
+                                value={selectedCondition}
+                                onChange={handleConditionChange}
+                                className="w-full pl-3 pr-9 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none h-12 transition-all font-sans"
+                              >
+                                {getConditions().map(c => (
+                                    <option key={c.id} value={c.label}>{c.label}</option>
+                                ))}
+                              </select>
+                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
                           </div>
-                        ) : (
-                          <div className="flex items-center justify-center text-[10px] text-slate-400 font-bold italic pt-4">
-                            Poshmark only supports Condition (NWT / Lightly Used).
-                          </div>
-                        )}
-                      </div>
+                          {platform !== 'poshmark' ? (
+                            <div>
+                              <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Condition Description / Note</label>
+                              <input
+                                type="text"
+                                value={formData.conditionNote}
+                                onChange={(e) => handleInputChange('conditionNote', e.target.value)}
+                                placeholder="Note down condition details..."
+                                className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center text-[10px] text-slate-400 font-bold italic pt-4">
+                              Poshmark only supports Condition (NWT / Lightly Used).
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Description for non-ebay platforms */}
                       <div className="sm:col-span-2">
@@ -2453,12 +2571,12 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       {loading ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          {isEditMode ? 'Saving Changes...' : `Publishing to ${platform}...`}
+                          {isEditMode ? 'Saving Changes...' : `Publishing to ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}...`}
                         </>
                       ) : (
                         <>
                           <ShoppingBag className="w-3.5 h-3.5" />
-                          {isEditMode ? 'Save Changes' : `Save & List on ${platform}`}
+                          {isEditMode ? 'Save Changes' : `Save & List on ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}`}
                         </>
                       )}
                     </button>
@@ -2468,7 +2586,8 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
               </form>
             </div>
           )}
-
+            </>
+          )}
         </div>
       </div>
 

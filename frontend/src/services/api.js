@@ -79,6 +79,9 @@ export const aiService = {
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
   depopGetCategoryDetails: (params) => API.get('/ai/depop-category-details', { params }),
+  etsyFetch: (data) => API.post('/ai/etsy-fetch', data),
+  etsyAnalyze: (data) => API.post('/ai/etsy-analyze', data),
+  etsySuggestCategories: (query) => API.get(`/ai/etsy-categories?query=${query}`),
 };
 
 export const etsyService = {
