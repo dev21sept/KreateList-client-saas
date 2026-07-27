@@ -458,10 +458,14 @@ ${platformSpecificRules}
    - Extract 'when_made': When was it made? Choose exactly one of:
      * '2020_2026'
      * '2010_2019'
-     * '2000_2009'
-     * '1990_1999' (Vintage - if 20+ years old)
-     * '1980_1989' (Vintage - if 20+ years old)
-     * 'before_1980' (Vintage)
+     * '2007_2009'
+      * '2000_2006'
+     * '1990s' (Vintage - if 20+ years old)
+     * '1980s' (Vintage - if 20+ years old)
+     * '1970s'
+      * '1960s'
+      * '1950s'
+      * 'before_1950' (Vintage)
    - Extract 'is_supply': Is it a supply or tool to make things? (boolean: true/false).
    - Extract 'renewal': Choose exactly 'automatic' or 'manual' (default 'manual').
    - Extract 'style_tag': Comma-separated list of keywords/tags. Choose up to 13 relevant style tags or keywords.
@@ -836,10 +840,14 @@ ${descriptionInstruction}
    - Extract 'when_made': When was it made? Choose exactly one of:
      * '2020_2026'
      * '2010_2019'
-     * '2000_2009'
-     * '1990_1999' (Vintage - if 20+ years old)
-     * '1980_1989' (Vintage - if 20+ years old)
-     * 'before_1980' (Vintage)
+     * '2007_2009'
+      * '2000_2006'
+     * '1990s' (Vintage - if 20+ years old)
+     * '1980s' (Vintage - if 20+ years old)
+     * '1970s'
+      * '1960s'
+      * '1950s'
+      * 'before_1950' (Vintage)
    - Extract 'is_supply': Is it a supply or tool to make things? (boolean: true/false).
    - Extract 'renewal': Choose exactly 'automatic' or 'manual' (default 'manual').
    - Extract 'style_tag': Comma-separated list of keywords/tags. Choose up to 13 relevant style tags or keywords.

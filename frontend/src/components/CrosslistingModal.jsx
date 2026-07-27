@@ -2446,10 +2446,14 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                             >
                               <option value="2020_2026">2020 - 2026</option>
                               <option value="2010_2019">2010 - 2019</option>
-                              <option value="2000_2009">2000 - 2009</option>
-                              <option value="1990_1999">1990 - 1999 (Vintage)</option>
-                              <option value="1980_1989">1980 - 1989 (Vintage)</option>
-                              <option value="before_1980">Before 1980 (Vintage)</option>
+                              <option value="2007_2009">2007 - 2009</option>
+                              <option value="2000_2006">2000 - 2006</option>
+                              <option value="1990s">1990s (Vintage)</option>
+                              <option value="1980s">1980s (Vintage)</option>
+                              <option value="1970s">1970s (Vintage)</option>
+                              <option value="1960s">1960s (Vintage)</option>
+                              <option value="1950s">1950s (Vintage)</option>
+                              <option value="before_1950">Before 1950 (Vintage)</option>
                             </select>
                           </div>
 

@@ -172,6 +172,12 @@ exports.etsyPublish = async (req, res) => {
       ? listing.material.split(',').map(m => m.trim()).filter(Boolean).slice(0, 13)
       : [];
 
+    let whenMade = listing.etsyWhenMade || '2020_2026';
+    if (whenMade === '2000_2009') whenMade = '2000_2006';
+    else if (whenMade === '1990_1999') whenMade = '1990s';
+    else if (whenMade === '1980_1989') whenMade = '1980s';
+    else if (whenMade === 'before_1980') whenMade = '1970s';
+
     const publishResult = await etsyService.createDraftListing(req.user.id, shopId, {
       title: listing.title,
       description: listing.description,
@@ -179,7 +185,7 @@ exports.etsyPublish = async (req, res) => {
       quantity: listing.quantity || 1,
       taxonomy_id: listing.categoryId || '1091',
       who_made: listing.etsyWhoMade || 'i_did',
-      when_made: listing.etsyWhenMade || '2020_2026',
+      when_made: whenMade,
       is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
       tags: tags,
       materials: materials
