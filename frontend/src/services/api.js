@@ -88,7 +88,8 @@ export const etsyService = {
   connect: () => API.get('/etsy/connect'),
   disconnect: () => API.post('/etsy/disconnect'),
   sync: () => API.post('/etsy/sync'),
-  publish: (id, data) => API.post(`/etsy/publish/${id}`, data)
+  publish: (id, data) => API.post(`/etsy/publish/${id}`, data),
+  getShippingProfiles: () => API.get('/etsy/shipping-profiles')
 };
 
 export const adminService = {

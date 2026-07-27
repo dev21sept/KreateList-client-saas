@@ -536,7 +536,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     when_made: '2020_2026',
     is_supply: 'false',
     renewal: 'manual',
+    shipping_profile_id: '',
   });
+
+  const [shippingProfiles, setShippingProfiles] = useState([]);
 
   const getConditions = () => {
     switch (platform) {
@@ -566,6 +569,18 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         .catch(err => console.error('Error fetching rules:', err));
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && platform === 'etsy') {
+      etsyService.getShippingProfiles()
+        .then(res => {
+          if (res.data?.success) {
+            setShippingProfiles(res.data.data);
+          }
+        })
+        .catch(err => console.error('Error fetching Etsy shipping profiles:', err));
+    }
+  }, [isOpen, platform]);
 
   useEffect(() => {
     if (isOpen && listing) {
@@ -616,6 +631,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         when_made: listing.etsyWhenMade || prev.when_made || '2020_2026',
         is_supply: String(listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false'),
         renewal: listing.etsyRenewal || prev.renewal || 'manual',
+        shipping_profile_id: listing.etsyShippingProfileId || prev.shipping_profile_id || '',
       }));
 
       if (listing.images && listing.images.length > 0) {
@@ -681,6 +697,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                 when_made: fullItem.etsyWhenMade || prev.when_made || '2020_2026',
                 is_supply: String(fullItem.etsyIsSupply !== undefined ? fullItem.etsyIsSupply : 'false'),
                 renewal: fullItem.etsyRenewal || prev.renewal || 'manual',
+                shipping_profile_id: fullItem.etsyShippingProfileId || prev.shipping_profile_id || '',
               }));
 
               if (fullItem.images && fullItem.images.length > 0) {
@@ -1263,6 +1280,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         etsyWhenMade: formData.when_made,
         etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
         etsyRenewal: formData.renewal,
+        etsyShippingProfileId: formData.shipping_profile_id,
       };
 
       let activeListingId = listing._id;
@@ -2466,6 +2484,22 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                             >
                               <option value="automatic">Automatic</option>
                               <option value="manual">Manual</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-1 sm:col-span-2">
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Etsy Delivery Profile</label>
+                            <select
+                              value={formData.shipping_profile_id || ''}
+                              onChange={(e) => handleInputChange('shipping_profile_id', e.target.value)}
+                              className="w-full px-3 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700 cursor-pointer h-12"
+                            >
+                              <option value="">-- Select Shipping Profile --</option>
+                              {shippingProfiles.map(profile => (
+                                <option key={profile.shipping_profile_id} value={profile.shipping_profile_id}>
+                                  {profile.title} ({profile.processing_days_display_label || 'Calculated shipping'})
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </>

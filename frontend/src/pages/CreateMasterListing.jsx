@@ -153,7 +153,9 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     styleTag: '',
     material: '',
     quantity: '1',
+    shipping_profile_id: '',
   });
+  const [shippingProfiles, setShippingProfiles] = useState([]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
   const [etsyUrlInput, setEtsyUrlInput] = useState('');
@@ -189,6 +191,20 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
   }, [editId]);
 
   useEffect(() => {
+    const fetchShippingProfiles = async () => {
+      try {
+        const response = await etsyService.getShippingProfiles();
+        if (response.data?.success) {
+          setShippingProfiles(response.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch Etsy shipping profiles:", err);
+      }
+    };
+    fetchShippingProfiles();
+  }, []);
+
+  useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
         try {
@@ -221,6 +237,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
               styleTag: listing.styleTag || '',
               material: listing.material || '',
               quantity: String(listing.quantity || '1'),
+              shipping_profile_id: listing.etsyShippingProfileId || '',
             });
             setHasScanned(true);
           }
@@ -442,6 +459,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
       etsyWhenMade: formData.when_made,
       etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
       etsyRenewal: formData.renewal,
+      etsyShippingProfileId: formData.shipping_profile_id,
       styleTag: formData.styleTag,
       material: formData.material,
       quantity: parseInt(formData.quantity) || 1
@@ -487,6 +505,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
       etsyWhenMade: formData.when_made,
       etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
       etsyRenewal: formData.renewal,
+      etsyShippingProfileId: formData.shipping_profile_id,
       styleTag: formData.styleTag,
       material: formData.material,
       quantity: parseInt(formData.quantity) || 1
@@ -738,91 +757,105 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   </div>
                 )}
 
-                {targetPlatform === 'etsy' && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Materials</label>
-                        <input
-                          value={formData.material}
-                          onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                          placeholder="e.g. Chenille, Cotton (up to 4)"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
-                        <input
-                          value={formData.styleTag}
-                          onChange={(e) => setFormData(prev => ({ ...prev, styleTag: e.target.value }))}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                          placeholder="e.g. vintage, cottagecore"
-                        />
-                      </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Materials</label>
+                    <input
+                      value={formData.material}
+                      onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                      placeholder="e.g. Chenille, Cotton (up to 4)"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
+                    <input
+                      value={formData.styleTag}
+                      onChange={(e) => setFormData(prev => ({ ...prev, styleTag: e.target.value }))}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                      placeholder="e.g. vintage, cottagecore"
+                    />
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Who Made It?</label>
-                        <select
-                          value={formData.who_made || 'i_did'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
-                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                        >
-                          <option value="i_did">I did (Handmade)</option>
-                          <option value="collective">A member of my shop (Handmade)</option>
-                          <option value="someone_else">Another company or person (Vintage)</option>
-                        </select>
-                      </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Who Made It?</label>
+                    <select
+                      value={formData.who_made || 'i_did'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
+                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                    >
+                      <option value="i_did">I did (Handmade)</option>
+                      <option value="collective">A member of my shop (Handmade)</option>
+                      <option value="someone_else">Another company or person (Vintage)</option>
+                    </select>
+                  </div>
 
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">What Is It?</label>
-                        <select
-                          value={formData.is_supply || 'false'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
-                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                        >
-                          <option value="false">A finished product</option>
-                          <option value="true">A supply or tool to make things</option>
-                        </select>
-                      </div>
-                    </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">What Is It?</label>
+                    <select
+                      value={formData.is_supply || 'false'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
+                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                    >
+                      <option value="false">A finished product</option>
+                      <option value="true">A supply or tool to make things</option>
+                    </select>
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">When Was It Made?</label>
-                        <select
-                          value={formData.when_made || '2020_2026'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
-                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                        >
-                          <option value="2020_2026">2020 - 2026</option>
-                          <option value="2010_2019">2010 - 2019</option>
-                          <option value="2007_2009">2007 - 2009</option>
-                          <option value="2000_2006">2000 - 2006</option>
-                          <option value="1990s">1990s (Vintage)</option>
-                          <option value="1980s">1980s (Vintage)</option>
-                          <option value="1970s">1970s (Vintage)</option>
-                          <option value="1960s">1960s (Vintage)</option>
-                          <option value="1950s">1950s (Vintage)</option>
-                          <option value="before_1950">Before 1950 (Vintage)</option>
-                        </select>
-                      </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">When Was It Made?</label>
+                    <select
+                      value={formData.when_made || '2020_2026'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
+                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                    >
+                      <option value="2020_2026">2020 - 2026</option>
+                      <option value="2010_2019">2010 - 2019</option>
+                      <option value="2007_2009">2007 - 2009</option>
+                      <option value="2000_2006">2000 - 2006</option>
+                      <option value="1990s">1990s (Vintage)</option>
+                      <option value="1980s">1980s (Vintage)</option>
+                      <option value="1970s">1970s (Vintage)</option>
+                      <option value="1960s">1960s (Vintage)</option>
+                      <option value="1950s">1950s (Vintage)</option>
+                      <option value="before_1950">Before 1950 (Vintage)</option>
+                    </select>
+                  </div>
 
-                      <div>
-                        <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Renewal Options</label>
-                        <select
-                          value={formData.renewal || 'manual'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
-                          className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                        >
-                          <option value="automatic">Automatic</option>
-                          <option value="manual">Manual</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Renewal Options</label>
+                    <select
+                      value={formData.renewal || 'manual'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
+                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                    >
+                      <option value="automatic">Automatic</option>
+                      <option value="manual">Manual</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 mb-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Etsy Delivery Profile</label>
+                    <select
+                      value={formData.shipping_profile_id || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, shipping_profile_id: e.target.value }))}
+                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
+                    >
+                      <option value="">-- Select Shipping Profile --</option>
+                      {shippingProfiles.map(profile => (
+                        <option key={profile.shipping_profile_id} value={profile.shipping_profile_id}>
+                          {profile.title} ({profile.processing_days_display_label || 'Calculated shipping'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description</label>

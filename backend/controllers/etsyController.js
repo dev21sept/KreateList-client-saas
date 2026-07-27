@@ -194,6 +194,7 @@ exports.etsyPublish = async (req, res) => {
       who_made: listing.etsyWhoMade || 'i_did',
       when_made: whenMade,
       is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
+      shipping_profile_id: listing.etsyShippingProfileId || undefined,
       tags: tags,
       materials: materials
     });
@@ -233,6 +234,20 @@ exports.etsyPublish = async (req, res) => {
     });
   } catch (err) {
     console.error(`[Etsy Controller] Error publishing to Etsy:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getEtsyShippingProfiles = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+    const profiles = await etsyService.getShippingProfiles(req.user.id, user.etsyAccount.shopId);
+    res.status(200).json({ success: true, data: profiles });
+  } catch (err) {
+    console.error('[Etsy Controller] getEtsyShippingProfiles error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };

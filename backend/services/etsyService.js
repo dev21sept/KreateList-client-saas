@@ -123,6 +123,10 @@ async function createDraftListing(userId, shopId, listingData) {
     is_supply: listingData.is_supply === true || listingData.is_supply === 'true'
   };
 
+  if (listingData.shipping_profile_id) {
+    payload.shipping_profile_id = parseInt(listingData.shipping_profile_id);
+  }
+
   const params = new URLSearchParams(payload);
   
   if (listingData.tags && listingData.tags.length > 0) {
@@ -217,12 +221,29 @@ async function getEtsyInventory(userId, shopId) {
   }
 }
 
+async function getShippingProfiles(userId, shopId) {
+  const accessToken = await getValidToken(userId);
+  try {
+    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/shipping-profiles`, {
+      headers: {
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    return response.data?.results || [];
+  } catch (err) {
+    console.error('[Etsy Service] Fetch shipping profiles failed:', err.response?.data || err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   getValidToken,
   getShopInfo,
   createDraftListing,
   uploadListingImage,
   getEtsyInventory,
+  getShippingProfiles,
   ETSY_CLIENT_ID,
   ETSY_CLIENT_SECRET
 };
