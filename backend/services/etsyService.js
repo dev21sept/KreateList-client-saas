@@ -127,9 +127,39 @@ async function createDraftListing(userId, shopId, listingData) {
     payload.shipping_profile_id = parseInt(listingData.shipping_profile_id);
   }
 
+  // Fetch readiness state definition if not provided (mandatory for physical listings in v3)
+  let readinessStateId = listingData.readiness_state_id;
+  if (!readinessStateId) {
+    try {
+      console.log(`[Etsy Service] Fetching readiness state definitions for shop: ${shopId}`);
+      const defResponse = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/readiness-state-definitions`, {
+        headers: {
+          'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      const definitions = defResponse.data?.results || [];
+      if (definitions.length > 0) {
+        readinessStateId = definitions[0].readiness_state_id;
+        console.log(`[Etsy Service] Automatically selected readiness_state_id: ${readinessStateId} from shop definitions.`);
+      } else {
+        console.warn(`[Etsy Service] No readiness state definitions found for shop: ${shopId}`);
+      }
+    } catch (err) {
+      console.error('[Etsy Service] Failed to auto-fetch readiness state definition:', err.response?.data || err.message);
+    }
+  }
+
+  if (readinessStateId) {
+    payload.readiness_state_id = parseInt(readinessStateId);
+  }
+
   console.log('[Etsy Service] Outgoing createDraftListing payload:', JSON.stringify(payload, null, 2));
 
-  const params = new URLSearchParams(payload);
+  const params = new URLSearchParams();
+  Object.keys(payload).forEach(key => {
+    params.append(key, String(payload[key]));
+  });
   
   if (listingData.tags && listingData.tags.length > 0) {
     listingData.tags.forEach(tag => {
@@ -144,8 +174,8 @@ async function createDraftListing(userId, shopId, listingData) {
   }
 
   try {
-    console.log('[Etsy Service] Sending POST request to Etsy listings endpoint...');
-    const response = await axios.post(`https://api.etsy.com/v3/application/shops/${shopId}/listings`, 
+    console.log('[Etsy Service] Sending POST request to Etsy listings endpoint with legacy=false...');
+    const response = await axios.post(`https://api.etsy.com/v3/application/shops/${shopId}/listings?legacy=false`, 
       params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
