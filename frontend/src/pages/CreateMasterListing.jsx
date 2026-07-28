@@ -155,8 +155,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     material: '',
     quantity: '1',
     shipping_profile_id: '',
+    etsyAttributes: {},
   });
   const [shippingProfiles, setShippingProfiles] = useState([]);
+  const [etsyProperties, setEtsyProperties] = useState([]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
   const [etsyUrlInput, setEtsyUrlInput] = useState('');
@@ -205,6 +207,23 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     fetchShippingProfiles();
   }, []);
 
+  // Fetch Etsy category properties
+  useEffect(() => {
+    if (targetPlatform === 'etsy' && formData.categoryId) {
+      console.log("Fetching Etsy properties for category:", formData.categoryId);
+      etsyService.getCategoryProperties(formData.categoryId)
+        .then(res => {
+          if (res.data?.success) {
+            console.log("Etsy properties fetched successfully:", res.data.data?.length, "properties");
+            setEtsyProperties(res.data.data || []);
+          }
+        })
+        .catch(err => console.error("Error fetching Etsy properties:", err));
+    } else {
+      setEtsyProperties([]);
+    }
+  }, [targetPlatform, formData.categoryId]);
+
   useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
@@ -239,6 +258,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
               material: listing.material || '',
               quantity: String(listing.quantity || '1'),
               shipping_profile_id: listing.etsyShippingProfileId || '',
+              etsyAttributes: listing.etsyAttributes || {},
             });
             setHasScanned(true);
           }
@@ -481,6 +501,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
       etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
       etsyRenewal: formData.renewal,
       etsyShippingProfileId: formData.shipping_profile_id,
+      etsyAttributes: formData.etsyAttributes,
       styleTag: formData.styleTag,
       material: formData.material,
       quantity: parseInt(formData.quantity) || 1
@@ -531,6 +552,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
       etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
       etsyRenewal: formData.renewal,
       etsyShippingProfileId: formData.shipping_profile_id,
+      etsyAttributes: formData.etsyAttributes,
       styleTag: formData.styleTag,
       material: formData.material,
       quantity: parseInt(formData.quantity) || 1
@@ -894,6 +916,89 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                     </select>
                   </div>
                 </div>
+
+                {/* Etsy Dynamic Category Properties */}
+                {targetPlatform === 'etsy' && etsyProperties.length > 0 && (
+                  <div className="border border-slate-200 p-6 rounded-3xl bg-slate-50/20 mb-4 space-y-4">
+                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span>Etsy Category Attributes</span>
+                      <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg font-extrabold">Taxonomy: {formData.categoryId || '-'}</span>
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2">
+                      {etsyProperties.map((prop) => {
+                        const propertyId = prop.property_id;
+                        const name = prop.display_name || prop.name;
+                        const isRequired = prop.is_required === true;
+                        
+                        const valOptions = [];
+                        if (prop.possible_values && prop.possible_values.length > 0) {
+                          prop.possible_values.forEach(v => {
+                            valOptions.push({ id: String(v.value_id), label: v.name });
+                          });
+                        }
+                        if (prop.scales && prop.scales.length > 0) {
+                          prop.scales.forEach(scale => {
+                            if (scale.values && scale.values.length > 0) {
+                              scale.values.forEach(v => {
+                                valOptions.push({ id: String(v.value_id), label: v.name });
+                              });
+                            }
+                          });
+                        }
+
+                        const currentValArray = formData.etsyAttributes?.[propertyId] || [];
+                        const currentVal = currentValArray[0] || '';
+                        const currentOpt = valOptions.find(opt => opt.id === String(currentVal));
+                        const displayVal = currentOpt ? currentOpt.label : currentVal;
+
+                        const hasError = false;
+
+                        return (
+                          <div key={propertyId}>
+                            <label className="text-[9px] font-black uppercase tracking-wider block mb-1 text-slate-455">
+                              {name} {isRequired && <span className="text-rose-500">*</span>}
+                            </label>
+                            {valOptions.length > 0 ? (
+                              <SearchableDropdown
+                                value={displayVal}
+                                onSelect={(opt) => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    etsyAttributes: {
+                                      ...prev.etsyAttributes,
+                                      [propertyId]: [opt.id]
+                                    }
+                                  }));
+                                }}
+                                options={valOptions}
+                                placeholder={`Select ${name}...`}
+                                error={hasError}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={currentVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    etsyAttributes: {
+                                      ...prev.etsyAttributes,
+                                      [propertyId]: [val]
+                                    }
+                                  }));
+                                }}
+                                className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white h-12"
+                                placeholder={`Enter ${name}...`}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description</label>

@@ -489,6 +489,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
 
   const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
   const [aspects, setAspects] = useState([]);
+  const [etsyProperties, setEtsyProperties] = useState([]);
   const [errors, setErrors] = useState({});
 
   // Form State
@@ -531,6 +532,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     fulfillmentPolicyId: '',
     paymentPolicyId: '',
     itemSpecifics: {},
+    etsyAttributes: {},
     images: [],
     who_made: 'i_did',
     when_made: '2020_2026',
@@ -622,6 +624,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         packageWeight: listing.packageWeight || prev.packageWeight || { lbs: 0, oz: 0 },
         packageDimensions: listing.packageDimensions || prev.packageDimensions || { length: 0, width: 0, height: 0 },
         itemSpecifics: normalizedSpecs(listing.itemSpecifics || listing.item_specifics),
+        etsyAttributes: listing.etsyAttributes || prev.etsyAttributes || {},
         returnPolicyId: listing.returnPolicyId || prev.returnPolicyId || '',
         locationKey: listing.locationKey || prev.locationKey || '',
         fulfillmentPolicyId: listing.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
@@ -688,6 +691,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                 packageDimensions: fullItem.packageDimensions || prev.packageDimensions || { length: 0, width: 0, height: 0 },
                 images: (fullItem.images && fullItem.images.length > 0) ? fullItem.images : (fullItem.thumbnail ? [fullItem.thumbnail] : prev.images || []),
                 itemSpecifics: Object.keys(specsObj).length > 0 ? specsObj : prev.itemSpecifics,
+                etsyAttributes: fullItem.etsyAttributes || prev.etsyAttributes || {},
                 returnPolicyId: fullItem.returnPolicyId || prev.returnPolicyId || '',
                 locationKey: fullItem.locationKey || prev.locationKey || '',
                 fulfillmentPolicyId: fullItem.fulfillmentPolicyId || prev.fulfillmentPolicyId || '',
@@ -773,6 +777,22 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           }
         })
         .catch(err => console.error("Error fetching eBay aspects:", err));
+    }
+  }, [isOpen, platform, formData.categoryId]);
+
+  // Etsy Properties fetching
+  useEffect(() => {
+    console.log("Etsy Properties useEffect triggered:", { isOpen, platform, categoryId: formData.categoryId });
+    if (isOpen && platform === 'etsy' && formData.categoryId) {
+      console.log("Fetching Etsy properties for category:", formData.categoryId);
+      etsyService.getCategoryProperties(formData.categoryId)
+        .then(res => {
+          if (res.data?.success) {
+            console.log("Etsy properties fetched successfully:", res.data.data?.length, "properties");
+            setEtsyProperties(res.data.data || []);
+          }
+        })
+        .catch(err => console.error("Error fetching Etsy properties:", err));
     }
   }, [isOpen, platform, formData.categoryId]);  // Depop Category detail visibilities
   useEffect(() => {
@@ -1302,6 +1322,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
         etsyRenewal: formData.renewal,
         etsyShippingProfileId: formData.shipping_profile_id,
+        etsyAttributes: formData.etsyAttributes,
       };
 
       let activeListingId = listing._id;
@@ -2536,6 +2557,89 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                               ))}
                             </select>
                           </div>
+
+                          {/* Etsy Dynamic Category Properties */}
+                          {etsyProperties.length > 0 && (
+                            <div className="col-span-1 sm:col-span-2 border-t border-[#f1f5f9] pt-4 mt-2 space-y-4">
+                              <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center justify-between pb-2 border-b border-slate-100">
+                                <span>5. Etsy Category Attributes</span>
+                                <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg font-extrabold">Taxonomy: {formData.categoryId || '-'}</span>
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 border border-[#f1f3f9] p-4 rounded-2xl bg-slate-50/20 font-sans">
+                                {etsyProperties.map((prop) => {
+                                  const propertyId = prop.property_id;
+                                  const name = prop.display_name || prop.name;
+                                  const isRequired = prop.is_required === true;
+                                  
+                                  const valOptions = [];
+                                  if (prop.possible_values && prop.possible_values.length > 0) {
+                                    prop.possible_values.forEach(v => {
+                                      valOptions.push({ id: String(v.value_id), label: v.name });
+                                    });
+                                  }
+                                  if (prop.scales && prop.scales.length > 0) {
+                                    prop.scales.forEach(scale => {
+                                      if (scale.values && scale.values.length > 0) {
+                                        scale.values.forEach(v => {
+                                          valOptions.push({ id: String(v.value_id), label: v.name });
+                                        });
+                                      }
+                                    });
+                                  }
+
+                                  const currentValArray = formData.etsyAttributes?.[propertyId] || [];
+                                  const currentVal = currentValArray[0] || '';
+                                  const currentOpt = valOptions.find(opt => opt.id === String(currentVal));
+                                  const displayVal = currentOpt ? currentOpt.label : currentVal;
+
+                                  const hasError = false;
+
+                                  return (
+                                    <div key={propertyId}>
+                                      <label className="text-[9px] font-black uppercase tracking-wider block mb-1 text-slate-455">
+                                        {name} {isRequired && <span className="text-rose-500">*</span>}
+                                      </label>
+                                      {valOptions.length > 0 ? (
+                                        <SearchableDropdown
+                                          value={displayVal}
+                                          onSelect={(opt) => {
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              etsyAttributes: {
+                                                ...prev.etsyAttributes,
+                                                [propertyId]: [opt.id]
+                                              }
+                                            }));
+                                          }}
+                                          options={valOptions}
+                                          placeholder={`Select ${name}...`}
+                                          error={hasError}
+                                        />
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={currentVal}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              etsyAttributes: {
+                                                ...prev.etsyAttributes,
+                                                [propertyId]: [val]
+                                              }
+                                            }));
+                                          }}
+                                          className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl outline-none text-xs font-bold text-slate-700"
+                                          placeholder={`Enter ${name}...`}
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
 

@@ -7,7 +7,8 @@ const {
   etsyDisconnect,
   syncEtsyInventory,
   etsyPublish,
-  getEtsyShippingProfiles
+  getEtsyShippingProfiles,
+  getEtsyCategoryProperties
 } = require('../controllers/etsyController');
 
 router.get('/connect', protect, etsyConnect);
@@ -16,5 +17,6 @@ router.post('/disconnect', protect, etsyDisconnect);
 router.post('/sync', protect, syncEtsyInventory);
 router.post('/publish/:id', protect, etsyPublish);
 router.get('/shipping-profiles', protect, getEtsyShippingProfiles);
+router.get('/categories/:id/properties', protect, getEtsyCategoryProperties);
 
 module.exports = router;

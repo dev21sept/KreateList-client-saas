@@ -225,6 +225,41 @@ exports.etsyPublish = async (req, res) => {
       }
     }
 
+    // Update listing properties if they exist
+    if (listing.etsyAttributes && listing.etsyAttributes.size > 0) {
+      console.log(`[Etsy Controller] Updating properties for Etsy listing: ${etsyListingId}`);
+      try {
+        const attributesObj = listing.etsyAttributes instanceof Map 
+          ? Object.fromEntries(listing.etsyAttributes) 
+          : listing.etsyAttributes;
+
+        for (const [propertyIdStr, valueArray] of Object.entries(attributesObj)) {
+          try {
+            const propertyId = parseInt(propertyIdStr);
+            if (!isNaN(propertyId) && valueArray && valueArray.length > 0) {
+              const valueIds = [];
+              const values = [];
+
+              valueArray.forEach(val => {
+                if (/^\d+$/.test(val)) {
+                  valueIds.push(parseInt(val));
+                } else {
+                  values.push(val);
+                }
+              });
+
+              console.log(`[Etsy Controller] Sending property update for Property ID: ${propertyId}, Value IDs: ${valueIds}, Values: ${values}`);
+              await etsyService.updateListingProperty(req.user.id, shopId, etsyListingId, propertyId, valueIds, values);
+            }
+          } catch (propErr) {
+            console.error(`[Etsy Controller] Failed to update listing property ${propertyIdStr}:`, propErr.response?.data || propErr.message);
+          }
+        }
+      } catch (mapErr) {
+        console.error(`[Etsy Controller] Error processing etsyAttributes:`, mapErr.message);
+      }
+    }
+
     // Now make the listing active (live) on Etsy!
     try {
       console.log(`[Etsy Controller] Activating listing ${etsyListingId} to make it live on Etsy...`);
@@ -264,6 +299,24 @@ exports.getEtsyShippingProfiles = async (req, res) => {
     res.status(200).json({ success: true, data: profiles });
   } catch (err) {
     console.error('[Etsy Controller] getEtsyShippingProfiles error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getEtsyCategoryProperties = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
+      return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
+    }
+    const taxonomyId = req.params.id;
+    if (!taxonomyId) {
+      return res.status(400).json({ success: false, message: 'Taxonomy ID is required.' });
+    }
+    const properties = await etsyService.getCategoryProperties(req.user.id, taxonomyId);
+    res.status(200).json({ success: true, data: properties });
+  } catch (err) {
+    console.error('[Etsy Controller] getEtsyCategoryProperties error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };

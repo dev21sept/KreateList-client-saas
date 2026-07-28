@@ -290,6 +290,48 @@ async function updateListingState(userId, shopId, listingId, state) {
   }
 }
 
+async function getCategoryProperties(userId, taxonomyId) {
+  const accessToken = await getValidToken(userId);
+  try {
+    const response = await axios.get(`https://api.etsy.com/v3/application/seller-taxonomy/nodes/${taxonomyId}/properties`, {
+      headers: {
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    return response.data?.results || [];
+  } catch (err) {
+    console.error(`[Etsy Service] Fetch category properties failed for ${taxonomyId}:`, err.response?.data || err.message);
+    throw err;
+  }
+}
+
+async function updateListingProperty(userId, shopId, listingId, propertyId, valueIds, values) {
+  const accessToken = await getValidToken(userId);
+  const params = new URLSearchParams();
+  if (valueIds && valueIds.length > 0) {
+    valueIds.forEach(id => params.append('value_ids', String(id)));
+  }
+  if (values && values.length > 0) {
+    values.forEach(v => params.append('values', String(v)));
+  }
+  try {
+    const response = await axios.put(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/properties/${propertyId}`, 
+      params, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    return response.data;
+  } catch (err) {
+    console.error(`[Etsy Service] Update listing property ${propertyId} failed:`, err.response?.data || err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   getValidToken,
   getShopInfo,
@@ -298,6 +340,8 @@ module.exports = {
   getEtsyInventory,
   getShippingProfiles,
   updateListingState,
+  getCategoryProperties,
+  updateListingProperty,
   ETSY_CLIENT_ID,
   ETSY_CLIENT_SECRET
 };

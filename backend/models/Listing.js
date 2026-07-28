@@ -112,6 +112,10 @@ const listingSchema = new mongoose.Schema({
     default: 'manual'
   },
   etsyShippingProfileId: String,
+  etsyAttributes: {
+    type: Map,
+    of: [String]
+  },
   country: {
     type: String,
     default: 'India'
