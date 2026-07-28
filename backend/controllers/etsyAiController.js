@@ -937,6 +937,35 @@ Response ONLY as JSON: {
             });
         }
 
+        let resolvedCategoryId = '';
+        let resolvedCategoryName = finalData.category || 'Clothing';
+        try {
+            const taxonomy = await getEtsyTaxonomy();
+            let matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase() === resolvedCategoryName.toLowerCase().trim());
+            if (!matchedCat) {
+                matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase().includes(resolvedCategoryName.toLowerCase().trim()));
+            }
+            if (!matchedCat) {
+                let bestScore = 0;
+                taxonomy.forEach(cat => {
+                    if (resolvedCategoryName.toLowerCase().includes(cat.name.toLowerCase())) {
+                        let score = cat.name.length;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            matchedCat = cat;
+                        }
+                    }
+                });
+            }
+            if (matchedCat) {
+                resolvedCategoryId = matchedCat.id;
+                resolvedCategoryName = matchedCat.fullName;
+                console.log(`[Etsy AI Scan] Category resolved successfully: ${resolvedCategoryName} (ID: ${resolvedCategoryId})`);
+            }
+        } catch (catErr) {
+            console.error('[Etsy AI Scan] Failed to resolve category ID:', catErr.message);
+        }
+
         let returnData = {
             title: finalTitle,
             description: formattedDescription,
@@ -946,7 +975,8 @@ Response ONLY as JSON: {
             size: finalData.size || '',
             color: finalData.color || '',
             material: finalData.material || '',
-            category: finalData.category || 'Clothing',
+            category: resolvedCategoryName,
+            categoryId: resolvedCategoryId,
             sku: finalData.sku,
             images: images,
             thumbnail: images[0] || '',

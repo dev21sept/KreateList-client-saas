@@ -476,6 +476,20 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     setFiles(newFiles);
   };
 
+  const moveImage = (index, direction) => {
+    const newImages = [...formData.images];
+    if (direction === 'left' && index > 0) {
+      const temp = newImages[index];
+      newImages[index] = newImages[index - 1];
+      newImages[index - 1] = temp;
+    } else if (direction === 'right' && index < newImages.length - 1) {
+      const temp = newImages[index];
+      newImages[index] = newImages[index + 1];
+      newImages[index + 1] = temp;
+    }
+    setFormData(prev => ({ ...prev, images: newImages }));
+  };
+
   const handleSaveDraft = async () => {
     setLoading(true);
     const listingData = {
@@ -621,12 +635,38 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
               {formData.images.map((img, idx) => (
                 <div key={idx} className="relative aspect-square border border-slate-100 rounded-2xl overflow-hidden group">
                   <img src={img} className="w-full h-full object-cover" alt="" />
-                  <button
-                    onClick={() => deleteImage(idx)}
-                    className="absolute top-1.5 right-1.5 p-1 bg-slate-900/60 hover:bg-rose-600 rounded-lg text-white transition-colors"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  
+                  {/* Hover Actions */}
+                  <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => moveImage(idx, 'left')}
+                        className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
+                        title="Move left"
+                      >
+                        <ArrowLeft size={12} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteImage(idx)}
+                      className="p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
+                      title="Delete"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    {idx < formData.images.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => moveImage(idx, 'right')}
+                        className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
+                        title="Move right"
+                      >
+                        <ArrowRight size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
 
