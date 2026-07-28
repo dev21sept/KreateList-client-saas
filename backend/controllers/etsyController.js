@@ -176,7 +176,14 @@ exports.etsyPublish = async (req, res) => {
           .slice(0, 13)
       : [];
     const materials = listing.material
-      ? listing.material.split(',').map(m => m.trim()).filter(Boolean).slice(0, 13)
+      ? listing.material.split(',')
+          .map(m => {
+            let clean = m.replace(/[-/]/g, ' '); // replace hyphens and slashes with spaces
+            clean = clean.replace(/[^a-zA-Z0-9\s]/g, ''); // keep only letters, numbers, and spaces
+            return clean.replace(/\s+/g, ' ').trim(); // normalize spaces
+          })
+          .filter(Boolean)
+          .slice(0, 13)
       : [];
 
     let whenMade = listing.etsyWhenMade || '2020_2026';
