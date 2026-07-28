@@ -225,6 +225,15 @@ exports.etsyPublish = async (req, res) => {
       }
     }
 
+    // Now make the listing active (live) on Etsy!
+    try {
+      console.log(`[Etsy Controller] Activating listing ${etsyListingId} to make it live on Etsy...`);
+      await etsyService.updateListingState(req.user.id, shopId, etsyListingId, 'active');
+      console.log(`[Etsy Controller] Listing ${etsyListingId} is now live!`);
+    } catch (actErr) {
+      console.error(`[Etsy Controller] Failed to activate listing:`, actErr.response?.data || actErr.message);
+    }
+
     // Save publish outcome in listing document
     listing.status = 'published';
     listing.etsyStatus = 'published';

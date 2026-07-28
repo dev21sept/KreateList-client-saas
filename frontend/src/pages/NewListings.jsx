@@ -196,13 +196,10 @@ const groupListingsBySku = (rawListings) => {
     const sku = item.sku ? item.sku.trim() : '';
     const thumbnail = item.thumbnail ? item.thumbnail.trim() : '';
     
-    // Find if there is an existing group that matches by SKU or thumbnail
+    // Find if there is an existing group that matches by SKU
     let matchedGroup = null;
-    if (sku && sku !== '-') {
+    if (sku && sku !== '' && sku !== '-') {
       matchedGroup = groups.find(g => g.skus.includes(sku));
-    }
-    if (!matchedGroup && thumbnail) {
-      matchedGroup = groups.find(g => g.thumbnails.includes(thumbnail));
     }
 
     if (matchedGroup) {

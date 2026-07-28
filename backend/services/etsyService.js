@@ -271,6 +271,25 @@ async function getShippingProfiles(userId, shopId) {
   }
 }
 
+async function updateListingState(userId, shopId, listingId, state) {
+  const accessToken = await getValidToken(userId);
+  try {
+    const response = await axios.patch(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}`, 
+      new URLSearchParams({ state: state }), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    return response.data;
+  } catch (err) {
+    console.error('[Etsy Service] Update listing state failed:', err.response?.data || err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   getValidToken,
   getShopInfo,
@@ -278,6 +297,7 @@ module.exports = {
   uploadListingImage,
   getEtsyInventory,
   getShippingProfiles,
+  updateListingState,
   ETSY_CLIENT_ID,
   ETSY_CLIENT_SECRET
 };
