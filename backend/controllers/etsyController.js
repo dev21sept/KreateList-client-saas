@@ -305,10 +305,6 @@ exports.getEtsyShippingProfiles = async (req, res) => {
 
 exports.getEtsyCategoryProperties = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
-      return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
-    }
     const taxonomyId = req.params.id;
     if (!taxonomyId) {
       return res.status(400).json({ success: false, message: 'Taxonomy ID is required.' });

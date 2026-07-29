@@ -291,14 +291,21 @@ async function updateListingState(userId, shopId, listingId, state) {
 }
 
 async function getCategoryProperties(userId, taxonomyId) {
-  const accessToken = await getValidToken(userId);
+  let accessToken = null;
   try {
-    const response = await axios.get(`https://api.etsy.com/v3/application/seller-taxonomy/nodes/${taxonomyId}/properties`, {
-      headers: {
-        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
+    accessToken = await getValidToken(userId);
+  } catch (e) {
+    console.log(`[Etsy Service] Fetching properties publicly without OAuth token because: ${e.message}`);
+  }
+  
+  try {
+    const headers = {
+      'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`
+    };
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    const response = await axios.get(`https://api.etsy.com/v3/application/seller-taxonomy/nodes/${taxonomyId}/properties`, { headers });
     return response.data?.results || [];
   } catch (err) {
     console.error(`[Etsy Service] Fetch category properties failed for ${taxonomyId}:`, err.response?.data || err.message);
