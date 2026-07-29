@@ -1117,7 +1117,8 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                           const isColor = prop.property_id === 200 || prop.name === 'Primary color';
                           const isSize = prop.property_id === 100 || prop.name === 'TeeShirtSize' || prop.display_name === 'Size';
                           const isMaterial = prop.property_id === 148789511893 || prop.display_name === 'Materials' || prop.name === 'Material multi';
-                          return !isColor && !isSize && !isMaterial;
+                          const isCustom = (prop.display_name || prop.name || '').toLowerCase().includes('custom property');
+                          return !isColor && !isSize && !isMaterial && !isCustom;
                         })
                         .map((prop) => {
                         const propertyId = prop.property_id;

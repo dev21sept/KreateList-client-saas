@@ -2653,7 +2653,12 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                               </h4>
                               
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 border border-[#f1f3f9] p-4 rounded-2xl bg-slate-50/20 font-sans">
-                                {etsyProperties.map((prop) => {
+                                {etsyProperties
+                                  .filter(prop => {
+                                    const isCustom = (prop.display_name || prop.name || '').toLowerCase().includes('custom property');
+                                    return !isCustom;
+                                  })
+                                  .map((prop) => {
                                   const propertyId = prop.property_id;
                                   const name = prop.display_name || prop.name;
                                   const isRequired = prop.is_required === true;
