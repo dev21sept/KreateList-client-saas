@@ -356,6 +356,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
             description: result.description,
             conditionNote: selectedRuleObj?.condition_note || '',
             category: result.category,
+            categoryId: result.categoryId,
             sku: result.sku || '',
             brand: result.brand || '',
             size: result.size || '',
