@@ -444,7 +444,11 @@ ${descriptionInstruction}
    - Extract the 'size'. IMPORTANT: If the tag/label size is in French/Spanish/other abbreviation (like 'G' for Grande/Large, 'CH' for Chico/Small, 'P' for Petit/Small, 'EG' for Extra Grande/XL), you MUST translate it to the standard English equivalent (e.g., 'L' or 'Large' for G, 'S' or 'Small' for CH/P, 'XL' for EG). Always output standard English abbreviations (XS, S, M, L, XL, XXL) or standard numeric sizing.
    - Extract the primary 'color' (dominant color name, e.g. "Black", "Navy Blue").
    - Extract the 'material' (e.g. "100% Cotton", "Leather", "Denim").
-   - Categorize the product and suggest a taxonomy/category path. Root category MUST be one of: Accessories, Art & Collectibles, Books, Movies & Music, Clothing, Craft Supplies & Tools, Electronics & Accessories, Home & Living, Jewelry, Paper & Party Supplies, Pet Supplies, Shoes, Toys & Games, Wedding & Party. Never use Unisex. Use Men's Clothing or Women's Clothing instead (e.g. 'Clothing > Men\'s Clothing > Jackets & Coats' or 'Clothing > Women\'s Clothing > Tops' or 'Accessories > Bags & Purses').
+   - Categorize the product and suggest a taxonomy/category path. Root category MUST be one of: Accessories, Art & Collectibles, Books, Movies & Music, Clothing, Craft Supplies & Tools, Electronics & Accessories, Home & Living, Jewelry, Paper & Party Supplies, Pet Supplies, Shoes, Toys & Games, Wedding & Party. Never use Unisex. Use Men's Clothing or Women's Clothing instead.
+   - GENDER CLASSIFICATION RULE: Be extremely careful when deciding between Men's Clothing and Women's Clothing.
+     * Analyze the visual elements of the clothing (such as button/snap placement, collar style, pockets, chest structure, tag labels, and cut/fit).
+     * Classic button-down shirts, flannels, polo shirts, work shirts, t-shirts, and western shirts with snap buttons (like the classic cowboy/western shirt style shown in images) are standardly categorized under Men's Clothing unless there are explicit visual cues of it being a women's design (e.g., floral lace details, deep low necklines, darts, or size labels specifically stating "Women's").
+     * If the shirt is a standard button-up/down or western snap button shirt, classify it under "Clothing > Men's Clothing > Shirts" (or "Shirts > Button Downs & Snap Shirts"). Do NOT place it under Women's Clothing unless it is a women's blouse, tank top, or specifically styled women's top.
 ${platformSpecificRules}
 
 4. Pricing:
@@ -827,7 +831,11 @@ ${descriptionInstruction}
    - Extract the 'size'. IMPORTANT: If the tag/label size is in French/Spanish/other abbreviation (like 'G' for Grande/Large, 'CH' for Chico/Small, 'P' for Petit/Small, 'EG' for Extra Grande/XL), you MUST translate it to the standard English equivalent (e.g., 'L' or 'Large' for G, 'S' or 'Small' for CH/P, 'XL' for EG). Always output standard English abbreviations (XS, S, M, L, XL, XXL) or standard numeric sizing.
    - Extract the primary 'color' (dominant color name, e.g. "Black", "Navy Blue").
    - Extract the 'material' (e.g. "100% Cotton", "Leather", "Denim").
-   - Categorize the product and suggest a taxonomy/category path. Root category MUST be one of: Accessories, Art & Collectibles, Books, Movies & Music, Clothing, Craft Supplies & Tools, Electronics & Accessories, Home & Living, Jewelry, Paper & Party Supplies, Pet Supplies, Shoes, Toys & Games, Wedding & Party. Never use Unisex. Use Men's Clothing or Women's Clothing instead (e.g. 'Clothing > Men\'s Clothing > Jackets & Coats' or 'Clothing > Women\'s Clothing > Tops' or 'Accessories > Bags & Purses').
+   - Categorize the product and suggest a taxonomy/category path. Root category MUST be one of: Accessories, Art & Collectibles, Books, Movies & Music, Clothing, Craft Supplies & Tools, Electronics & Accessories, Home & Living, Jewelry, Paper & Party Supplies, Pet Supplies, Shoes, Toys & Games, Wedding & Party. Never use Unisex. Use Men's Clothing or Women's Clothing instead.
+   - GENDER CLASSIFICATION RULE: Be extremely careful when deciding between Men's Clothing and Women's Clothing.
+     * Analyze the visual elements of the clothing (such as button/snap placement, collar style, pockets, chest structure, tag labels, and cut/fit).
+     * Classic button-down shirts, flannels, polo shirts, work shirts, t-shirts, and western shirts with snap buttons (like the classic cowboy/western shirt style shown in images) are standardly categorized under Men's Clothing unless there are explicit visual cues of it being a women's design (e.g., floral lace details, deep low necklines, darts, or size labels specifically stating "Women's").
+     * If the shirt is a standard button-up/down or western snap button shirt, classify it under "Clothing > Men's Clothing > Shirts" (or "Shirts > Button Downs & Snap Shirts"). Do NOT place it under Women's Clothing unless it is a women's blouse, tank top, or specifically styled women's top.
 
 4. Pricing:
    - Estimate a reasonable pricing value (in USD, e.g., 29.99). Estimate original MSRP retail price in 'original_price'.
