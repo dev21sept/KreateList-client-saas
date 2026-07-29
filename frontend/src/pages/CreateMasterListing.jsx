@@ -218,17 +218,24 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
   useEffect(() => {
     if (targetPlatform === 'etsy' && formData.category && !formData.categoryId) {
       console.log("Auto-resolving Etsy category ID for path:", formData.category);
+      toast.info("Auto-resolving category ID for " + formData.category);
       etsyService.resolveCategory(formData.category)
         .then(res => {
           if (res.data?.success && res.data.data) {
             console.log("Auto-resolved category successfully:", res.data.data);
+            toast.success("Category resolved: " + res.data.data.fullName + " (ID: " + res.data.data.id + ")");
             setFormData(prev => ({
               ...prev,
               categoryId: res.data.data.id
             }));
+          } else {
+            toast.warning("Failed to resolve category ID: " + (res.data?.message || 'No match found'));
           }
         })
-        .catch(err => console.error("Error auto-resolving Etsy category:", err));
+        .catch(err => {
+          console.error("Error auto-resolving Etsy category:", err);
+          toast.error("Auto-resolve error: " + (err.response?.data?.message || err.message));
+        });
     }
   }, [targetPlatform, formData.category, formData.categoryId]);
 
@@ -236,14 +243,21 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
   useEffect(() => {
     if (targetPlatform === 'etsy' && formData.categoryId) {
       console.log("Fetching Etsy properties for category:", formData.categoryId);
+      toast.info("Fetching Etsy properties for category " + formData.categoryId);
       etsyService.getCategoryProperties(formData.categoryId)
         .then(res => {
           if (res.data?.success) {
             console.log("Etsy properties fetched successfully:", res.data.data?.length, "properties");
+            toast.success("Loaded " + (res.data.data?.length || 0) + " Etsy properties!");
             setEtsyProperties(res.data.data || []);
+          } else {
+            toast.warning("Failed to fetch Etsy properties: " + (res.data?.message || 'Unknown response'));
           }
         })
-        .catch(err => console.error("Error fetching Etsy properties:", err));
+        .catch(err => {
+          console.error("Error fetching Etsy properties:", err);
+          toast.error("Fetch properties error: " + (err.response?.data?.message || err.message));
+        });
     } else {
       setEtsyProperties([]);
     }
