@@ -224,6 +224,67 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     }
   }, [targetPlatform, formData.categoryId]);
 
+  // Synchronize standard fields (color, size, material) into etsyAttributes map
+  useEffect(() => {
+    if (targetPlatform === 'etsy' && etsyProperties.length > 0) {
+      setFormData(prev => {
+        let updated = false;
+        const nextAttrs = { ...prev.etsyAttributes };
+
+        // 1. Sync Color (Property 200)
+        const colorProp = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
+        if (colorProp && prev.color) {
+          const valOptions = [];
+          if (colorProp.possible_values) {
+            colorProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
+          }
+          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === prev.color.toLowerCase().trim());
+          const targetVal = matchedOpt ? [matchedOpt.id] : [prev.color.trim()];
+          if (JSON.stringify(nextAttrs[200]) !== JSON.stringify(targetVal)) {
+            nextAttrs[200] = targetVal;
+            updated = true;
+          }
+        }
+
+        // 2. Sync Size (Property 100)
+        const sizeProp = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
+        if (sizeProp && prev.size) {
+          const valOptions = [];
+          if (sizeProp.possible_values) {
+            sizeProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
+          }
+          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === prev.size.toLowerCase().trim());
+          const targetVal = matchedOpt ? [matchedOpt.id] : [prev.size.trim()];
+          if (JSON.stringify(nextAttrs[100]) !== JSON.stringify(targetVal)) {
+            nextAttrs[100] = targetVal;
+            updated = true;
+          }
+        }
+
+        // 3. Sync Material (Property 148789511893)
+        const materialProp = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
+        if (materialProp && prev.material) {
+          const valOptions = [];
+          if (materialProp.possible_values) {
+            materialProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
+          }
+          const firstMat = prev.material.split(',')[0].trim();
+          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === firstMat.toLowerCase());
+          const targetVal = matchedOpt ? [matchedOpt.id] : [firstMat];
+          if (JSON.stringify(nextAttrs[148789511893]) !== JSON.stringify(targetVal)) {
+            nextAttrs[148789511893] = targetVal;
+            updated = true;
+          }
+        }
+
+        if (updated) {
+          return { ...prev, etsyAttributes: nextAttrs };
+        }
+        return prev;
+      });
+    }
+  }, [targetPlatform, etsyProperties, formData.color, formData.size, formData.material]);
+
   useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
