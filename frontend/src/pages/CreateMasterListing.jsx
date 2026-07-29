@@ -901,21 +901,51 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
-                      <input
-                        value={formData.size}
-                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="Size..."
-                      />
+                      {etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size') ? (
+                        (() => {
+                          const prop = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
+                          const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                          return (
+                            <SearchableDropdown
+                              value={formData.size}
+                              onSelect={(opt) => setFormData(prev => ({ ...prev, size: opt.label }))}
+                              options={valOptions}
+                              placeholder="Select Size..."
+                            />
+                          );
+                        })()
+                      ) : (
+                        <input
+                          value={formData.size}
+                          onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                          placeholder="Size..."
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
-                      <input
-                        value={formData.color}
-                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="Color..."
-                      />
+                      {etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color') ? (
+                        (() => {
+                          const prop = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
+                          const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                          return (
+                            <SearchableDropdown
+                              value={formData.color}
+                              onSelect={(opt) => setFormData(prev => ({ ...prev, color: opt.label }))}
+                              options={valOptions}
+                              placeholder="Select Color..."
+                            />
+                          );
+                        })()
+                      ) : (
+                        <input
+                          value={formData.color}
+                          onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                          placeholder="Color..."
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Quantity</label>
@@ -934,12 +964,27 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Materials</label>
-                    <input
-                      value={formData.material}
-                      onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      placeholder="e.g. Chenille, Cotton (up to 4)"
-                    />
+                    {etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi') ? (
+                      (() => {
+                        const prop = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
+                        const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                        return (
+                          <SearchableDropdown
+                            value={formData.material}
+                            onSelect={(opt) => setFormData(prev => ({ ...prev, material: opt.label }))}
+                            options={valOptions}
+                            placeholder="Select Material..."
+                          />
+                        );
+                      })()
+                    ) : (
+                      <input
+                        value={formData.material}
+                        onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                        placeholder="e.g. Chenille, Cotton (up to 4)"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
@@ -1053,7 +1098,14 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                     </h4>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2">
-                      {etsyProperties.map((prop) => {
+                      {etsyProperties
+                        .filter(prop => {
+                          const isColor = prop.property_id === 200 || prop.name === 'Primary color';
+                          const isSize = prop.property_id === 100 || prop.name === 'TeeShirtSize' || prop.display_name === 'Size';
+                          const isMaterial = prop.property_id === 148789511893 || prop.display_name === 'Materials' || prop.name === 'Material multi';
+                          return !isColor && !isSize && !isMaterial;
+                        })
+                        .map((prop) => {
                         const propertyId = prop.property_id;
                         const name = prop.display_name || prop.name;
                         const isRequired = prop.is_required === true;
