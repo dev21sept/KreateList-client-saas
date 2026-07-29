@@ -1052,6 +1052,8 @@ async function getEtsyTaxonomy() {
   }
 }
 
+exports.getEtsyTaxonomy = getEtsyTaxonomy;
+
 // Simple Levenshtein distance helper for fuzzy matching
 function levenshteinDistance(s1, s2) {
     if (Math.abs(s1.length - s2.length) > 2) return 99;

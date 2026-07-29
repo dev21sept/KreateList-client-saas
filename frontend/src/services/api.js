@@ -90,7 +90,8 @@ export const etsyService = {
   sync: () => API.post('/etsy/sync'),
   publish: (id, data) => API.post(`/etsy/publish/${id}`, data),
   getShippingProfiles: () => API.get('/etsy/shipping-profiles'),
-  getCategoryProperties: (categoryId) => API.get(`/etsy/categories/${categoryId}/properties`)
+  getCategoryProperties: (categoryId) => API.get(`/etsy/categories/${categoryId}/properties`),
+  resolveCategory: (path) => API.get('/etsy/resolve-category', { params: { path } })
 };
 
 export const adminService = {

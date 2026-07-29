@@ -780,6 +780,31 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
     }
   }, [isOpen, platform, formData.categoryId]);
 
+  // Clear or re-resolve category ID on platform switch
+  useEffect(() => {
+    if (isOpen && formData.category) {
+      setFormData(prev => ({ ...prev, categoryId: '' }));
+    }
+  }, [isOpen, platform]);
+
+  // Auto-resolve Etsy category ID from text
+  useEffect(() => {
+    if (isOpen && platform === 'etsy' && formData.category && !formData.categoryId) {
+      console.log("Auto-resolving Etsy category ID for path:", formData.category);
+      etsyService.resolveCategory(formData.category)
+        .then(res => {
+          if (res.data?.success && res.data.data) {
+            console.log("Auto-resolved category successfully:", res.data.data);
+            setFormData(prev => ({
+              ...prev,
+              categoryId: res.data.data.id
+            }));
+          }
+        })
+        .catch(err => console.error("Error auto-resolving Etsy category:", err));
+    }
+  }, [isOpen, platform, formData.category, formData.categoryId]);
+
   // Etsy Properties fetching
   useEffect(() => {
     console.log("Etsy Properties useEffect triggered:", { isOpen, platform, categoryId: formData.categoryId });

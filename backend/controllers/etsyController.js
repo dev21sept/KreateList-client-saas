@@ -320,3 +320,43 @@ exports.getEtsyCategoryProperties = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.resolveEtsyCategory = async (req, res) => {
+  try {
+    const { path: categoryPath } = req.query;
+    if (!categoryPath) {
+      return res.status(400).json({ success: false, message: 'Category path is required.' });
+    }
+    const { getEtsyTaxonomy } = require('./etsyAiController');
+    const taxonomy = await getEtsyTaxonomy();
+    
+    // Exact match first
+    let matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase() === categoryPath.toLowerCase().trim());
+    
+    // Fuzzy match if not found
+    if (!matchedCat) {
+      matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase().includes(categoryPath.toLowerCase().trim()));
+    }
+    
+    // Level-based parts matching fallback
+    if (!matchedCat) {
+      const parts = categoryPath.split('>').map(p => p.trim().toLowerCase());
+      if (parts.length > 0) {
+        const lastPart = parts[parts.length - 1];
+        matchedCat = taxonomy.find(cat => cat.name.toLowerCase() === lastPart);
+        if (!matchedCat) {
+          matchedCat = taxonomy.find(cat => cat.name.toLowerCase().includes(lastPart));
+        }
+      }
+    }
+    
+    if (matchedCat) {
+      return res.status(200).json({ success: true, data: matchedCat });
+    } else {
+      return res.status(200).json({ success: false, message: 'No match found.' });
+    }
+  } catch (err) {
+    console.error('[Etsy Controller] resolveEtsyCategory error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
