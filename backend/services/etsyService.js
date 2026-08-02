@@ -239,16 +239,63 @@ async function uploadListingImage(userId, shopId, listingId, imageUrl) {
   }
 }
 
-async function getEtsyInventory(userId, shopId) {
+/**
+ * Fetches every listing in a given Etsy shop state, fully paginated
+ * (Etsy caps `limit` at 100 per page).
+ */
+async function fetchEtsyListingsByState(userId, shopId, state, limit = 100) {
   const accessToken = await getValidToken(userId);
-  try {
-    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/active?limit=48`, {
+  const results = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/${state}`, {
+      params: { limit, offset, includes: 'Images' },
       headers: {
         'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`
       }
     });
-    return response.data?.results || [];
+    const batch = response.data?.results || [];
+    results.push(...batch);
+
+    if (batch.length < limit) {
+      hasMore = false;
+    } else {
+      offset += limit;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Fetches the shop's full inventory across every marketplace state (not just
+ * 'active'), so nothing is hidden from Channel Inventory. Each listing is tagged
+ * with a normalized elisterStatus: 'active' for Etsy's 'active' state, 'inactive'
+ * for every other state (inactive, expired, sold_out).
+ */
+async function getEtsyInventory(userId, shopId) {
+  const states = ['active', 'inactive', 'expired', 'sold_out'];
+  try {
+    const settled = await Promise.allSettled(
+      states.map(state => fetchEtsyListingsByState(userId, shopId, state))
+    );
+
+    const tagged = [];
+    settled.forEach((result, idx) => {
+      const state = states[idx];
+      if (result.status === 'fulfilled') {
+        result.value.forEach(listing => {
+          tagged.push({ ...listing, elisterStatus: state === 'active' ? 'active' : 'inactive' });
+        });
+      } else {
+        console.error(`[Etsy Service] Fetch '${state}' inventory failed:`, result.reason?.response?.data || result.reason?.message);
+      }
+    });
+
+    return tagged;
   } catch (err) {
     console.error('[Etsy Service] Fetch inventory failed:', err.response?.data || err.message);
     throw err;

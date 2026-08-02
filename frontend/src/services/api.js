@@ -89,6 +89,7 @@ export const etsyService = {
   connect: () => API.get('/etsy/connect'),
   disconnect: () => API.post('/etsy/disconnect'),
   sync: () => API.post('/etsy/sync'),
+  getInventory: () => API.get('/etsy/inventory'),
   publish: (id, data) => API.post(`/etsy/publish/${id}`, data),
   getShippingProfiles: () => API.get('/etsy/shipping-profiles'),
   getCategoryProperties: (categoryId) => API.get(`/etsy/categories/${categoryId}/properties`),

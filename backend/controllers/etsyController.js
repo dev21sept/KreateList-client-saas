@@ -1,6 +1,8 @@
 const axios = require('axios');
 const User = require('../models/User');
 const Listing = require('../models/Listing');
+const Product = require('../models/Product');
+const DeletedProduct = require('../models/DeletedProduct');
 const etsyService = require('../services/etsyService');
 
 exports.etsyConnect = async (req, res) => {
@@ -132,14 +134,95 @@ exports.etsyDisconnect = async (req, res) => {
   }
 };
 
+// @desc    Sync Inventory from Etsy for Logged-In User (persists into local Product cache)
+// @route   POST /api/etsy/sync
+// @access  Private
 exports.syncEtsyInventory = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const userId = req.user.id;
+    const user = await User.findById(userId);
     if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
       return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
     }
-    const listings = await etsyService.getEtsyInventory(req.user.id, user.etsyAccount.shopId);
-    res.status(200).json({ success: true, message: 'Etsy inventory sync complete.', count: listings.length, listings });
+
+    const shopId = user.etsyAccount.shopId;
+    const listings = await etsyService.getEtsyInventory(userId, shopId);
+
+    let totalSynced = 0;
+    for (const item of listings) {
+      const listingId = item.listing_id ? String(item.listing_id) : null;
+      if (!listingId) continue;
+
+      const sku = Array.isArray(item.skus) && item.skus.length > 0 ? item.skus[0] : '';
+
+      const tombstoneMatch = await DeletedProduct.findOne({
+        user: userId,
+        $or: [
+          sku ? { sku } : null,
+          item.title ? { title: item.title, source: 'etsy' } : null
+        ].filter(Boolean)
+      }).lean();
+
+      if (tombstoneMatch) {
+        console.log(`[Etsy Sync] Skipping deleted product: ${sku || item.title || 'unknown'}`);
+        continue;
+      }
+
+      const images = Array.isArray(item.images)
+        ? item.images.map(img => img.url_570xN || img.url_fullxfull || img.url_170x135).filter(Boolean)
+        : [];
+
+      const product = {
+        user: userId,
+        title: item.title,
+        description: item.description,
+        sku,
+        images,
+        selling_price: item.price ? (item.price.amount / (item.price.divisor || 100)) : undefined,
+        source: 'etsy',
+        status: item.elisterStatus === 'active' ? 'active' : 'inactive',
+        etsyListingId: listingId,
+        etsyUrl: item.url || `https://www.etsy.com/listing/${listingId}`,
+        updated_at: Date.now()
+      };
+
+      // Dedupe by the Etsy listing ID first (unique per marketplace listing), then SKU.
+      let existingProduct = await Product.findOne({ etsyListingId: listingId, user: userId, source: 'etsy' });
+      if (!existingProduct && sku) {
+        existingProduct = await Product.findOne({ sku, user: userId, source: 'etsy' });
+      }
+
+      if (existingProduct) {
+        existingProduct.etsyListingId = listingId;
+        existingProduct.etsyUrl = product.etsyUrl;
+        if (product.selling_price !== undefined) existingProduct.selling_price = product.selling_price;
+        existingProduct.status = product.status;
+        existingProduct.updated_at = Date.now();
+        if (sku) existingProduct.sku = sku;
+        if (item.title) existingProduct.title = item.title;
+        if (item.description) existingProduct.description = item.description;
+        if (images.length > 0) existingProduct.images = images;
+        await existingProduct.save();
+      } else {
+        await Product.create(product);
+      }
+      totalSynced++;
+    }
+
+    res.status(200).json({ success: true, message: 'Etsy inventory sync complete.', count: totalSynced });
+  } catch (err) {
+    console.error('Etsy Sync Inventory Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get locally-cached Etsy inventory (populated by the sync above)
+// @route   GET /api/etsy/inventory
+// @access  Private
+exports.getSyncedInventory = async (req, res) => {
+  try {
+    const products = await Product.find({ user: req.user.id, source: 'etsy' }).sort({ updated_at: -1 });
+    res.status(200).json({ success: true, count: products.length, data: products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

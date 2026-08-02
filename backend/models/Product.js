@@ -22,7 +22,7 @@ const productSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'live'],
+    enum: ['draft', 'live', 'active', 'inactive'],
     default: 'draft'
   },
   ebayListingId: String,
@@ -31,6 +31,8 @@ const productSchema = new mongoose.Schema({
   poshmarkUrl: String,
   depopListingId: String,
   depopUrl: String,
+  etsyListingId: String,
+  etsyUrl: String,
   updated_at: {
     type: Date,
     default: Date.now

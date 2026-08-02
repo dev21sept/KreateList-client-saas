@@ -345,8 +345,41 @@ exports.syncInventory = async (req, res) => {
 
     console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
 
-    // We will build a map of sku -> { status, listingId, price } dynamically during sync
-    const offersMap = {};
+    // Fetch all offers for matching with SKUs to determine status (draft vs live)
+    let offersOffset = 0;
+    let offersLimit = 100;
+    let offersHasMore = true;
+    const offersMap = {}; // sku -> { status, listingId }
+
+    try {
+      while (offersHasMore) {
+        const offersData = await ebayService.getAllOffers(token, offersLimit, offersOffset);
+        const offersList = offersData.offers || [];
+        if (offersList.length === 0) break;
+
+        for (const offer of offersList) {
+          if (offer.sku) {
+            // A published offer takes precedence to mark status as 'active'
+            const existing = offersMap[offer.sku];
+            if (!existing || offer.status === 'PUBLISHED') {
+              offersMap[offer.sku] = {
+                status: offer.status === 'PUBLISHED' ? 'active' : 'inactive',
+                listingId: offer.listingId
+              };
+            }
+          }
+        }
+
+        if (offersList.length < offersLimit) {
+          offersHasMore = false;
+        } else {
+          offersOffset += offersLimit;
+        }
+      }
+      console.log(`[SYNC] Retrieved and mapped ${Object.keys(offersMap).length} eBay offers.`);
+    } catch (offerErr) {
+      console.error('Error fetching offers during sync:', offerErr.message);
+    }
 
     let offset = 0;
     let limit = 100;
@@ -358,31 +391,6 @@ exports.syncInventory = async (req, res) => {
       const items = data.inventoryItems || [];
       
       if (items.length === 0) break;
-
-      // Parallelly fetch offers for all SKUs on this page to determine status & price
-      console.log(`[SYNC] Fetching offers for ${items.length} items on this page...`);
-      const offersPromises = items.map(async (item) => {
-        if (!item.sku) return;
-        try {
-          const offersData = await ebayService.getOffers(token, item.sku);
-          if (offersData && offersData.length > 0) {
-            for (const offer of offersData) {
-              const existing = offersMap[offer.sku];
-              // A published offer takes precedence
-              if (!existing || offer.status === 'PUBLISHED') {
-                offersMap[offer.sku] = {
-                  status: offer.status === 'PUBLISHED' ? 'live' : 'draft',
-                  listingId: offer.listingId,
-                  price: offer.pricingSummary?.price?.value
-                };
-              }
-            }
-          }
-        } catch (err) {
-          console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
-        }
-      });
-      await Promise.all(offersPromises);
 
       for (const item of items) {
         const tombstoneMatch = await DeletedProduct.findOne({
@@ -398,7 +406,7 @@ exports.syncInventory = async (req, res) => {
           continue;
         }
 
-        const offerInfo = offersMap[item.sku] || { status: 'draft', listingId: null, price: null };
+        const offerInfo = offersMap[item.sku] || { status: 'inactive', listingId: null };
 
         let sizeVal = '';
         if (item.product.aspects) {
@@ -417,7 +425,7 @@ exports.syncInventory = async (req, res) => {
           brand: item.product.brand,
           size: sizeVal,
           images: item.product.imageUrls || [],
-          selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
+          selling_price: item.price?.value,
           source: 'ebay',
           status: offerInfo.status,
           ebayListingId: offerInfo.listingId,
@@ -425,18 +433,24 @@ exports.syncInventory = async (req, res) => {
           updated_at: Date.now()
         };
 
-        // Smart Deduplication: Match by SKU first, then by Title if SKU is missing
+        // Deduplication: match by the eBay listing ID first (unique per marketplace listing),
+        // then by SKU. Title matching is unreliable (duplicate/near-duplicate titles across
+        // distinct items) and was causing missing/duplicate rows, so it's no longer used.
         let existingProduct = null;
-        if (item.sku) {
-          existingProduct = await Product.findOne({ sku: item.sku, user: userId });
+        if (offerInfo.listingId) {
+          existingProduct = await Product.findOne({ ebayListingId: offerInfo.listingId, user: userId, source: 'ebay' });
+        }
+        if (!existingProduct && item.sku) {
+          existingProduct = await Product.findOne({ sku: item.sku, user: userId, source: 'ebay' });
         }
 
         if (existingProduct) {
           existingProduct.ebayListingId = offerInfo.listingId;
           existingProduct.ebayUrl = offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null;
-          existingProduct.selling_price = offerInfo.price ? parseFloat(offerInfo.price) : 0;
+          if (item.price?.value) existingProduct.selling_price = parseFloat(item.price.value);
           existingProduct.status = offerInfo.status;
           existingProduct.updated_at = Date.now();
+          if (item.sku) existingProduct.sku = item.sku;
           if (item.product.title) existingProduct.title = item.product.title;
           if (item.product.description) existingProduct.description = item.product.description;
           if (item.product.brand) existingProduct.brand = item.product.brand;
@@ -444,12 +458,7 @@ exports.syncInventory = async (req, res) => {
           if (item.product.imageUrls && item.product.imageUrls.length > 0) existingProduct.images = item.product.imageUrls;
           await existingProduct.save();
         } else {
-          const searchCriteria = { title: item.product.title, source: 'ebay', user: userId };
-          await Product.findOneAndUpdate(
-            searchCriteria,
-            { ...product, updated_at: Date.now() },
-            { upsert: true, returnDocument: 'after' }
-          );
+          await Product.create(product);
         }
         totalSynced++;
       }

@@ -6,6 +6,7 @@ const {
   etsyCallback,
   etsyDisconnect,
   syncEtsyInventory,
+  getSyncedInventory,
   etsyPublish,
   getEtsyShippingProfiles,
   getEtsyCategoryProperties,
@@ -16,6 +17,7 @@ router.get('/connect', protect, etsyConnect);
 router.get('/callback', etsyCallback); // OAuth callback must be public
 router.post('/disconnect', protect, etsyDisconnect);
 router.post('/sync', protect, syncEtsyInventory);
+router.get('/inventory', protect, getSyncedInventory);
 router.post('/publish/:id', protect, etsyPublish);
 router.get('/shipping-profiles', protect, getEtsyShippingProfiles);
 router.get('/categories/:id/properties', protect, getEtsyCategoryProperties);

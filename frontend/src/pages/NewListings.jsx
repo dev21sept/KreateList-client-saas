@@ -343,6 +343,7 @@ const NewListings = () => {
   // Filter & Sort States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [channelStatusFilter, setChannelStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
   const [sortOption, setSortOption] = useState('newest');
   
   // Filter Modal States
@@ -449,6 +450,7 @@ const NewListings = () => {
   // Channel sync helper functions
   const isChannelConnected = () => {
     if (selectedChannel === 'ebay') return user?.ebayAccount?.connected;
+    if (selectedChannel === 'etsy') return !!user?.etsyAccount?.connected;
     if (selectedChannel === 'poshmark') return !!user?.poshmarkAccount?.connected;
     if (selectedChannel === 'depop') return !!user?.depopAccount?.connected;
     return false;
@@ -463,6 +465,11 @@ const NewListings = () => {
     try {
       if (selectedChannel === 'ebay') {
         const res = await ebayService.getInventory();
+        if (res.data.success) {
+          setChannelProducts(res.data.data);
+        }
+      } else if (selectedChannel === 'etsy') {
+        const res = await etsyService.getInventory();
         if (res.data.success) {
           setChannelProducts(res.data.data);
         }
@@ -486,6 +493,12 @@ const NewListings = () => {
         const res = await ebayService.syncInventory();
         if (res.data.success) {
           toast.success(`Successfully synced ${res.data.count} items from eBay!`);
+          fetchChannelInventory();
+        }
+      } else if (selectedChannel === 'etsy') {
+        const res = await etsyService.sync();
+        if (res.data.success) {
+          toast.success(`Successfully synced ${res.data.count} items from Etsy!`);
           fetchChannelInventory();
         }
       } else {
@@ -1023,6 +1036,7 @@ const NewListings = () => {
       return { title: '', brand: '', sku: '-', thumbnail: '', status: 'draft', price: 0, liveId: '-', url: '', dateText: '' };
     }
     const isEbay = selectedChannel === 'ebay';
+    const isEtsy = selectedChannel === 'etsy';
     const isPoshmark = selectedChannel === 'poshmark';
     const isDepop = selectedChannel === 'depop';
 
@@ -1030,12 +1044,14 @@ const NewListings = () => {
     const brand = product.brand || '';
     const sku = product.sku || '-';
     const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
-    
-    // Status
-    const status = isEbay ? (product.status || 'draft') : 'live';
+
+    // Status: eBay/Etsy inventory is synced from the marketplace itself, so its
+    // status reflects real Active/Inactive state there. Poshmark/Depop are fetched
+    // live (always currently listed), so they stay 'live' as before.
+    const status = (isEbay || isEtsy) ? (product.status === 'active' ? 'active' : 'inactive') : 'live';
 
     // Price
-    const price = isEbay ? product.selling_price : product.price;
+    const price = (isEbay || isEtsy) ? product.selling_price : product.price;
     const parsedPrice = typeof price === 'number' ? price : parseFloat(price) || 0;
 
     // Live ID and URL
@@ -1044,6 +1060,9 @@ const NewListings = () => {
     if (isEbay) {
       liveId = product.ebayListingId || '-';
       url = product.ebayUrl || '';
+    } else if (isEtsy) {
+      liveId = product.etsyListingId || '-';
+      url = product.etsyUrl || '';
     } else if (isPoshmark) {
       liveId = product.poshmarkListingId || '-';
       url = product.poshmarkUrl || '';
@@ -1054,13 +1073,21 @@ const NewListings = () => {
 
     // Last Synced Date / Scraped Date
     let dateText = 'Live';
-    if (isEbay && product.updated_at) {
+    if ((isEbay || isEtsy) && product.updated_at) {
       dateText = new Date(product.updated_at).toLocaleDateString();
     } else if (product.createdAt) {
       dateText = new Date(product.createdAt).toLocaleDateString();
     }
 
     return { title, brand, sku, thumbnail, status, price: parsedPrice, liveId, url, dateText };
+  };
+
+  const getChannelDisplayName = (channel) => {
+    if (channel === 'ebay') return 'eBay';
+    if (channel === 'etsy') return 'Etsy';
+    if (channel === 'poshmark') return 'Poshmark';
+    if (channel === 'depop') return 'Depop';
+    return channel;
   };
 
   const handleOpenCrosslisting = (listing, platform) => {
@@ -1143,14 +1170,21 @@ const NewListings = () => {
   // Filter Channel Products
   const filteredChannelProducts = channelProducts.filter((product) => {
     const term = searchTerm.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       !searchTerm ||
       (product.title && product.title.toLowerCase().includes(term)) ||
       (product.sku && product.sku.toLowerCase().includes(term)) ||
       (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
+      (product.etsyListingId && product.etsyListingId.toLowerCase().includes(term)) ||
       (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
       (product.depopListingId && product.depopListingId.toLowerCase().includes(term));
-    const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
+
+    let matchesStatus = true;
+    if (channelStatusFilter !== 'all') {
+      const normalizedStatus = getProductDetails(product).status; // 'active' | 'inactive' | 'live'
+      matchesStatus = normalizedStatus === channelStatusFilter;
+    }
+
     return matchesSearch && matchesStatus;
   });
 
@@ -1179,7 +1213,7 @@ const NewListings = () => {
   // Reset currentPage to 1 when filters, tabs, or items per page change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
+  }, [searchTerm, statusFilter, channelStatusFilter, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
 
   const getPageNumbers = (curr, total) => {
     const pages = [];
@@ -1414,6 +1448,7 @@ const NewListings = () => {
   const handleClearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setChannelStatusFilter('all');
     setFilterListedOn([]);
     setFilterNoListedOn([]);
     setTempListedOn([]);
@@ -1558,6 +1593,30 @@ const NewListings = () => {
         </div>
       );
     }
+  };
+
+  // Builds an item shape compatible with renderCrosslistingCell's Listed/Delisted
+  // dropdown for a Channel Inventory row. If the product was created via Elister
+  // (correlated by its live marketplace listing ID, falling back to SKU), the full
+  // Listing record is reused so Edit/Move-to-New-List/Delist keep working against
+  // it; otherwise a minimal item is built from the channel product itself.
+  const buildChannelDropdownItem = (product, details, platformName) => {
+    const liveId = details.liveId;
+    let matched = null;
+
+    if (liveId && liveId !== '-') {
+      matched = groupedListingsList.find(l => l[`${platformName}ListingId`] === liveId);
+    }
+    if (!matched && product.sku && product.sku !== '-') {
+      matched = groupedListingsList.find(l => l.sku === product.sku || (l.skus || []).includes(product.sku));
+    }
+
+    const base = matched ? { ...matched } : { _id: product._id, title: details.title, sku: product.sku };
+    delete base.listingsMap;
+    base.platform = platformName;
+    base[`${platformName}Url`] = details.url || base[`${platformName}Url`];
+    base[`${platformName}Status`] = details.status === 'active' ? 'published' : 'delisted';
+    return base;
   };
 
   return (
@@ -1736,6 +1795,16 @@ const NewListings = () => {
                 eBay
               </button>
               <button
+                onClick={() => setSelectedChannel('etsy')}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                  selectedChannel === 'etsy'
+                    ? 'bg-white text-indigo-600 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Etsy
+              </button>
+              <button
                 onClick={() => setSelectedChannel('poshmark')}
                 className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                   selectedChannel === 'poshmark' 
@@ -1771,7 +1840,7 @@ const NewListings = () => {
               ) : (
                 <>
                   <RefreshCw size={14} />
-                  Sync {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}
+                  Sync {getChannelDisplayName(selectedChannel)}
                 </>
               )}
             </button>
@@ -1796,6 +1865,25 @@ const NewListings = () => {
 
         {/* Dropdowns & Link options */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Channel Inventory Status Filter: All / Active / Inactive */}
+          {activeTab === 'channel' && (
+            <div className="flex bg-[#f3f4f6] p-1 rounded-xl gap-1">
+              {['all', 'active', 'inactive'].map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setChannelStatusFilter(option)}
+                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer ${
+                    channelStatusFilter === option
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Consolidated Filter Button */}
           {activeTab === 'local' && (
             <button 
@@ -1820,7 +1908,7 @@ const NewListings = () => {
           )}
 
           {/* Clear filter button */}
-          {(searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
+          {(searchTerm || statusFilter !== 'all' || channelStatusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
             <button 
               onClick={handleClearFilters}
               className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
@@ -1980,7 +2068,7 @@ const NewListings = () => {
                 onClick={() => navigate('/integrations')}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-2xl shadow-md shadow-indigo-150 transition-all text-xs cursor-pointer active:scale-95"
               >
-                Connect {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}
+                Connect {getChannelDisplayName(selectedChannel)}
               </button>
             </div>
           ) : (
@@ -2044,12 +2132,20 @@ const NewListings = () => {
 
                         {/* Status */}
                         <td className="px-6 py-4.5">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                            details.status === 'live' || details.status === 'published' ? 'bg-[#e6f4ea] text-[#137333]' : 
-                            'bg-[#fef7e0] text-[#b06000]'
-                          }`}>
-                            {details.status === 'live' || details.status === 'published' ? 'Live' : 'Draft'}
-                          </span>
+                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy') ? (
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
+                              details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 'bg-rose-50 text-rose-600'
+                            }`}>
+                              {details.status === 'active' ? 'Active' : 'Inactive'}
+                            </span>
+                          ) : (
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
+                              details.status === 'live' || details.status === 'published' ? 'bg-[#e6f4ea] text-[#137333]' :
+                              'bg-[#fef7e0] text-[#b06000]'
+                            }`}>
+                              {details.status === 'live' || details.status === 'published' ? 'Live' : 'Draft'}
+                            </span>
+                          )}
                         </td>
 
                         {/* Live ID */}
@@ -2074,19 +2170,30 @@ const NewListings = () => {
 
                         {/* Actions */}
                         <td className="px-6 py-4.5 text-center">
-                          <div className="flex justify-center items-center gap-2">
-                            {details.url && (
-                              <a 
-                                href={details.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="p-1.5 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-slate-400 transition-all cursor-pointer" 
-                                title={`View on ${selectedChannel}`}
-                              >
-                                <ExternalLink size={16} />
-                              </a>
-                            )}
-                          </div>
+                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy') ? (
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(
+                                buildChannelDropdownItem(product, details, selectedChannel),
+                                selectedChannel,
+                                details.liveId,
+                                selectedChannel === 'ebay' ? '/ebay.png' : '/etsy.png'
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex justify-center items-center gap-2">
+                              {details.url && (
+                                <a
+                                  href={details.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-slate-400 transition-all cursor-pointer"
+                                  title={`View on ${selectedChannel}`}
+                                >
+                                  <ExternalLink size={16} />
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                       </tr>
@@ -2095,7 +2202,7 @@ const NewListings = () => {
                 ) : (
                   <tr>
                     <td colSpan="8" className="px-6 py-16 text-center text-slate-400">
-                      No live products found on this channel. Click &quot;Sync {selectedChannel === 'ebay' ? 'eBay' : selectedChannel === 'poshmark' ? 'Poshmark' : 'Depop'}&quot; to fetch your items.
+                      No products found matching the current filters. Click &quot;Sync {getChannelDisplayName(selectedChannel)}&quot; to fetch your items.
                     </td>
                   </tr>
                 )}
