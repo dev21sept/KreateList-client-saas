@@ -1135,21 +1135,32 @@ exports.verifyListingLive = async (req, res) => {
         }
       }
     } else if (platform === 'etsy') {
-      if (listing.etsyListingId && user.etsyAccount && user.etsyAccount.connected && user.etsyAccount.shopId) {
+      if (listing.etsyListingId && user.etsyAccount && user.etsyAccount.connected) {
         try {
           const { getValidToken: getEtsyToken, ETSY_CLIENT_ID, ETSY_CLIENT_SECRET } = require('../services/etsyService');
           const accessToken = await getEtsyToken(req.user.id);
-          const response = await axios.get(`https://api.etsy.com/v3/application/shops/${user.etsyAccount.shopId}/listings/${listing.etsyListingId}`, {
-            headers: {
-              'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
-              'Authorization': `Bearer ${accessToken}`
+          const numericListingId = parseInt(listing.etsyListingId);
+          if (!isNaN(numericListingId)) {
+            const response = await axios.get(`https://api.etsy.com/v3/application/listings/${numericListingId}`, {
+              headers: {
+                'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+                'Authorization': `Bearer ${accessToken}`
+              }
+            });
+            if (response.data && response.data.state === 'active') {
+              isLive = true;
+            } else {
+              console.log(`[Verify Live] Etsy listing state is: ${response.data?.state}`);
             }
-          });
-          if (response.data && response.data.state === 'active') {
-            isLive = true;
           }
         } catch (err) {
-          console.warn(`[Verify Live] Etsy API check failed:`, err.message);
+          console.warn(`[Verify Live] Etsy API check failed:`, err.response?.data || err.message);
+          // If it's a temporary API error (rate limit, 5xx, or token issue) other than a definitive 404, 
+          // do NOT mark it as dead to prevent false negatives.
+          if (err.response && err.response.status !== 404) {
+            console.log(`[Verify Live] Etsy API returned error ${err.response.status}. Assuming still active.`);
+            isLive = true; 
+          }
         }
       }
     } else if (platform === 'depop') {
