@@ -24,7 +24,7 @@ exports.getOrders = async (req, res) => {
   }
 };
 
-// @desc    Sync sales from connected platforms (eBay, Depop, Poshmark, Vinted)
+// @desc    Sync sales from connected platforms (eBay, Depop, Poshmark, Etsy)
 // @route   POST /api/orders/sync
 // @access  Private
 exports.syncOrders = async (req, res) => {

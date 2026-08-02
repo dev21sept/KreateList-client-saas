@@ -107,7 +107,7 @@ const Orders = () => {
       case 'ebay': return '/ebay.png';
       case 'depop': return '/depop.png';
       case 'poshmark': return '/poshmark.png';
-      case 'vinted': return '/vinted.png';
+      case 'etsy': return '/etsy.png';
       default: return '/logo192.png';
     }
   };
@@ -231,7 +231,7 @@ const Orders = () => {
 
         {/* Platform Tabs */}
         <div className="flex items-center gap-2 border-t border-slate-50 pt-3.5 overflow-x-auto scrollbar-none">
-          {['all', 'ebay', 'depop', 'poshmark', 'vinted'].map((plat) => (
+          {['all', 'ebay', 'depop', 'poshmark', 'etsy'].map((plat) => (
             <button
               key={plat}
               onClick={() => setActivePlatform(plat)}

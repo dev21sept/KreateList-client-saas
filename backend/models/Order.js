@@ -31,7 +31,7 @@ const orderSchema = new mongoose.Schema({
   shippingStep: mongoose.Schema.Types.Mixed,
   platform: {
     type: String,
-    enum: ['ebay', 'depop', 'poshmark', 'vinted'],
+    enum: ['ebay', 'depop', 'poshmark', 'etsy'],
     default: 'ebay'
   },
   orderUrl: String,
