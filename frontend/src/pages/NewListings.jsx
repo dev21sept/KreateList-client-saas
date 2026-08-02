@@ -1045,10 +1045,11 @@ const NewListings = () => {
     const sku = product.sku || '-';
     const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
 
-    // Status: eBay/Etsy inventory is synced from the marketplace itself, so its
-    // status reflects real Active/Inactive state there. Poshmark/Depop are fetched
-    // live (always currently listed), so they stay 'live' as before.
-    const status = (isEbay || isEtsy) ? (product.status === 'active' ? 'active' : 'inactive') : 'live';
+    // Status: eBay/Etsy/Poshmark all report a real per-item marketplace status now
+    // (eBay/Etsy via the synced Product cache, Poshmark via its own API's
+    // status/inventory fields on each live-fetched post). Depop is still fetched
+    // live without a real status signal, so it stays 'live' as before.
+    const status = (isEbay || isEtsy || isPoshmark) ? (product.status === 'active' ? 'active' : 'inactive') : 'live';
 
     // Price
     const price = (isEbay || isEtsy) ? product.selling_price : product.price;
@@ -2132,7 +2133,7 @@ const NewListings = () => {
 
                         {/* Status */}
                         <td className="px-6 py-4.5">
-                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy') ? (
+                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark') ? (
                             <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
                               details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 'bg-rose-50 text-rose-600'
                             }`}>
@@ -2170,13 +2171,13 @@ const NewListings = () => {
 
                         {/* Actions */}
                         <td className="px-6 py-4.5 text-center">
-                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy') ? (
+                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark') ? (
                             <div className="flex justify-center">
                               {renderCrosslistingCell(
                                 buildChannelDropdownItem(product, details, selectedChannel),
                                 selectedChannel,
                                 details.liveId,
-                                selectedChannel === 'ebay' ? '/ebay.png' : '/etsy.png'
+                                selectedChannel === 'ebay' ? '/ebay.png' : selectedChannel === 'etsy' ? '/etsy.png' : '/poshmark.png'
                               )}
                             </div>
                           ) : (

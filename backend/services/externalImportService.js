@@ -554,7 +554,16 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
 
           const fullUrl = post.share_url || `https://poshmark.com/listing/${post.id}`;
           const generatedSku = `P-${post.id}`;
-          
+
+          // Real marketplace status from Poshmark's own API: a post is only
+          // truly active if it's published, flagged as an active item, and its
+          // inventory is available (not sold out / not-for-sale).
+          const inventoryStatus = post.inventory?.status;
+          const isActive = post.status === 'published'
+            && post.active_item !== false
+            && inventoryStatus !== 'sold_out'
+            && inventoryStatus !== 'not_for_sale';
+
           listings.push({
             title: title.trim(),
             description: description.trim(),
@@ -569,7 +578,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             brand: post.brand || '',
             size: post.size || '',
             quantity: 1,
-            status: 'draft'
+            status: isActive ? 'active' : 'inactive'
           });
         }
         return listings;
@@ -645,7 +654,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
                 brand: item.brand?.name || item.brand || '',
                 size: item.size || '',
                 quantity: 1,
-                status: 'draft'
+                // The public closet page only ever lists currently-available items.
+                status: 'active'
               });
             }
           }
@@ -692,7 +702,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           poshmarkListingId: poshmarkId,
           poshmarkUrl: fullUrl,
           quantity: 1,
-          status: 'draft'
+          // The public closet page only ever lists currently-available items.
+          status: 'active'
         });
       }
     });

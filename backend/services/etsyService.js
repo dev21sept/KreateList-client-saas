@@ -250,8 +250,10 @@ async function fetchEtsyListingsByState(userId, shopId, state, limit = 100) {
   let hasMore = true;
 
   while (hasMore) {
-    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings/state/${state}`, {
-      params: { limit, offset, includes: 'Images' },
+    // Etsy's shop listings collection takes `state` as a query filter, not a
+    // path segment - the old /listings/state/{state} path 404s on every call.
+    const response = await axios.get(`https://api.etsy.com/v3/application/shops/${shopId}/listings`, {
+      params: { state, limit, offset, includes: 'Images' },
       headers: {
         'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
         'Authorization': `Bearer ${accessToken}`

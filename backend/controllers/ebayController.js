@@ -345,41 +345,11 @@ exports.syncInventory = async (req, res) => {
 
     console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
 
-    // Fetch all offers for matching with SKUs to determine status (draft vs live)
-    let offersOffset = 0;
-    let offersLimit = 100;
-    let offersHasMore = true;
+    // NOTE: eBay's Sell Inventory API has no bulk "list all offers" endpoint -
+    // GET /sell/inventory/v1/offer requires a `sku` query param per call. Offer
+    // status/listingId is therefore resolved per-SKU below, batched per page of
+    // inventory items rather than pre-fetched in bulk.
     const offersMap = {}; // sku -> { status, listingId }
-
-    try {
-      while (offersHasMore) {
-        const offersData = await ebayService.getAllOffers(token, offersLimit, offersOffset);
-        const offersList = offersData.offers || [];
-        if (offersList.length === 0) break;
-
-        for (const offer of offersList) {
-          if (offer.sku) {
-            // A published offer takes precedence to mark status as 'active'
-            const existing = offersMap[offer.sku];
-            if (!existing || offer.status === 'PUBLISHED') {
-              offersMap[offer.sku] = {
-                status: offer.status === 'PUBLISHED' ? 'active' : 'inactive',
-                listingId: offer.listingId
-              };
-            }
-          }
-        }
-
-        if (offersList.length < offersLimit) {
-          offersHasMore = false;
-        } else {
-          offersOffset += offersLimit;
-        }
-      }
-      console.log(`[SYNC] Retrieved and mapped ${Object.keys(offersMap).length} eBay offers.`);
-    } catch (offerErr) {
-      console.error('Error fetching offers during sync:', offerErr.message);
-    }
 
     let offset = 0;
     let limit = 100;
@@ -389,10 +359,35 @@ exports.syncInventory = async (req, res) => {
     while (hasMore) {
       const data = await ebayService.getInventoryItems(token, limit, offset);
       const items = data.inventoryItems || [];
-      
+
       if (items.length === 0) break;
 
+      // Resolve offer status/listingId for every SKU on this page in parallel.
+      await Promise.all(items.map(async (item) => {
+        if (!item.sku || offersMap[item.sku]) return;
+        try {
+          const offers = await ebayService.getOffers(token, item.sku);
+          const published = (offers || []).find(o => o.status === 'PUBLISHED');
+          const anyOffer = published || (offers || [])[0];
+          offersMap[item.sku] = anyOffer
+            ? { status: anyOffer.status === 'PUBLISHED' ? 'active' : 'inactive', listingId: anyOffer.listingId || null }
+            : { status: 'inactive', listingId: null };
+        } catch (err) {
+          console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
+          offersMap[item.sku] = { status: 'inactive', listingId: null };
+        }
+      }));
+
       for (const item of items) {
+        // Some eBay inventory items (e.g. malformed or group/variation entries)
+        // don't have a linked `product` object - skip them instead of crashing
+        // the whole sync (this was previously aborting the entire sync partway
+        // through, leaving real products unsynced).
+        if (!item.product) {
+          console.warn(`[SYNC] Skipping inventory item with no product data: SKU ${item.sku || 'unknown'}`);
+          continue;
+        }
+
         const tombstoneMatch = await DeletedProduct.findOne({
           user: userId,
           $or: [
