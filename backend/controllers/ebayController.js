@@ -345,41 +345,8 @@ exports.syncInventory = async (req, res) => {
 
     console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
 
-    // Fetch all offers for matching with SKUs to determine status (draft vs live)
-    let offersOffset = 0;
-    let offersLimit = 100;
-    let offersHasMore = true;
-    const offersMap = {}; // sku -> { status, listingId }
-
-    try {
-      while (offersHasMore) {
-        const offersData = await ebayService.getAllOffers(token, offersLimit, offersOffset);
-        const offersList = offersData.offers || [];
-        if (offersList.length === 0) break;
-
-        for (const offer of offersList) {
-          if (offer.sku) {
-            // A published offer takes precedence to mark status as 'live'
-            const existing = offersMap[offer.sku];
-            if (!existing || offer.status === 'PUBLISHED') {
-              offersMap[offer.sku] = {
-                status: offer.status === 'PUBLISHED' ? 'live' : 'draft',
-                listingId: offer.listingId
-              };
-            }
-          }
-        }
-
-        if (offersList.length < offersLimit) {
-          offersHasMore = false;
-        } else {
-          offersOffset += offersLimit;
-        }
-      }
-      console.log(`[SYNC] Retrieved and mapped ${Object.keys(offersMap).length} eBay offers.`);
-    } catch (offerErr) {
-      console.error('Error fetching offers during sync:', offerErr.message);
-    }
+    // We will build a map of sku -> { status, listingId, price } dynamically during sync
+    const offersMap = {};
 
     let offset = 0;
     let limit = 100;
@@ -391,6 +358,31 @@ exports.syncInventory = async (req, res) => {
       const items = data.inventoryItems || [];
       
       if (items.length === 0) break;
+
+      // Parallelly fetch offers for all SKUs on this page to determine status & price
+      console.log(`[SYNC] Fetching offers for ${items.length} items on this page...`);
+      const offersPromises = items.map(async (item) => {
+        if (!item.sku) return;
+        try {
+          const offersData = await ebayService.getOffers(token, item.sku);
+          if (offersData && offersData.length > 0) {
+            for (const offer of offersData) {
+              const existing = offersMap[offer.sku];
+              // A published offer takes precedence
+              if (!existing || offer.status === 'PUBLISHED') {
+                offersMap[offer.sku] = {
+                  status: offer.status === 'PUBLISHED' ? 'live' : 'draft',
+                  listingId: offer.listingId,
+                  price: offer.pricingSummary?.price?.value
+                };
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
+        }
+      });
+      await Promise.all(offersPromises);
 
       for (const item of items) {
         const tombstoneMatch = await DeletedProduct.findOne({
@@ -406,7 +398,7 @@ exports.syncInventory = async (req, res) => {
           continue;
         }
 
-        const offerInfo = offersMap[item.sku] || { status: 'draft', listingId: null };
+        const offerInfo = offersMap[item.sku] || { status: 'draft', listingId: null, price: null };
 
         let sizeVal = '';
         if (item.product.aspects) {
@@ -425,7 +417,7 @@ exports.syncInventory = async (req, res) => {
           brand: item.product.brand,
           size: sizeVal,
           images: item.product.imageUrls || [],
-          selling_price: item.price?.value,
+          selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
           source: 'ebay',
           status: offerInfo.status,
           ebayListingId: offerInfo.listingId,
@@ -442,7 +434,7 @@ exports.syncInventory = async (req, res) => {
         if (existingProduct) {
           existingProduct.ebayListingId = offerInfo.listingId;
           existingProduct.ebayUrl = offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null;
-          if (item.price?.value) existingProduct.selling_price = parseFloat(item.price.value);
+          existingProduct.selling_price = offerInfo.price ? parseFloat(offerInfo.price) : 0;
           existingProduct.status = offerInfo.status;
           existingProduct.updated_at = Date.now();
           if (item.product.title) existingProduct.title = item.product.title;
