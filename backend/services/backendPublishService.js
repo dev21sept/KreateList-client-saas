@@ -958,43 +958,45 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   }
 
   const mediaIds = [];
-  for (let i = 0; i < images.length; i++) {
-    try {
-      const imgBuffer = await downloadImageBuffer(images[i]);
-      
-      console.log(`[Poshmark Publisher] Step 2: Uploading image ${i + 1} of ${images.length} on Poshmark...`);
-      
-      const FormData = require('form-data');
-      const form = new FormData();
-      form.append('file', imgBuffer, {
-        filename: `file${i}.jpg`,
-        contentType: 'image/jpeg'
-      });
+  if (!existingListingId) {
+    for (let i = 0; i < images.length; i++) {
+      try {
+        const imgBuffer = await downloadImageBuffer(images[i]);
+        
+        console.log(`[Poshmark Publisher] Step 2: Uploading image ${i + 1} of ${images.length} on Poshmark...`);
+        
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('file', imgBuffer, {
+          filename: `file${i}.jpg`,
+          contentType: 'image/jpeg'
+        });
 
-      const uploadHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
-      delete uploadHeaders['content-type']; // Let form-data boundary work
-      const uploadConfig = getAxiosConfig({
-        method: 'POST',
-        url: `https://${domain}/api/posts/${draftId}/media/scratch?app_type=web`,
-        headers: {
-          ...uploadHeaders,
-          ...form.getHeaders()
-        },
-        data: form
-      });
+        const uploadHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+        delete uploadHeaders['content-type']; // Let form-data boundary work
+        const uploadConfig = getAxiosConfig({
+          method: 'POST',
+          url: `https://${domain}/api/posts/${draftId}/media/scratch?app_type=web`,
+          headers: {
+            ...uploadHeaders,
+            ...form.getHeaders()
+          },
+          data: form
+        });
 
-      const uploadRes = await axios(uploadConfig);
-      const uploadData = uploadRes.data;
-      
-      const mediaId = uploadData.id || uploadData.media?.id;
-      if (!mediaId) {
-        throw new Error(`No media ID returned: ${JSON.stringify(uploadData)}`);
+        const uploadRes = await axios(uploadConfig);
+        const uploadData = uploadRes.data;
+        
+        const mediaId = uploadData.id || uploadData.media?.id;
+        if (!mediaId) {
+          throw new Error(`No media ID returned: ${JSON.stringify(uploadData)}`);
+        }
+        mediaIds.push(mediaId);
+        console.log(`[Poshmark Publisher] Image ${i + 1} uploaded successfully. Media ID: ${mediaId}`);
+      } catch (imgErr) {
+        console.error(`[Poshmark Publisher] Image ${i + 1} upload failed:`, imgErr.response?.data || imgErr.message);
+        throw new Error(`Image Upload Failed: ${imgErr.message}`);
       }
-      mediaIds.push(mediaId);
-      console.log(`[Poshmark Publisher] Image ${i + 1} uploaded successfully. Media ID: ${mediaId}`);
-    } catch (imgErr) {
-      console.error(`[Poshmark Publisher] Image ${i + 1} upload failed:`, imgErr.response?.data || imgErr.message);
-      throw new Error(`Image Upload Failed: ${imgErr.message}`);
     }
   }
 
@@ -1075,6 +1077,20 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     ];
   }
 
+  let existingPictures = [];
+  if (existingListingId) {
+    const rawPics = existingPostData?.post?.pictures || existingPostData?.pictures || [];
+    existingPictures = rawPics.map(p => ({ id: p.id || p }));
+  }
+
+  let existingCoverShot = null;
+  if (existingListingId) {
+    const rawCover = existingPostData?.post?.cover_shot || existingPostData?.cover_shot;
+    if (rawCover) {
+      existingCoverShot = { id: rawCover.id || rawCover };
+    }
+  }
+
   const savePayload = {
     post: {
       title: listing.title,
@@ -1090,13 +1106,13 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       },
       colors: postColors,
       style_tags: postStyleTags,
-      pictures: mediaIds.slice(1).map(id => ({ id })),
-      cover_shot: mediaIds.length > 0 ? { id: mediaIds[0] } : null,
+      pictures: existingListingId ? existingPictures : mediaIds.slice(1).map(id => ({ id })),
+      cover_shot: existingListingId ? existingCoverShot : (mediaIds.length > 0 ? { id: mediaIds[0] } : null),
       inventory: {
-        status: existingPostData?.inventory?.status || "available",
-        status_changed_at: existingPostData?.inventory?.status_changed_at || undefined,
-        multi_item: existingPostData?.inventory?.multi_item || false,
-        size_quantity_revision: existingPostData?.inventory?.size_quantity_revision || 0,
+        status: existingPostData?.inventory?.status || existingPostData?.post?.inventory?.status || "available",
+        status_changed_at: existingPostData?.inventory?.status_changed_at || existingPostData?.post?.inventory?.status_changed_at || undefined,
+        multi_item: existingPostData?.inventory?.multi_item || existingPostData?.post?.inventory?.multi_item || false,
+        size_quantity_revision: existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision || 0,
         size_quantities: sizeQuantities
       },
       offer_auto_actions_v2_enabled: false,
