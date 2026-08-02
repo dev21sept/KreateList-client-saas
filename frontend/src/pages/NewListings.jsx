@@ -1314,6 +1314,57 @@ const NewListings = () => {
     }
   };
 
+  const handleDelistItem = async (item, platformName) => {
+    setActiveListedDropdown(null);
+
+    if (String(item._id).startsWith('mock-')) {
+      toast.info(`Mock item cannot be delisted from real platforms.`);
+      return;
+    }
+
+    const confirmDelist = window.confirm(`Are you sure you want to delist this item from ${platformName.toUpperCase()}?`);
+    if (!confirmDelist) return;
+
+    try {
+      toast.info(`Delisting from ${platformName.toUpperCase()}...`);
+      const response = await listingService.delist(item._id, platformName);
+      if (response.data.success) {
+        toast.success(`Successfully delisted from ${platformName.toUpperCase()}!`);
+        fetchListings();
+      } else {
+        toast.error(response.data.message || `Failed to delist from ${platformName}`);
+      }
+    } catch (err) {
+      console.error(`Error delisting:`, err);
+      toast.error(err.response?.data?.message || `Failed to delist from ${platformName}`);
+    }
+  };
+
+  const handleVerifyStatus = async (item, platformName) => {
+    setActiveListedDropdown(null);
+    
+    if (String(item._id).startsWith('mock-')) {
+      toast.info(`Mock item status is verified.`);
+      return;
+    }
+
+    toast.info(`Verifying live status on ${platformName.toUpperCase()}...`);
+    try {
+      const response = await listingService.verifyLive(item._id);
+      if (response.data.success) {
+        if (response.data.isLive) {
+          toast.success(`Listing is active and live on ${platformName.toUpperCase()}!`);
+        } else {
+          toast.warning(`Listing was not found or ended on ${platformName.toUpperCase()}! Reset to Not Listed.`);
+          fetchListings(); // reload list to show updated status
+        }
+      }
+    } catch (err) {
+      console.error(`Error verifying live status:`, err);
+      toast.error(err.response?.data?.message || `Failed to verify status.`);
+    }
+  };
+
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -1373,6 +1424,14 @@ const NewListings = () => {
               </a>
               <button
                 type="button"
+                onClick={() => handleVerifyStatus(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <RefreshCw size={13} className="text-indigo-500 shrink-0" />
+                Verify Status
+              </button>
+              <button
+                type="button"
                 onClick={() => handleEditListedItem(item, platformName)}
                 className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
               >
@@ -1386,6 +1445,14 @@ const NewListings = () => {
               >
                 <RefreshCw size={13} className="text-amber-500 shrink-0" />
                 Move to New List
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelistItem(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Trash2 size={13} className="text-red-500 shrink-0" />
+                Delist Listing
               </button>
             </div>
           )}

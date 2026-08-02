@@ -220,6 +220,21 @@ async function deleteOffer(token, offerId) {
     }
 }
 
+async function withdrawOffer(token, offerId) {
+    try {
+        const response = await axios.post(`${API_BASE_URL}/sell/inventory/v1/offer/${offerId}/withdraw`, {}, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Error withdrawing offer ${offerId}:`, error.response?.data || error.message);
+        throw error;
+    }
+}
+
 async function deleteInventoryItem(token, sku) {
     try {
         const response = await axios.delete(`${API_BASE_URL}/sell/inventory/v1/inventory_item/${sku}`, {
@@ -830,6 +845,7 @@ module.exports = {
     createOffer,
     deleteOffer,
     publishOffer,
+    withdrawOffer,
     deleteInventoryItem,
     createOrUpdateLocation,
     getFulfillmentPolicies,

@@ -1242,7 +1242,28 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   }
 }
 
+async function deletePoshmarkListing(listingId, poshmarkAccount) {
+  const sessionCookie = poshmarkAccount.sessionCookie;
+  const csrfToken = poshmarkAccount.csrfToken;
+  const domain = getDomainFromCookie(sessionCookie);
+  
+  const headers = getPoshmarkHeaders(sessionCookie, csrfToken);
+  // Remove origin/content-type for DELETE request to bypass CloudFront WAF
+  delete headers['origin'];
+  delete headers['content-type'];
+
+  const config = getAxiosConfig({
+    method: 'DELETE',
+    url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
+    headers
+  });
+  
+  const response = await axios(config);
+  return response.data;
+}
+
 module.exports = {
   publishToDepop,
-  publishToPoshmark
+  publishToPoshmark,
+  deletePoshmarkListing
 };

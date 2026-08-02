@@ -62,6 +62,7 @@ export const listingService = {
   getStats: () => API.get('/listings/stats'),
   checkDuplicate: (data) => API.post('/listings/check-duplicate', data),
   verifyLive: (id) => API.post(`/listings/${id}/verify-live`),
+  delist: (id, platform) => API.post(`/listings/${id}/delist`, { platform }),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
 };
 

@@ -1115,3 +1115,127 @@ exports.verifyListingLive = async (req, res) => {
   }
 };
 
+// @desc    Delist listing from a platform
+// @route   POST /api/listings/:id/delist
+// @access  Private
+exports.delistListing = async (req, res) => {
+  try {
+    const { platform } = req.body;
+    if (!platform) {
+      return res.status(400).json({ success: false, message: 'Platform is required' });
+    }
+
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const platformLower = platform.toLowerCase();
+    console.log(`[Delist Listing] Delisting from ${platformLower} for item: ${listing.title}`);
+
+    if (platformLower === 'ebay') {
+      if (!listing.ebayListingId) {
+        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on eBay.' });
+      }
+      
+      const token = await getValidToken(req.user.id);
+      if (!token) {
+        throw new Error('eBay account is not connected or session expired.');
+      }
+      
+      const sku = listing.sku;
+      const { getOffers, withdrawOffer } = require('../services/ebayService');
+      const offers = await getOffers(token, sku);
+      
+      if (offers && offers.length > 0) {
+        for (const offer of offers) {
+          if (offer.status === 'PUBLISHED') {
+            console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
+            await withdrawOffer(token, offer.offerId);
+          }
+        }
+      } else {
+        console.warn(`[Delist Listing] No active eBay offers found for SKU ${sku}. Presuming already ended.`);
+      }
+      
+      listing.ebayListingId = undefined;
+      listing.ebayUrl = undefined;
+      listing.ebayStatus = 'draft';
+      
+    } else if (platformLower === 'poshmark') {
+      if (!listing.poshmarkListingId) {
+        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Poshmark.' });
+      }
+      
+      if (!user.poshmarkAccount || !user.poshmarkAccount.connected) {
+        throw new Error('Poshmark account is not connected.');
+      }
+      
+      const { deletePoshmarkListing } = require('../services/backendPublishService');
+      await deletePoshmarkListing(listing.poshmarkListingId, user.poshmarkAccount);
+      
+      listing.poshmarkListingId = undefined;
+      listing.poshmarkUrl = undefined;
+      listing.poshmarkStatus = 'draft';
+      
+    } else if (platformLower === 'etsy') {
+      if (!listing.etsyListingId) {
+        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Etsy.' });
+      }
+      
+      if (!user.etsyAccount || !user.etsyAccount.connected || !user.etsyAccount.shopId) {
+        throw new Error('Etsy shop is not connected.');
+      }
+      
+      const { updateListingState } = require('../services/etsyService');
+      await updateListingState(req.user.id, user.etsyAccount.shopId, listing.etsyListingId, 'inactive');
+      
+      listing.etsyListingId = undefined;
+      listing.etsyUrl = undefined;
+      listing.etsyStatus = 'draft';
+      
+    } else if (platformLower === 'depop') {
+      if (!listing.depopListingId) {
+        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Depop.' });
+      }
+      
+      const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
+      const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
+      
+      if (isPartner && apiKey && listing.sku) {
+        const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+        await deleteFromDepopPartner(listing.sku, apiKey);
+      } else {
+        console.warn(`[Delist Listing] Depop cookie-based connection. Resetting locally. User must end manually on Depop.`);
+      }
+      
+      listing.depopListingId = undefined;
+      listing.depopUrl = undefined;
+      listing.depopStatus = 'draft';
+    } else {
+      return res.status(400).json({ success: false, message: `Unsupported platform: ${platform}` });
+    }
+
+    // Check if there are no remaining platform listings, update overall status
+    if (!listing.ebayListingId && !listing.poshmarkListingId && !listing.etsyListingId && !listing.depopListingId) {
+      listing.status = 'draft';
+    }
+
+    await listing.save();
+    console.log(`[Delist Listing] Successfully delisted item ${listing.title} from ${platformLower}`);
+    res.status(200).json({ success: true, message: `Successfully delisted listing from ${platform}`, data: listing });
+  } catch (err) {
+    console.error(`[Delist Listing] Failed to delist from ${req.body.platform}:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
