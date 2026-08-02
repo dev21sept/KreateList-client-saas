@@ -1377,15 +1377,17 @@ const NewListings = () => {
     setTempSortOption('newest');
   };
 
-  // Render cross-listing badges
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
-    const isListed = !!checkId && checkId !== '-';
+    const platformStatus = platformSpecificItem 
+      ? platformSpecificItem.status?.toLowerCase() 
+      : item[`${platformName}Status`]?.toLowerCase();
+
+    let isListed = !!checkId && checkId !== '-' && platformStatus !== 'delisted';
     const isDraft = !isListed && ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
                     (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
     const isDelisted = !isListed && (
-      (platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'delisted') || 
-      (!platformSpecificItem && item[`${platformName}Status`]?.toLowerCase() === 'delisted') ||
+      (platformStatus === 'delisted') ||
       (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'delisted')
     );
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
