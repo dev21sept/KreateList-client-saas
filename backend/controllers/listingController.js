@@ -1076,13 +1076,33 @@ exports.verifyListingLive = async (req, res) => {
     const platform = listing.platform || 'ebay';
 
     if (platform === 'ebay') {
-      if (listing.ebayListingId && listing.sku) {
+      if (listing.sku) {
         try {
           const token = await getValidToken(req.user.id);
           if (token) {
             const { getOffers } = require('../services/ebayService');
             const offers = await getOffers(token, listing.sku);
-            const activeOffer = offers && offers.find(o => o.listingId === listing.ebayListingId && o.status === 'PUBLISHED');
+            
+            // Check if there is any active published offer for this SKU
+            let activeOffer = null;
+            if (listing.ebayListingId) {
+              activeOffer = offers && offers.find(o => o.listingId === listing.ebayListingId && o.status === 'PUBLISHED');
+            }
+            
+            // Fallback: If not matched by ID, check if there's any active published offer on this SKU at all
+            if (!activeOffer && offers && offers.length > 0) {
+              activeOffer = offers.find(o => o.status === 'PUBLISHED');
+              if (activeOffer && activeOffer.listingId) {
+                // Sync the listing ID back if it was missing or different
+                listing.ebayListingId = activeOffer.listingId;
+                listing.ebayUrl = `https://www.ebay.com/itm/${activeOffer.listingId}`;
+                listing.ebayStatus = 'published';
+                listing.status = 'published';
+                await listing.save();
+                console.log(`[Verify Live] eBay Listing ID synchronized for SKU ${listing.sku}: ${activeOffer.listingId}`);
+              }
+            }
+            
             if (activeOffer) {
               isLive = true;
             }
