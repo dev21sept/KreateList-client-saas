@@ -905,36 +905,44 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    // 8. Handle existing offers (to prevent SKU conflicts)
+    // 8. Handle existing offers (to prevent SKU conflicts and reactivate existing listings)
     const existingOffers = await ebayService.getOffers(token, sku);
     let publishedFromExisting = false;
     let ebayListingId;
     let publishSuccess = false;
 
     if (existingOffers && existingOffers.length > 0) {
-      // Find if there is a withdrawn offer that we can reactivate
-      const withdrawnOffer = existingOffers.find(o => o.status === 'WITHDRAWN');
-      if (withdrawnOffer) {
-        try {
-          console.log(`[EBAY PUBLISH] Found existing WITHDRAWN offer: ${withdrawnOffer.offerId}. Attempting to reactivate...`);
-          // Try to publish the withdrawn offer directly (relist)
-          const publishRes = await ebayService.publishOffer(token, withdrawnOffer.offerId);
-          ebayListingId = publishRes.listingId || withdrawnOffer.listingId;
-          publishSuccess = true;
-          publishedFromExisting = true;
-          console.log(`[EBAY PUBLISH] Successfully reactivated existing offer! Listing ID: ${ebayListingId}`);
-        } catch (reactivateErr) {
-          console.warn(`[EBAY PUBLISH] Failed to reactivate withdrawn offer, will delete and recreate:`, reactivateErr.message);
+      const existingOffer = existingOffers[0];
+      const offerId = existingOffer.offerId;
+      
+      try {
+        console.log(`[EBAY PUBLISH] Found existing offer: ${offerId} with status: ${existingOffer.status}. Reactivating...`);
+        
+        // If the offer is currently PUBLISHED, we must withdraw it first to transition it to WITHDRAWN
+        if (existingOffer.status === 'PUBLISHED') {
+          console.log(`[EBAY PUBLISH] Offer is PUBLISHED, withdrawing first: ${offerId}`);
+          const { withdrawOffer } = require('../services/ebayService');
+          await withdrawOffer(token, offerId);
+          // Wait 2 seconds for eBay inventory sync
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      }
-
-      if (!publishedFromExisting) {
-        for (const existingOffer of existingOffers) {
+        
+        // Relist / Publish the same offer
+        const publishRes = await ebayService.publishOffer(token, offerId);
+        ebayListingId = publishRes.listingId || existingOffer.listingId;
+        publishSuccess = true;
+        publishedFromExisting = true;
+        console.log(`[EBAY PUBLISH] Successfully reactivated existing offer! Listing ID: ${ebayListingId}`);
+      } catch (reactivateErr) {
+        console.warn(`[EBAY PUBLISH] Failed to reactivate existing offer, falling back to delete and recreate:`, reactivateErr.message);
+        
+        // Fallback: Delete all existing offers to clear the SKU space
+        for (const offer of existingOffers) {
           try {
-            console.log(`[EBAY PUBLISH] Deleting existing offer: ${existingOffer.offerId}`);
-            await ebayService.deleteOffer(token, existingOffer.offerId);
+            console.log(`[EBAY PUBLISH] Deleting existing offer: ${offer.offerId}`);
+            await ebayService.deleteOffer(token, offer.offerId);
           } catch (delErr) {
-            console.warn(`[EBAY PUBLISH] Failed to delete existing offer ${existingOffer.offerId}:`, delErr.message);
+            console.warn(`[EBAY PUBLISH] Failed to delete existing offer ${offer.offerId}:`, delErr.message);
           }
         }
       }
