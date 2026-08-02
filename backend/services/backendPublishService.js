@@ -911,14 +911,18 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     console.log(`[Poshmark Publisher] Fetching current listing data for ID: ${existingListingId} to resolve revision info...`);
     draftId = existingListingId;
     try {
+      const getHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+      delete getHeaders['origin'];
+      delete getHeaders['content-type'];
+
       const getPostConfig = getAxiosConfig({
         method: 'GET',
         url: `https://${domain}/vm-rest/posts/${existingListingId}?pm_version=2026.26.01`,
-        headers: getPoshmarkHeaders(sessionCookie, csrfToken)
+        headers: getHeaders
       });
       const getPostRes = await axios(getPostConfig);
       existingPostData = getPostRes.data;
-      console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision}`);
+      console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision}`);
     } catch (getErr) {
       console.warn(`[Poshmark Publisher] Failed to fetch existing listing data:`, getErr.response?.data || getErr.message);
     }
