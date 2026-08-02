@@ -369,8 +369,15 @@ exports.syncInventory = async (req, res) => {
           const offers = await ebayService.getOffers(token, item.sku);
           const published = (offers || []).find(o => o.status === 'PUBLISHED');
           const anyOffer = published || (offers || [])[0];
+          // The real eBay listing ID/status live under offer.listing, not top-level
+          // offer.listingId (which doesn't exist) - offer.status only reflects
+          // whether the offer was ever published, not whether it's still live.
+          const listingId = anyOffer?.listing?.listingId || null;
+          const isActive = anyOffer?.listing?.listingStatus
+            ? anyOffer.listing.listingStatus === 'ACTIVE'
+            : anyOffer?.status === 'PUBLISHED';
           offersMap[item.sku] = anyOffer
-            ? { status: anyOffer.status === 'PUBLISHED' ? 'active' : 'inactive', listingId: anyOffer.listingId || null }
+            ? { status: isActive ? 'active' : 'inactive', listingId }
             : { status: 'inactive', listingId: null };
         } catch (err) {
           console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);

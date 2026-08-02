@@ -1114,27 +1114,34 @@ exports.verifyListingLive = async (req, res) => {
           if (token) {
             const { getOffers } = require('../services/ebayService');
             const offers = await getOffers(token, listing.sku);
-            
+
+            // The real eBay listing ID/status live under offer.listing, not a
+            // top-level offer.listingId field (which doesn't exist).
+            const isOfferActive = (o) => o.listing?.listingStatus
+              ? o.listing.listingStatus === 'ACTIVE'
+              : o.status === 'PUBLISHED';
+
             // Check if there is any active published offer for this SKU
             let activeOffer = null;
             if (listing.ebayListingId) {
-              activeOffer = offers && offers.find(o => o.listingId === listing.ebayListingId && o.status === 'PUBLISHED');
+              activeOffer = offers && offers.find(o => o.listing?.listingId === listing.ebayListingId && isOfferActive(o));
             }
-            
+
             // Fallback: If not matched by ID, check if there's any active published offer on this SKU at all
             if (!activeOffer && offers && offers.length > 0) {
-              activeOffer = offers.find(o => o.status === 'PUBLISHED');
-              if (activeOffer && activeOffer.listingId) {
+              activeOffer = offers.find(isOfferActive);
+              if (activeOffer && activeOffer.listing?.listingId) {
                 // Sync the listing ID back if it was missing or different
-                listing.ebayListingId = activeOffer.listingId;
-                listing.ebayUrl = `https://www.ebay.com/itm/${activeOffer.listingId}`;
+                const listingId = activeOffer.listing.listingId;
+                listing.ebayListingId = listingId;
+                listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
                 listing.ebayStatus = 'published';
                 listing.status = 'published';
                 await listing.save();
-                console.log(`[Verify Live] eBay Listing ID synchronized for SKU ${listing.sku}: ${activeOffer.listingId}`);
+                console.log(`[Verify Live] eBay Listing ID synchronized for SKU ${listing.sku}: ${listingId}`);
               }
             }
-            
+
             if (activeOffer) {
               isLive = true;
             }
