@@ -192,29 +192,51 @@ exports.etsyPublish = async (req, res) => {
     else if (whenMade === '1980_1989') whenMade = '1980s';
     else if (whenMade === 'before_1980') whenMade = '1970s';
 
-    const publishResult = await etsyService.createDraftListing(req.user.id, shopId, {
-      title: listing.title,
-      description: listing.description,
-      price: listing.price,
-      quantity: listing.quantity || 1,
-      taxonomy_id: listing.categoryId || '1091',
-      who_made: listing.etsyWhoMade || 'i_did',
-      when_made: whenMade,
-      is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
-      shipping_profile_id: listing.etsyShippingProfileId || undefined,
-      tags: tags,
-      materials: materials
-    });
+    const existingListingId = listing.etsyListingId;
+    let publishResult;
+    let etsyListingId;
 
-    const etsyListingId = publishResult.listing_id || publishResult.results?.[0]?.listing_id;
+    if (existingListingId) {
+      console.log(`[Etsy Controller] Updating existing Etsy listing: ${existingListingId} on shop: ${shopId}`);
+      publishResult = await etsyService.updateEtsyListing(req.user.id, shopId, existingListingId, {
+        title: listing.title,
+        description: listing.description,
+        price: listing.price,
+        quantity: listing.quantity || 1,
+        who_made: listing.etsyWhoMade || 'i_did',
+        when_made: whenMade,
+        is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
+        shipping_profile_id: listing.etsyShippingProfileId || undefined,
+        tags: tags,
+        materials: materials
+      });
+      etsyListingId = existingListingId;
+    } else {
+      console.log(`[Etsy Controller] Creating draft listing for SKU: ${listing.sku} on shop: ${shopId}`);
+      publishResult = await etsyService.createDraftListing(req.user.id, shopId, {
+        title: listing.title,
+        description: listing.description,
+        price: listing.price,
+        quantity: listing.quantity || 1,
+        taxonomy_id: listing.categoryId || '1091',
+        who_made: listing.etsyWhoMade || 'i_did',
+        when_made: whenMade,
+        is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
+        shipping_profile_id: listing.etsyShippingProfileId || undefined,
+        tags: tags,
+        materials: materials
+      });
+      etsyListingId = publishResult.listing_id || publishResult.results?.[0]?.listing_id;
+    }
+
     if (!etsyListingId) {
       throw new Error('Etsy did not return a valid listing ID');
     }
 
     const etsyUrl = `https://www.etsy.com/listing/${etsyListingId}`;
 
-    // Upload images if any exist
-    if (listing.images && listing.images.length > 0) {
+    // Upload images if any exist (only on initial creation to avoid duplicating images)
+    if (!existingListingId && listing.images && listing.images.length > 0) {
       console.log(`[Etsy Controller] Uploading ${listing.images.length} images to Etsy listing: ${etsyListingId}`);
       for (const imgUrl of listing.images) {
         try {
@@ -279,7 +301,7 @@ exports.etsyPublish = async (req, res) => {
     console.log(`[Etsy Controller] Direct publishing successful! URL: ${etsyUrl}`);
     res.status(200).json({
       success: true,
-      message: 'Draft listing successfully created on Etsy!',
+      message: existingListingId ? 'Listing successfully updated on Etsy!' : 'Draft listing successfully created on Etsy!',
       listingId: etsyListingId,
       url: etsyUrl
     });

@@ -313,6 +313,16 @@ exports.depopPublish = async (req, res) => {
       });
     }
 
+    const existingListingId = listing.depopListingId;
+    const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || (user.depopAccount && user.depopAccount.usePartnerApi));
+
+    if (existingListingId && !isPartner) {
+      return res.status(400).json({
+        success: false,
+        message: 'Updating active listings on Depop without a Depop Partner API integration is not supported. Please edit the listing directly on Depop.'
+      });
+    }
+
     console.log(`[Depop Controller] Direct publishing listing: ${listingId} to Depop`);
     const publishResult = await publishToDepop(listing, user.depopAccount);
 
@@ -328,7 +338,7 @@ exports.depopPublish = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Listing successfully published to Depop!',
+      message: existingListingId ? 'Listing successfully updated on Depop!' : 'Listing successfully published to Depop!',
       data: listing
     });
   } catch (err) {

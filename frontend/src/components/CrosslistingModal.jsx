@@ -462,6 +462,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
   const [prepLoading, setPrepLoading] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
   const [activeImage, setActiveImage] = useState('');
+  const [forceShowForm, setForceShowForm] = useState(false);
   
   const isAlreadyPublished = useMemo(() => {
     if (!listing) return false;
@@ -1609,7 +1610,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
         {/* Body Container */}
         <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8">
           
-          {isAlreadyPublished ? (
+          {isAlreadyPublished && !forceShowForm ? (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center my-auto min-h-[400px]">
               <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100/50">
                 <ShieldCheck size={40} className="stroke-[2.5]" />
@@ -1631,8 +1632,14 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                 </a>
               )}
               <button
+                onClick={() => setForceShowForm(true)}
+                className="mt-4 px-6 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 font-black text-xs rounded-2xl border border-indigo-100 transition-all cursor-pointer flex items-center gap-2"
+              >
+                Update Listing Details
+              </button>
+              <button
                 onClick={onClose}
-                className="mt-4 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-2xl transition-all cursor-pointer"
+                className="mt-2 text-slate-400 hover:text-slate-600 font-extrabold text-xs transition-all cursor-pointer"
               >
                 Close Window
               </button>
@@ -2797,7 +2804,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                     Cancel
                   </button>
                   
-                  {!isEditMode && (
+                  {!isAlreadyPublished && !isEditMode && (
                     <button
                       type="button"
                       disabled={loading}
@@ -2810,15 +2817,17 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
 
                   {!isEditMode && (platform === 'poshmark' || platform === 'depop') ? (
                     <>
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={(e) => handlePublish(e, 'extension')}
-                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-indigo-100 font-sans"
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        List to {platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Extension)
-                      </button>
+                      {!isAlreadyPublished && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={(e) => handlePublish(e, 'extension')}
+                          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-indigo-100 font-sans"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          List to {platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Extension)
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={loading}
@@ -2826,7 +2835,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                         className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold rounded-2xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer shadow-emerald-100 font-sans"
                       >
                         <ShoppingBag className="w-3.5 h-3.5" />
-                        List to {platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Direct API)
+                        {isAlreadyPublished ? `Update on ${platform === 'poshmark' ? 'Poshmark' : 'Depop'}` : `List to ${platform === 'poshmark' ? 'Poshmark' : 'Depop'} (Direct API)`}
                       </button>
                     </>
                   ) : (
@@ -2838,12 +2847,12 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       {loading ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          {isEditMode ? 'Saving Changes...' : `Publishing to ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}...`}
+                          {isEditMode ? 'Saving Changes...' : (isAlreadyPublished ? `Updating on ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}...` : `Publishing to ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}...`)}
                         </>
                       ) : (
                         <>
                           <ShoppingBag className="w-3.5 h-3.5" />
-                          {isEditMode ? 'Save Changes' : `Save & List on ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}`}
+                          {isEditMode ? 'Save Changes' : (isAlreadyPublished ? `Update on ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}` : `Save & List on ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}`)}
                         </>
                       )}
                     </button>

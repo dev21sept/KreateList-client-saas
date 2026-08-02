@@ -339,6 +339,59 @@ async function updateListingProperty(userId, shopId, listingId, propertyId, valu
   }
 }
 
+async function updateEtsyListing(userId, shopId, listingId, listingData) {
+  const accessToken = await getValidToken(userId);
+
+  const payload = {
+    quantity: listingData.quantity || 1,
+    title: listingData.title ? listingData.title.substring(0, 140) : '',
+    description: listingData.description || 'Listing updated via eLister',
+    price: parseFloat(listingData.price || '0.00').toFixed(2),
+    who_made: listingData.who_made || 'i_did',
+    when_made: listingData.when_made || '2020_2026',
+    is_supply: listingData.is_supply === true || listingData.is_supply === 'true'
+  };
+
+  if (listingData.shipping_profile_id) {
+    payload.shipping_profile_id = parseInt(listingData.shipping_profile_id);
+  }
+
+  console.log('[Etsy Service] Outgoing updateEtsyListing payload:', JSON.stringify(payload, null, 2));
+
+  const params = new URLSearchParams();
+  Object.keys(payload).forEach(key => {
+    params.append(key, String(payload[key]));
+  });
+  
+  if (listingData.tags && listingData.tags.length > 0) {
+    listingData.tags.forEach(tag => {
+      params.append('tags', tag.substring(0, 20));
+    });
+  }
+
+  if (listingData.materials && listingData.materials.length > 0) {
+    listingData.materials.forEach(mat => {
+      params.append('materials', mat.substring(0, 45));
+    });
+  }
+
+  try {
+    const url = `https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}`;
+    const response = await axios.patch(url, params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    return response.data;
+  } catch (err) {
+    console.error('[Etsy Service] Update listing failed:', err.response?.data || err.message);
+    const apiError = err.response?.data?.error || err.message;
+    throw new Error(apiError);
+  }
+}
+
 module.exports = {
   getValidToken,
   getShopInfo,
@@ -349,6 +402,7 @@ module.exports = {
   updateListingState,
   getCategoryProperties,
   updateListingProperty,
+  updateEtsyListing,
   ETSY_CLIENT_ID,
   ETSY_CLIENT_SECRET
 };

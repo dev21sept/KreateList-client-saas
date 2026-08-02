@@ -902,33 +902,40 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 
   console.log(`[Poshmark Publisher] Initializing publish for listing: "${listing.title}" on domain: ${domain}`);
   
-  // Step 1: Create Draft Session on Poshmark
-  console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
+  // Step 1: Create Draft Session on Poshmark (or use existing listing ID for update)
   let draftId;
-  try {
-    const userId = getUserIdFromSessionCookie(sessionCookie);
-    if (!userId) {
-      throw new Error('Poshmark User ID not found in session cookies. Please reconnect your account.');
-    }
+  const existingListingId = listing.poshmarkListingId;
+  
+  if (existingListingId) {
+    console.log(`[Poshmark Publisher] Updating existing Poshmark listing ID: ${existingListingId}`);
+    draftId = existingListingId;
+  } else {
+    console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
+    try {
+      const userId = getUserIdFromSessionCookie(sessionCookie);
+      if (!userId) {
+        throw new Error('Poshmark User ID not found in session cookies. Please reconnect your account.');
+      }
 
-    const draftConfig = getAxiosConfig({
-      method: 'POST',
-      url: `https://${domain}/vm-rest/users/${userId}/posts?pm_version=2026.26.01`,
-      headers: getPoshmarkHeaders(sessionCookie, csrfToken),
-      data: { post: { autolist_draft: false } }
-    });
+      const draftConfig = getAxiosConfig({
+        method: 'POST',
+        url: `https://${domain}/vm-rest/users/${userId}/posts?pm_version=2026.26.01`,
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
+        data: { post: { autolist_draft: false } }
+      });
 
-    const draftRes = await axios(draftConfig);
-    const draftData = draftRes.data;
-    
-    draftId = draftData.post?.id || draftData.id;
-    if (!draftId) {
-      throw new Error(`Failed to generate draft. Response: ${JSON.stringify(draftData)}`);
+      const draftRes = await axios(draftConfig);
+      const draftData = draftRes.data;
+      
+      draftId = draftData.post?.id || draftData.id;
+      if (!draftId) {
+        throw new Error(`Failed to generate draft. Response: ${JSON.stringify(draftData)}`);
+      }
+      console.log(`[Poshmark Publisher] Draft session created. Draft ID: ${draftId}`);
+    } catch (draftErr) {
+      console.error('[Poshmark Publisher] Draft session failed:', draftErr.response?.data || draftErr.message);
+      throw new Error(`Draft Creation Failed: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
     }
-    console.log(`[Poshmark Publisher] Draft session created. Draft ID: ${draftId}`);
-  } catch (draftErr) {
-    console.error('[Poshmark Publisher] Draft session failed:', draftErr.response?.data || draftErr.message);
-    throw new Error(`Draft Creation Failed: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
   }
 
   // Step 2: Upload Images to Poshmark Draft

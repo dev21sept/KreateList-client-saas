@@ -296,6 +296,7 @@ exports.poshmarkPublish = async (req, res) => {
       });
     }
 
+    const existingListingId = listing.poshmarkListingId;
     console.log(`[Poshmark Controller] Direct publishing listing: ${listingId} to Poshmark`);
     const publishResult = await publishToPoshmark(listing, user.poshmarkAccount);
 
@@ -317,7 +318,7 @@ exports.poshmarkPublish = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Listing successfully published to Poshmark!',
+      message: existingListingId ? 'Listing successfully updated on Poshmark!' : 'Listing successfully published to Poshmark!',
       data: listing
     });
   } catch (err) {

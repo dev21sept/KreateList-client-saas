@@ -444,6 +444,31 @@ exports.updateListing = async (req, res) => {
       }
     }
 
+    // Live Etsy Sync: If listing is listed on Etsy, push core updates (Title, Price, Description, Quantity) directly to Etsy
+    if (listing.etsyListingId || (listing.platform === 'etsy' && listing.status === 'published')) {
+      try {
+        const User = require('../models/User');
+        const user = await User.findById(req.user.id);
+        if (user && user.etsyAccount && user.etsyAccount.connected && user.etsyAccount.shopId && listing.etsyListingId) {
+          const etsyService = require('../services/etsyService');
+          console.log(`[Listing Controller] Live Syncing core data to Etsy for Listing ID: ${listing.etsyListingId}`);
+          await etsyService.updateEtsyListing(req.user.id, user.etsyAccount.shopId, listing.etsyListingId, {
+            title: listing.title,
+            description: listing.description,
+            price: listing.price,
+            quantity: listing.quantity || 1,
+            who_made: listing.etsyWhoMade || 'i_did',
+            when_made: listing.etsyWhenMade || '2020_2026',
+            is_supply: listing.etsyIsSupply === true || listing.etsyIsSupply === 'true',
+            shipping_profile_id: listing.etsyShippingProfileId || undefined
+          });
+          console.log(`[Listing Controller] Successfully synced live changes to Etsy for Listing ID: ${listing.etsyListingId}`);
+        }
+      } catch (etsyErr) {
+        console.warn(`[Listing Controller] Failed to sync live changes to Etsy API:`, etsyErr.message);
+      }
+    }
+
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
