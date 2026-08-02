@@ -1163,19 +1163,19 @@ exports.verifyListingLive = async (req, res) => {
       if (platform === 'poshmark') {
         listing.poshmarkListingId = undefined;
         listing.poshmarkUrl = undefined;
-        listing.poshmarkStatus = 'draft';
+        listing.poshmarkStatus = 'none';
       } else if (platform === 'ebay') {
         listing.ebayListingId = undefined;
         listing.ebayUrl = undefined;
-        listing.ebayStatus = 'draft';
+        listing.ebayStatus = 'none';
       } else if (platform === 'etsy') {
         listing.etsyListingId = undefined;
         listing.etsyUrl = undefined;
-        listing.etsyStatus = 'draft';
+        listing.etsyStatus = 'none';
       } else if (platform === 'depop') {
         listing.depopListingId = undefined;
         listing.depopUrl = undefined;
-        listing.depopStatus = 'draft';
+        listing.depopStatus = 'none';
       }
       
       // If no platforms remain listed, set overall status to draft
@@ -1247,7 +1247,7 @@ exports.delistListing = async (req, res) => {
       
       listing.ebayListingId = undefined;
       listing.ebayUrl = undefined;
-      listing.ebayStatus = 'draft';
+      listing.ebayStatus = 'none';
       
     } else if (platformLower === 'poshmark') {
       if (!listing.poshmarkListingId) {
@@ -1263,7 +1263,7 @@ exports.delistListing = async (req, res) => {
       
       listing.poshmarkListingId = undefined;
       listing.poshmarkUrl = undefined;
-      listing.poshmarkStatus = 'draft';
+      listing.poshmarkStatus = 'none';
       
     } else if (platformLower === 'etsy') {
       if (!listing.etsyListingId) {
@@ -1279,7 +1279,7 @@ exports.delistListing = async (req, res) => {
       
       listing.etsyListingId = undefined;
       listing.etsyUrl = undefined;
-      listing.etsyStatus = 'draft';
+      listing.etsyStatus = 'none';
       
     } else if (platformLower === 'depop') {
       if (!listing.depopListingId) {
@@ -1298,7 +1298,7 @@ exports.delistListing = async (req, res) => {
       
       listing.depopListingId = undefined;
       listing.depopUrl = undefined;
-      listing.depopStatus = 'draft';
+      listing.depopStatus = 'none';
     } else {
       return res.status(400).json({ success: false, message: `Unsupported platform: ${platform}` });
     }
