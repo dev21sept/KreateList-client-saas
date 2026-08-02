@@ -1322,7 +1322,10 @@ const NewListings = () => {
       return;
     }
 
-    const confirmDelist = window.confirm(`Are you sure you want to delist this item from ${platformName.toUpperCase()}?`);
+    const confirmDelist = await confirm(`Are you sure you want to delist this item from ${platformName.toUpperCase()}?`, {
+      title: 'Delist Listing',
+      destructive: true
+    });
     if (!confirmDelist) return;
 
     try {
