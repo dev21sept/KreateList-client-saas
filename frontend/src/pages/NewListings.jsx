@@ -1365,6 +1365,48 @@ const NewListings = () => {
     }
   };
 
+  const handleRelistItemDirect = async (item, platformName) => {
+    setActiveListedDropdown(null);
+    
+    if (String(item._id).startsWith('mock-')) {
+      toast.info(`Mock item cannot be relisted.`);
+      return;
+    }
+
+    toast.info(`Relisting on ${platformName.toUpperCase()}...`);
+    
+    try {
+      if (platformName === 'ebay') {
+        const res = await listingService.publish(item._id);
+        if (res.data?.success || res.data) {
+          toast.success("Listing successfully reactivated on eBay!");
+          fetchListings();
+        }
+      } else if (platformName === 'etsy') {
+        const res = await etsyService.publish(item._id);
+        if (res.data?.success) {
+          toast.success("Listing successfully reactivated on Etsy!");
+          fetchListings();
+        }
+      } else if (platformName === 'poshmark') {
+        const res = await externalImportService.publish(item._id, { platform: 'poshmark' });
+        if (res.data?.success) {
+          toast.success("Listing successfully reactivated on Poshmark!");
+          fetchListings();
+        }
+      } else if (platformName === 'depop') {
+        const res = await externalImportService.publish(item._id, { platform: 'depop' });
+        if (res.data?.success) {
+          toast.success("Listing successfully reactivated on Depop!");
+          fetchListings();
+        }
+      }
+    } catch (error) {
+      console.error(`Error relisting on ${platformName}:`, error);
+      toast.error(error.response?.data?.message || `Failed to relist on ${platformName}.`);
+    }
+  };
+
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -1472,10 +1514,7 @@ const NewListings = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveListedDropdown(null);
-                    handleOpenCrosslisting(platformSpecificItem || item, platformName);
-                  }}
+                  onClick={() => handleRelistItemDirect(item, platformName)}
                   className="w-full px-3.5 py-2 text-xs font-bold text-emerald-650 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
                 >
                   <RefreshCw size={13} className="text-emerald-500 shrink-0" />
