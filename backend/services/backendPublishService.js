@@ -905,10 +905,23 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   // Step 1: Create Draft Session on Poshmark (or use existing listing ID for update)
   let draftId;
   const existingListingId = listing.poshmarkListingId;
+  let existingPostData = null;
   
   if (existingListingId) {
-    console.log(`[Poshmark Publisher] Updating existing Poshmark listing ID: ${existingListingId}`);
+    console.log(`[Poshmark Publisher] Fetching current listing data for ID: ${existingListingId} to resolve revision info...`);
     draftId = existingListingId;
+    try {
+      const getPostConfig = getAxiosConfig({
+        method: 'GET',
+        url: `https://${domain}/vm-rest/posts/${existingListingId}?pm_version=2026.26.01`,
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken)
+      });
+      const getPostRes = await axios(getPostConfig);
+      existingPostData = getPostRes.data;
+      console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision}`);
+    } catch (getErr) {
+      console.warn(`[Poshmark Publisher] Failed to fetch existing listing data:`, getErr.response?.data || getErr.message);
+    }
   } else {
     console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
     try {
@@ -1023,6 +1036,45 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     return 'uln';
   };
 
+  let sizeQuantities = existingPostData?.inventory?.size_quantities || [];
+  if (sizeQuantities.length > 0) {
+    if (!existingPostData?.inventory?.multi_item) {
+      sizeQuantities[0].size_id = size;
+      sizeQuantities[0].size_obj = {
+        id: size,
+        short: size,
+        long: size,
+        display: size,
+        display_with_size_set: size,
+        display_with_size_system: `US ${size}`,
+        display_with_system_and_set: `US ${size}`,
+        equivalent_sizes: {},
+        size_system: "us"
+      };
+    }
+  } else {
+    sizeQuantities = [
+      {
+        size_id: size,
+        size_obj: {
+          id: size,
+          short: size,
+          long: size,
+          display: size,
+          display_with_size_set: size,
+          display_with_size_system: `US ${size}`,
+          display_with_system_and_set: `US ${size}`,
+          equivalent_sizes: {},
+          size_system: "us"
+        },
+        quantity_available: 1,
+        quantity_sold: 0,
+        size_system: "us",
+        size_set_tags: ["standard"]
+      }
+    ];
+  }
+
   const savePayload = {
     post: {
       title: listing.title,
@@ -1041,29 +1093,11 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       pictures: mediaIds.slice(1).map(id => ({ id })),
       cover_shot: mediaIds.length > 0 ? { id: mediaIds[0] } : null,
       inventory: {
-        status: "available",
-        multi_item: false,
-        size_quantity_revision: 0,
-        size_quantities: [
-          {
-            size_id: size,
-            size_obj: {
-              id: size,
-              short: size,
-              long: size,
-              display: size,
-              display_with_size_set: size,
-              display_with_size_system: `US ${size}`,
-              display_with_system_and_set: `US ${size}`,
-              equivalent_sizes: {},
-              size_system: "us"
-            },
-            quantity_available: 1,
-            quantity_sold: 0,
-            size_system: "us",
-            size_set_tags: ["standard"]
-          }
-        ]
+        status: existingPostData?.inventory?.status || "available",
+        status_changed_at: existingPostData?.inventory?.status_changed_at || undefined,
+        multi_item: existingPostData?.inventory?.multi_item || false,
+        size_quantity_revision: existingPostData?.inventory?.size_quantity_revision || 0,
+        size_quantities: sizeQuantities
       },
       offer_auto_actions_v2_enabled: false,
       seller_private_info: {},
