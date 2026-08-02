@@ -1383,6 +1383,11 @@ const NewListings = () => {
     const isListed = !!checkId && checkId !== '-';
     const isDraft = !isListed && ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
                     (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
+    const isDelisted = !isListed && (
+      (platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'delisted') || 
+      (!platformSpecificItem && item[`${platformName}Status`]?.toLowerCase() === 'delisted') ||
+      (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'delisted')
+    );
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
 
     if (isListed) {
@@ -1456,6 +1461,18 @@ const NewListings = () => {
               </button>
             </div>
           )}
+        </div>
+      );
+    } else if (isDelisted) {
+      return (
+        <div 
+          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
+          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
+        >
+          <div className="w-8 h-8 rounded-full border border-red-100 flex items-center justify-center bg-red-50/20 shadow-none shrink-0 group-hover:border-red-200">
+            <img src={logoSrc} className="w-5 h-5 object-contain opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all" alt={platformName} />
+          </div>
+          <span className="text-[10px] font-black text-red-550 mt-1 select-none group-hover:text-red-700">Delisted</span>
         </div>
       );
     } else if (isDraft) {

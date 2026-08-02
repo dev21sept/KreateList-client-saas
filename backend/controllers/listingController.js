@@ -907,62 +907,86 @@ exports.publishListing = async (req, res) => {
 
     // 8. Handle existing offers (to prevent SKU conflicts)
     const existingOffers = await ebayService.getOffers(token, sku);
+    let publishedFromExisting = false;
+    let ebayListingId;
+    let publishSuccess = false;
+
     if (existingOffers && existingOffers.length > 0) {
-      for (const existingOffer of existingOffers) {
+      // Find if there is a withdrawn offer that we can reactivate
+      const withdrawnOffer = existingOffers.find(o => o.status === 'WITHDRAWN');
+      if (withdrawnOffer) {
         try {
-          console.log(`[EBAY PUBLISH] Deleting existing offer: ${existingOffer.offerId}`);
-          await ebayService.deleteOffer(token, existingOffer.offerId);
-        } catch (delErr) {
-          console.warn(`[EBAY PUBLISH] Failed to delete existing offer ${existingOffer.offerId}:`, delErr.message);
+          console.log(`[EBAY PUBLISH] Found existing WITHDRAWN offer: ${withdrawnOffer.offerId}. Attempting to reactivate...`);
+          // Try to publish the withdrawn offer directly (relist)
+          const publishRes = await ebayService.publishOffer(token, withdrawnOffer.offerId);
+          ebayListingId = publishRes.listingId || withdrawnOffer.listingId;
+          publishSuccess = true;
+          publishedFromExisting = true;
+          console.log(`[EBAY PUBLISH] Successfully reactivated existing offer! Listing ID: ${ebayListingId}`);
+        } catch (reactivateErr) {
+          console.warn(`[EBAY PUBLISH] Failed to reactivate withdrawn offer, will delete and recreate:`, reactivateErr.message);
+        }
+      }
+
+      if (!publishedFromExisting) {
+        for (const existingOffer of existingOffers) {
+          try {
+            console.log(`[EBAY PUBLISH] Deleting existing offer: ${existingOffer.offerId}`);
+            await ebayService.deleteOffer(token, existingOffer.offerId);
+          } catch (delErr) {
+            console.warn(`[EBAY PUBLISH] Failed to delete existing offer ${existingOffer.offerId}:`, delErr.message);
+          }
         }
       }
     }
 
-    // 9. Create Offer
-    const offerData = {
-      sku: sku,
-      marketplaceId: 'EBAY_US',
-      format: 'FIXED_PRICE',
-      availableQuantity: listing.quantity || 1,
-      pricingSummary: {
-        price: {
-          value: String(listing.price),
-          currency: 'USD'
+    let offerId;
+    if (!publishedFromExisting) {
+      // 9. Create Offer
+      const offerData = {
+        sku: sku,
+        marketplaceId: 'EBAY_US',
+        format: 'FIXED_PRICE',
+        availableQuantity: listing.quantity || 1,
+        pricingSummary: {
+          price: {
+            value: String(listing.price),
+            currency: 'USD'
+          }
+        },
+        listingDescription: sanitizeEbayDescription(listing.description),
+        categoryId: listing.categoryId || '26315',
+        merchantLocationKey: locationKey,
+        listingPolicies: {
+          fulfillmentPolicyId,
+          paymentPolicyId,
+          returnPolicyId
         }
-      },
-      listingDescription: sanitizeEbayDescription(listing.description),
-      categoryId: listing.categoryId || '26315',
-      merchantLocationKey: locationKey,
-      listingPolicies: {
-        fulfillmentPolicyId,
-        paymentPolicyId,
-        returnPolicyId
-      }
-    };
+      };
 
-    console.log('[EBAY PUBLISH] Creating offer on eBay...');
-    const createOfferRes = await ebayService.createOffer(token, offerData);
-    const offerId = createOfferRes.offerId;
+      console.log('[EBAY PUBLISH] Creating new offer on eBay...');
+      const createOfferRes = await ebayService.createOffer(token, offerData);
+      offerId = createOfferRes.offerId;
+    }
 
     // 10. Publish Offer (with retries to handle eBay replication lag)
-    console.log(`[EBAY PUBLISH] Publishing offer: ${offerId}...`);
-    let ebayListingId;
-    let publishSuccess = false;
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const publishRes = await ebayService.publishOffer(token, offerId);
-        ebayListingId = publishRes.listingId;
-        publishSuccess = true;
-        break;
-      } catch (pubErr) {
-        const errObj = pubErr.response?.data?.errors?.[0] || {};
-        const errId = parseInt(errObj.errorId);
-        if ((errId === 25604 || errObj.message?.includes('Product not found')) && attempt < 3) {
-          console.warn(`[EBAY PUBLISH] eBay replication lag detected (Product not found). Retrying in 3 seconds... (Attempt ${attempt}/3)`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          throw pubErr;
+    if (!publishedFromExisting) {
+      console.log(`[EBAY PUBLISH] Publishing offer: ${offerId}...`);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const publishRes = await ebayService.publishOffer(token, offerId);
+          ebayListingId = publishRes.listingId;
+          publishSuccess = true;
+          break;
+        } catch (pubErr) {
+          const errObj = pubErr.response?.data?.errors?.[0] || {};
+          const errId = parseInt(errObj.errorId);
+          if ((errId === 25604 || errObj.message?.includes('Product not found')) && attempt < 3) {
+            console.warn(`[EBAY PUBLISH] eBay replication lag detected (Product not found). Retrying in 3 seconds... (Attempt ${attempt}/3)`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } else {
+            throw pubErr;
+          }
         }
       }
     }
@@ -1189,33 +1213,29 @@ exports.verifyListingLive = async (req, res) => {
     }
 
     if (!isLive) {
-      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Draft.`);
+      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Delisted.`);
       
       if (platform === 'poshmark') {
-        listing.poshmarkListingId = undefined;
-        listing.poshmarkUrl = undefined;
-        listing.poshmarkStatus = 'none';
+        listing.poshmarkStatus = 'delisted';
       } else if (platform === 'ebay') {
-        listing.ebayListingId = undefined;
-        listing.ebayUrl = undefined;
-        listing.ebayStatus = 'none';
+        listing.ebayStatus = 'delisted';
       } else if (platform === 'etsy') {
-        listing.etsyListingId = undefined;
-        listing.etsyUrl = undefined;
-        listing.etsyStatus = 'none';
+        listing.etsyStatus = 'delisted';
       } else if (platform === 'depop') {
-        listing.depopListingId = undefined;
-        listing.depopUrl = undefined;
-        listing.depopStatus = 'none';
+        listing.depopStatus = 'delisted';
       }
       
-      // If no platforms remain listed, set overall status to draft
-      if (!listing.ebayListingId && !listing.poshmarkListingId && !listing.etsyListingId && !listing.depopListingId) {
-        listing.status = 'draft';
+      // Check if there are no remaining active published platform listings
+      const hasActive = (listing.ebayStatus === 'published' || 
+                         listing.poshmarkStatus === 'published' || 
+                         listing.etsyStatus === 'published' || 
+                         listing.depopStatus === 'published');
+      if (!hasActive) {
+        listing.status = 'delisted';
       }
       
       await listing.save();
-      return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
+      return res.status(200).json({ success: true, isLive: false, status: 'delisted', data: listing });
     }
 
     res.status(200).json({ success: true, isLive: true });
@@ -1276,9 +1296,7 @@ exports.delistListing = async (req, res) => {
         console.warn(`[Delist Listing] No active eBay offers found for SKU ${sku}. Presuming already ended.`);
       }
       
-      listing.ebayListingId = undefined;
-      listing.ebayUrl = undefined;
-      listing.ebayStatus = 'none';
+      listing.ebayStatus = 'delisted';
       
     } else if (platformLower === 'poshmark') {
       if (!listing.poshmarkListingId) {
@@ -1292,9 +1310,7 @@ exports.delistListing = async (req, res) => {
       const { deletePoshmarkListing } = require('../services/backendPublishService');
       await deletePoshmarkListing(listing.poshmarkListingId, user.poshmarkAccount);
       
-      listing.poshmarkListingId = undefined;
-      listing.poshmarkUrl = undefined;
-      listing.poshmarkStatus = 'none';
+      listing.poshmarkStatus = 'delisted';
       
     } else if (platformLower === 'etsy') {
       if (!listing.etsyListingId) {
@@ -1308,9 +1324,7 @@ exports.delistListing = async (req, res) => {
       const { updateListingState } = require('../services/etsyService');
       await updateListingState(req.user.id, user.etsyAccount.shopId, listing.etsyListingId, 'inactive');
       
-      listing.etsyListingId = undefined;
-      listing.etsyUrl = undefined;
-      listing.etsyStatus = 'none';
+      listing.etsyStatus = 'delisted';
       
     } else if (platformLower === 'depop') {
       if (!listing.depopListingId) {
@@ -1327,16 +1341,18 @@ exports.delistListing = async (req, res) => {
         console.warn(`[Delist Listing] Depop cookie-based connection. Resetting locally. User must end manually on Depop.`);
       }
       
-      listing.depopListingId = undefined;
-      listing.depopUrl = undefined;
-      listing.depopStatus = 'none';
+      listing.depopStatus = 'delisted';
     } else {
       return res.status(400).json({ success: false, message: `Unsupported platform: ${platform}` });
     }
 
-    // Check if there are no remaining platform listings, update overall status
-    if (!listing.ebayListingId && !listing.poshmarkListingId && !listing.etsyListingId && !listing.depopListingId) {
-      listing.status = 'draft';
+    // Check if there are no remaining active published platform listings
+    const hasActive = (listing.ebayStatus === 'published' || 
+                       listing.poshmarkStatus === 'published' || 
+                       listing.etsyStatus === 'published' || 
+                       listing.depopStatus === 'published');
+    if (!hasActive) {
+      listing.status = 'delisted';
     }
 
     await listing.save();

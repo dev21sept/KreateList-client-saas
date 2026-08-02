@@ -34,7 +34,7 @@ const listingSchema = new mongoose.Schema({
   thumbnail: String,
   status: {
     type: String,
-    enum: ['draft', 'scheduled', 'published', 'failed'],
+    enum: ['draft', 'scheduled', 'published', 'failed', 'delisted'],
     default: 'draft'
   },
   ebayListingId: String,
@@ -130,22 +130,22 @@ const listingSchema = new mongoose.Schema({
   },
   ebayStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'
   },
   poshmarkStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'
   },
   depopStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'
   },
   etsyStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'
   },
   createdAt: {
