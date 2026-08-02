@@ -29,6 +29,12 @@ const orderSchema = new mongoose.Schema({
     thumbnail: String
   }],
   shippingStep: mongoose.Schema.Types.Mixed,
+  platform: {
+    type: String,
+    enum: ['ebay', 'depop', 'poshmark', 'vinted'],
+    default: 'ebay'
+  },
+  orderUrl: String,
   updated_at: {
     type: Date,
     default: Date.now

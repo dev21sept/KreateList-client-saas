@@ -75,6 +75,7 @@ const DomainRedirect = ({ children }) => {
       '/integrations',
       '/analytics',
       '/orders',
+      '/sales',
       '/create-listing',
       '/create-ebay-listing',
       '/create-ebay-bulk-listing',
@@ -152,6 +153,7 @@ const App = () => {
               <Route path="/listings" element={<Listings />} />
               <Route path="/crosslisting" element={<Listings />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/sales" element={<Navigate to="/orders" replace />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/integrations" element={<EbayAccounts />} />
               <Route path="/create-listing" element={<CreateListing />} />

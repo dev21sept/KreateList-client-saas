@@ -128,5 +128,11 @@ export const externalImportService = {
   getLive: (platform) => platform === 'depop' ? depopService.getLive() : poshmarkService.getLive()
 };
 
+export const orderService = {
+  getAll: () => API.get('/orders'),
+  sync: () => API.post('/orders/sync'),
+  update: (id, data) => API.put(`/orders/${id}`, data),
+  delete: (id) => API.delete(`/orders/${id}`),
+};
 
 export default API;

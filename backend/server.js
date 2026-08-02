@@ -78,6 +78,8 @@ app.use('/api/poshmark', require('./routes/poshmarkRoutes'));
 app.use('/api/depop', require('./routes/depopRoutes'));
 // Etsy Routes
 app.use('/api/etsy', require('./routes/etsyRoutes'));
+// Sales Orders Routes
+app.use('/api/orders', require('./routes/orderRoutes'));
 
 
 // Error Handler
