@@ -1066,45 +1066,123 @@ exports.verifyListingLive = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
 
-    let url = '';
-    if (listing.platform === 'poshmark') {
-      url = listing.poshmarkUrl;
-    } else if (listing.platform === 'ebay') {
-      url = listing.ebayUrl;
-    } else if (listing.platform === 'etsy') {
-      url = listing.etsyUrl;
-    } else if (listing.platform === 'depop') {
-      url = listing.depopUrl;
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (!url) {
-      listing.status = 'draft';
-      const platform = listing.platform || 'ebay';
-      listing[`${platform}Status`] = 'draft';
-      await listing.save();
-      return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
+    let isLive = false;
+    const platform = listing.platform || 'ebay';
+
+    if (platform === 'ebay') {
+      if (listing.ebayListingId && listing.sku) {
+        try {
+          const token = await getValidToken(req.user.id);
+          if (token) {
+            const { getOffers } = require('../services/ebayService');
+            const offers = await getOffers(token, listing.sku);
+            const activeOffer = offers && offers.find(o => o.listingId === listing.ebayListingId && o.status === 'PUBLISHED');
+            if (activeOffer) {
+              isLive = true;
+            }
+          }
+        } catch (err) {
+          console.warn(`[Verify Live] eBay API check failed:`, err.message);
+        }
+      }
+    } else if (platform === 'poshmark') {
+      if (listing.poshmarkListingId && user.poshmarkAccount && user.poshmarkAccount.connected) {
+        try {
+          const { getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
+          const domain = user.poshmarkAccount.domain || 'poshmark.com';
+          const headers = getPoshmarkHeaders(user.poshmarkAccount.sessionCookie, user.poshmarkAccount.csrfToken);
+          delete headers['origin'];
+          delete headers['content-type'];
+          
+          const config = getAxiosConfig({
+            method: 'GET',
+            url: `https://${domain}/vm-rest/posts/${listing.poshmarkListingId}?pm_version=2026.26.01`,
+            headers
+          });
+          const pmRes = await axios(config);
+          const postStatus = pmRes.data?.status || pmRes.data?.post?.status;
+          if (postStatus === 'available') {
+            isLive = true;
+          }
+        } catch (err) {
+          console.warn(`[Verify Live] Poshmark API check failed:`, err.message);
+        }
+      }
+    } else if (platform === 'etsy') {
+      if (listing.etsyListingId && user.etsyAccount && user.etsyAccount.connected && user.etsyAccount.shopId) {
+        try {
+          const { getValidToken: getEtsyToken, ETSY_CLIENT_ID, ETSY_CLIENT_SECRET } = require('../services/etsyService');
+          const accessToken = await getEtsyToken(req.user.id);
+          const response = await axios.get(`https://api.etsy.com/v3/application/shops/${user.etsyAccount.shopId}/listings/${listing.etsyListingId}`, {
+            headers: {
+              'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          if (response.data && response.data.state === 'active') {
+            isLive = true;
+          }
+        } catch (err) {
+          console.warn(`[Verify Live] Etsy API check failed:`, err.message);
+        }
+      }
+    } else if (platform === 'depop') {
+      if (listing.depopListingId) {
+        const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
+        const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
+        if (isPartner && apiKey && listing.sku) {
+          try {
+            const response = await axios.get(`https://webapi.depop.com/api/v1/products/by-sku/${listing.sku}/`, {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`
+              }
+            });
+            if (response.data && response.data.status === 'active') {
+              isLive = true;
+            }
+          } catch (err) {
+            console.warn(`[Verify Live] Depop Partner API check failed:`, err.message);
+          }
+        } else {
+          if (listing.depopUrl) {
+            isLive = await checkUrlActive(listing.depopUrl);
+          }
+        }
+      }
     }
 
-    const isLive = await checkUrlActive(url);
     if (!isLive) {
-      listing.status = 'draft';
-      if (listing.platform === 'poshmark') {
+      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Draft.`);
+      
+      if (platform === 'poshmark') {
         listing.poshmarkListingId = undefined;
         listing.poshmarkUrl = undefined;
         listing.poshmarkStatus = 'draft';
-      } else if (listing.platform === 'ebay') {
+      } else if (platform === 'ebay') {
         listing.ebayListingId = undefined;
         listing.ebayUrl = undefined;
         listing.ebayStatus = 'draft';
-      } else if (listing.platform === 'etsy') {
+      } else if (platform === 'etsy') {
         listing.etsyListingId = undefined;
         listing.etsyUrl = undefined;
         listing.etsyStatus = 'draft';
-      } else if (listing.platform === 'depop') {
+      } else if (platform === 'depop') {
         listing.depopListingId = undefined;
         listing.depopUrl = undefined;
         listing.depopStatus = 'draft';
       }
+      
+      // If no platforms remain listed, set overall status to draft
+      if (!listing.ebayListingId && !listing.poshmarkListingId && !listing.etsyListingId && !listing.depopListingId) {
+        listing.status = 'draft';
+      }
+      
       await listing.save();
       return res.status(200).json({ success: true, isLive: false, status: 'draft', data: listing });
     }
