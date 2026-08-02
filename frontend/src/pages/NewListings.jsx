@@ -1391,8 +1391,7 @@ const NewListings = () => {
       (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'delisted')
     );
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
-
-    if (isListed) {
+    if (isListed || isDelisted) {
       const liveUrl = getListingUrl(item, platformName, checkId);
 
       return (
@@ -1405,11 +1404,19 @@ const NewListings = () => {
             className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
             title="Click for options"
           >
-            <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-200">
-              <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
+            <div className={`w-8 h-8 rounded-full border flex items-center justify-center bg-white shadow-sm shrink-0 transition-colors ${
+              isListed 
+                ? 'border-slate-100 group-hover:border-indigo-200' 
+                : 'border-red-100 group-hover:border-red-300'
+            }`}>
+              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed ? '' : 'opacity-70 group-hover:opacity-100'}`} alt={platformName} />
             </div>
-            <span className="text-[10px] font-black text-emerald-600 mt-1 select-none group-hover:text-indigo-650 flex items-center gap-0.5">
-              Listed <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            <span className={`text-[10px] font-black mt-1 select-none flex items-center gap-0.5 ${
+              isListed 
+                ? 'text-emerald-600 group-hover:text-indigo-650' 
+                : 'text-red-500 group-hover:text-red-700'
+            }`}>
+              {isListed ? 'Listed' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </span>
             <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
           </div>
@@ -1453,28 +1460,30 @@ const NewListings = () => {
                 <RefreshCw size={13} className="text-amber-500 shrink-0" />
                 Move to New List
               </button>
-              <button
-                type="button"
-                onClick={() => handleDelistItem(item, platformName)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-              >
-                <Trash2 size={13} className="text-red-500 shrink-0" />
-                Delist Listing
-              </button>
+              {isListed ? (
+                <button
+                  type="button"
+                  onClick={() => handleDelistItem(item, platformName)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <Trash2 size={13} className="text-red-500 shrink-0" />
+                  Delist Listing
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveListedDropdown(null);
+                    handleOpenCrosslisting(platformSpecificItem || item, platformName);
+                  }}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-emerald-650 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <RefreshCw size={13} className="text-emerald-500 shrink-0" />
+                  Relist / Publish
+                </button>
+              )}
             </div>
           )}
-        </div>
-      );
-    } else if (isDelisted) {
-      return (
-        <div 
-          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
-          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
-        >
-          <div className="w-8 h-8 rounded-full border border-red-100 flex items-center justify-center bg-red-50/20 shadow-none shrink-0 group-hover:border-red-200">
-            <img src={logoSrc} className="w-5 h-5 object-contain opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all" alt={platformName} />
-          </div>
-          <span className="text-[10px] font-black text-red-550 mt-1 select-none group-hover:text-red-700">Delisted</span>
         </div>
       );
     } else if (isDraft) {
