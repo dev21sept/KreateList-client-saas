@@ -469,6 +469,44 @@ exports.updateListing = async (req, res) => {
       }
     }
 
+    // Background Poshmark Sync: If listed on Poshmark, sync changes in background
+    if (listing.poshmarkListingId || (listing.platform === 'poshmark' && listing.status === 'published')) {
+      (async () => {
+        try {
+          const User = require('../models/User');
+          const user = await User.findById(req.user.id);
+          if (user && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie && listing.poshmarkListingId) {
+            console.log(`[Listing Controller] [BG SYNC] Pushing updates to Poshmark for listing: ${listing.title}`);
+            const { publishToPoshmark } = require('../services/backendPublishService');
+            await publishToPoshmark(listing, user.poshmarkAccount);
+            console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully!`);
+          }
+        } catch (poshErr) {
+          console.error(`[Listing Controller] [BG SYNC] Poshmark sync failed:`, poshErr.message);
+        }
+      })();
+    }
+
+    // Background Depop Sync: If listed on Depop and has Partner API integration, sync changes in background
+    if (listing.depopListingId || (listing.platform === 'depop' && listing.status === 'published')) {
+      (async () => {
+        try {
+          const User = require('../models/User');
+          const user = await User.findById(req.user.id);
+          const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || (user && user.depopAccount && user.depopAccount.usePartnerApi));
+          const authToken = process.env.DEPOP_PARTNER_API_KEY || user?.depopAccount?.accessToken;
+          if (user && user.depopAccount && user.depopAccount.connected && isPartner && authToken && listing.depopListingId) {
+            console.log(`[Listing Controller] [BG SYNC] Pushing updates to Depop for listing: ${listing.title}`);
+            const { publishToDepop } = require('../services/backendPublishService');
+            await publishToDepop(listing, user.depopAccount);
+            console.log(`[Listing Controller] [BG SYNC] Depop updates synced successfully!`);
+          }
+        } catch (depopErr) {
+          console.error(`[Listing Controller] [BG SYNC] Depop sync failed:`, depopErr.message);
+        }
+      })();
+    }
+
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
