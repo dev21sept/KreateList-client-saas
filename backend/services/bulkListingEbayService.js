@@ -389,9 +389,27 @@ async function publishSingleEbayListing(listing, token) {
     const createOfferRes = await ebayService.createOffer(token, offerData);
     const offerId = createOfferRes.offerId;
 
-    // 10. Publish Offer
-    const publishRes = await ebayService.publishOffer(token, offerId);
-    const ebayListingId = publishRes.listingId;
+    // 10. Publish Offer (with retries to handle eBay replication lag)
+    let ebayListingId;
+    let publishSuccess = false;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const publishRes = await ebayService.publishOffer(token, offerId);
+        ebayListingId = publishRes.listingId;
+        publishSuccess = true;
+        break;
+      } catch (pubErr) {
+        const errObj = pubErr.response?.data?.errors?.[0] || {};
+        const errId = parseInt(errObj.errorId);
+        if ((errId === 25604 || errObj.message?.includes('Product not found')) && attempt < 3) {
+          console.warn(`[BULK EBAY PUBLISH] eBay replication lag detected (Product not found). Retrying in 3 seconds... (Attempt ${attempt}/3)`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+          throw pubErr;
+        }
+      }
+    }
 
     // Save success in database
     listing.status = 'published';
