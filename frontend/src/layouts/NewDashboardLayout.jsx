@@ -77,7 +77,7 @@ const NewDashboardLayout = () => {
     { title: 'Dashboard', subtitle: 'View performance and quotas', path: '/dashboard', type: 'page', badge: 'Overview' },
     { title: 'Listings', subtitle: 'Manage your local database', path: '/listings', type: 'page', badge: 'Inventory' },
     { title: 'New Listing', subtitle: 'Create a new AI-generated listing', path: 'new_listing_action', type: 'page', badge: 'AI Tool' },
-    { title: 'Sales', subtitle: 'View customer sales & invoices', path: '/orders', type: 'page', badge: 'Sales' },
+    { title: 'Orders', subtitle: 'View customer sales & invoices', path: '/orders', type: 'page', badge: 'Orders' },
     { title: 'Analytics', subtitle: 'View platform charts and metrics', path: '/analytics', type: 'page', badge: 'Reports' },
     { title: 'Subscription', subtitle: 'Manage active plans and billing', path: '/subscription', type: 'page', badge: 'Billing' },
     { title: 'Settings', subtitle: 'Change profile info or credentials', path: '/settings', type: 'page', badge: 'Account' },
@@ -210,7 +210,7 @@ const NewDashboardLayout = () => {
   const sidebarItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
-    { name: 'Sales', icon: <ShoppingBag size={20} />, path: '/orders' },
+    { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
     { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
@@ -224,7 +224,7 @@ const NewDashboardLayout = () => {
     if (path.includes('/dashboard')) return 'Dashboard';
     if (path.includes('/listings')) return 'Listings';
     if (path.includes('/crosslisting')) return 'Crosslisting';
-    if (path.includes('/sales') || path.includes('/orders')) return 'Sales';
+    if (path.includes('/sales') || path.includes('/orders')) return 'Orders';
     if (path.includes('/analytics')) return 'Analytics';
     if (path.includes('/subscription')) return 'Subscription';
     if (path.includes('/settings')) return 'Settings';

@@ -135,7 +135,7 @@ const Orders = () => {
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Sales Orders</h1>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Orders</h1>
           <p className="text-slate-400 text-xs mt-1 font-semibold">Track and manage multi-channel marketplace transactions</p>
         </div>
         <button 
@@ -144,7 +144,7 @@ const Orders = () => {
           className="flex items-center justify-center gap-2 px-5 py-3 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-indigo-650/15 disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing Sales...' : 'Sync Sales'}
+          {syncing ? 'Syncing Orders...' : 'Sync Orders'}
         </button>
       </div>
 
@@ -162,7 +162,7 @@ const Orders = () => {
           <div className="absolute right-4 top-4 p-2 bg-indigo-50/50 rounded-xl text-indigo-600">
             <DollarSign className="w-4 h-4" />
           </div>
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Sales</span>
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Revenue</span>
           <div>
             <p className="text-2xl font-black text-[#111827] mt-1">${totalRevenue.toFixed(2)}</p>
             <p className="text-[10px] text-emerald-600 font-extrabold mt-1 flex items-center gap-0.5">
@@ -206,7 +206,7 @@ const Orders = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search sales by ID, buyer or product title..."
+              placeholder="Search orders by ID, buyer or product title..."
               className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
             />
           </div>
@@ -260,8 +260,8 @@ const Orders = () => {
               <Package className="w-8 h-8" />
             </div>
             <div className="text-center">
-              <p className="text-slate-800 text-sm font-bold">No sales orders found</p>
-              <p className="text-slate-400 text-xs mt-1">Try changing filters or sync sales from connected marketplaces</p>
+              <p className="text-slate-800 text-sm font-bold">No orders found</p>
+              <p className="text-slate-400 text-xs mt-1">Try changing filters or sync orders from connected marketplaces</p>
             </div>
             <button
               onClick={handleSync}
