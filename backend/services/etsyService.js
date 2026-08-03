@@ -280,23 +280,21 @@ async function fetchEtsyListingsByState(userId, shopId, state, limit = 100) {
  */
 async function getEtsyInventory(userId, shopId) {
   const states = ['active', 'inactive', 'expired', 'sold_out'];
+  const tagged = [];
   try {
-    const settled = await Promise.allSettled(
-      states.map(state => fetchEtsyListingsByState(userId, shopId, state))
-    );
-
-    const tagged = [];
-    settled.forEach((result, idx) => {
-      const state = states[idx];
-      if (result.status === 'fulfilled') {
-        result.value.forEach(listing => {
+    for (const state of states) {
+      try {
+        console.log(`[Etsy Service] Fetching '${state}' inventory for shop: ${shopId}`);
+        const listings = await fetchEtsyListingsByState(userId, shopId, state);
+        listings.forEach(listing => {
           tagged.push({ ...listing, elisterStatus: state === 'active' ? 'active' : 'inactive' });
         });
-      } else {
-        console.error(`[Etsy Service] Fetch '${state}' inventory failed:`, result.reason?.response?.data || result.reason?.message);
+        // Add a small delay between states to avoid hammering the API
+        await new Promise(resolve => setTimeout(resolve, 250));
+      } catch (stateErr) {
+        console.error(`[Etsy Service] Fetch '${state}' inventory failed:`, stateErr.response?.data || stateErr.message);
       }
-    });
-
+    }
     return tagged;
   } catch (err) {
     console.error('[Etsy Service] Fetch inventory failed:', err.response?.data || err.message);

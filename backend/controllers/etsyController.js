@@ -21,6 +21,39 @@ function decodeHtmlEntities(str) {
     .replace(/&mdash;/g, '-');
 }
 
+function extractSizeAndColor(title, description) {
+  let size = '';
+  let color = '';
+  if (!title) return { size, color };
+  
+  const sizeRegex = /\b(?:size|sz)\s*([0-9a-zA-Z\-]+)\b/i;
+  const sizeMatch = title.match(sizeRegex) || (description && description.match(sizeRegex));
+  if (sizeMatch) {
+    size = sizeMatch[1];
+  }
+  
+  const colors = ['pink', 'blue', 'green', 'black', 'white', 'red', 'yellow', 'purple', 'orange', 'grey', 'gray', 'brown', 'navy', 'olive', 'gold', 'silver', 'floral'];
+  const words = title.toLowerCase().split(/[^a-zA-Z]/);
+  const foundColor = colors.find(c => words.includes(c));
+  if (foundColor) {
+    color = foundColor.charAt(0).toUpperCase() + foundColor.slice(1);
+  }
+  
+  return { size, color };
+}
+
+function extractBrand(title) {
+  if (!title) return '';
+  const commonBrands = ['nike', 'adidas', 'h&m', 'hm', 'under armour', 'abercrombie', 'levi\'s', 'levis', 'reebok', 'magicsuit', 'zara', 'gucci', 'prada', 'chanel', 'puma', 'champion'];
+  const lowerTitle = title.toLowerCase();
+  const found = commonBrands.find(b => lowerTitle.startsWith(b) || lowerTitle.includes(' ' + b));
+  if (found) {
+    return found.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+  const firstWord = title.split(' ')[0];
+  return firstWord || '';
+}
+
 const etsyService = require('../services/etsyService');
 
 exports.etsyConnect = async (req, res) => {
@@ -190,11 +223,21 @@ exports.syncEtsyInventory = async (req, res) => {
         ? item.images.map(img => img.url_570xN || img.url_fullxfull || img.url_170x135).filter(Boolean)
         : [];
 
+      const titleDecoded = decodeHtmlEntities(item.title);
+      const descDecoded = decodeHtmlEntities(item.description);
+      const { size: sizeVal, color: colorVal } = extractSizeAndColor(titleDecoded, descDecoded);
+      const brandVal = extractBrand(titleDecoded);
+      const categoryIdVal = item.taxonomy_id ? String(item.taxonomy_id) : '';
+
       const product = {
         user: userId,
-        title: decodeHtmlEntities(item.title),
-        description: decodeHtmlEntities(item.description),
+        title: titleDecoded,
+        description: descDecoded,
         sku,
+        brand: brandVal,
+        size: sizeVal,
+        color: colorVal,
+        categoryId: categoryIdVal,
         images,
         selling_price: item.price ? (item.price.amount / (item.price.divisor || 100)) : undefined,
         source: 'etsy',
@@ -222,8 +265,12 @@ exports.syncEtsyInventory = async (req, res) => {
         }
         
         if (sku) existingProduct.sku = sku;
-        if (item.title) existingProduct.title = decodeHtmlEntities(item.title);
-        if (item.description) existingProduct.description = decodeHtmlEntities(item.description);
+        if (item.title) existingProduct.title = titleDecoded;
+        if (item.description) existingProduct.description = descDecoded;
+        existingProduct.brand = brandVal;
+        existingProduct.size = sizeVal;
+        existingProduct.color = colorVal;
+        existingProduct.categoryId = categoryIdVal;
         if (images.length > 0) existingProduct.images = images;
         await existingProduct.save();
       } else {

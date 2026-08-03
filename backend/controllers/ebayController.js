@@ -377,16 +377,19 @@ exports.syncInventory = async (req, res) => {
           const isInactive = anyOffer?.status === 'WITHDRAWN' || (listingId && !isActive);
           const resolvedStatus = isActive ? 'active' : (isInactive ? 'inactive' : 'draft');
           
+          const categoryId = anyOffer?.categoryId || null;
+
           offersMap[item.sku] = anyOffer
             ? { 
                 status: resolvedStatus, 
                 listingId, 
+                categoryId,
                 price: anyOffer.pricingSummary?.price?.value || null 
               }
-            : { status: 'draft', listingId: null, price: null };
+            : { status: 'draft', listingId: null, categoryId: null, price: null };
         } catch (err) {
           console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
-          offersMap[item.sku] = { status: 'inactive', listingId: null };
+          offersMap[item.sku] = { status: 'draft', listingId: null, categoryId: null, price: null };
         }
       }));
 
@@ -416,10 +419,22 @@ exports.syncInventory = async (req, res) => {
         const offerInfo = offersMap[item.sku] || { status: 'inactive', listingId: null };
 
         let sizeVal = '';
+        let colorVal = '';
+        let brandVal = item.product.brand || '';
         if (item.product.aspects) {
           const sizeKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'size' || k.toLowerCase().includes('size ('));
           if (sizeKey && item.product.aspects[sizeKey] && item.product.aspects[sizeKey].length > 0) {
             sizeVal = item.product.aspects[sizeKey][0];
+          }
+          const colorKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'color' || k.toLowerCase() === 'colour');
+          if (colorKey && item.product.aspects[colorKey] && item.product.aspects[colorKey].length > 0) {
+            colorVal = item.product.aspects[colorKey][0];
+          }
+          if (!brandVal) {
+            const brandKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'brand');
+            if (brandKey && item.product.aspects[brandKey] && item.product.aspects[brandKey].length > 0) {
+              brandVal = item.product.aspects[brandKey][0];
+            }
           }
         }
 
@@ -429,8 +444,11 @@ exports.syncInventory = async (req, res) => {
           title: item.product.title,
           description: item.product.description,
           sku: item.sku,
-          brand: item.product.brand,
+          brand: brandVal,
           size: sizeVal,
+          color: colorVal,
+          categoryId: offerInfo.categoryId || '',
+          itemSpecifics: item.product.aspects || {},
           images: item.product.imageUrls || [],
           selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
           source: 'ebay',
@@ -467,8 +485,11 @@ exports.syncInventory = async (req, res) => {
           if (item.sku) existingProduct.sku = item.sku;
           if (item.product.title) existingProduct.title = item.product.title;
           if (item.product.description) existingProduct.description = item.product.description;
-          if (item.product.brand) existingProduct.brand = item.product.brand;
-          if (sizeVal) existingProduct.size = sizeVal;
+          existingProduct.brand = brandVal;
+          existingProduct.size = sizeVal;
+          existingProduct.color = colorVal;
+          existingProduct.categoryId = offerInfo.categoryId || '';
+          existingProduct.itemSpecifics = item.product.aspects || {};
           if (item.product.imageUrls && item.product.imageUrls.length > 0) existingProduct.images = item.product.imageUrls;
           await existingProduct.save();
         } else {

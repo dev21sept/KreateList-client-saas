@@ -287,6 +287,10 @@ exports.getListing = async (req, res) => {
             description: prod.description || prod.title,
             sku: prod.sku,
             brand: prod.brand,
+            size: prod.size,
+            color: prod.color,
+            categoryId: prod.categoryId,
+            itemSpecifics: prod.itemSpecifics || {},
             price: prod.selling_price || 0,
             images: prod.images || [],
             status: 'draft'
@@ -336,6 +340,10 @@ exports.updateListing = async (req, res) => {
             description: prod.description || prod.title,
             sku: prod.sku,
             brand: prod.brand,
+            size: prod.size,
+            color: prod.color,
+            categoryId: prod.categoryId,
+            itemSpecifics: prod.itemSpecifics || {},
             price: prod.selling_price || 0,
             images: prod.images || [],
             status: 'draft'
@@ -1356,6 +1364,10 @@ exports.delistListing = async (req, res) => {
             description: prod.description || prod.title,
             sku: prod.sku,
             brand: prod.brand,
+            size: prod.size,
+            color: prod.color,
+            categoryId: prod.categoryId,
+            itemSpecifics: prod.itemSpecifics || {},
             price: prod.selling_price || 0,
             images: prod.images || [],
             status: 'draft'

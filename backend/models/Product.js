@@ -14,6 +14,9 @@ const productSchema = new mongoose.Schema({
   sku: String,
   brand: String,
   size: String,
+  color: String,
+  categoryId: String,
+  itemSpecifics: mongoose.Schema.Types.Mixed,
   images: [String],
   selling_price: Number,
   source: {
