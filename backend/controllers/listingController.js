@@ -306,6 +306,16 @@ exports.getListing = async (req, res) => {
             listing.etsyUrl = prod.etsyUrl;
             listing.etsyStatus = prod.status === 'active' ? 'published' : 'delisted';
           }
+          if (prod.poshmarkListingId) {
+            listing.poshmarkListingId = prod.poshmarkListingId;
+            listing.poshmarkUrl = prod.poshmarkUrl;
+            listing.poshmarkStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.depopListingId) {
+            listing.depopListingId = prod.depopListingId;
+            listing.depopUrl = prod.depopUrl;
+            listing.depopStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
           await listing.save();
         }
       }
@@ -343,6 +353,7 @@ exports.updateListing = async (req, res) => {
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
+            category: prod.category_name || prod.category || 'Clothing',
             categoryId: prod.categoryId,
             itemSpecifics: prod.itemSpecifics || {},
             price: prod.selling_price || 0,
@@ -358,6 +369,16 @@ exports.updateListing = async (req, res) => {
             listing.etsyListingId = prod.etsyListingId;
             listing.etsyUrl = prod.etsyUrl;
             listing.etsyStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.poshmarkListingId) {
+            listing.poshmarkListingId = prod.poshmarkListingId;
+            listing.poshmarkUrl = prod.poshmarkUrl;
+            listing.poshmarkStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.depopListingId) {
+            listing.depopListingId = prod.depopListingId;
+            listing.depopUrl = prod.depopUrl;
+            listing.depopStatus = prod.status === 'active' ? 'published' : 'delisted';
           }
           await listing.save();
         }

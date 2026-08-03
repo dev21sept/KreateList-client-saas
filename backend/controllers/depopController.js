@@ -441,9 +441,61 @@ exports.depopGetLive = async (req, res) => {
       }
     }
     
+    const savedProducts = [];
+    for (const item of liveListings) {
+      let existingProduct = null;
+      if (item.sku) {
+        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku });
+      }
+
+      if (!existingProduct) {
+        const duplicateQuery = { 
+          user: req.user.id, 
+          source: 'depop',
+          $or: [
+            { depopListingId: item.depopListingId },
+            { depopUrl: item.depopUrl }
+          ]
+        };
+        existingProduct = await Product.findOne(duplicateQuery);
+      }
+
+      if (existingProduct) {
+        // Update details to match the latest live state
+        existingProduct.title = item.title;
+        existingProduct.description = item.description;
+        existingProduct.selling_price = parseFloat(item.price) || 0;
+        existingProduct.brand = item.brand || '';
+        existingProduct.size = item.size || '';
+        existingProduct.images = item.images;
+        existingProduct.status = item.status === 'active' ? 'live' : 'inactive';
+        existingProduct.updated_at = Date.now();
+        await existingProduct.save();
+        savedProducts.push(existingProduct);
+      } else {
+        const productPayload = {
+          user: req.user.id,
+          title: item.title,
+          description: item.description,
+          selling_price: parseFloat(item.price) || 0,
+          sku: item.sku,
+          brand: item.brand || '',
+          size: item.size || '',
+          images: item.images,
+          source: 'depop',
+          status: item.status === 'active' ? 'live' : 'inactive',
+          depopListingId: item.depopListingId,
+          depopUrl: item.depopUrl,
+          updated_at: Date.now()
+        };
+        const newProduct = await Product.create(productPayload);
+        savedProducts.push(newProduct);
+      }
+    }
+    
     res.status(200).json({
       success: true,
-      data: liveListings
+      data: savedProducts
     });
   } catch (err) {
     console.error(`[Depop Controller] Error getting live inventory:`, err.message);
