@@ -578,6 +578,59 @@ exports.updateListing = async (req, res) => {
       })();
     }
 
+    // Automatically update matched Product models cache to keep local Channel Inventory synced!
+    try {
+      const Product = require('../models/Product');
+      const updateFields = {
+        title: listing.title,
+        description: listing.description,
+        selling_price: listing.price,
+        brand: listing.brand,
+        size: listing.size,
+        color: listing.color,
+        images: listing.images,
+        thumbnail: listing.thumbnail,
+        updated_at: Date.now()
+      };
+      
+      // Update by SKU
+      if (listing.sku) {
+        await Product.updateMany(
+          { user: req.user.id, sku: listing.sku },
+          { $set: updateFields }
+        );
+      }
+      
+      // Update by individual platform listing IDs just in case SKU is missing or mismatching
+      if (listing.ebayListingId) {
+        await Product.updateMany(
+          { user: req.user.id, ebayListingId: listing.ebayListingId },
+          { $set: updateFields }
+        );
+      }
+      if (listing.etsyListingId) {
+        await Product.updateMany(
+          { user: req.user.id, etsyListingId: listing.etsyListingId },
+          { $set: updateFields }
+        );
+      }
+      if (listing.poshmarkListingId) {
+        await Product.updateMany(
+          { user: req.user.id, poshmarkListingId: listing.poshmarkListingId },
+          { $set: updateFields }
+        );
+      }
+      if (listing.depopListingId) {
+        await Product.updateMany(
+          { user: req.user.id, depopListingId: listing.depopListingId },
+          { $set: updateFields }
+        );
+      }
+      console.log(`[Listing Controller] Synced matched Product cache records with new listing updates.`);
+    } catch (cacheErr) {
+      console.warn(`[Listing Controller] Failed to update matched Product cache:`, cacheErr.message);
+    }
+
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -1084,7 +1137,20 @@ exports.publishListing = async (req, res) => {
       const Product = require('../models/Product');
       await Product.findOneAndUpdate(
         { user: listing.user, sku: listing.sku, source: 'ebay' },
-        { status: 'active', ebayListingId: ebayListingId, ebayUrl: listing.ebayUrl, updated_at: Date.now() }
+        { 
+          status: 'active', 
+          ebayListingId: ebayListingId, 
+          ebayUrl: listing.ebayUrl,
+          title: listing.title,
+          description: listing.description,
+          selling_price: listing.price,
+          brand: listing.brand,
+          size: listing.size,
+          color: listing.color,
+          images: listing.images,
+          thumbnail: listing.thumbnail,
+          updated_at: Date.now() 
+        }
       );
       console.log(`[EBAY PUBLISH] Updated synced Product status to active for SKU: ${sku}`);
     } catch (cacheErr) {
