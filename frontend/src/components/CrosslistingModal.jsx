@@ -1065,6 +1065,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       const selectedRuleObj = rules.find(r => (r._id || r.id) === selectedRule);
       const payload = {
         images: listing.images && listing.images.length > 0 ? listing.images : [listing.thumbnail],
+        platform: platform,
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         description_template: selectedRuleObj?.description_template || '',

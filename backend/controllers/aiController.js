@@ -188,7 +188,7 @@ exports.analyzeListing = async (req, res) => {
             return res.status(409).json({
                 success: false,
                 isDuplicate: true,
-                message: "This product has already been imported for eBay.",
+                message: `This product has already been imported for ${platform === 'ebay' ? 'eBay' : platform.charAt(0).toUpperCase() + platform.slice(1)}.`,
                 listingId: duplicate._id,
                 title: duplicate.title
             });
