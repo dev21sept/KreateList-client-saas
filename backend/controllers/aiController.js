@@ -228,8 +228,8 @@ exports.analyzeListing = async (req, res) => {
 2. Carefully read ALL visible tags, brand logos, model numbers, size labels, and text on the product/box.
 3. Use this deep visual and textual evidence to determine the exact product identity.
 4. If the product is clothing, footwear/shoes, or a fashion accessory, you MUST explicitly identify the target department/gender (e.g., Men's, Women's, Unisex, Kids', Boys', Girls') from the tags, styling, or labels, and you MUST prefix or include this department/gender explicitly in your 'category_query' (e.g. 'Mens Puffer Jacket' or 'Womens Athletic Shoes' instead of a generic 'Puffer Jacket' or 'Athletic Shoes').
-5. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level) on eBay. (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
-6. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206).`
+5. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level) on ${platform === 'ebay' ? 'eBay' : 'Etsy'}. (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
+6. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206) on eBay, or generic nodes on Etsy.`
                         },
                         ...imageContent
                     ]
@@ -244,24 +244,63 @@ exports.analyzeListing = async (req, res) => {
         let categoryPath = 'General';
 
         const query = categoryResult?.category_query || 'General';
-        try {
-            const appToken = await ebayService.getAppToken();
-            const suggestions = await ebayService.getCategorySuggestions(appToken, query);
-            if (suggestions && suggestions.length > 0) {
-                const bestSuggest = suggestions[0];
-                categoryId = bestSuggest.category.categoryId;
-
-                let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
-                ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
-                categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
+        if (platform === 'etsy') {
+            try {
+                console.log(`--- [AI] Resolving Etsy category for query: "${query}" ---`);
+                const { getEtsyTaxonomy } = require('./etsyAiController');
+                const taxonomy = await getEtsyTaxonomy();
                 
-                console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
-            } else {
+                // 1. Exact match
+                let matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase() === query.toLowerCase().trim());
+                
+                // 2. Fuzzy match
+                if (!matchedCat) {
+                    matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase().includes(query.toLowerCase().trim()));
+                }
+                
+                // 3. Level-based parts matching fallback
+                if (!matchedCat) {
+                    const parts = query.split('>').map(p => p.trim().toLowerCase());
+                    if (parts.length > 0) {
+                        const lastPart = parts[parts.length - 1];
+                        matchedCat = taxonomy.find(cat => cat.name.toLowerCase() === lastPart);
+                        if (!matchedCat) {
+                            matchedCat = taxonomy.find(cat => cat.name.toLowerCase().includes(lastPart));
+                        }
+                    }
+                }
+                
+                if (matchedCat) {
+                    categoryId = String(matchedCat.id);
+                    categoryPath = matchedCat.fullName;
+                    console.log(`[AI] Etsy Resolved Category: ${categoryPath} (ID: ${categoryId})`);
+                } else {
+                    categoryPath = query;
+                }
+            } catch (err) {
+                console.error("Failed to resolve Etsy category:", err.message);
                 categoryPath = query;
             }
-        } catch (err) {
-            console.error("Failed to fetch official category suggestions:", err.message);
-            categoryPath = query;
+        } else {
+            try {
+                const appToken = await ebayService.getAppToken();
+                const suggestions = await ebayService.getCategorySuggestions(appToken, query);
+                if (suggestions && suggestions.length > 0) {
+                    const bestSuggest = suggestions[0];
+                    categoryId = bestSuggest.category.categoryId;
+
+                    let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
+                    ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
+                    categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
+                    
+                    console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
+                } else {
+                    categoryPath = query;
+                }
+            } catch (err) {
+                console.error("Failed to fetch official category suggestions:", err.message);
+                categoryPath = query;
+            }
         }
 
         console.log(`✅ Phase 1: ${categoryPath} (ID: ${categoryId})`);
