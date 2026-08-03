@@ -1077,10 +1077,8 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       };
 
       let response;
-      if (platform === 'ebay') {
+      if (platform === 'ebay' || platform === 'etsy') {
         response = await aiService.analyze(payload);
-      } else if (platform === 'etsy') {
-        response = await aiService.etsyAnalyze(payload);
       } else if (platform === 'poshmark') {
         response = await aiService.poshmarkAnalyze(payload);
       } else if (platform === 'depop') {
@@ -1148,10 +1146,6 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           depopType: resolvedDepopType || prev.depopType,
           fastening: resolvedFastening || prev.fastening,
           fit: resolvedFit || prev.fit,
-          who_made: platform === 'etsy' ? (result.who_made || prev.who_made) : prev.who_made,
-          when_made: platform === 'etsy' ? (result.when_made || prev.when_made) : prev.when_made,
-          is_supply: platform === 'etsy' ? String(result.is_supply !== undefined ? result.is_supply : prev.is_supply) : prev.is_supply,
-          renewal: platform === 'etsy' ? (result.renewal || prev.renewal) : prev.renewal,
           isbn: result.isbn || prev.isbn,
           author: result.author || prev.author,
           bookTitle: result.bookTitle || prev.bookTitle,
@@ -2837,7 +2831,25 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       )}
 
                       {/* Product Condition & Condition Note (Synced) */}
-                      {platform !== 'etsy' && (
+                      {platform === 'etsy' ? (
+                        <div className="grid grid-cols-1 gap-4 mb-4">
+                          <div>
+                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Product Condition</label>
+                            <div className="relative">
+                              <select
+                                value={selectedCondition}
+                                onChange={handleConditionChange}
+                                className="w-full pl-3 pr-9 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer appearance-none h-12 transition-all font-sans"
+                              >
+                                {getConditions().map(c => (
+                                    <option key={c.id} value={c.label}>{c.label}</option>
+                                ))}
+                              </select>
+                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Product Condition</label>
