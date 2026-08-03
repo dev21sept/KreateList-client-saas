@@ -759,6 +759,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
         } else {
           toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
         }
+        window.dispatchEvent(new Event('elister-listings-update'));
         if (isModal && onClose) {
           onClose();
         } else {

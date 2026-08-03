@@ -624,6 +624,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
+        window.dispatchEvent(new Event('elister-listings-update'));
         toast.success(editId ? 'Listing updated successfully!' : 'Listing saved as Draft successfully!');
         if (isModal && onClose) {
           onClose();
@@ -674,6 +675,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
         const listingId = editId || createResponse.data.data._id || createResponse.data.data.id;
         const publishResponse = await listingService.publish(listingId);
         if (publishResponse.data.success) {
+          window.dispatchEvent(new Event('elister-listings-update'));
           toast.success('Listing published to eBay successfully!');
           if (isModal && onClose) {
             onClose();
@@ -681,6 +683,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
             navigate('/listings');
           }
         } else {
+          window.dispatchEvent(new Event('elister-listings-update'));
           toast.warning('Listing saved, but failed to publish to eBay: ' + (publishResponse.data.message || 'Unknown error'));
           if (isModal && onClose) {
             onClose();

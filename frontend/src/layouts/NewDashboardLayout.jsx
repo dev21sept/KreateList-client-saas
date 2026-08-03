@@ -726,11 +726,11 @@ const NewDashboardLayout = () => {
               </button>
 
               <div className="w-full">
-                {selectedPlatform === 'ebay' && <CreateEbayListing />}
+                {selectedPlatform === 'ebay' && <CreateEbayListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
-                {selectedPlatform === 'poshmark' && <CreatePoshmarkListing />}
-                {selectedPlatform === 'depop' && <CreateDepopListing />}
-                {selectedPlatform === 'etsy' && <CreateEtsyListing />}
+                {selectedPlatform === 'poshmark' && <CreatePoshmarkListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                {selectedPlatform === 'depop' && <CreateDepopListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                {selectedPlatform === 'etsy' && <CreateEtsyListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
               </div>
             </div>
           )}

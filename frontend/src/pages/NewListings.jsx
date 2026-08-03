@@ -525,6 +525,13 @@ const NewListings = () => {
 
   useEffect(() => {
     fetchListings();
+
+    const handleUpdate = () => {
+      fetchListings();
+      fetchChannelInventory();
+    };
+    window.addEventListener('elister-listings-update', handleUpdate);
+    return () => window.removeEventListener('elister-listings-update', handleUpdate);
   }, []);
 
   useEffect(() => {
@@ -2552,7 +2559,7 @@ const NewListings = () => {
         listing={selectedListing}
         platform={selectedPlatform}
         isEditMode={isEditMode}
-        onSyncSuccess={fetchListings}
+        onSyncSuccess={() => window.dispatchEvent(new Event('elister-listings-update'))}
       />
 
       {/* Preview Modal */}

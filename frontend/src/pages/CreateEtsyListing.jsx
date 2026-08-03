@@ -626,6 +626,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, onClose
         ? await listingService.update(editId, listingData)
         : await listingService.create(listingData);
       if (response.data.success) {
+        window.dispatchEvent(new Event('elister-listings-update'));
         toast.success(editId ? 'Listing updated successfully!' : 'Listing saved successfully!');
         if (isModal && onClose) {
           onClose();
@@ -682,6 +683,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, onClose
         : await listingService.create(listingData);
       
       if (response.data.success) {
+        window.dispatchEvent(new Event('elister-listings-update'));
         const createdListing = response.data.data;
         const activeListingId = editId || createdListing._id || createdListing.id;
         

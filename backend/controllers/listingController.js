@@ -289,6 +289,7 @@ exports.getListing = async (req, res) => {
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
+            category: prod.category_name || prod.category || 'Clothing',
             categoryId: prod.categoryId,
             itemSpecifics: prod.itemSpecifics || {},
             price: prod.selling_price || 0,

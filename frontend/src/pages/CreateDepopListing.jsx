@@ -1003,6 +1003,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             toast.success("Listing successfully published to Depop!");
           }
         }
+        window.dispatchEvent(new Event('elister-listings-update'));
         if (isModal && onClose) {
           onClose();
         } else {
