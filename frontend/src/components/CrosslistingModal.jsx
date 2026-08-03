@@ -551,7 +551,9 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       case 'depop': return DEPOP_CONDITIONS;
       case 'etsy': return [
         { id: 'new', label: 'New' },
-        { id: 'used', label: 'Used' }
+        { id: 'like_new', label: 'Like New' },
+        { id: 'good', label: 'Good' },
+        { id: 'fair', label: 'Fair' }
       ];
       default: return [];
     }
@@ -1075,8 +1077,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       };
 
       let response;
-      if (platform === 'ebay' || platform === 'etsy') {
+      if (platform === 'ebay') {
         response = await aiService.analyze(payload);
+      } else if (platform === 'etsy') {
+        response = await aiService.etsyAnalyze(payload);
       } else if (platform === 'poshmark') {
         response = await aiService.poshmarkAnalyze(payload);
       } else if (platform === 'depop') {
@@ -1144,6 +1148,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
           depopType: resolvedDepopType || prev.depopType,
           fastening: resolvedFastening || prev.fastening,
           fit: resolvedFit || prev.fit,
+          who_made: platform === 'etsy' ? (result.who_made || prev.who_made) : prev.who_made,
+          when_made: platform === 'etsy' ? (result.when_made || prev.when_made) : prev.when_made,
+          is_supply: platform === 'etsy' ? String(result.is_supply !== undefined ? result.is_supply : prev.is_supply) : prev.is_supply,
+          renewal: platform === 'etsy' ? (result.renewal || prev.renewal) : prev.renewal,
           isbn: result.isbn || prev.isbn,
           author: result.author || prev.author,
           bookTitle: result.bookTitle || prev.bookTitle,
