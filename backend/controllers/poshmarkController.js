@@ -275,11 +275,39 @@ exports.poshmarkPublish = async (req, res) => {
   try {
     const listingId = req.params.id;
 
-    const listing = await Listing.findById(listingId);
+    let listing = await Listing.findById(listingId);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(listingId);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku || '',
+            brand: prod.brand || '',
+            size: prod.size || '',
+            color: prod.color || '',
+            category: 'Clothing',
+            categoryId: prod.categoryId || '',
+            itemSpecifics: prod.itemSpecifics || {},
+            price: prod.selling_price || 0,
+            images: prod.images || [],
+            status: 'draft'
+          });
+          listing.poshmarkListingId = prod.poshmarkListingId;
+          listing.poshmarkUrl = prod.poshmarkUrl;
+          listing.poshmarkStatus = prod.status === 'active' ? 'published' : 'delisted';
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
-
     if (listing.user.toString() !== req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized to publish this listing' });
     }
@@ -314,6 +342,19 @@ exports.poshmarkPublish = async (req, res) => {
     listing.poshmarkUrl = publishResult.url;
 
     await listing.save();
+
+    // Automatically update matched Product model cache to keep Channel Inventory synced!
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndUpdate(
+        { user: listing.user, sku: listing.sku, source: 'poshmark' },
+        { status: 'active', poshmarkListingId: publishResult.id, poshmarkUrl: publishResult.url, updated_at: Date.now() }
+      );
+      console.log(`[Poshmark Controller] Updated synced Product status to active for SKU: ${listing.sku}`);
+    } catch (cacheErr) {
+      console.warn(`[Poshmark Controller] Failed to update matched Product cache:`, cacheErr.message);
+    }
+
     console.log(`[Poshmark Controller] Direct publishing successful! URL: ${publishResult.url}`);
 
     res.status(200).json({

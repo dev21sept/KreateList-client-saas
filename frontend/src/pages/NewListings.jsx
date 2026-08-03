@@ -1615,7 +1615,7 @@ const NewListings = () => {
     }
 
     const base = matched ? { ...matched } : { 
-      _id: product._id, 
+      _id: product._id || product.id || details.liveId || product.sku || Math.random().toString(), 
       title: product.title || details.title, 
       sku: product.sku || '',
       brand: product.brand || '',
