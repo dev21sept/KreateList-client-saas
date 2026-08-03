@@ -1049,10 +1049,12 @@ const NewListings = () => {
     // (eBay/Etsy via the synced Product cache, Poshmark via its own API's
     // status/inventory fields on each live-fetched post). Depop is still fetched
     // live without a real status signal, so it stays 'live' as before.
-    const status = (isEbay || isEtsy || isPoshmark) ? (product.status === 'active' ? 'active' : 'inactive') : 'live';
+    const status = (isEbay || isEtsy || isPoshmark) 
+      ? (product.status === 'active' ? 'active' : product.status === 'draft' ? 'draft' : 'inactive') 
+      : 'live';
 
     // Price
-    const price = (isEbay || isEtsy) ? product.selling_price : product.price;
+    const price = product.selling_price !== undefined ? product.selling_price : product.price;
     const parsedPrice = typeof price === 'number' ? price : parseFloat(price) || 0;
 
     // Live ID and URL
@@ -1612,7 +1614,18 @@ const NewListings = () => {
       matched = groupedListingsList.find(l => l.sku === product.sku || (l.skus || []).includes(product.sku));
     }
 
-    const base = matched ? { ...matched } : { _id: product._id, title: details.title, sku: product.sku };
+    const base = matched ? { ...matched } : { 
+      _id: product._id, 
+      title: product.title || details.title, 
+      sku: product.sku || '',
+      brand: product.brand || '',
+      size: product.size || '',
+      description: product.description || '',
+      price: product.selling_price || 0,
+      images: product.images || [],
+      status: 'draft',
+      isFromSyncedProduct: true
+    };
     delete base.listingsMap;
     base.platform = platformName;
     base[`${platformName}Url`] = details.url || base[`${platformName}Url`];
@@ -2135,9 +2148,11 @@ const NewListings = () => {
                         <td className="px-6 py-4.5">
                           {(selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark') ? (
                             <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                              details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 'bg-rose-50 text-rose-600'
+                              details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 
+                              details.status === 'draft' ? 'bg-[#fef7e0] text-[#b06000]' : 
+                              'bg-rose-50 text-rose-600'
                             }`}>
-                              {details.status === 'active' ? 'Active' : 'Inactive'}
+                              {details.status === 'active' ? 'Active' : details.status === 'draft' ? 'Draft' : 'Inactive'}
                             </span>
                           ) : (
                             <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${

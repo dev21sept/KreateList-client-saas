@@ -274,7 +274,38 @@ exports.createListing = async (req, res) => {
 // @access  Private
 exports.getListing = async (req, res) => {
   try {
-    const listing = await Listing.findById(req.params.id);
+    let listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku,
+            brand: prod.brand,
+            price: prod.selling_price || 0,
+            images: prod.images || [],
+            status: 'draft'
+          });
+          if (prod.ebayListingId) {
+            listing.ebayListingId = prod.ebayListingId;
+            listing.ebayUrl = prod.ebayUrl;
+            listing.ebayStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.etsyListingId) {
+            listing.etsyListingId = prod.etsyListingId;
+            listing.etsyUrl = prod.etsyUrl;
+            listing.etsyStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
@@ -293,6 +324,37 @@ exports.getListing = async (req, res) => {
 exports.updateListing = async (req, res) => {
   try {
     let listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku,
+            brand: prod.brand,
+            price: prod.selling_price || 0,
+            images: prod.images || [],
+            status: 'draft'
+          });
+          if (prod.ebayListingId) {
+            listing.ebayListingId = prod.ebayListingId;
+            listing.ebayUrl = prod.ebayUrl;
+            listing.ebayStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.etsyListingId) {
+            listing.etsyListingId = prod.etsyListingId;
+            listing.etsyUrl = prod.etsyUrl;
+            listing.etsyStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
@@ -1008,6 +1070,18 @@ exports.publishListing = async (req, res) => {
     listing.errorMessage = null;
     await listing.save();
 
+    // Automatically update matched Product model cache to keep Channel Inventory synced!
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndUpdate(
+        { user: listing.user, sku: listing.sku, source: 'ebay' },
+        { status: 'active', ebayListingId: ebayListingId, ebayUrl: listing.ebayUrl, updated_at: Date.now() }
+      );
+      console.log(`[EBAY PUBLISH] Updated synced Product status to active for SKU: ${sku}`);
+    } catch (cacheErr) {
+      console.warn(`[EBAY PUBLISH] Failed to update matched Product cache:`, cacheErr.message);
+    }
+
     console.log(`[EBAY PUBLISH] Successfully published listing! eBay ID: ${ebayListingId}`);
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
@@ -1269,7 +1343,46 @@ exports.delistListing = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Platform is required' });
     }
 
-    const listing = await Listing.findById(req.params.id);
+    let listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku,
+            brand: prod.brand,
+            price: prod.selling_price || 0,
+            images: prod.images || [],
+            status: 'draft'
+          });
+          const platformLower = platform.toLowerCase();
+          if (platformLower === 'ebay') {
+            listing.ebayListingId = prod.ebayListingId;
+            listing.ebayUrl = prod.ebayUrl;
+            listing.ebayStatus = 'published';
+          } else if (platformLower === 'etsy') {
+            listing.etsyListingId = prod.etsyListingId;
+            listing.etsyUrl = prod.etsyUrl;
+            listing.etsyStatus = 'published';
+          } else if (platformLower === 'poshmark') {
+            listing.poshmarkListingId = prod.poshmarkListingId;
+            listing.poshmarkUrl = prod.poshmarkUrl;
+            listing.poshmarkStatus = 'published';
+          } else if (platformLower === 'depop') {
+            listing.depopListingId = prod.depopListingId;
+            listing.depopUrl = prod.depopUrl;
+            listing.depopStatus = 'published';
+          }
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
@@ -1371,6 +1484,19 @@ exports.delistListing = async (req, res) => {
     }
 
     await listing.save();
+
+    // Automatically update matched Product model cache status to inactive to keep Channel Inventory synced!
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndUpdate(
+        { user: listing.user, sku: listing.sku, source: platformLower },
+        { status: 'inactive', updated_at: Date.now() }
+      );
+      console.log(`[Delist Listing] Updated synced Product status to inactive for platform: ${platformLower}, SKU: ${listing.sku}`);
+    } catch (cacheErr) {
+      console.warn(`[Delist Listing] Failed to update matched Product cache:`, cacheErr.message);
+    }
+
     console.log(`[Delist Listing] Successfully delisted item ${listing.title} from ${platformLower}`);
     res.status(200).json({ success: true, message: `Successfully delisted listing from ${platform}`, data: listing });
   } catch (err) {

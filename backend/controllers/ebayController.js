@@ -373,12 +373,17 @@ exports.syncInventory = async (req, res) => {
           // offer.listingId (which doesn't exist) - offer.status only reflects
           // whether the offer was ever published, not whether it's still live.
           const listingId = anyOffer?.listing?.listingId || null;
-          const isActive = anyOffer?.listing?.listingStatus
-            ? anyOffer.listing.listingStatus === 'ACTIVE'
-            : anyOffer?.status === 'PUBLISHED';
+          const isActive = anyOffer?.listing?.listingStatus === 'ACTIVE';
+          const isInactive = anyOffer?.status === 'WITHDRAWN' || (listingId && !isActive);
+          const resolvedStatus = isActive ? 'active' : (isInactive ? 'inactive' : 'draft');
+          
           offersMap[item.sku] = anyOffer
-            ? { status: isActive ? 'active' : 'inactive', listingId }
-            : { status: 'inactive', listingId: null };
+            ? { 
+                status: resolvedStatus, 
+                listingId, 
+                price: anyOffer.pricingSummary?.price?.value || null 
+              }
+            : { status: 'draft', listingId: null, price: null };
         } catch (err) {
           console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
           offersMap[item.sku] = { status: 'inactive', listingId: null };
@@ -427,7 +432,7 @@ exports.syncInventory = async (req, res) => {
           brand: item.product.brand,
           size: sizeVal,
           images: item.product.imageUrls || [],
-          selling_price: item.price?.value,
+          selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
           source: 'ebay',
           status: offerInfo.status,
           ebayListingId: offerInfo.listingId,
@@ -449,9 +454,16 @@ exports.syncInventory = async (req, res) => {
         if (existingProduct) {
           existingProduct.ebayListingId = offerInfo.listingId;
           existingProduct.ebayUrl = offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null;
-          if (item.price?.value) existingProduct.selling_price = parseFloat(item.price.value);
-          existingProduct.status = offerInfo.status;
-          existingProduct.updated_at = Date.now();
+          if (offerInfo.price) {
+            existingProduct.selling_price = parseFloat(offerInfo.price);
+          }
+          
+          // Only update updated_at if status changed to preserve listing age
+          if (existingProduct.status !== offerInfo.status) {
+            existingProduct.status = offerInfo.status;
+            existingProduct.updated_at = Date.now();
+          }
+          
           if (item.sku) existingProduct.sku = item.sku;
           if (item.product.title) existingProduct.title = item.product.title;
           if (item.product.description) existingProduct.description = item.product.description;

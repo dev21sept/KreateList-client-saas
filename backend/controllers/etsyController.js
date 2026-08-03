@@ -3,6 +3,24 @@ const User = require('../models/User');
 const Listing = require('../models/Listing');
 const Product = require('../models/Product');
 const DeletedProduct = require('../models/DeletedProduct');
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&rsquo;/g, "'")
+    .replace(/&lsquo;/g, "'")
+    .replace(/&ldquo;/g, '"')
+    .replace(/&rdquo;/g, '"')
+    .replace(/&ndash;/g, '-')
+    .replace(/&mdash;/g, '-');
+}
+
 const etsyService = require('../services/etsyService');
 
 exports.etsyConnect = async (req, res) => {
@@ -174,8 +192,8 @@ exports.syncEtsyInventory = async (req, res) => {
 
       const product = {
         user: userId,
-        title: item.title,
-        description: item.description,
+        title: decodeHtmlEntities(item.title),
+        description: decodeHtmlEntities(item.description),
         sku,
         images,
         selling_price: item.price ? (item.price.amount / (item.price.divisor || 100)) : undefined,
@@ -196,11 +214,16 @@ exports.syncEtsyInventory = async (req, res) => {
         existingProduct.etsyListingId = listingId;
         existingProduct.etsyUrl = product.etsyUrl;
         if (product.selling_price !== undefined) existingProduct.selling_price = product.selling_price;
-        existingProduct.status = product.status;
-        existingProduct.updated_at = Date.now();
+        
+        // Only update updated_at if status changed to preserve listing age
+        if (existingProduct.status !== product.status) {
+          existingProduct.status = product.status;
+          existingProduct.updated_at = Date.now();
+        }
+        
         if (sku) existingProduct.sku = sku;
-        if (item.title) existingProduct.title = item.title;
-        if (item.description) existingProduct.description = item.description;
+        if (item.title) existingProduct.title = decodeHtmlEntities(item.title);
+        if (item.description) existingProduct.description = decodeHtmlEntities(item.description);
         if (images.length > 0) existingProduct.images = images;
         await existingProduct.save();
       } else {
@@ -380,6 +403,18 @@ exports.etsyPublish = async (req, res) => {
     listing.etsyListingId = String(etsyListingId);
     listing.etsyUrl = etsyUrl;
     await listing.save();
+
+    // Automatically update matched Product model cache to keep Channel Inventory synced!
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndUpdate(
+        { user: listing.user, sku: listing.sku, source: 'etsy' },
+        { status: 'active', etsyListingId: String(etsyListingId), etsyUrl: etsyUrl, updated_at: Date.now() }
+      );
+      console.log(`[Etsy Controller] Updated synced Product status to active for SKU: ${listing.sku}`);
+    } catch (cacheErr) {
+      console.warn(`[Etsy Controller] Failed to update matched Product cache:`, cacheErr.message);
+    }
 
     console.log(`[Etsy Controller] Direct publishing successful! URL: ${etsyUrl}`);
     res.status(200).json({
