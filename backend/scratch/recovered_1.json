@@ -1,0 +1,102 @@
+{
+  "quantity": 1,
+  "title": "Reebok St. Patrick's Day Green Cotton ",
+  "description": "Celebrate St. Patrick's Day in style with this Reebok T-shirt. Made from 100% cotton for comfort.",
+  "price": "550.00",
+  "who_made": "someone_else",
+  "when_made": "1990s",
+  "is_supply": false,
+  "shipping_profile_id": 312000147643
+}
+2026-08-02 18:50:52: [Listing Controller] Successfully synced live changes to Etsy for Listing ID: 4545790691
+2026-08-02 18:50:52: PUT /api/listings/6a691207995dc7cf71aeda2f 200 617.227 ms - 1938
+2026-08-02 18:50:52: OPTIONS /api/listings/stats
+2026-08-02 18:50:52: OPTIONS /api/listings
+2026-08-02 18:50:52: GET /api/listings
+2026-08-02 18:50:52: GET /api/listings/stats
+2026-08-02 18:50:52: GET /api/listings 200 11.292 ms - 8709
+2026-08-02 18:50:52: GET /api/listings/stats 200 26.922 ms - 11519
+2026-08-02 18:51:31: OPTIONS /api/listings/6a691207995dc7cf71aeda2f
+2026-08-02 18:51:31: GET /uploads/img_1785270791033_kphy21.jpg
+2026-08-02 18:51:31: GET /uploads/img_1785270791033_kphy21.jpg 304 0.729 ms - -
+2026-08-02 18:51:31: GET /uploads/img_1785270791338_mbrdp3.jpg
+2026-08-02 18:51:31: OPTIONS /api/etsy/shipping-profiles
+2026-08-02 18:51:31: GET /uploads/img_1785270791338_mbrdp3.jpg 304 1.871 ms - -
+2026-08-02 18:51:31: GET /uploads/img_1785270791582_s95yrv.jpg
+2026-08-02 18:51:31: GET /uploads/img_1785270791582_s95yrv.jpg 304 0.723 ms - -
+2026-08-02 18:51:31: GET /uploads/img_1785270790743_8edr0z.jpg
+2026-08-02 18:51:31: GET /uploads/img_1785270790743_8edr0z.jpg 304 0.665 ms - -
+2026-08-02 18:51:31: OPTIONS /api/rules
+2026-08-02 18:51:31: OPTIONS /api/etsy/categories/386/properties
+2026-08-02 18:51:31: OPTIONS /api/etsy/resolve-category?path=Clothing+%3E+Unisex+Clothing+%3E+Tops
+2026-08-02 18:51:31: GET /api/listings/6a691207995dc7cf71aeda2f
+2026-08-02 18:51:31: GET /api/listings/6a691207995dc7cf71aeda2f 200 5.322 ms - 1938
+2026-08-02 18:51:31: GET /api/etsy/shipping-profiles
+2026-08-02 18:51:31: GET /api/rules
+2026-08-02 18:51:31: GET /api/rules 304 5.079 ms - -
+2026-08-02 18:51:31: GET /api/etsy/categories/386/properties
+2026-08-02 18:51:31: GET /api/etsy/resolve-category?path=Clothing+%3E+Unisex+Clothing+%3E+Tops
+2026-08-02 18:51:31: GET /api/etsy/resolve-category?path=Clothing+%3E+Unisex+Clothing+%3E+Tops 304 5.233 ms - -
+2026-08-02 18:51:31: GET /api/etsy/shipping-profiles 304 334.019 ms - -
+2026-08-02 18:51:31: GET /api/etsy/categories/386/properties 304 408.003 ms - -
+2026-08-02 18:51:31: GET /api/etsy/categories/386/properties
+2026-08-02 18:51:32: GET /api/etsy/categories/386/properties 304 388.735 ms - -
+2026-08-02 18:51:38: OPTIONS /api/listings/6a691207995dc7cf71aeda2f
+2026-08-02 18:51:38: PUT /api/listings/6a691207995dc7cf71aeda2f
+2026-08-02 18:51:38: [Listing Controller] Live Syncing core data to Etsy for Listing ID: 4545790691
+2026-08-02 18:51:38: [Etsy Service] Outgoing updateEtsyListing payload: {
+  "quantity": 1,
+  "title": "Reebok St. Patrick's",
+  "description": "Celebrate St. Patrick's Day in style with this Reebok T-shirt. Made from 100% cotton for comfort.",
+  "price": "550.00",
+  "who_made": "someone_else",
+  "when_made": "1990s",
+  "is_supply": false,
+  "shipping_profile_id": 312000147643
+}
+2026-08-02 18:51:38: [Listing Controller] Successfully synced live changes to Etsy for Listing ID: 4545790691
+2026-08-02 18:51:38: PUT /api/listings/6a691207995dc7cf71aeda2f 200 492.054 ms - 1920
+2026-08-02 18:51:38: OPTIONS /api/listings
+2026-08-02 18:51:38: OPTIONS /api/listings/stats
+2026-08-02 18:51:38: GET /api/listings/stats
+2026-08-02 18:51:38: GET /api/listings
+2026-08-02 18:51:38: GET /api/listings 200 8.014 ms - 8691
+2026-08-02 18:51:38: GET /api/listings/stats 200 22.464 ms - 11501
+2026-08-02 18:51:57: GET /uploads/img_1785270791338_mbrdp3.jpg
+2026-08-02 18:51:57: GET /uploads/img_1785270791338_mbrdp3.jpg 304 0.784 ms - -
+2026-08-02 18:51:57: GET /uploads/img_1785270791582_s95yrv.jpg
+2026-08-02 18:51:57: GET /uploads/img_1785270791582_s95yrv.jpg 304 0.555 ms - -
+2026-08-02 18:51:57: GET /uploads/img_1785270791033_kphy21.jpg
+2026-08-02 18:51:57: GET /uploads/img_1785270791033_kphy21.jpg 304 0.649 ms - -
+2026-08-02 18:51:57: GET /uploads/img_1785270790743_8edr0z.jpg
+2026-08-02 18:51:57: GET /uploads/img_1785270790743_8edr0z.jpg 304 0.573 ms - -
+2026-08-02 18:51:57: OPTIONS /api/rules
+2026-08-02 18:51:57: OPTIONS /api/listings/6a3d5b6972cb424f06428b06
+2026-08-02 18:51:57: GET /api/listings/6a3d5b6972cb424f06428b06
+2026-08-02 18:51:57: GET /api/listings/6a3d5b6972cb424f06428b06 200 6.873 ms - 2651
+2026-08-02 18:51:57: GET /api/rules
+2026-08-02 18:51:57: GET /api/rules 304 5.544 ms - -
+2026-08-02 18:51:57: GET /uploads/img_1782405993037_hrjl3u.jpg
+2026-08-02 18:51:57: GET /uploads/img_1782405992804_zhz9p4.jpg
+2026-08-02 18:51:57: GET /uploads/img_1782405992910_ubgv67.jpg
+2026-08-02 18:51:57: GET /uploads/img_1782405992688_m7wupv.jpg
+2026-08-02 18:51:57: GET /uploads/img_1782405993037_hrjl3u.jpg 200 4.212 ms - 82333
+2026-08-02 18:51:57: GET /uploads/img_1782405992804_zhz9p4.jpg 200 3.548 ms - 99393
+2026-08-02 18:51:57: GET /uploads/img_1782405992910_ubgv67.jpg 200 3.095 ms - 73837
+2026-08-02 18:51:57: GET /uploads/img_1782405992688_m7wupv.jpg 200 2.907 ms - 108504
+2026-08-02 18:51:57: GET /uploads/img_1782405993151_16ee3p.jpg
+2026-08-02 18:51:57: GET /uploads/img_1782405993151_16ee3p.jpg 200 2.146 ms - 127498
+2026-08-02 18:52:10: OPTIONS /api/listings/6a3d5b6972cb424f06428b06
+2026-08-02 18:52:10: PUT /api/listings/6a3d5b6972cb424f06428b06
+2026-08-02 18:52:10: PUT /api/listings/6a3d5b6972cb424f06428b06 200 12.001 ms - 3033
+2026-08-02 18:52:10: OPTIONS /api/listings
+2026-08-02 18:52:10: OPTIONS /api/listings/stats
+2026-08-02 18:52:10: GET /api/listings
+2026-08-02 18:52:10: GET /api/listings 200 7.184 ms - 9054
+2026-08-02 18:52:10: GET /api/listings/stats
+2026-08-02 18:52:10: GET /api/listings/stats 200 19.771 ms - 11864
+
+
+
+Log: file:///C:/Users/user/.gemini/antigravity/brain/6d259fa0-fa10-467d-8539-aaa3c2a69afb/.system_generated/tasks/task-486.log
+</SYSTEM_MESSAGE>

@@ -1056,8 +1056,8 @@ const NewListings = () => {
     // (eBay/Etsy via the synced Product cache, Poshmark via its own API's
     // status/inventory fields on each live-fetched post). Depop is still fetched
     // live without a real status signal, so it stays 'live' as before.
-    const status = (isEbay || isEtsy || isPoshmark) 
-      ? (product.status === 'active' ? 'active' : product.status === 'draft' ? 'draft' : 'inactive') 
+    const status = (isEbay || isEtsy || isPoshmark || isDepop) 
+      ? ((product.status === 'active' || product.status === 'live') ? 'active' : product.status === 'draft' ? 'draft' : 'inactive') 
       : 'live';
 
     // Price

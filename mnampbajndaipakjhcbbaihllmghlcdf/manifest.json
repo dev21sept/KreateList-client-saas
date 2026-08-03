@@ -1,0 +1,140 @@
+{
+"update_url": "https://clients2.google.com/service/update2/crx",
+
+  "name": "Vendoo Crosslist Extension v3",
+  "version": "3.1.10",
+  "description": "Connect and crosslist to 10+ third party marketplaces with Vendoo!",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://web.vendoo.co/*",
+      "https://internal-beta.vendoo.co/*",
+      "https://enterprise.vendoo.co/*",
+      "https://enterprise-internal-beta.vendoo.co/*"
+    ]
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "vendooWeb.js"
+      ],
+      "matches": [
+        "*://web.vendoo.co/*",
+        "*://internal-beta.vendoo.co/*",
+        "*://enterprise.vendoo.co/*",
+        "*://enterprise-internal-beta.vendoo.co/*"
+      ]
+    },
+    {
+      "js": [
+        "execPageScriptContent.js"
+      ],
+      "matches": [
+        "*://www.facebook.com/*",
+        "*://web.facebook.com/*",
+        "*://www.mercari.com/*",
+        "*://www.kidizen.com/*",
+        "*://www.depop.com/*",
+        "*://*.tradesy.com/*",
+        "*://www.grailed.com/*",
+        "*://*.poshmark.com/*",
+        "*://*.etsy.com/*",
+        "*://*.myshopify.com/*",
+        "*://*.admin.shopify.com/*",
+        "*://*.vestiairecollective.com/*",
+        "*://*.vinted.co.uk/*",
+        "*://*.vinted.com/*",
+        "*://*.ebay.co.uk/*",
+        "*://*.ebay.com/lstng?draftId=*&mode=AddItem"
+      ]
+    },
+    {
+      "js": [
+        "interceptRequest.js"
+      ],
+      "matches": [
+        "*://www.facebook.com/*"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "scripts/patch.js"
+      ],
+      "matches": [
+        "*://www.facebook.com/*",
+        "*://web.facebook.com/*",
+        "*://www.mercari.com/*",
+        "*://www.kidizen.com/*",
+        "*://www.depop.com/*",
+        "*://*.tradesy.com/*",
+        "*://www.grailed.com/*",
+        "*://*.poshmark.com/*",
+        "*://*.etsy.com/*",
+        "*://*.myshopify.com/*",
+        "*://*.admin.shopify.com/*",
+        "*://*.vestiairecollective.com/*",
+        "*://*.vinted.co.uk/*",
+        "*://*.vinted.com/*",
+        "*://*.ebay.co.uk/*",
+        "*://web.vendoo.co/*",
+        "*://internal-beta.vendoo.co/*",
+        "*://enterprise.vendoo.co/*",
+        "*://enterprise-internal-beta.vendoo.co/*"
+      ]
+    }
+  ],
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+    "background",
+    "tabs",
+    "cookies",
+    "alarms",
+    "storage",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "*://*.vendoo.co/*",
+    "*://*.web.app/*",
+    "*://*.depop.com/*",
+    "*://*.kidizen.com/*",
+    "*://*.facebook.com/*",
+    "*://*.mercari.com/*",
+    "*://*.grailed.com/*",
+    "*://*.poshmark.com/*",
+    "*://*.tradesy.com/*",
+    "https://garage-pictures-0.s3.amazonaws.com/*",
+    "https://cdn1.identitymind.com/dfp-wrapper/*",
+    "*://*.filepicker.io/*",
+    "*://*.s3.amazonaws.com/*",
+    "*://*.myshopify.com/*",
+    "*://*.vestiairecollective.com/*",
+    "*://*.vinted.co.uk/*",
+    "*://*.vinted.com/*",
+    "*://*.ebay.co.uk/*",
+    "https://api.mapbox.com/*",
+    "*://*.s3-accelerate.amazonaws.com/*",
+    "*://*.braze.com/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "rules",
+        "enabled": true,
+        "path": "corsRules.json"
+      }
+    ]
+  },
+  "optional_permissions": [],
+  "icons": {
+    "16": "icons/vendoo_16.png",
+    "32": "icons/vendoo_32.png",
+    "48": "icons/vendoo_48.png",
+    "128": "icons/vendoo_128.png"
+  }
+}
