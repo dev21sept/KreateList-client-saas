@@ -2343,7 +2343,33 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       )}
 
                       {/* Size */}
-                      {platform !== 'depop' ? (
+                      {platform === 'etsy' ? (
+                        <div>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Size</label>
+                          {etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size') ? (
+                            (() => {
+                              const prop = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
+                              const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                              return (
+                                <SearchableDropdown
+                                  value={formData.size}
+                                  onSelect={(opt) => handleInputChange('size', opt.label)}
+                                  options={valOptions}
+                                  placeholder="Select Size..."
+                                />
+                              );
+                            })()
+                          ) : (
+                            <input
+                              type="text"
+                              value={formData.size}
+                              onChange={(e) => handleInputChange('size', e.target.value)}
+                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                              placeholder="Size..."
+                            />
+                          )}
+                        </div>
+                      ) : platform !== 'depop' ? (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Size</label>
                           <input
@@ -2382,7 +2408,33 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       )}
 
                       {/* Color */}
-                      {platform === 'poshmark' ? (
+                      {platform === 'etsy' ? (
+                        <div>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Color</label>
+                          {etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color') ? (
+                            (() => {
+                              const prop = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
+                              const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                              return (
+                                <SearchableDropdown
+                                  value={formData.color}
+                                  onSelect={(opt) => handleInputChange('color', opt.label)}
+                                  options={valOptions}
+                                  placeholder="Select Color..."
+                                />
+                              );
+                            })()
+                          ) : (
+                            <input
+                              type="text"
+                              value={formData.color}
+                              onChange={(e) => handleInputChange('color', e.target.value)}
+                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                              placeholder="Color..."
+                            />
+                          )}
+                        </div>
+                      ) : platform === 'poshmark' ? (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Colors (Max 2)</label>
                           <ColorMultiSelectDropdown 
@@ -2413,7 +2465,7 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                       )}
 
                       {/* Material */}
-                      {platform === 'depop' && (
+                      {platform === 'depop' ? (
                         <div>
                           <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Material</label>
                           <SearchableDropdown 
@@ -2423,12 +2475,39 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                             placeholder="Select Depop material..."
                           />
                         </div>
-                      )}
-
-                      {/* Style Tags (Poshmark & Depop) */}
-                      {(platform === 'poshmark' || platform === 'depop') && (
+                      ) : platform === 'etsy' ? (
                         <div>
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Style Tags (Style Tag)</label>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">Materials</label>
+                          {etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi') ? (
+                            (() => {
+                              const prop = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
+                              const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
+                              return (
+                                <SearchableDropdown
+                                  value={formData.material}
+                                  onSelect={(opt) => handleInputChange('material', opt.label)}
+                                  options={valOptions}
+                                  placeholder="Select Material..."
+                                />
+                              );
+                            })()
+                          ) : (
+                            <input
+                              value={formData.material}
+                              onChange={(e) => handleInputChange('material', e.target.value)}
+                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                              placeholder="e.g. Chenille, Cotton (up to 4)"
+                            />
+                          )}
+                        </div>
+                      ) : null}
+
+                      {/* Style Tags (Poshmark, Depop & Etsy) */}
+                      {(platform === 'poshmark' || platform === 'depop' || platform === 'etsy') && (
+                        <div>
+                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block mb-1">
+                            {platform === 'etsy' ? 'Style Tags (Up to 13)' : 'Style Tags (Style Tag)'}
+                          </label>
                           {platform === 'poshmark' ? (
                             <SearchableDropdown 
                               value={formData.styleTag}
@@ -2436,12 +2515,19 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
                               options={POSHMARK_STYLE_TAGS.map(t => ({ id: t, label: t }))}
                               placeholder="Select style tag..."
                             />
-                          ) : (
+                          ) : platform === 'depop' ? (
                             <SearchableDropdown 
                               value={formData.styleTag}
                               onSelect={(opt) => handleInputChange('styleTag', opt.label)}
                               options={DEPOP_STYLES.map(s => ({ id: s.id, label: s.label }))}
                               placeholder="Select style tag..."
+                            />
+                          ) : (
+                            <input
+                              value={formData.styleTag}
+                              onChange={(e) => handleInputChange('styleTag', e.target.value)}
+                              className="w-full px-4 h-12 bg-white border border-[#e2e8f0] focus:border-indigo-500 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all text-xs font-bold text-slate-700"
+                              placeholder="e.g. vintage, cottagecore"
                             />
                           )}
                         </div>
