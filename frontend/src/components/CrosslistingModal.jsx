@@ -6,6 +6,9 @@ import CategorySearchDropdown from './CategorySearchDropdown';
 import { aiService, listingService, ruleService, externalImportService, ebayService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import CreateEtsyListing from '../pages/CreateEtsyListing';
+import CreateEbayListing from '../pages/CreateEbayListing';
+import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
+import CreateDepopListing from '../pages/CreateDepopListing';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
@@ -1576,6 +1579,57 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto scrollbar-thin shadow-2xl flex flex-col p-6 border border-[#e2e8f0]">
           <CreateEtsyListing 
+            isModal={true} 
+            editId={listing._id || listing.id} 
+            onClose={() => {
+              if (onSyncSuccess) onSyncSuccess();
+              onClose();
+            }} 
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === 'ebay') {
+    return (
+      <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto scrollbar-thin shadow-2xl flex flex-col p-6 border border-[#e2e8f0]">
+          <CreateEbayListing 
+            isModal={true} 
+            editId={listing._id || listing.id} 
+            onClose={() => {
+              if (onSyncSuccess) onSyncSuccess();
+              onClose();
+            }} 
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === 'poshmark') {
+    return (
+      <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto scrollbar-thin shadow-2xl flex flex-col p-6 border border-[#e2e8f0]">
+          <CreatePoshmarkListing 
+            isModal={true} 
+            editId={listing._id || listing.id} 
+            onClose={() => {
+              if (onSyncSuccess) onSyncSuccess();
+              onClose();
+            }} 
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === 'depop') {
+    return (
+      <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto scrollbar-thin shadow-2xl flex flex-col p-6 border border-[#e2e8f0]">
+          <CreateDepopListing 
             isModal={true} 
             editId={listing._id || listing.id} 
             onClose={() => {

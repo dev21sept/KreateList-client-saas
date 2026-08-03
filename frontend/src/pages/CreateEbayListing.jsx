@@ -220,11 +220,11 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search categor
   );
 };
 
-const CreateEbayListing = () => {
+const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit');
+  const editId = propEditId || searchParams.get('edit');
   const platform = 'ebay';
   const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
@@ -625,7 +625,11 @@ const CreateEbayListing = () => {
         : await listingService.create(listingData);
       if (response.data.success) {
         toast.success(editId ? 'Listing updated successfully!' : 'Listing saved as Draft successfully!');
-        navigate('/listings');
+        if (isModal && onClose) {
+          onClose();
+        } else {
+          navigate('/listings');
+        }
       }
     } catch (error) {
       console.error("Error saving draft:", error);
@@ -671,10 +675,18 @@ const CreateEbayListing = () => {
         const publishResponse = await listingService.publish(listingId);
         if (publishResponse.data.success) {
           toast.success('Listing published to eBay successfully!');
-          navigate('/listings');
+          if (isModal && onClose) {
+            onClose();
+          } else {
+            navigate('/listings');
+          }
         } else {
           toast.warning('Listing saved, but failed to publish to eBay: ' + (publishResponse.data.message || 'Unknown error'));
-          navigate('/listings');
+          if (isModal && onClose) {
+            onClose();
+          } else {
+            navigate('/listings');
+          }
         }
       }
     } catch (error) {
@@ -745,6 +757,15 @@ const CreateEbayListing = () => {
             Single Page AI-Powered Listing Creation
           </p>
         </div>
+        {isModal && onClose && (
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Main Single Form Body */}

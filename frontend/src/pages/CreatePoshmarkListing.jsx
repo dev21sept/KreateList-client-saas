@@ -380,12 +380,12 @@ const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select color
   );
 };
 
-const CreatePoshmarkListing = () => {
+const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit');
+  const editId = propEditId || searchParams.get('edit');
   const platform = 'poshmark';
   const [hasScanned, setHasScanned] = useState(editId ? true : false);
   const [loading, setLoading] = useState(false);
@@ -759,7 +759,11 @@ const CreatePoshmarkListing = () => {
         } else {
           toast.success(editId ? 'Poshmark Listing updated successfully!' : 'Poshmark Listing saved successfully!');
         }
-        navigate('/listings');
+        if (isModal && onClose) {
+          onClose();
+        } else {
+          navigate('/listings');
+        }
       }
     } catch (error) {
       console.error("Error saving listing:", error);
@@ -793,6 +797,15 @@ const CreatePoshmarkListing = () => {
             Single Page AI-Powered Listing Creation
           </p>
         </div>
+        {isModal && onClose && (
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Main Single Form Body */}
