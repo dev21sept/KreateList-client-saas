@@ -29,6 +29,7 @@ import CreateEbayListing from './pages/CreateEbayListing';
 import BulkListingEbay from './pages/BulkListingEbay';
 import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
 import CreateDepopListing from './pages/CreateDepopListing';
+import CreateEtsyListing from './pages/CreateEtsyListing';
 import Rules from './pages/Rules';
 import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
@@ -161,6 +162,7 @@ const App = () => {
               <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />
               <Route path="/create-poshmark-listing" element={<CreatePoshmarkListing />} />
               <Route path="/create-depop-listing" element={<CreateDepopListing />} />
+              <Route path="/create-etsy-listing" element={<CreateEtsyListing />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/ebay-accounts" element={<EbayAccounts />} />
               {/* Alias for ebay callback to handle it on the same page */}

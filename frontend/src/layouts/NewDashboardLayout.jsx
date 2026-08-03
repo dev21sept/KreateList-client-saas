@@ -29,6 +29,7 @@ import BulkListingEbay from '../pages/BulkListingEbay';
 import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
 import CreateDepopListing from '../pages/CreateDepopListing';
 import CreateMasterListing from '../pages/CreateMasterListing';
+import CreateEtsyListing from '../pages/CreateEtsyListing';
 
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
@@ -729,7 +730,7 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing />}
                 {selectedPlatform === 'depop' && <CreateDepopListing />}
-                {selectedPlatform === 'etsy' && <CreateMasterListing platform="etsy" />}
+                {selectedPlatform === 'etsy' && <CreateEtsyListing />}
               </div>
             </div>
           )}

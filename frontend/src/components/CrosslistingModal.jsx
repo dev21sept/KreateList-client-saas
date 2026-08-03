@@ -1077,8 +1077,10 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       };
 
       let response;
-      if (platform === 'ebay' || platform === 'etsy') {
+      if (platform === 'ebay') {
         response = await aiService.analyze(payload);
+      } else if (platform === 'etsy') {
+        response = await aiService.etsyAnalyze(payload);
       } else if (platform === 'poshmark') {
         response = await aiService.poshmarkAnalyze(payload);
       } else if (platform === 'depop') {

@@ -24,7 +24,7 @@ const CreateListing = () => {
           navigate('/create-ebay-listing', { replace: true });
         });
     } else {
-      const targetPlatform = queryPlatform === 'poshmark' ? 'poshmark' : 'ebay';
+      const targetPlatform = ['poshmark', 'depop', 'etsy'].includes(queryPlatform) ? queryPlatform : 'ebay';
       navigate(`/create-${targetPlatform}-listing`, { replace: true });
     }
   }, [editId, queryPlatform, navigate]);
