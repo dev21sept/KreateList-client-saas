@@ -282,6 +282,7 @@ exports.getListing = async (req, res) => {
         listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
         if (!listing) {
           listing = new Listing({
+            _id: prod._id,
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
@@ -346,6 +347,7 @@ exports.updateListing = async (req, res) => {
         listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
         if (!listing) {
           listing = new Listing({
+            _id: prod._id,
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
