@@ -197,7 +197,7 @@ exports.poshmarkImportCloset = async (req, res) => {
       // Check for duplicate in DB for this user in Product collection
       let existingProduct = null;
       if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku });
+        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'poshmark' });
       }
 
       if (!existingProduct) {
@@ -415,7 +415,7 @@ exports.poshmarkGetLive = async (req, res) => {
     for (const item of liveListings) {
       let existingProduct = null;
       if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku });
+        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'poshmark' });
       }
 
       if (!existingProduct) {

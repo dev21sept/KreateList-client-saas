@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -292,6 +292,7 @@ const groupListingsBySku = (rawListings) => {
 const NewListings = () => {
   const navigate = useNavigate();
   const { toast, confirm } = useNotification();
+  const handleUpdateRef = useRef();
 
   // Auth and Channel Sync state
   const { user } = useAuth();
@@ -523,12 +524,18 @@ const NewListings = () => {
     }
   };
 
+  handleUpdateRef.current = () => {
+    fetchListings();
+    fetchChannelInventory();
+  };
+
   useEffect(() => {
     fetchListings();
 
     const handleUpdate = () => {
-      fetchListings();
-      fetchChannelInventory();
+      if (handleUpdateRef.current) {
+        handleUpdateRef.current();
+      }
     };
     window.addEventListener('elister-listings-update', handleUpdate);
     return () => window.removeEventListener('elister-listings-update', handleUpdate);

@@ -279,14 +279,20 @@ exports.getListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const query = { user: req.user.id };
+        if (prod.sku && prod.sku.trim()) {
+          query.sku = prod.sku.trim();
+        } else {
+          query._id = prod._id;
+        }
+        listing = await Listing.findOne(query);
         if (!listing) {
           listing = new Listing({
             _id: prod._id,
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku,
+            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : `SKU-${prod._id.toString().substring(18)}`,
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
@@ -344,14 +350,20 @@ exports.updateListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const query = { user: req.user.id };
+        if (prod.sku && prod.sku.trim()) {
+          query.sku = prod.sku.trim();
+        } else {
+          query._id = prod._id;
+        }
+        listing = await Listing.findOne(query);
         if (!listing) {
           listing = new Listing({
             _id: prod._id,
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku,
+            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : `SKU-${prod._id.toString().substring(18)}`,
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
