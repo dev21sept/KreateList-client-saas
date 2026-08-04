@@ -21,7 +21,7 @@ To change your local folder name from `Kreatelist Client` to `elister`:
 ---
 
 ## 2. Server Folder Architecture
-The project directory on your EC2 server has been successfully renamed to:
+The project directory on your EC2 server is:
 `~/elister`
 
 The PM2 process has been updated and registered as:
@@ -42,7 +42,7 @@ git push origin main
 ### Step 2: Pull & build on your EC2 Server
 ```bash
 # 1. Login to your server using the new SSH alias
-ssh ec2-elister
+ssh ec2-elistersaas
 
 # 2. Go to the project directory
 cd ~/elister
@@ -56,6 +56,7 @@ npm install              # Run this only if you added new packages
 npm run build            # Compiles React code into the "dist" folder
 
 # 5. Copy the compiled files to the Nginx web root folder
+sudo rm -rf /var/www/html/*
 sudo cp -r dist/* /var/www/html/
 ```
 
@@ -73,8 +74,8 @@ git push origin main
 
 ### Step 2: Pull & restart backend on your EC2 Server
 ```bash
-# 1. Login to your server
-ssh ec2-elister
+# 1. Login to your server using the new SSH alias
+ssh ec2-elistersaas
 
 # 2. Go to the project directory and pull the code
 cd ~/elister
@@ -95,7 +96,7 @@ If you need to change database links, JWT secrets, or eBay developer client keys
 
 ### Step 1: Edit the .env file on the server
 ```bash
-ssh ec2-elister
+ssh ec2-elistersaas
 cd ~/elister/backend
 nano .env
 ```

@@ -2,114 +2,112 @@
 #                      MASTER AWS EC2 SETUP & DEPLOYMENT GUIDE
 #                                  Elister.ai
 # ==============================================================================
-# This guide contains the exact steps and commands to set up the server from
-# scratch, explain what each command does, how to deploy both frontend/backend,
-# manage environment variables, configure Nginx, and install SSL.
+# This guide contains the exact steps and commands to set up the new 16GB/4GB
+# server (t3.medium in N. Virginia) from scratch, explain what each command does,
+# deploy both frontend/backend, configure Nginx, and install SSL.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # STEP 1: CONNECT TO YOUR SERVER
 # ------------------------------------------------------------------------------
 # Run this command in your local command prompt or terminal to log in to the server.
-# "ec2-elister" is the SSH alias configured in your Windows ~/.ssh/config file.
-ssh ec2-elister
+# "ec2-elistersaas" is the SSH alias configured in your Windows ~/.ssh/config file.
+# It resolves to IP: 54.175.32.246 and uses the key: elistersaas.pem.
+ssh ec2-elistersaas
 
 
 # ------------------------------------------------------------------------------
 # STEP 2: INITIAL SERVER PREPARATION & SYSTEM UPDATES
 # ------------------------------------------------------------------------------
-# 1. Update the local package index to get the latest list of available updates.
+# 1. Update the local package index.
 sudo apt update
 
 # 2. Upgrade all installed packages to their latest versions.
-# The "-y" flag automatically answers "yes" to all prompts.
 sudo apt upgrade -y
 
-# 3. Install Node Version Manager (NVM) to manage Node.js versions easily.
+# 3. Install necessary native extraction utilities (required for Puppeteer browser setup)
+sudo apt install -y gnupg curl ca-certificates unzip git
+
+# 4. Install Node Version Manager (NVM) to manage Node.js versions easily.
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 
-# 4. Load NVM into the current shell session so we can use the "nvm" command immediately.
+# 5. Load NVM into the current shell session so we can use the "nvm" command immediately.
 source ~/.bashrc
 
-# 5. Install Node.js version 20 (the current stable LTS version).
+# 6. Install Node.js version 20 (matching development and production requirements).
 nvm install 20
+nvm use 20
 
-# 6. Verify that Node.js and NPM are installed correctly.
+# 7. Verify Node and NPM installation.
 node -v
 npm -v
 
-# 7. Install Git (code version control) and PM2 (Process Manager to run backend in background).
-sudo apt install git -y
+# 8. Install PM2 globally to manage backend processes in the background.
 npm install -g pm2
 
 
 # ------------------------------------------------------------------------------
-# STEP 3: MONGODB DATABASE INSTALLATION (RUNS LOCALLY ON EC2)
+# STEP 3: MONGODB 8.0 DATABASE INSTALLATION (RUNS ON UBUNTU 24.04 NOBLE)
 # ------------------------------------------------------------------------------
-# 1. Install gnupg and curl which are needed to download and import secure keys.
-sudo apt-get install gnupg curl -y
+# 1. Import the official MongoDB 8.0 security GPG key.
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --yes -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
 
-# 2. Download and import the official MongoDB security key (GPG key) for package verification.
-curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+# 2. Add the MongoDB 8.0 repository list file for Ubuntu 24.04 (noble).
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
 
-# 3. Add the MongoDB 7.0 repository address to the server's package source list.
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-
-# 4. Update the package index again so the system recognizes the newly added MongoDB repository.
+# 3. Update package database.
 sudo apt-get update
 
-# 5. Install the MongoDB database packages.
+# 4. Install MongoDB Community Edition.
 sudo apt-get install -y mongodb-org
 
-# 6. Start the MongoDB service.
+# 5. Start the MongoDB database daemon.
 sudo systemctl start mongod
 
-# 7. Enable MongoDB to start automatically whenever the EC2 server boots up.
+# 6. Enable MongoDB to start automatically at system boot.
 sudo systemctl enable mongod
 
-# 8. Check if MongoDB is running successfully (should say "active (running)").
+# 7. Check if MongoDB is running successfully (should say "active (running)").
 sudo systemctl status mongod
 
 
 # ------------------------------------------------------------------------------
 # STEP 4: CLONE REPOSITORY & DEPLOY BACKEND
 # ------------------------------------------------------------------------------
-# 1. Clone your project repository from GitHub into the home directory (named "elister").
+# 1. Clone your project repository into the home directory (named "elister").
 git clone https://github.com/dev21sept/KreateList-client-saas.git ~/elister
 
-# 2. Enter the backend folder where the Node.js API resides.
+# 2. Enter the backend directory.
 cd ~/elister/backend
 
-# 3. Install all npm packages/dependencies defined in "package.json".
+# 3. Install production and package dependencies.
 npm install
 
 # 4. Create the environment variables configuration file (.env).
-# Use "nano" (text editor) to write your secret keys.
 nano .env
 
 # ==========================================
 # PASTE THESE KEYS INSIDE THE .env FILE:
 # ==========================================
 # PORT=5000
-# NODE_ENV=production
-# MONGODB_URI=mongodb://127.0.0.1:27017/elister
-# JWT_SECRET=your_jwt_secret_key_here
+# MONGO_URI=mongodb://localhost:27017/elister
+# JWT_SECRET=your_jwt_secret_here
+# JWT_EXPIRE=30d
 #
-# # eBay Developer Portal Credentials
+# # eBay API Config
 # EBAY_CLIENT_ID=your_ebay_app_client_id
 # EBAY_CLIENT_SECRET=your_ebay_app_client_secret
 # EBAY_REDIRECT_URI=https://elister.ai/ebay-callback
+# ... (see active keys in backup guide or vault)
 # ==========================================
-# To save in nano: Press Ctrl + O, then Enter.
-# To exit nano: Press Ctrl + X.
 
-# 5. Start the backend app in production mode using PM2 and the ecosystem configuration.
+# 5. Start the backend app using PM2 and the ecosystem configuration.
 pm2 start ecosystem.config.js --env production
 
-# 6. Save the PM2 list so that the backend automatically restarts if the server reboots.
+# 6. Save the PM2 process list to auto-resume on server reboot.
 pm2 save
 
-# 7. Verify the backend status (status column should say "online").
+# 7. Verify status.
 pm2 status
 
 
@@ -122,21 +120,17 @@ cd ~/elister/frontend
 # 2. Install all frontend dependencies.
 npm install
 
-# 3. Create the production build (compiles react code into high-performance static files in "dist/" directory).
+# 3. Create the production build (compiles code into "dist/" directory).
 npm run build
 
-# 4. Copy the compiled static files from "dist/" to the default Nginx web root directory.
-# "/var/www/html" is where Nginx serves website files from.
+# 4. Copy the compiled static files to the Nginx web root directory.
+sudo rm -rf /var/www/html/*
 sudo cp -r dist/* /var/www/html/
 
 
 # ------------------------------------------------------------------------------
 # STEP 6: NGINX WEB SERVER & REVERSE PROXY SETUP
 # ------------------------------------------------------------------------------
-# Nginx sits in front of the application. It handles incoming web traffic:
-# - Routes domain requests (elister.ai, www.elister.ai) to the static frontend files.
-# - Routes backend API requests (api.elister.ai) to our Node.js server running on port 5000.
-
 # 1. Install Nginx web server.
 sudo apt install nginx -y
 
@@ -146,26 +140,28 @@ sudo nano /etc/nginx/sites-available/default
 # ==============================================================================
 # COPY AND PASTE THIS ENTIRE CONFIGURATION INTO THE FILE (Replace everything):
 # ==============================================================================
-# # Server block for Frontend (elister.ai and www.elister.ai)
 # server {
-#     server_name elister.ai www.elister.ai;   <-- [WHERE SERVER_NAME GOES] Tells Nginx which domains this block is for.
+#     listen 80;
+#     listen [::]:80;
+#     server_name elister.ai www.elister.ai app.elister.ai;
 #
-#     root /var/www/html;                      <-- Directory where frontend dist files are copied.
+#     root /var/www/html;
 #     index index.html index.htm;
 #
 #     location / {
-#         try_files $uri $uri/ /index.html;    <-- Crucial for React Router routing to work without 404s.
+#         try_files $uri $uri/ /index.html;
 #     }
 # }
 #
-# # Server block for Backend API (api.elister.ai)
 # server {
-#     server_name api.elister.ai;              <-- [WHERE SERVER_NAME GOES] Tells Nginx this routes api.elister.ai traffic.
+#     listen 80;
+#     listen [::]:80;
+#     server_name api.elister.ai;
 #
-#     client_max_body_size 500M;               <-- Fixes "413 Payload Too Large" error when uploading large images.
+#     client_max_body_size 1024M;
 #
 #     location / {
-#         proxy_pass http://localhost:5000;    <-- Forwards all requests to Node.js backend running on Port 5000.
+#         proxy_pass http://localhost:5000;
 #         proxy_http_version 1.1;
 #         proxy_set_header Upgrade $http_upgrade;
 #         proxy_set_header Connection 'upgrade';
@@ -175,51 +171,22 @@ sudo nano /etc/nginx/sites-available/default
 # }
 # ==============================================================================
 
-# 3. Test if the Nginx configuration has any syntax errors. (Must say "syntax is ok" & "test is successful").
+# 3. Test Nginx configuration.
 sudo nginx -t
 
-# 4. Restart Nginx to apply the configuration.
+# 4. Restart Nginx.
 sudo systemctl restart nginx
 
 
 # ------------------------------------------------------------------------------
 # STEP 7: INSTALL SSL CERTIFICATE (HTTPS)
 # ------------------------------------------------------------------------------
-# LetsEncrypt Certbot will generate free SSL certificates and automatically 
-# update your Nginx configuration with secure HTTPS redirects.
-
 # 1. Install Certbot and the Nginx plugin.
 sudo apt install certbot python3-certbot-nginx -y
 
-# 2. Request and install SSL certificates for all three domains.
-# Nginx plugin will automatically inject the certificate configurations for you.
-sudo certbot --nginx -d elister.ai -d www.elister.ai -d api.elister.ai
+# 2. Request and automatically deploy SSL certificates.
+sudo certbot --nginx -d elister.ai -d www.elister.ai -d app.elister.ai -d api.elister.ai
 
-# 3. Test the Nginx configuration again to ensure everything is perfect.
+# 3. Test and restart.
 sudo nginx -t
-
-# 4. Restart Nginx to load the SSL certificates.
 sudo systemctl restart nginx
-
-
-# ------------------------------------------------------------------------------
-# STEP 8: SERVER HEALTH & PERFORMANCE MONITORING
-# ------------------------------------------------------------------------------
-# These commands allow you to check the CPU, Memory (RAM), Disk Space, and active
-# PM2 backend processes load on your AWS EC2 instance.
-
-# 1. Open beautiful, color-coded real-time system resource monitor (CPU/RAM/Processes)
-# Install it first if not available: sudo apt install htop -y
-htop
-
-# 2. Open PM2 process monitor (app memory, CPU load, and real-time backend console logs)
-pm2 monit
-
-# 3. View a quick table overview of all backend app statuses, memory and restart counts
-pm2 status
-
-# 4. Check available and used Memory (RAM) in human-readable format
-free -h
-
-# 5. Check hard drive/disk space usage
-df -h
