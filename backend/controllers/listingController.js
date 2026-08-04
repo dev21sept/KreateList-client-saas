@@ -1637,7 +1637,7 @@ exports.delistListing = async (req, res) => {
 // @access  Private
 exports.deletePlatformListing = async (req, res) => {
   try {
-    const { platform } = req.body;
+    const { platform, disconnectOnly } = req.body;
     if (!platform) {
       return res.status(400).json({ success: false, message: 'Platform is required' });
     }
@@ -1666,13 +1666,14 @@ exports.deletePlatformListing = async (req, res) => {
     }
 
     const platformLower = platform.toLowerCase();
-    console.log(`[Delete Platform Listing] Deleting association/listing from ${platformLower}`);
+    const isDisconnect = !!disconnectOnly;
+    console.log(`[Delete Platform Listing] Deleting/Disconnecting listing from ${platformLower} (disconnectOnly: ${isDisconnect})`);
 
     if (!listing && prod) {
       // It exists only in Product cache. Try to delist it if it was live, and then delete the cache entry.
       let idField = `${platformLower}ListingId`;
       
-      if (prod[idField]) {
+      if (!isDisconnect && prod[idField]) {
         try {
           console.log(`[Delete Platform Listing] Sync product is active/live. Trying to delist from ${platformLower} first...`);
           if (platformLower === 'ebay') {
@@ -1721,7 +1722,7 @@ exports.deletePlatformListing = async (req, res) => {
     let idField = `${platformLower}ListingId`;
     let urlField = `${platformLower}Url`;
 
-    if (listing[statusField] === 'published' && listing[idField]) {
+    if (!isDisconnect && listing[statusField] === 'published' && listing[idField]) {
       try {
         console.log(`[Delete Platform Listing] Listing is active/published. Trying to delist from ${platformLower} first...`);
         if (platformLower === 'ebay') {

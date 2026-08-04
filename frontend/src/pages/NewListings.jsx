@@ -1412,17 +1412,27 @@ const NewListings = () => {
     setActiveListedDropdown(null);
 
     const platformDisplayName = getChannelDisplayName(platformName);
+    const disconnectOnly = activeTab === 'local';
+
+    const confirmMessage = disconnectOnly
+      ? `Are you sure you want to delete this listing connection from ${platformDisplayName}? This will NOT delete or end the listing on the actual ${platformDisplayName} website. It will only clear the connection in this app.`
+      : `Are you sure you want to end/delete this listing from the actual ${platformDisplayName} website? This will end the active listing on the actual marketplace and delete it from your inventory.`;
+
+    const confirmTitle = disconnectOnly
+      ? `Delete connection from ${platformDisplayName}`
+      : `Delete from ${platformDisplayName} (Actual Site)`;
+
     const confirmDelete = await confirm(
-      `Are you sure you want to delete this listing connection from ${platformDisplayName}? This will end any active listing on ${platformDisplayName} and set its status to Not Listed.`,
+      confirmMessage,
       {
-        title: `Delete from ${platformDisplayName}`,
+        title: confirmTitle,
         destructive: true
       }
     );
     if (!confirmDelete) return;
 
     try {
-      toast.info(`Deleting listing from ${platformDisplayName}...`);
+      toast.info(disconnectOnly ? `Disconnecting listing...` : `Deleting listing from ${platformDisplayName} site...`);
       
       const targetId = item._id;
       if (!targetId || String(targetId).startsWith('mock-')) {
@@ -1430,9 +1440,13 @@ const NewListings = () => {
         return;
       }
       
-      const response = await listingService.deletePlatform(targetId, platformName);
+      const response = await listingService.deletePlatform(targetId, platformName, disconnectOnly);
       if (response.data?.success || response.data) {
-        toast.success(`Successfully deleted listing from ${platformDisplayName}!`);
+        toast.success(
+          disconnectOnly 
+            ? `Successfully disconnected listing connection!` 
+            : `Successfully deleted listing from ${platformDisplayName} site!`
+        );
         fetchListings();
         fetchChannelInventory();
       } else {
@@ -1587,14 +1601,14 @@ const NewListings = () => {
             className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
             title="Click for options"
           >
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center bg-white shadow-sm shrink-0 transition-colors ${
+            <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm shrink-0 transition-colors ${
               isListed 
-                ? 'border-slate-100 group-hover:border-indigo-200' 
+                ? 'border-slate-100 bg-white group-hover:border-indigo-200' 
                 : isDraft
-                  ? 'border-orange-100 group-hover:border-orange-300'
-                  : 'border-amber-100 group-hover:border-amber-300'
+                  ? 'border-orange-100 bg-white group-hover:border-orange-300'
+                  : 'border-amber-200 bg-amber-50/50 group-hover:border-amber-300 group-hover:bg-amber-100/50'
             }`}>
-              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-70 group-hover:opacity-100'}`} alt={platformName} />
+              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0'}`} alt={platformName} />
             </div>
             <span className={`text-[10px] font-black mt-1 select-none flex items-center gap-0.5 ${
               isListed 
