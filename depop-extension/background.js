@@ -172,7 +172,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   else if (message.action === 'GET_CONNECTION_DETAILS') {
     getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
-      sendResponse({ success: true, data: cachedDetails[message.platform] });
+      const platformDetails = cachedDetails[message.platform];
+      if (platformDetails) {
+        chrome.cookies.getAll({ domain: 'depop.com' }, (cookiesList) => {
+          const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
+          platformDetails.sessionCookie = cookieString;
+          sendResponse({ success: true, data: platformDetails });
+        });
+      } else {
+        sendResponse({ success: false });
+      }
     });
     return true;
   }

@@ -63,6 +63,7 @@ export const listingService = {
   checkDuplicate: (data) => API.post('/listings/check-duplicate', data),
   verifyLive: (id) => API.post(`/listings/${id}/verify-live`),
   delist: (id, platform) => API.post(`/listings/${id}/delist`, { platform }),
+  deletePlatform: (id, platform) => API.post(`/listings/${id}/delete-platform`, { platform }),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
 };
 

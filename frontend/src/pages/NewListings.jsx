@@ -296,8 +296,8 @@ const NewListings = () => {
 
   // Auth and Channel Sync state
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('local'); // 'local' or 'channel'
-  const [selectedChannel, setSelectedChannel] = useState('ebay');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('elister_active_listings_tab') || 'local');
+  const [selectedChannel, setSelectedChannel] = useState(() => localStorage.getItem('elister_selected_listings_channel') || 'ebay');
   const [channelProducts, setChannelProducts] = useState([]);
   const [channelLoading, setChannelLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1040,9 +1040,23 @@ const NewListings = () => {
   }, [activeTab, selectedChannel, user]);
 
   useEffect(() => {
-    if (user?.ebayAccount?.connected) setSelectedChannel('ebay');
-    else if (user?.poshmarkAccount?.connected) setSelectedChannel('poshmark');
-    else if (user?.depopAccount?.connected) setSelectedChannel('depop');
+    const cachedChannel = localStorage.getItem('elister_selected_listings_channel');
+    if (cachedChannel) {
+      setSelectedChannel(cachedChannel);
+    } else {
+      if (user?.ebayAccount?.connected) {
+        setSelectedChannel('ebay');
+        localStorage.setItem('elister_selected_listings_channel', 'ebay');
+      }
+      else if (user?.poshmarkAccount?.connected) {
+        setSelectedChannel('poshmark');
+        localStorage.setItem('elister_selected_listings_channel', 'poshmark');
+      }
+      else if (user?.depopAccount?.connected) {
+        setSelectedChannel('depop');
+        localStorage.setItem('elister_selected_listings_channel', 'depop');
+      }
+    }
   }, [user]);
 
   const getProductDetails = (product) => {
@@ -1394,6 +1408,41 @@ const NewListings = () => {
     }
   };
 
+  const handleDeletePlatformListing = async (item, platformName) => {
+    setActiveListedDropdown(null);
+
+    const platformDisplayName = getChannelDisplayName(platformName);
+    const confirmDelete = await confirm(
+      `Are you sure you want to delete this listing connection from ${platformDisplayName}? This will end any active listing on ${platformDisplayName} and set its status to Not Listed.`,
+      {
+        title: `Delete from ${platformDisplayName}`,
+        destructive: true
+      }
+    );
+    if (!confirmDelete) return;
+
+    try {
+      toast.info(`Deleting listing from ${platformDisplayName}...`);
+      
+      const targetId = item._id;
+      if (!targetId || String(targetId).startsWith('mock-')) {
+        toast.success(`Successfully deleted connection for mock item!`);
+        return;
+      }
+      
+      const response = await listingService.deletePlatform(targetId, platformName);
+      if (response.data?.success || response.data) {
+        toast.success(`Successfully deleted listing from ${platformDisplayName}!`);
+        fetchListings();
+      } else {
+        toast.error(response.data?.message || `Failed to delete listing from ${platformDisplayName}`);
+      }
+    } catch (err) {
+      console.error(`Error deleting platform listing:`, err);
+      toast.error(err.response?.data?.message || `Failed to delete listing from ${platformDisplayName}`);
+    }
+  };
+
   const handleVerifyStatus = async (item, platformName) => {
     setActiveListedDropdown(null);
     
@@ -1480,15 +1529,19 @@ const NewListings = () => {
       ? platformSpecificItem.status?.toLowerCase() 
       : item[`${platformName}Status`]?.toLowerCase();
 
-    let isListed = !!checkId && checkId !== '-' && platformStatus !== 'delisted';
-    const isDraft = !isListed && ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
-                    (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
-    const isDelisted = !isListed && (
+    let isDraft = (platformStatus === 'draft') || 
+                  ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
+                  (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
+
+    let isListed = !isDraft && !!checkId && checkId !== '-' && platformStatus !== 'delisted';
+
+    let isDelisted = !isListed && !isDraft && (
       (platformStatus === 'delisted') ||
       (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'delisted')
     );
+
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
-    if (isListed || isDelisted) {
+    if (isListed || isDelisted || isDraft) {
       const liveUrl = getListingUrl(item, platformName, checkId);
 
       return (
@@ -1504,18 +1557,24 @@ const NewListings = () => {
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center bg-white shadow-sm shrink-0 transition-colors ${
               isListed 
                 ? 'border-slate-100 group-hover:border-indigo-200' 
-                : 'border-red-100 group-hover:border-red-300'
+                : isDraft
+                  ? 'border-orange-100 group-hover:border-orange-300'
+                  : 'border-red-100 group-hover:border-red-300'
             }`}>
-              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed ? '' : 'opacity-70 group-hover:opacity-100'}`} alt={platformName} />
+              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-70 group-hover:opacity-100'}`} alt={platformName} />
             </div>
             <span className={`text-[10px] font-black mt-1 select-none flex items-center gap-0.5 ${
               isListed 
                 ? 'text-emerald-600 group-hover:text-indigo-650' 
-                : 'text-red-500 group-hover:text-red-700'
+                : isDraft
+                  ? 'text-orange-500 group-hover:text-orange-700'
+                  : 'text-red-500 group-hover:text-red-700'
             }`}>
-              {isListed ? 'Listed' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              {isListed ? 'Listed' : isDraft ? 'Draft' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </span>
-            <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
+            {isListed && (
+              <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
+            )}
           </div>
 
           {isDropdownOpen && (
@@ -1523,24 +1582,28 @@ const NewListings = () => {
               onClick={(e) => e.stopPropagation()}
               className="absolute top-full mt-1 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-150 text-left"
             >
-              <a
-                href={liveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setActiveListedDropdown(null)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
-              >
-                <ExternalLink size={13} className="text-indigo-500 shrink-0" />
-                View Listing
-              </a>
-              <button
-                type="button"
-                onClick={() => handleVerifyStatus(item, platformName)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-              >
-                <RefreshCw size={13} className="text-indigo-500 shrink-0" />
-                Verify Status
-              </button>
+              {!isDraft && liveUrl && liveUrl !== '#' && (
+                <a
+                  href={liveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setActiveListedDropdown(null)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <ExternalLink size={13} className="text-indigo-500 shrink-0" />
+                  View Listing
+                </a>
+              )}
+              {!isDraft && (
+                <button
+                  type="button"
+                  onClick={() => handleVerifyStatus(item, platformName)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <RefreshCw size={13} className="text-indigo-500 shrink-0" />
+                  Verify Status
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => handleEditListedItem(item, platformName)}
@@ -1557,7 +1620,17 @@ const NewListings = () => {
                 <RefreshCw size={13} className="text-amber-500 shrink-0" />
                 Move to New List
               </button>
-              {isListed ? (
+              {(isDraft || isDelisted) && (
+                <button
+                  type="button"
+                  onClick={() => handleRelistItemDirect(item, platformName)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-emerald-650 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <RefreshCw size={13} className="text-emerald-500 shrink-0" />
+                  List / Publish
+                </button>
+              )}
+              {isListed && (
                 <button
                   type="button"
                   onClick={() => handleDelistItem(item, platformName)}
@@ -1566,30 +1639,25 @@ const NewListings = () => {
                   <Trash2 size={13} className="text-red-500 shrink-0" />
                   Delist Listing
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleRelistItemDirect(item, platformName)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-emerald-650 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                >
-                  <RefreshCw size={13} className="text-emerald-500 shrink-0" />
-                  Relist / Publish
-                </button>
               )}
+              <button
+                type="button"
+                onClick={() => handleDeletePlatformListing(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Trash2 size={13} className="text-red-500 shrink-0" />
+                Delete from {getChannelDisplayName(platformName)}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(item)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Trash2 size={13} className="text-red-500 shrink-0" />
+                Delete from Crosslisting
+              </button>
             </div>
           )}
-        </div>
-      );
-    } else if (isDraft) {
-      return (
-        <div 
-          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
-          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
-        >
-          <div className="w-8 h-8 rounded-full border border-orange-100 flex items-center justify-center bg-white shadow-sm shrink-0 group-hover:border-indigo-100">
-            <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
-          </div>
-          <span className="text-[10px] font-black text-orange-500 mt-1 select-none group-hover:text-indigo-650">Draft</span>
         </div>
       );
     } else {
@@ -1643,7 +1711,7 @@ const NewListings = () => {
     delete base.listingsMap;
     base.platform = platformName;
     base[`${platformName}Url`] = details.url || base[`${platformName}Url`];
-    base[`${platformName}Status`] = details.status === 'active' ? 'published' : 'delisted';
+    base[`${platformName}Status`] = details.status === 'active' ? 'published' : (details.status === 'draft' ? 'draft' : 'delisted');
     return base;
   };
 
@@ -1786,7 +1854,10 @@ const NewListings = () => {
         {/* Tabs */}
         <div className="flex bg-[#f3f4f6] p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
           <button
-            onClick={() => setActiveTab('local')}
+            onClick={() => {
+              setActiveTab('local');
+              localStorage.setItem('elister_active_listings_tab', 'local');
+            }}
             className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'local' 
                 ? 'bg-white text-indigo-650 shadow-sm' 
@@ -1796,7 +1867,10 @@ const NewListings = () => {
             Local Database
           </button>
           <button
-            onClick={() => setActiveTab('channel')}
+            onClick={() => {
+              setActiveTab('channel');
+              localStorage.setItem('elister_active_listings_tab', 'channel');
+            }}
             className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'channel' 
                 ? 'bg-white text-indigo-650 shadow-sm' 
@@ -1813,7 +1887,10 @@ const NewListings = () => {
             {/* Channel Toggle Buttons */}
             <div className="flex bg-[#f3f4f6] p-1 rounded-xl gap-1 w-full sm:w-auto">
               <button
-                onClick={() => setSelectedChannel('ebay')}
+                onClick={() => {
+                  setSelectedChannel('ebay');
+                  localStorage.setItem('elister_selected_listings_channel', 'ebay');
+                }}
                 className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                   selectedChannel === 'ebay' 
                     ? 'bg-white text-indigo-600 shadow-xs' 
@@ -1823,7 +1900,10 @@ const NewListings = () => {
                 eBay
               </button>
               <button
-                onClick={() => setSelectedChannel('etsy')}
+                onClick={() => {
+                  setSelectedChannel('etsy');
+                  localStorage.setItem('elister_selected_listings_channel', 'etsy');
+                }}
                 className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                   selectedChannel === 'etsy'
                     ? 'bg-white text-indigo-600 shadow-xs'
@@ -1833,7 +1913,10 @@ const NewListings = () => {
                 Etsy
               </button>
               <button
-                onClick={() => setSelectedChannel('poshmark')}
+                onClick={() => {
+                  setSelectedChannel('poshmark');
+                  localStorage.setItem('elister_selected_listings_channel', 'poshmark');
+                }}
                 className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                   selectedChannel === 'poshmark' 
                     ? 'bg-white text-indigo-600 shadow-xs' 
@@ -1843,7 +1926,10 @@ const NewListings = () => {
                 Poshmark
               </button>
               <button
-                onClick={() => setSelectedChannel('depop')}
+                onClick={() => {
+                  setSelectedChannel('depop');
+                  localStorage.setItem('elister_selected_listings_channel', 'depop');
+                }}
                 className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                   selectedChannel === 'depop' 
                     ? 'bg-white text-indigo-600 shadow-xs' 
@@ -1896,7 +1982,7 @@ const NewListings = () => {
           {/* Channel Inventory Status Filter: All / Active / Inactive */}
           {activeTab === 'channel' && (
             <div className="flex bg-[#f3f4f6] p-1 rounded-xl gap-1">
-              {['all', 'active', 'inactive'].map((option) => (
+              {['all', 'active', 'inactive', 'draft'].map((option) => (
                 <button
                   key={option}
                   onClick={() => setChannelStatusFilter(option)}

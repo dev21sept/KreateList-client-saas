@@ -909,7 +909,6 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   
   if (existingListingId) {
     console.log(`[Poshmark Publisher] Fetching current listing data for ID: ${existingListingId} to resolve revision info...`);
-    draftId = existingListingId;
     try {
       const getHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
       delete getHeaders['origin'];
@@ -925,6 +924,27 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision}`);
     } catch (getErr) {
       console.warn(`[Poshmark Publisher] Failed to fetch existing listing data:`, getErr.response?.data || getErr.message);
+    }
+
+    console.log(`[Poshmark Publisher] Generating draft from existing listing ID: ${existingListingId}...`);
+    try {
+      const draftConfig = getAxiosConfig({
+        method: 'POST',
+        url: `https://${domain}/vm-rest/posts/${existingListingId}/draft?pm_version=2026.26.01`,
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
+        data: {}
+      });
+
+      const draftRes = await axios(draftConfig);
+      const draftData = draftRes.data;
+      draftId = draftData.post?.id || draftData.id;
+      if (!draftId) {
+        throw new Error(`Failed to generate draft from existing post. Response: ${JSON.stringify(draftData)}`);
+      }
+      console.log(`[Poshmark Publisher] Draft generated successfully. Draft ID: ${draftId}`);
+    } catch (draftErr) {
+      console.error('[Poshmark Publisher] Failed to generate draft from existing listing:', draftErr.response?.data || draftErr.message);
+      throw new Error(`Failed to initialize update session: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
     }
   } else {
     console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
@@ -1262,8 +1282,42 @@ async function deletePoshmarkListing(listingId, poshmarkAccount) {
   return response.data;
 }
 
+async function deleteDepopListing(listingId, depopAccount) {
+  const accessToken = depopAccount.accessToken;
+  const sessionCookie = depopAccount.sessionCookie;
+
+  if (!accessToken) {
+    throw new Error('Depop access token is missing. Please connect your Depop account.');
+  }
+
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`
+  };
+
+  if (sessionCookie) {
+    headers['Cookie'] = sessionCookie;
+  }
+
+  // Set origin and referer to mimic Depop website request
+  headers['Origin'] = 'https://www.depop.com';
+  headers['Referer'] = 'https://www.depop.com/';
+
+  const config = {
+    method: 'DELETE',
+    url: `https://webapi.depop.com/api/v1/products/${listingId}/`,
+    headers
+  };
+
+  console.log(`[Depop Publisher] Direct deleting product ${listingId} from Depop...`);
+  const response = await axios(config);
+  return response.data;
+}
+
 module.exports = {
   publishToDepop,
   publishToPoshmark,
-  deletePoshmarkListing
+  deletePoshmarkListing,
+  deleteDepopListing
 };

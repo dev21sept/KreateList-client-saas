@@ -9,7 +9,8 @@ const {
   getDashboardStats,
   checkDuplicateListing,
   verifyListingLive,
-  delistListing
+  delistListing,
+  deletePlatformListing
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -32,6 +33,7 @@ router.route('/:id')
 
 router.post('/:id/publish', requireActiveSubscription, publishListing);
 router.post('/:id/delist', requireActiveSubscription, delistListing);
+router.post('/:id/delete-platform', requireActiveSubscription, deletePlatformListing);
 router.post('/:id/verify-live', verifyListingLive);
 router.get('/:id/cross-list-prep', require('../controllers/crossListController').prepareCrossList);
 

@@ -148,7 +148,8 @@ const EbayAccounts = () => {
               const res = await externalImportService.connect({
                 platform: 'depop',
                 username: data.username,
-                accessToken: data.accessToken
+                accessToken: data.accessToken,
+                sessionCookie: data.sessionCookie
               });
               if (res.data?.success) {
                 toast.success('Depop Connected Successfully via Extension!');
@@ -268,19 +269,11 @@ const EbayAccounts = () => {
       toast.warning('Please install and enable the eLister Chrome Extension to connect automatically!');
       return;
     }
-    const backendUrl = import.meta.env.MODE === 'production'
-      ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
-      : 'http://localhost:5000/api';
-    const token = localStorage.getItem('token');
-    const frontendUrl = window.location.origin;
 
-    console.log(`[Integrations] Starting redirect connection flow for: ${platform}`);
+    console.log(`[Integrations] Requesting silent connection details from extension for: ${platform}`);
     window.postMessage({
-      action: 'ELISTER_START_CONNECT_FLOW',
-      platform,
-      backendUrl,
-      token,
-      frontendUrl
+      action: 'ELISTER_GET_CONNECTION_DETAILS',
+      platform
     }, '*');
   };
 

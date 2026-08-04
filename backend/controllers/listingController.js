@@ -584,8 +584,20 @@ exports.updateListing = async (req, res) => {
           if (user && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie && listing.poshmarkListingId) {
             console.log(`[Listing Controller] [BG SYNC] Pushing updates to Poshmark for listing: ${listing.title}`);
             const { publishToPoshmark } = require('../services/backendPublishService');
-            await publishToPoshmark(listing, user.poshmarkAccount);
-            console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully!`);
+            const syncResult = await publishToPoshmark(listing, user.poshmarkAccount);
+            if (syncResult && syncResult.id) {
+              listing.poshmarkListingId = syncResult.id;
+              listing.poshmarkUrl = syncResult.url;
+              await listing.save();
+              console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully! Saved new listing ID: ${syncResult.id}`);
+
+              // Keep local Product model cache synced
+              const Product = require('../models/Product');
+              await Product.findOneAndUpdate(
+                { user: listing.user, sku: listing.sku, source: 'poshmark' },
+                { poshmarkListingId: syncResult.id, poshmarkUrl: syncResult.url, updated_at: Date.now() }
+              );
+            }
           }
         } catch (poshErr) {
           console.error(`[Listing Controller] [BG SYNC] Poshmark sync failed:`, poshErr.message);
@@ -1580,7 +1592,8 @@ exports.delistListing = async (req, res) => {
         const { deleteFromDepopPartner } = require('../services/depopPartnerService');
         await deleteFromDepopPartner(listing.sku, apiKey);
       } else {
-        console.warn(`[Delist Listing] Depop cookie-based connection. Resetting locally. User must end manually on Depop.`);
+        const { deleteDepopListing } = require('../services/backendPublishService');
+        await deleteDepopListing(listing.depopListingId, user.depopAccount);
       }
       
       listing.depopStatus = 'delisted';
@@ -1618,4 +1631,166 @@ exports.delistListing = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// @desc    Delete listing connection/record from a specific platform
+// @route   POST /api/listings/:id/delete-platform
+// @access  Private
+exports.deletePlatformListing = async (req, res) => {
+  try {
+    const { platform } = req.body;
+    if (!platform) {
+      return res.status(400).json({ success: false, message: 'Platform is required' });
+    }
+
+    let listing = await Listing.findById(req.params.id);
+    let prod = null;
+    if (!listing) {
+      const Product = require('../models/Product');
+      prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+      }
+    }
+
+    if (!listing && !prod) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing && listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const platformLower = platform.toLowerCase();
+    console.log(`[Delete Platform Listing] Deleting association/listing from ${platformLower}`);
+
+    if (!listing && prod) {
+      // It exists only in Product cache. Try to delist it if it was live, and then delete the cache entry.
+      let idField = `${platformLower}ListingId`;
+      
+      if (prod[idField]) {
+        try {
+          console.log(`[Delete Platform Listing] Sync product is active/live. Trying to delist from ${platformLower} first...`);
+          if (platformLower === 'ebay') {
+            const token = await getValidToken(req.user.id);
+            if (token) {
+              const sku = prod.sku;
+              const { getOffers, withdrawOffer } = require('../services/ebayService');
+              const offers = await getOffers(token, sku);
+              if (offers && offers.length > 0) {
+                for (const offer of offers) {
+                  if (offer.status === 'PUBLISHED') {
+                    await withdrawOffer(token, offer.offerId);
+                  }
+                }
+              }
+            }
+          } else if (platformLower === 'poshmark' && user.poshmarkAccount?.connected) {
+            const { deletePoshmarkListing } = require('../services/backendPublishService');
+            await deletePoshmarkListing(prod[idField], user.poshmarkAccount);
+          } else if (platformLower === 'etsy' && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+            const { updateListingState } = require('../services/etsyService');
+            await updateListingState(req.user.id, user.etsyAccount.shopId, prod[idField], 'inactive');
+          } else if (platformLower === 'depop') {
+            const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
+            const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
+            if (isPartner && apiKey && prod.sku) {
+              const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+              await deleteFromDepopPartner(prod.sku, apiKey);
+            } else if (user.depopAccount) {
+              const { deleteDepopListing } = require('../services/backendPublishService');
+              await deleteDepopListing(prod[idField], user.depopAccount);
+            }
+          }
+        } catch (delistErr) {
+          console.warn(`[Delete Platform Listing] Sync product delist attempt failed:`, delistErr.message);
+        }
+      }
+
+      const Product = require('../models/Product');
+      await Product.findByIdAndDelete(prod._id);
+      return res.status(200).json({ success: true, message: `Successfully deleted product from ${platform}` });
+    }
+
+    // Now handle when Listing model exists
+    let statusField = `${platformLower}Status`;
+    let idField = `${platformLower}ListingId`;
+    let urlField = `${platformLower}Url`;
+
+    if (listing[statusField] === 'published' && listing[idField]) {
+      try {
+        console.log(`[Delete Platform Listing] Listing is active/published. Trying to delist from ${platformLower} first...`);
+        if (platformLower === 'ebay') {
+          const token = await getValidToken(req.user.id);
+          if (token) {
+            const sku = listing.sku;
+            const { getOffers, withdrawOffer } = require('../services/ebayService');
+            const offers = await getOffers(token, sku);
+            if (offers && offers.length > 0) {
+              for (const offer of offers) {
+                if (offer.status === 'PUBLISHED') {
+                  await withdrawOffer(token, offer.offerId);
+                }
+              }
+            }
+          }
+        } else if (platformLower === 'poshmark' && user.poshmarkAccount?.connected) {
+          const { deletePoshmarkListing } = require('../services/backendPublishService');
+          await deletePoshmarkListing(listing[idField], user.poshmarkAccount);
+        } else if (platformLower === 'etsy' && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+          const { updateListingState } = require('../services/etsyService');
+          await updateListingState(req.user.id, user.etsyAccount.shopId, listing[idField], 'inactive');
+        } else if (platformLower === 'depop') {
+          const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
+          const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
+          if (isPartner && apiKey && listing.sku) {
+            const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+            await deleteFromDepopPartner(listing.sku, apiKey);
+          } else if (user.depopAccount) {
+            const { deleteDepopListing } = require('../services/backendPublishService');
+            await deleteDepopListing(listing[idField], user.depopAccount);
+          }
+        }
+      } catch (delistErr) {
+        console.warn(`[Delete Platform Listing] Delist attempt failed during platform delete:`, delistErr.message);
+      }
+    }
+
+    // Clear platform fields
+    listing[idField] = undefined;
+    listing[urlField] = undefined;
+    listing[statusField] = 'none';
+
+    // Update global status if needed
+    const hasActive = (listing.ebayStatus === 'published' || 
+                       listing.poshmarkStatus === 'published' || 
+                       listing.etsyStatus === 'published' || 
+                       listing.depopStatus === 'published');
+    if (!hasActive) {
+      listing.status = 'draft';
+    }
+
+    await listing.save();
+
+    // Sync synced cache Product status / delete it
+    try {
+      const Product = require('../models/Product');
+      await Product.findOneAndDelete({ user: listing.user, sku: listing.sku, source: platformLower });
+      console.log(`[Delete Platform Listing] Deleted synced Product cache entry for platform: ${platformLower}, SKU: ${listing.sku}`);
+    } catch (cacheErr) {
+      console.warn(`[Delete Platform Listing] Failed to delete matched Product cache:`, cacheErr.message);
+    }
+
+    console.log(`[Delete Platform Listing] Successfully deleted item ${listing.title} platform details for ${platformLower}`);
+    res.status(200).json({ success: true, message: `Successfully deleted listing from ${platform}`, data: listing });
+  } catch (err) {
+    console.error(`[Delete Platform Listing] Failed to delete from ${req.body.platform}:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 
