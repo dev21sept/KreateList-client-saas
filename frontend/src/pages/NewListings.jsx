@@ -1541,6 +1541,7 @@ const NewListings = () => {
   };
 
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
+    const disconnectOnly = activeTab === 'local';
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
     const platformStatus = platformSpecificItem 
       ? platformSpecificItem.status?.toLowerCase() 
