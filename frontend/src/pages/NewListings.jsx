@@ -1434,6 +1434,7 @@ const NewListings = () => {
       if (response.data?.success || response.data) {
         toast.success(`Successfully deleted listing from ${platformDisplayName}!`);
         fetchListings();
+        fetchChannelInventory();
       } else {
         toast.error(response.data?.message || `Failed to delete listing from ${platformDisplayName}`);
       }
@@ -1529,16 +1530,48 @@ const NewListings = () => {
       ? platformSpecificItem.status?.toLowerCase() 
       : item[`${platformName}Status`]?.toLowerCase();
 
-    let isDraft = (platformStatus === 'draft') || 
-                  ((platformSpecificItem && platformSpecificItem.status?.toLowerCase() === 'draft') || 
-                  (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'draft'));
+    // Clean status resolver to avoid false positives
+    let isListed = false;
+    let isDraft = false;
+    let isDelisted = false;
 
-    let isListed = !isDraft && !!checkId && checkId !== '-' && platformStatus !== 'delisted';
+    if (platformStatus === 'published' || platformStatus === 'active') {
+      isListed = true;
+    } else if (platformStatus === 'draft') {
+      isDraft = true;
+    } else if (platformStatus === 'delisted') {
+      isDelisted = true;
+    } else {
+      // Fallbacks if platformStatus is undefined/none (e.g. for local listing representation)
+      const specificStatus = platformSpecificItem?.status?.toLowerCase();
+      if (specificStatus === 'published' || specificStatus === 'active') {
+        isListed = true;
+      } else if (specificStatus === 'draft') {
+        isDraft = true;
+      } else if (specificStatus === 'delisted') {
+        isDelisted = true;
+      } else {
+        // Main item checks
+        const itemStatus = item.status?.toLowerCase();
+        if (item.platform === platformName) {
+          if (itemStatus === 'active' || itemStatus === 'published') {
+            isListed = true;
+          } else if (itemStatus === 'draft') {
+            isDraft = true;
+          } else if (itemStatus === 'delisted') {
+            isDelisted = true;
+          }
+        }
+      }
+    }
 
-    let isDelisted = !isListed && !isDraft && (
-      (platformStatus === 'delisted') ||
-      (!platformSpecificItem && item.platform === platformName && item.status?.toLowerCase() === 'delisted')
-    );
+    // Ensure listed items have a valid checkId (if not mock / fallback)
+    if (isListed && (!checkId || checkId === '-')) {
+      const realId = checkId || item[`${platformName}ListingId`] || platformSpecificItem?.listingId;
+      if (!realId || realId === '-') {
+        isListed = false;
+      }
+    }
 
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
     if (isListed || isDelisted || isDraft) {
@@ -1559,7 +1592,7 @@ const NewListings = () => {
                 ? 'border-slate-100 group-hover:border-indigo-200' 
                 : isDraft
                   ? 'border-orange-100 group-hover:border-orange-300'
-                  : 'border-red-100 group-hover:border-red-300'
+                  : 'border-amber-100 group-hover:border-amber-300'
             }`}>
               <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-70 group-hover:opacity-100'}`} alt={platformName} />
             </div>
@@ -1568,7 +1601,7 @@ const NewListings = () => {
                 ? 'text-emerald-600 group-hover:text-indigo-650' 
                 : isDraft
                   ? 'text-orange-500 group-hover:text-orange-700'
-                  : 'text-red-500 group-hover:text-red-700'
+                  : 'text-amber-500 group-hover:text-amber-700'
             }`}>
               {isListed ? 'Listed' : isDraft ? 'Draft' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </span>
@@ -1612,14 +1645,6 @@ const NewListings = () => {
                 <Edit size={13} className="text-indigo-500 shrink-0" />
                 Edit Listing
               </button>
-              <button
-                type="button"
-                onClick={() => handleMoveToNewList(item, platformName)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-              >
-                <RefreshCw size={13} className="text-amber-500 shrink-0" />
-                Move to New List
-              </button>
               {(isDraft || isDelisted) && (
                 <button
                   type="button"
@@ -1647,14 +1672,6 @@ const NewListings = () => {
               >
                 <Trash2 size={13} className="text-red-500 shrink-0" />
                 Delete from {getChannelDisplayName(platformName)}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(item)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-              >
-                <Trash2 size={13} className="text-red-500 shrink-0" />
-                Delete from Crosslisting
               </button>
             </div>
           )}
@@ -2115,6 +2132,7 @@ const NewListings = () => {
                         <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
                           item.status === 'Active' ? 'bg-[#e6f4ea] text-[#137333]' : 
                           item.status === 'Draft' ? 'bg-[#fef7e0] text-[#b06000]' : 
+                          item.status === 'Delisted' ? 'bg-amber-50 text-amber-700' :
                           'bg-rose-50 text-rose-600'
                         }`}>
                           {item.status || 'Draft'}
@@ -2250,7 +2268,7 @@ const NewListings = () => {
                             <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
                               details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 
                               details.status === 'draft' ? 'bg-[#fef7e0] text-[#b06000]' : 
-                              'bg-rose-50 text-rose-600'
+                              'bg-amber-50 text-amber-700'
                             }`}>
                               {details.status === 'active' ? 'Active' : details.status === 'draft' ? 'Draft' : 'Inactive'}
                             </span>
