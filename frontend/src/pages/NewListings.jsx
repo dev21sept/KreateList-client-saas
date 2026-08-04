@@ -1682,14 +1682,35 @@ const NewListings = () => {
                   Delist Listing
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => handleDeletePlatformListing(item, platformName)}
-                className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-              >
-                <Trash2 size={13} className="text-red-500 shrink-0" />
-                {disconnectOnly ? 'Delete from Crosslisting' : `Delete from ${getChannelDisplayName(platformName)}`}
-              </button>
+              {activeTab === 'local' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePlatformListing(item, platformName, true)}
+                    className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                  >
+                    <Trash2 size={13} className="text-red-500 shrink-0" />
+                    Delete from Crosslisting
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePlatformListing(item, platformName, false)}
+                    className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                  >
+                    <Trash2 size={13} className="text-red-500 shrink-0" />
+                    Delete from {getChannelDisplayName(platformName)} (Actual Site)
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleDeletePlatformListing(item, platformName, false)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <Trash2 size={13} className="text-red-500 shrink-0" />
+                  Delete from {getChannelDisplayName(platformName)}
+                </button>
+              )}
             </div>
           )}
         </div>

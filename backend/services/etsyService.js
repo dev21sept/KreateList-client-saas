@@ -337,6 +337,22 @@ async function updateListingState(userId, shopId, listingId, state) {
   }
 }
 
+async function deleteListing(userId, shopId, listingId) {
+  const accessToken = await getValidToken(userId);
+  try {
+    const response = await axios.delete(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}`, {
+      headers: {
+        'x-api-key': `${ETSY_CLIENT_ID}:${ETSY_CLIENT_SECRET}`,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    return response.data;
+  } catch (err) {
+    console.error('[Etsy Service] Delete listing failed:', err.response?.data || err.message);
+    throw err;
+  }
+}
+
 async function getCategoryProperties(userId, taxonomyId) {
   let accessToken = null;
   try {
@@ -447,6 +463,7 @@ module.exports = {
   getEtsyInventory,
   getShippingProfiles,
   updateListingState,
+  deleteListing,
   getCategoryProperties,
   updateListingProperty,
   updateEtsyListing,

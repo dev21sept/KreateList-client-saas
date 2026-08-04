@@ -1694,8 +1694,8 @@ exports.deletePlatformListing = async (req, res) => {
             const { deletePoshmarkListing } = require('../services/backendPublishService');
             await deletePoshmarkListing(prod[idField], user.poshmarkAccount);
           } else if (platformLower === 'etsy' && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
-            const { updateListingState } = require('../services/etsyService');
-            await updateListingState(req.user.id, user.etsyAccount.shopId, prod[idField], 'inactive');
+            const { deleteListing } = require('../services/etsyService');
+            await deleteListing(req.user.id, user.etsyAccount.shopId, prod[idField]);
           } else if (platformLower === 'depop') {
             const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
             const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
@@ -1709,6 +1709,21 @@ exports.deletePlatformListing = async (req, res) => {
           }
         } catch (delistErr) {
           console.warn(`[Delete Platform Listing] Sync product delist attempt failed:`, delistErr.message);
+        }
+      }
+
+      if (!isDisconnect) {
+        try {
+          const DeletedProduct = require('../models/DeletedProduct');
+          await DeletedProduct.create({
+            user: req.user.id,
+            sku: prod.sku || '',
+            title: prod.title || '',
+            source: platformLower
+          });
+          console.log(`[Delete Platform Listing] Created DeletedProduct tombstone for synced product: ${prod.title}`);
+        } catch (tombErr) {
+          console.warn(`[Delete Platform Listing] Failed to create DeletedProduct tombstone:`, tombErr.message);
         }
       }
 
@@ -1744,8 +1759,8 @@ exports.deletePlatformListing = async (req, res) => {
           const { deletePoshmarkListing } = require('../services/backendPublishService');
           await deletePoshmarkListing(activeId, user.poshmarkAccount);
         } else if (platformLower === 'etsy' && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
-          const { updateListingState } = require('../services/etsyService');
-          await updateListingState(req.user.id, user.etsyAccount.shopId, activeId, 'inactive');
+          const { deleteListing } = require('../services/etsyService');
+          await deleteListing(req.user.id, user.etsyAccount.shopId, activeId);
         } else if (platformLower === 'depop') {
           const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
           const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
@@ -1784,8 +1799,19 @@ exports.deletePlatformListing = async (req, res) => {
       const Product = require('../models/Product');
       await Product.findOneAndDelete({ user: listing.user, sku: listing.sku, source: platformLower });
       console.log(`[Delete Platform Listing] Deleted synced Product cache entry for platform: ${platformLower}, SKU: ${listing.sku}`);
+      
+      if (!isDisconnect) {
+        const DeletedProduct = require('../models/DeletedProduct');
+        await DeletedProduct.create({
+          user: req.user.id,
+          sku: listing.sku || '',
+          title: listing.title || '',
+          source: platformLower
+        });
+        console.log(`[Delete Platform Listing] Created DeletedProduct tombstone for listing: ${listing.title}`);
+      }
     } catch (cacheErr) {
-      console.warn(`[Delete Platform Listing] Failed to delete matched Product cache:`, cacheErr.message);
+      console.warn(`[Delete Platform Listing] Failed to delete cache or create tombstone:`, cacheErr.message);
     }
 
     console.log(`[Delete Platform Listing] Successfully deleted item ${listing.title} platform details for ${platformLower}`);
