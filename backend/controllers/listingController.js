@@ -1722,13 +1722,14 @@ exports.deletePlatformListing = async (req, res) => {
     let idField = `${platformLower}ListingId`;
     let urlField = `${platformLower}Url`;
 
-    if (!isDisconnect && listing[statusField] === 'published' && listing[idField]) {
+    const activeId = listing[idField] || (prod && prod[idField]);
+    if (!isDisconnect && activeId) {
       try {
         console.log(`[Delete Platform Listing] Listing is active/published. Trying to delist from ${platformLower} first...`);
         if (platformLower === 'ebay') {
           const token = await getValidToken(req.user.id);
           if (token) {
-            const sku = listing.sku;
+            const sku = listing.sku || (prod && prod.sku);
             const { getOffers, withdrawOffer } = require('../services/ebayService');
             const offers = await getOffers(token, sku);
             if (offers && offers.length > 0) {
@@ -1741,19 +1742,20 @@ exports.deletePlatformListing = async (req, res) => {
           }
         } else if (platformLower === 'poshmark' && user.poshmarkAccount?.connected) {
           const { deletePoshmarkListing } = require('../services/backendPublishService');
-          await deletePoshmarkListing(listing[idField], user.poshmarkAccount);
+          await deletePoshmarkListing(activeId, user.poshmarkAccount);
         } else if (platformLower === 'etsy' && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
           const { updateListingState } = require('../services/etsyService');
-          await updateListingState(req.user.id, user.etsyAccount.shopId, listing[idField], 'inactive');
+          await updateListingState(req.user.id, user.etsyAccount.shopId, activeId, 'inactive');
         } else if (platformLower === 'depop') {
           const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
           const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
-          if (isPartner && apiKey && listing.sku) {
+          const sku = listing.sku || (prod && prod.sku);
+          if (isPartner && apiKey && sku) {
             const { deleteFromDepopPartner } = require('../services/depopPartnerService');
-            await deleteFromDepopPartner(listing.sku, apiKey);
+            await deleteFromDepopPartner(sku, apiKey);
           } else if (user.depopAccount) {
             const { deleteDepopListing } = require('../services/backendPublishService');
-            await deleteDepopListing(listing[idField], user.depopAccount);
+            await deleteDepopListing(activeId, user.depopAccount);
           }
         }
       } catch (delistErr) {

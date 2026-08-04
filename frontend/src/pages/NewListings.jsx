@@ -14,7 +14,9 @@ import {
   RefreshCw,
   X,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  XCircle,
+  Ban
 } from 'lucide-react';
 import { listingService, ebayService, externalImportService, etsyService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -1673,9 +1675,9 @@ const NewListings = () => {
                 <button
                   type="button"
                   onClick={() => handleDelistItem(item, platformName)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                  className="w-full px-3.5 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
                 >
-                  <Trash2 size={13} className="text-red-500 shrink-0" />
+                  <XCircle size={13} className="text-amber-500 shrink-0" />
                   Delist Listing
                 </button>
               )}
@@ -1685,7 +1687,7 @@ const NewListings = () => {
                 className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
               >
                 <Trash2 size={13} className="text-red-500 shrink-0" />
-                Delete from {getChannelDisplayName(platformName)}
+                {disconnectOnly ? 'Delete from Crosslisting' : `Delete from ${getChannelDisplayName(platformName)}`}
               </button>
             </div>
           )}
@@ -2119,8 +2121,8 @@ const NewListings = () => {
                       <td className="px-6 py-4.5 max-w-sm">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 bg-[#f3f4f6] rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-[#e5e7eb]">
-                            {item.thumbnail ? (
-                              <img src={item.thumbnail} className="w-full h-full object-cover" alt="" />
+                            {item.thumbnail || (item.images && item.images.length > 0) ? (
+                              <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
                             ) : (
                               <span className="text-slate-300 font-bold text-xs">No img</span>
                             )}
