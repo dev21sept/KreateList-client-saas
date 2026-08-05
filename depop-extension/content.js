@@ -1597,6 +1597,33 @@ else if (currentSite === 'elister') {
         }
       });
     }
+
+    else if (event.data && event.data.action === 'ELISTER_FETCH_DEPOP_PRODUCTS') {
+      const { userId, accessToken } = event.data;
+      console.log('[Elister Depop] Received ELISTER_FETCH_DEPOP_PRODUCTS request from page context. Fetching cookies first...');
+      chrome.runtime.sendMessage({
+        action: 'GET_CONNECTION_DETAILS',
+        platform: 'depop'
+      }, (response) => {
+        const sessionCookie = response && response.success ? response.data?.sessionCookie : '';
+        chrome.runtime.sendMessage({
+          action: 'FETCH_DEPOP_PRODUCTS',
+          data: {
+            userId,
+            accessToken,
+            sessionCookie
+          }
+        }, (res) => {
+          console.log('[Elister Depop] FETCH_DEPOP_PRODUCTS response from background:', res);
+          window.postMessage({
+            action: 'ELISTER_FETCH_DEPOP_PRODUCTS_RESPONSE',
+            success: res && res.success,
+            products: res && res.products,
+            error: res && res.error
+          }, '*');
+        });
+      });
+    }
   });
 }
 

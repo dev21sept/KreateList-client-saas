@@ -238,7 +238,7 @@ exports.depopConnectInteractive = async (req, res) => {
 // @access  Private
 exports.depopImportCloset = async (req, res) => {
   try {
-    const { username } = req.body;
+    const { username, listings } = req.body;
     
     if (!username) {
       return res.status(400).json({ 
@@ -252,7 +252,14 @@ exports.depopImportCloset = async (req, res) => {
     
     const user = await User.findById(req.user.id);
     const depopAccount = user?.depopAccount || {};
-    const scrapedListings = await scrapeDepopShop(cleanUsername, depopAccount);
+    
+    let scrapedListings = [];
+    if (listings && Array.isArray(listings) && listings.length > 0) {
+      console.log(`[Depop Controller] Using client-provided listings array of length: ${listings.length}`);
+      scrapedListings = listings.map(mapRawDepopProduct);
+    } else {
+      scrapedListings = await scrapeDepopShop(cleanUsername, depopAccount);
+    }
 
     if (user && user.depopAccount && depopAccount.username && user.depopAccount.username !== depopAccount.username) {
       user.depopAccount.username = depopAccount.username;
@@ -557,3 +564,54 @@ exports.depopGetLive = async (req, res) => {
     res.status(200).json({ success: false, message: err.message, data: [] });
   }
 };
+
+function mapRawDepopProduct(item) {
+  // If it's already mapped, return as is
+  if (item.depopListingId) return item;
+  
+  const slug = item.slug || '';
+  const title = item.title || item.slug?.replace(/-/g, ' ') || 'Depop Item';
+  const description = item.description || item.body || title;
+  const depopId = String(item.id || item.productId || '');
+  const depopUrl = slug ? `https://www.depop.com/products/${slug}/` : `https://www.depop.com/products/${depopId}/`;
+  
+  let imageUrls = [];
+  if (item.images && Array.isArray(item.images)) {
+    imageUrls = item.images.map(img => img.url || img.src || (typeof img === 'string' ? img : '')).filter(Boolean);
+  } else if (item.pictures && Array.isArray(item.pictures)) {
+    imageUrls = item.pictures.map(p => p.url || (Array.isArray(p) ? p[0]?.url : '')).filter(Boolean);
+  } else if (item.pictures && typeof item.pictures === 'object') {
+    imageUrls = Object.values(item.pictures).map(p => typeof p === 'string' ? p : p?.url || p?.src).filter(Boolean);
+  }
+  
+  let priceVal = '0.00';
+  if (item.price && typeof item.price === 'object') {
+    priceVal = item.price.priceAmount || item.price.amount || String(item.price.value || '0.00');
+  } else if (item.priceAmount || item.price_amount) {
+    priceVal = String(item.priceAmount || item.price_amount);
+  } else if (item.price) {
+    priceVal = String(item.price);
+  }
+  
+  const timestamp = Date.now().toString().substring(8);
+  const generatedSku = `D-${depopId || timestamp}`;
+  
+  return {
+    title: title.trim(),
+    description: description.trim(),
+    price: parseFloat(priceVal).toFixed(2),
+    sku: generatedSku,
+    category: item.categoryName || item.category?.name || 'Tops',
+    categoryId: String(item.categoryId || item.category?.id || ''),
+    images: imageUrls,
+    thumbnail: imageUrls[0] || '',
+    platform: 'depop',
+    depopListingId: depopId,
+    depopUrl: depopUrl,
+    brand: item.brandName || item.brand?.name || '',
+    size: item.sizeName || item.size?.name || '',
+    color: item.colour || item.color || '',
+    quantity: item.quantity || 1,
+    status: 'draft'
+  };
+}

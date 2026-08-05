@@ -358,6 +358,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   }
+
+  else if (message.action === 'FETCH_DEPOP_PRODUCTS') {
+    const { userId, accessToken, sessionCookie } = message.data;
+    const url = `https://webapi.depop.com/api/v3/shop/${userId}/products/?limit=100`;
+    const headers = {
+      'accept': 'application/json',
+      'authorization': accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`,
+      'referer': 'https://www.depop.com/',
+      'origin': 'https://www.depop.com'
+    };
+    if (sessionCookie) {
+      headers['cookie'] = sessionCookie;
+    }
+    fetch(url, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        const rawProducts = data.products || data.results || [];
+        sendResponse({ success: true, products: rawProducts });
+      })
+      .catch(err => {
+        console.error('[Background] Failed to fetch products:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
   
   else if (message.action === 'START_DEPOP_LISTING') {
     const pendingData = message.data;

@@ -102,7 +102,53 @@ const EbayAccounts = () => {
     try {
       setSyncingPlatform(platform);
       toast.success(`Starting sync for your ${platform} closet...`);
-      const res = await externalImportService.importCloset({ platform, username });
+
+      let listings = [];
+      if (platform === 'depop') {
+        try {
+          const fetchListingsViaExtension = (userId, accessToken) => {
+            return new Promise((resolve, reject) => {
+              const handleResponse = (event) => {
+                if (event.data && event.data.action === 'ELISTER_FETCH_DEPOP_PRODUCTS_RESPONSE') {
+                  window.removeEventListener('message', handleResponse);
+                  if (event.data.success) {
+                    resolve(event.data.products || []);
+                  } else {
+                    reject(new Error(event.data.error || 'Failed to fetch products'));
+                  }
+                }
+              };
+              window.addEventListener('message', handleResponse);
+              window.postMessage({
+                action: 'ELISTER_FETCH_DEPOP_PRODUCTS',
+                userId,
+                accessToken
+              }, '*');
+              
+              setTimeout(() => {
+                window.removeEventListener('message', handleResponse);
+                reject(new Error('Extension response timeout'));
+              }, 15000);
+            });
+          };
+
+          if (depop?.userId && depop?.accessToken) {
+            toast.info("Fetching products directly from Depop via Extension...");
+            listings = await fetchListingsViaExtension(depop.userId, depop.accessToken);
+            console.log(`[Integrations] Fetched ${listings.length} products via Extension.`);
+          }
+        } catch (e) {
+          console.warn('[Integrations] Extension listing fetch failed, falling back to server scraping...', e);
+          toast.info("Extension fetch skipped/failed, using server scraper fallback...");
+        }
+      }
+
+      const res = await externalImportService.importCloset({ 
+        platform, 
+        username,
+        listings: listings.length > 0 ? listings : undefined
+      });
+
       if (res.data?.success) {
         toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${platform}!`);
       }
