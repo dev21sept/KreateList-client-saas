@@ -124,11 +124,11 @@ exports.depopConnect = async (req, res) => {
       });
     }
 
-    if (!username || !accessToken) {
-      return res.status(400).json({ success: false, message: 'username and accessToken are required.' });
+    if (!accessToken) {
+      return res.status(400).json({ success: false, message: 'accessToken is required.' });
     }
 
-    let resolvedUsername = username.trim();
+    let resolvedUsername = username ? username.trim() : '';
     if (resolvedUsername === 'depop_user' || resolvedUsername === 'nickssd' || resolvedUsername.includes('@') || !resolvedUsername) {
       console.log(`[Depop Controller] Resolving actual username for token from connection request...`);
       try {

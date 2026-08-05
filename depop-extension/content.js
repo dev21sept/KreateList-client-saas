@@ -1035,8 +1035,7 @@ async function checkAndCompleteConnection() {
   console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
 
   if (!username) {
-    console.warn('[Elister Depop] Could not resolve Depop username. Connection aborted.');
-    return;
+    console.warn('[Elister Depop] Could not resolve Depop username. Sending to backend to resolve dynamically.');
   }
 
   chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
