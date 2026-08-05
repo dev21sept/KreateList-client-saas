@@ -956,10 +956,10 @@ async function resolveUsernameFromApi(token) {
   lastApiResolveTime = now;
 
   try {
-    // 1. Try the settings API first via direct page-context fetch (includes cookies automatically)
+    // 1. Try the users me API first via direct page-context fetch (includes cookies automatically)
     try {
-      console.log('[Elister Depop] Fetching settings via page-context fetch...');
-      const res = await window.fetch('https://webapi.depop.com/presentation/api/v1/users/me/settings/', {
+      console.log('[Elister Depop] Fetching user details via page-context fetch...');
+      const res = await window.fetch('https://webapi.depop.com/api/v1/users/me/', {
         method: 'GET',
         headers: {
           'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
@@ -968,52 +968,22 @@ async function resolveUsernameFromApi(token) {
         }
       });
       
-      console.log('[Elister Depop] Settings API response status:', res.status);
+      console.log('[Elister Depop] Users Me API response status:', res.status);
       
       if (res.ok) {
         const data = await res.json();
-        console.log('[Elister Depop] Settings API response data:', data);
-        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical || data.sub;
+        console.log('[Elister Depop] Users Me API response data:', data);
+        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical;
         if (resolvedUser) {
-          console.log('[Elister Depop] Resolved username from settings API:', resolvedUser);
+          console.log('[Elister Depop] Resolved username from users me API:', resolvedUser);
           return resolvedUser;
         }
       } else {
         const errText = await res.text().catch(() => '');
-        console.warn('[Elister Depop] Settings API returned non-OK status. Body:', errText);
+        console.warn('[Elister Depop] Users Me API returned non-OK status. Body:', errText);
       }
     } catch (err) {
-      console.error('[Elister Depop] Failed to fetch settings from Depop API:', err);
-    }
-
-    // 2. Fallback to auth session API via direct page-context fetch
-    try {
-      console.log('[Elister Depop] Fetching session via page-context fetch...');
-      const res = await window.fetch('https://webapi.depop.com/api/v1/auth/session', {
-        method: 'GET',
-        headers: {
-          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('[Elister Depop] Session API response status:', res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log('[Elister Depop] Session API response data:', data);
-        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical || data.sub;
-        if (resolvedUser) {
-          console.log('[Elister Depop] Resolved username from session API:', resolvedUser);
-          return resolvedUser;
-        }
-      } else {
-        const errText = await res.text().catch(() => '');
-        console.warn('[Elister Depop] Session API returned non-OK status. Body:', errText);
-      }
-    } catch (err) {
-      console.error('[Elister Depop] Failed to fetch session from Depop API:', err);
+      console.error('[Elister Depop] Failed to fetch user details from Depop API:', err);
     }
   } finally {
     isResolvingUsername = false;

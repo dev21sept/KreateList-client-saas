@@ -199,7 +199,7 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 
     const result = await page.evaluate(async (token) => {
       try {
-        const response = await fetch('https://webapi.depop.com/api/v1/auth/session/', {
+        const response = await fetch('https://webapi.depop.com/api/v1/users/me/', {
           method: 'GET',
           headers: {
             'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
@@ -208,7 +208,7 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
         });
         if (response.ok) {
           const data = await response.json();
-          return data.username || null;
+          return data.username || data.username_canonical || null;
         }
         return null;
       } catch (err) {
