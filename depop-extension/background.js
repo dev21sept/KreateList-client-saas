@@ -8,7 +8,7 @@ function getStorageData(key, defaultValue) {
 }
 
 function setStorageData(key, value) {
-  return new Promise((resolve) => {
+  return new Promise((resolve) => { 
     chrome.storage.local.set({ [key]: value }, () => {
       resolve();
     });

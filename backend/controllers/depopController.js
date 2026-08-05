@@ -146,8 +146,19 @@ exports.depopConnect = async (req, res) => {
         console.warn(`[Depop Controller] Failed to resolve username during connect:`, err.message);
       }
 
-      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@')) {
-        resolvedUsername = 'nickssd';
+      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@') || resolvedUsername === 'nickssd') {
+        console.log(`[Depop Controller] Falling back to Puppeteer to resolve actual username...`);
+        const puppeteerUsername = await resolveDepopUsernameViaPuppeteer(accessToken);
+        if (puppeteerUsername) {
+          resolvedUsername = puppeteerUsername;
+        }
+      }
+
+      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@') || resolvedUsername === 'nickssd') {
+        return res.status(400).json({
+          success: false,
+          message: 'Could not resolve your actual Depop username. Please ensure you are logged into Depop on your browser and try again.'
+        });
       }
     }
 

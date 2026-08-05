@@ -1035,8 +1035,8 @@ async function checkAndCompleteConnection() {
   console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
 
   if (!username) {
-    console.warn('[Elister Depop] Could not resolve Depop username. Using fallback "nickssd" to complete connection.');
-    username = 'nickssd';
+    console.warn('[Elister Depop] Could not resolve Depop username. Connection aborted.');
+    return;
   }
 
   chrome.runtime.sendMessage({ action: 'GET_CONNECT_FLOW' }, (response) => {
