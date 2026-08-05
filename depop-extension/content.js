@@ -1023,15 +1023,17 @@ async function checkAndCompleteConnection() {
     if (apiUsername) username = apiUsername;
   }
 
-  console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
+  const userId = sessionStorage.getItem('elister_captured_depop_userid') || '';
+  console.log('[Elister Depop] Checking connection status:', { username, userId, hasToken: !!token });
 
   if (token && username && username !== 'depop_user') {
-    console.log('[Elister Depop] Caching connection details on page load:', { username });
+    console.log('[Elister Depop] Caching connection details on page load:', { username, userId });
     chrome.runtime.sendMessage({
       action: 'CACHE_CONNECTION_DETAILS',
       platform: 'depop',
       data: {
         username,
+        userId,
         accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
       }
     }).catch(() => {});
@@ -1048,6 +1050,7 @@ async function checkAndCompleteConnection() {
         action: 'COMPLETE_DEPOP_CONNECT',
         data: {
           username: username,
+          userId: userId,
           accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
         }
       }, (res) => {

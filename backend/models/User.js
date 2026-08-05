@@ -92,6 +92,7 @@ const userSchema = new mongoose.Schema({
       default: false
     },
     username: String,
+    userId: String,
     accessToken: String,
     sessionCookie: String,
     usePartnerApi: {

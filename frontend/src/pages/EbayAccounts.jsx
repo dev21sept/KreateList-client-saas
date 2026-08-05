@@ -587,6 +587,9 @@ const EbayAccounts = () => {
                 {depop?.connected ? (
                   <div className="space-y-1 mt-2">
                     <p className="text-sm font-bold text-slate-700 tracking-tight">{depop.username}</p>
+                    {depop.userId && (
+                      <p className="text-[11px] font-semibold text-slate-500 tracking-tight">ID: {depop.userId}</p>
+                    )}
                     <p className="text-[10px] text-slate-400 font-medium">
                       Connected at {depop.connectedAt ? new Date(depop.connectedAt).toLocaleDateString() : 'Active'}
                     </p>

@@ -149,7 +149,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   else if (message.action === 'COMPLETE_DEPOP_CONNECT') {
-    const { username, accessToken } = message.data;
+    const { username, userId, accessToken } = message.data;
     getStorageData('activeConnectFlow', null).then((flow) => {
       if (!flow) {
         sendResponse({ success: false, message: 'No active connect flow found' });
@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.cookies.getAll({ domain: 'depop.com' }, (cookiesList) => {
         const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
         console.log('[Background] Captured cookies string length:', cookieString.length);
-
+ 
         console.log('Submitting captured Depop credentials to backend:', backendUrl);
         fetch(`${backendUrl}/depop/connect`, {
           method: 'POST',
@@ -175,6 +175,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: JSON.stringify({
             platform: 'depop',
             username,
+            userId,
             accessToken,
             sessionCookie: cookieString
           })
@@ -186,6 +187,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
               cachedDetails['depop'] = {
                 username,
+                userId,
                 accessToken,
                 sessionCookie: cookieString
               };

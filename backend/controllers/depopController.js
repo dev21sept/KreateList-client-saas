@@ -105,7 +105,7 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 // @access  Private
 exports.depopConnect = async (req, res) => {
   try {
-    const { username, accessToken, disconnect } = req.body;
+    const { username, userId, accessToken, disconnect } = req.body;
 
     const user = await User.findById(req.user.id);
     if (!user) {
@@ -116,6 +116,7 @@ exports.depopConnect = async (req, res) => {
       user.depopAccount = {
         connected: false,
         username: '',
+        userId: '',
         accessToken: '',
         connectedAt: null
       };
@@ -171,6 +172,7 @@ exports.depopConnect = async (req, res) => {
     user.depopAccount = {
       connected: true,
       username: resolvedUsername,
+      userId: userId ? userId.trim() : (req.body.userId ? String(req.body.userId).trim() : ''),
       accessToken: accessToken.trim(),
       sessionCookie: (req.body.sessionCookie || '').trim(),
       usePartnerApi: !!req.body.usePartnerApi,

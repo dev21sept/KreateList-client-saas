@@ -154,6 +154,7 @@ const Dashboard = () => {
       name: 'Depop',
       connected: !!user?.depopAccount?.connected,
       username: user?.depopAccount?.username || 'Not connected',
+      userId: user?.depopAccount?.userId,
       color: '#000000'
     }
   ];
@@ -707,7 +708,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <p className="text-xs font-black text-slate-800">{conn.name}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 truncate max-w-[130px]">{conn.username}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 truncate max-w-[130px]">{conn.username}{conn.userId ? ` (ID: ${conn.userId})` : ''}</p>
                     </div>
                   </div>
                   
