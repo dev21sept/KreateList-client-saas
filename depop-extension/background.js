@@ -73,9 +73,10 @@ function resolveDepopUsernameFromTabs(accessToken) {
             resolve(null);
           }
         });
-      });
     });
   });
+}
+
 function fetchUsernameFromBackground(accessToken) {
   const tryFetch = (url) => {
     return fetch(url, {
