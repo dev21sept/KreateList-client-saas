@@ -135,7 +135,7 @@ exports.depopConnect = async (req, res) => {
     }
 
     let resolvedUsername = username ? username.trim() : '';
-    if (resolvedUsername === 'depop_user' || resolvedUsername === 'nickssd' || resolvedUsername.includes('@') || !resolvedUsername) {
+    if (resolvedUsername === 'depop_user' || resolvedUsername.includes('@') || !resolvedUsername) {
       console.log(`[Depop Controller] Resolving actual username for token from connection request...`);
       try {
         const cleanToken = accessToken.trim().replace(/^Bearer\s+/i, '');
@@ -152,7 +152,7 @@ exports.depopConnect = async (req, res) => {
         console.warn(`[Depop Controller] Failed to resolve username during connect:`, err.message);
       }
 
-      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@') || resolvedUsername === 'nickssd') {
+      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@')) {
         console.log(`[Depop Controller] Falling back to Puppeteer to resolve actual username...`);
         const puppeteerUsername = await resolveDepopUsernameViaPuppeteer(accessToken);
         if (puppeteerUsername) {
@@ -160,7 +160,7 @@ exports.depopConnect = async (req, res) => {
         }
       }
 
-      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@') || resolvedUsername === 'nickssd') {
+      if (resolvedUsername === 'depop_user' || !resolvedUsername || resolvedUsername.includes('@')) {
         return res.status(400).json({
           success: false,
           message: 'Could not resolve your actual Depop username. Please ensure you are logged into Depop on your browser and try again.'
