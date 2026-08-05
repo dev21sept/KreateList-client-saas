@@ -150,7 +150,12 @@ const EbayAccounts = () => {
       });
 
       if (res.data?.success) {
-        toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${platform}!`);
+        const count = res.data.data.importedCount;
+        if (count > 0) {
+          toast.success(`Successfully imported ${count} new products from ${platform}!`);
+        } else {
+          toast.success(`Synced successfully! Your ${platform} inventory is already up-to-date.`);
+        }
       }
     } catch (err) {
       console.error(err);

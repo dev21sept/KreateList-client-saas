@@ -331,7 +331,12 @@ const Listings = () => {
         });
 
         if (res.data?.success) {
-          toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${selectedChannel}!`);
+          const count = res.data.data.importedCount;
+          if (count > 0) {
+            toast.success(`Successfully imported ${count} new products from ${selectedChannel}!`);
+          } else {
+            toast.success(`Synced successfully! Your ${selectedChannel} inventory is already up-to-date.`);
+          }
           fetchChannelInventory();
           fetchListings(false); // reload local listings in background too
         }
