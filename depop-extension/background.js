@@ -104,7 +104,8 @@ function fetchUsernameFromBackground(accessToken) {
     });
   };
 
-  return tryFetch('https://webapi.depop.com/api/v1/users/me')
+  return tryFetch('https://webapi.depop.com/api/v1/auth/session/')
+    .catch(() => tryFetch('https://webapi.depop.com/api/v1/users/me'))
     .catch(() => tryFetch('https://webapi.depop.com/api/users/me'))
     .then(profile => profile.username || profile.username_canonical || null);
 }

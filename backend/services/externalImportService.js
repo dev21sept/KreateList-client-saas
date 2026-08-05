@@ -199,18 +199,24 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 
     const result = await page.evaluate(async (token) => {
       try {
-        const response = await fetch('https://webapi.depop.com/api/v1/users/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-            'Accept': 'application/json'
+        const tryFetch = async (url) => {
+          const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            return data.username || data.username_canonical || data.usernameCanonical || null;
           }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.username || data.username_canonical || null;
-        }
-        return null;
+          throw new Error(`Status ${res.status}`);
+        };
+
+        return await tryFetch('https://webapi.depop.com/api/v1/auth/session/')
+          .catch(() => tryFetch('https://webapi.depop.com/api/v1/users/me'))
+          .catch(() => tryFetch('https://webapi.depop.com/api/users/me'));
       } catch (err) {
         return null;
       }

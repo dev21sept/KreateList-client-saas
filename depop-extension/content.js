@@ -962,10 +962,8 @@ async function resolveUsernameFromApi(token) {
   lastApiResolveTime = now;
 
   try {
-    // 1. Try the users me API first via direct page-context fetch (includes cookies automatically)
-    try {
-      console.log('[Elister Depop] Fetching user details via page-context fetch...');
-      let res = await window.fetch('https://webapi.depop.com/api/v1/users/me', {
+    const tryFetch = async (url) => {
+      const res = await window.fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
@@ -973,41 +971,31 @@ async function resolveUsernameFromApi(token) {
           'Content-Type': 'application/json'
         }
       });
-      
-      console.log('[Elister Depop] Users Me API (v1) response status:', res.status);
-      
-      if (!res.ok) {
-        console.log('[Elister Depop] /api/v1/users/me failed, trying /api/users/me...');
-        res = await window.fetch('https://webapi.depop.com/api/users/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        console.log('[Elister Depop] Users Me API (non-v1) response status:', res.status);
-      }
-      
       if (res.ok) {
         const data = await res.json();
-        console.log('[Elister Depop] Users Me API response data:', data);
-        const resolvedUser = data.username || data.username_canonical || data.usernameCanonical;
-        if (resolvedUser) {
-          console.log('[Elister Depop] Resolved username from users me API:', resolvedUser);
-          return resolvedUser;
-        }
-      } else {
-        const errText = await res.text().catch(() => '');
-        console.warn('[Elister Depop] Users Me API returned non-OK status. Body:', errText);
+        return data.username || data.username_canonical || data.usernameCanonical || null;
       }
-    } catch (err) {
-      console.error('[Elister Depop] Failed to fetch user details from Depop API:', err);
-    }
+      throw new Error(`Status ${res.status}`);
+    };
+
+    console.log('[Elister Depop] Resolving username from page context via sequential endpoints...');
+    return await tryFetch('https://webapi.depop.com/api/v1/auth/session/')
+      .catch((e) => {
+        console.log('[Elister Depop] /api/v1/auth/session/ failed:', e.message, 'Trying /api/v1/users/me...');
+        return tryFetch('https://webapi.depop.com/api/v1/users/me');
+      })
+      .catch((e) => {
+        console.log('[Elister Depop] /api/v1/users/me failed:', e.message, 'Trying /api/users/me...');
+        return tryFetch('https://webapi.depop.com/api/users/me');
+      })
+      .catch((e) => {
+        console.error('[Elister Depop] All username resolution endpoints failed:', e.message);
+        return null;
+      });
   } finally {
     isResolvingUsername = false;
   }
-  return null;
+}
 }
 
 async function checkAndCompleteConnection() {
