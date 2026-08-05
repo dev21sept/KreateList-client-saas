@@ -2,8 +2,8 @@
   const isValidTokenFormat = (str) => {
     if (!str || typeof str !== 'string') return false;
     const val = str.startsWith('Bearer ') ? str.substring(7) : str;
-    // Check 40-char hex
-    if (/^[0-9a-f]{40}$/i.test(val)) return true;
+    // Check alphanumeric token (40 to 250 chars)
+    if (/^[0-9a-z_-]{40,250}$/i.test(val)) return true;
     // Check JWT
     if (val.startsWith('ey') && val.includes('.') && val.split('.').length === 3) return true;
     return false;

@@ -10,7 +10,11 @@ function getCookie(name) {
 function getAuthToken() {
   const domToken = document.documentElement.getAttribute('data-elister-auth-token');
   if (domToken) return domToken;
-  return sessionStorage.getItem('elister_captured_depop_token');
+  const sessionToken = sessionStorage.getItem('elister_captured_depop_token');
+  if (sessionToken) return sessionToken;
+  const cookieToken = getCookie('access_token');
+  if (cookieToken) return cookieToken;
+  return null;
 }
 
 async function backgroundFetch(url, options = {}, responseType = 'json') {
@@ -826,15 +830,17 @@ function getUsernameFromDOM() {
       const href = anchor.getAttribute('href');
       if (!href) continue;
       
-      const cleanHref = href.replace(/^https:\/\/www\.depop\.com/, '').trim();
-      if (cleanHref.startsWith('/') && cleanHref.endsWith('/')) {
-        const parts = cleanHref.split('/').filter(Boolean);
-        if (parts.length === 1) {
-          const potentialUser = parts[0];
-          if (/^[a-z0-9_-]{3,20}$/i.test(potentialUser)) {
-            if (!excluded.includes(potentialUser.toLowerCase())) {
-              return potentialUser;
-            }
+      const cleanHref = href.replace(/^https?:\/\/(www\.)?depop\.com/, '')
+                            .replace(/^\//, '')
+                            .replace(/\/$/, '')
+                            .trim();
+                            
+      const parts = cleanHref.split('/').filter(Boolean);
+      if (parts.length === 1) {
+        const potentialUser = parts[0];
+        if (/^[a-z0-9_-]{3,20}$/i.test(potentialUser)) {
+          if (!excluded.includes(potentialUser.toLowerCase())) {
+            return potentialUser;
           }
         }
       }
