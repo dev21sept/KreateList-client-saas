@@ -224,6 +224,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch(err => {
           console.error('[Background Worker] Failed to resolve username:', err.message);
+          data.resolutionError = err.message;
           proceedCache(data);
         });
       } else {
@@ -269,6 +270,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             })
             .catch(err => {
               console.error('[Background Worker] Failed to resolve username:', err.message);
+              platformDetails.resolutionError = err.message;
               sendResponse({ success: true, data: platformDetails });
             });
           } else {
