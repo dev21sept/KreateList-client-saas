@@ -256,7 +256,6 @@ exports.depopImportCloset = async (req, res) => {
     let scrapedListings = [];
     if (listings && Array.isArray(listings) && listings.length > 0) {
       console.log(`[Depop Controller] Using client-provided listings array of length: ${listings.length}`);
-      console.log('RAW CLIENT PRODUCT SAMPLE:', JSON.stringify(listings[0], null, 2));
       scrapedListings = listings.map(mapRawDepopProduct);
     } else {
       scrapedListings = await scrapeDepopShop(cleanUsername, depopAccount);
