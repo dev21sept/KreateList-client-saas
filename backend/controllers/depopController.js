@@ -610,25 +610,49 @@ exports.depopGetLive = async (req, res) => {
 
 function mapRawDepopProduct(item) {
   // If it's already mapped, return as is
-  if (item.depopListingId) return item;
+  if (item.depopListingId && !item.id) return item;
   
   const slug = item.slug || '';
-  const title = item.title || item.slug?.replace(/-/g, ' ') || 'Depop Item';
-  const description = item.description || item.body || title;
   const depopId = String(item.id || item.productId || '');
+  
+  // Extract Title from slug (remove username variant and random hash)
+  let title = 'Depop Item';
+  if (slug) {
+    const parts = slug.split('-');
+    if (parts.length > 1) {
+      const titleParts = parts.slice(1);
+      if (titleParts.length > 1 && titleParts[titleParts.length - 1].length === 4) {
+        titleParts.pop();
+      }
+      title = titleParts.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    } else {
+      title = slug.charAt(0).toUpperCase() + slug.slice(1);
+    }
+  }
+  
+  const description = item.description || item.body || title;
   const depopUrl = slug ? `https://www.depop.com/products/${slug}/` : `https://www.depop.com/products/${depopId}/`;
   
+  // Parse Images
   let imageUrls = [];
   if (item.images && Array.isArray(item.images)) {
     imageUrls = item.images.map(img => img.url || img.src || (typeof img === 'string' ? img : '')).filter(Boolean);
   } else if (item.pictures && Array.isArray(item.pictures)) {
-    imageUrls = item.pictures.map(p => p.url || (Array.isArray(p) ? p[0]?.url : '')).filter(Boolean);
-  } else if (item.pictures && typeof item.pictures === 'object') {
-    imageUrls = Object.values(item.pictures).map(p => typeof p === 'string' ? p : p?.url || p?.src).filter(Boolean);
+    imageUrls = item.pictures.map(p => {
+      if (typeof p === 'string') return p;
+      if (p.url || p.src) return p.url || p.src;
+      return p["1280"] || p["960"] || p["640"] || p["480"] || p["320"] || p["210"] || p["150"] || '';
+    }).filter(Boolean);
   }
   
+  // Parse Price
   let priceVal = '0.00';
-  if (item.price && typeof item.price === 'object') {
+  if (item.pricing && typeof item.pricing === 'object') {
+    const origPrice = item.pricing.original_price;
+    if (origPrice) {
+      priceVal = origPrice.total_price || origPrice.price_breakdown?.price?.amount || '0.00';
+    }
+  } else if (item.price && typeof item.price === 'object') {
     priceVal = item.price.priceAmount || item.price.amount || String(item.price.value || '0.00');
   } else if (item.priceAmount || item.price_amount) {
     priceVal = String(item.priceAmount || item.price_amount);
@@ -636,8 +660,39 @@ function mapRawDepopProduct(item) {
     priceVal = String(item.price);
   }
   
-  const timestamp = Date.now().toString().substring(8);
-  const generatedSku = item.sku || item.skuCode || item.sku_code || item.supplierSku || item.supplier_sku || `D-${depopId || timestamp}`;
+  // Parse Brand from description
+  let brand = item.brandName || item.brand?.name || '';
+  if (!brand && description) {
+    const brandMatch = description.match(/Brand:\s*([^\n\r]+)/i);
+    if (brandMatch) {
+      brand = brandMatch[1].trim();
+    }
+  }
+  
+  // Parse Size
+  let size = '';
+  if (item.sizes && item.sizes[0]) {
+    size = item.sizes[0];
+  } else if (item.sizeName || item.size?.name) {
+    size = item.sizeName || item.size?.name;
+  } else if (description) {
+    const sizeMatch = description.match(/Size:\s*([^\n\r]+)/i);
+    if (sizeMatch) {
+      size = sizeMatch[1].trim();
+    }
+  }
+  
+  // Parse Color
+  let color = item.colour || item.color || '';
+  if (!color && description) {
+    const colorMatch = description.match(/Color:\s*([^\n\r]+)/i);
+    if (colorMatch) {
+      color = colorMatch[1].trim();
+    }
+  }
+  
+  const customSku = item.sku || item.skuCode || item.sku_code || item.supplierSku || item.supplier_sku;
+  const generatedSku = customSku || `D-${depopId || Date.now().toString().substring(8)}`;
   
   return {
     title: title.trim(),
@@ -645,16 +700,16 @@ function mapRawDepopProduct(item) {
     price: parseFloat(priceVal).toFixed(2),
     sku: generatedSku,
     category: item.categoryName || item.category?.name || 'Tops',
-    categoryId: String(item.categoryId || item.category?.id || ''),
+    categoryId: String(item.categoryId || item.category_id || ''),
     images: imageUrls,
     thumbnail: imageUrls[0] || '',
     platform: 'depop',
     depopListingId: depopId,
     depopUrl: depopUrl,
-    brand: item.brandName || item.brand?.name || '',
-    size: item.sizeName || item.size?.name || '',
-    color: item.colour || item.color || '',
+    brand: brand,
+    size: size,
+    color: color,
     quantity: item.quantity || 1,
-    status: 'draft'
+    status: item.status === 'ONSALE' ? 'live' : 'inactive'
   };
 }
