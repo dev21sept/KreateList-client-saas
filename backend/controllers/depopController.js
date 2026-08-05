@@ -300,6 +300,7 @@ exports.depopImportCloset = async (req, res) => {
           if (item.brand) existingProduct.brand = item.brand;
           if (item.size) existingProduct.size = item.size;
           if (item.images && item.images.length > 0) existingProduct.images = item.images;
+          if (item.sku) existingProduct.sku = item.sku;
           existingProduct.status = 'live';
           existingProduct.updated_at = Date.now();
           await existingProduct.save();
@@ -608,7 +609,7 @@ function mapRawDepopProduct(item) {
   }
   
   const timestamp = Date.now().toString().substring(8);
-  const generatedSku = `D-${depopId || timestamp}`;
+  const generatedSku = item.sku || item.skuCode || item.sku_code || item.supplierSku || item.supplier_sku || `D-${depopId || timestamp}`;
   
   return {
     title: title.trim(),
