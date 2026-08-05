@@ -137,16 +137,51 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
     } catch (e) {}
 
     console.log('[Import Scraper] Launching Puppeteer Stealth to resolve username...');
-    browser = await puppeteer.launch({
+    const launchOptions = {
       headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled'
       ]
-    });
+    };
 
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        const cleanProxyUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+        launchOptions.args.push(`--proxy-server=${cleanProxyUrl}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = {
+            username: decodeURIComponent(parsedUrl.username),
+            password: decodeURIComponent(parsedUrl.password)
+          };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else {
+      const fs = require('fs');
+      const checkPaths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+      for (const p of checkPaths) {
+        if (fs.existsSync(p)) {
+          launchOptions.executablePath = p;
+          break;
+        }
+      }
+    }
+
+    browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) {
+      await page.authenticate(proxyAuth);
+    }
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     // Block unnecessary resources to speed up loading and prevent timeouts
@@ -370,8 +405,21 @@ async function fetchHtmlWithPuppeteer(targetUrl) {
     };
 
     const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
     if (proxyUrl) {
-      launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        const cleanProxyUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+        launchOptions.args.push(`--proxy-server=${cleanProxyUrl}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = {
+            username: decodeURIComponent(parsedUrl.username),
+            password: decodeURIComponent(parsedUrl.password)
+          };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
     }
 
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -388,6 +436,9 @@ async function fetchHtmlWithPuppeteer(targetUrl) {
 
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) {
+      await page.authenticate(proxyAuth);
+    }
     await page.setViewport({ width: 1280, height: 800 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({

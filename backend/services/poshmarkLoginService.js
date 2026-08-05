@@ -40,9 +40,22 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
     };
 
     const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
     if (proxyUrl) {
       console.log(`[Poshmark Login] Setting browser proxy: ${proxyUrl}`);
-      launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        const cleanProxyUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+        launchOptions.args.push(`--proxy-server=${cleanProxyUrl}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = {
+            username: decodeURIComponent(parsedUrl.username),
+            password: decodeURIComponent(parsedUrl.password)
+          };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
     }
 
     // Set custom Chrome executable path if configured or present on system
@@ -63,6 +76,9 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
 
     browser = await puppeteer.launch(launchOptions);
     page = await browser.newPage();
+    if (proxyAuth) {
+      await page.authenticate(proxyAuth);
+    }
 
     // Emulate human-like viewport and user-agent details
     await page.setViewport({ width: 1280, height: 800 });
