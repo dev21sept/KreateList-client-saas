@@ -162,6 +162,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         cachedDetails[platform] = data;
         setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
           console.log(`Cached Connection Details for ${platform}:`, data);
+          
+          // Get cookies for the domain to complete the session data
+          const domain = platform === 'depop' ? 'depop.com' : (platform === 'poshmark' ? 'poshmark.com' : '');
+          if (domain) {
+            chrome.cookies.getAll({ domain }, (cookiesList) => {
+              const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
+              data.sessionCookie = cookieString;
+              
+              // Find any open eLister tabs and post credentials back directly
+              chrome.tabs.query({}, (tabs) => {
+                const elisterTabs = (tabs || []).filter(tab => 
+                  tab.url && (tab.url.includes('elister.ai') || tab.url.includes('localhost') || tab.url.includes('127.0.0.1'))
+                );
+                
+                elisterTabs.forEach(tab => {
+                  chrome.tabs.sendMessage(tab.id, {
+                    action: 'ELISTER_CONNECTION_DETAILS_RESPONSE_BG',
+                    platform,
+                    success: true,
+                    data
+                  });
+                });
+              });
+            });
+          }
+
+          // Close the source tab (the Depop/login page) after a short delay
+          if (sender.tab && sender.tab.id) {
+            setTimeout(() => {
+              chrome.tabs.remove(sender.tab.id).catch(() => {});
+            }, 1000);
+          }
+
           sendResponse({ success: true });
         });
       });

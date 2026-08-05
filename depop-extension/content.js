@@ -1580,7 +1580,19 @@ else if (currentSite === 'elister') {
 
 // Runtime messaging handler
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'GET_SESSION_STATUS') {
+  if (request.action === 'ELISTER_CONNECTION_DETAILS_RESPONSE_BG') {
+    if (currentSite === 'elister') {
+      console.log('[Elister Depop] Received connection details from background, posting to app context...', request.data);
+      window.postMessage({
+        action: 'ELISTER_CONNECTION_DETAILS_RESPONSE',
+        platform: request.platform,
+        success: request.success,
+        data: request.data
+      }, '*');
+    }
+  }
+
+  else if (request.action === 'GET_SESSION_STATUS') {
     const token = getAuthToken();
     sendResponse({
       success: true,
