@@ -260,6 +260,20 @@ async function scrapeDepopShop(username, credentials = {}) {
   
   const config = getRequestConfig(targetUrl);
   
+  // Inject authenticated session headers to bypass Cloudflare bot protection
+  if (credentials) {
+    if (credentials.sessionCookie) {
+      config.headers['cookie'] = credentials.sessionCookie;
+    }
+    if (credentials.accessToken) {
+      config.headers['authorization'] = credentials.accessToken.startsWith('Bearer ') 
+        ? credentials.accessToken 
+        : `Bearer ${credentials.accessToken}`;
+    }
+    config.headers['referer'] = 'https://www.depop.com/';
+    config.headers['origin'] = 'https://www.depop.com';
+  }
+
   try {
     let html = null;
     try {
@@ -270,7 +284,7 @@ async function scrapeDepopShop(username, credentials = {}) {
       html = response.data;
     } catch (err) {
       console.warn(`[Import Scraper] Public Depop fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
-      html = await fetchHtmlWithPuppeteer(targetUrl);
+      html = await fetchHtmlWithPuppeteer(targetUrl, credentials);
     }
     
     const $ = cheerio.load(html);
@@ -394,7 +408,7 @@ async function scrapeDepopShop(username, credentials = {}) {
  * Helper to fetch HTML content from a URL using Puppeteer Stealth Browser.
  * Used when direct HTTP requests (axios) are blocked by Cloudflare/WAF.
  */
-async function fetchHtmlWithPuppeteer(targetUrl) {
+async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
   let browser = null;
   try {
     const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
@@ -446,6 +460,30 @@ async function fetchHtmlWithPuppeteer(targetUrl) {
     }
     await page.setViewport({ width: 1280, height: 800 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Inject session cookies into Puppeteer context
+    if (credentials && credentials.sessionCookie) {
+      try {
+        const cookies = credentials.sessionCookie.split('; ').map(pair => {
+          const parts = pair.split('=');
+          const name = parts[0];
+          const value = parts.slice(1).join('=');
+          return {
+            name,
+            value,
+            domain: '.depop.com',
+            path: '/'
+          };
+        }).filter(c => c.name && c.value);
+        if (cookies.length > 0) {
+          await page.setCookie(...cookies);
+          console.log(`[Import Scraper] Injected ${cookies.length} session cookies into Puppeteer page.`);
+        }
+      } catch (cookieErr) {
+        console.warn(`[Import Scraper] Failed to inject cookies into Puppeteer:`, cookieErr.message);
+      }
+    }
+
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9'
     });
