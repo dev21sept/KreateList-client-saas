@@ -281,8 +281,55 @@ const Listings = () => {
           toast.error(`No connected username found for ${selectedChannel}.`);
           return;
         }
+
+        let listings = [];
+        if (selectedChannel === 'depop') {
+          try {
+            const fetchListingsViaExtension = (userId, accessToken) => {
+              return new Promise((resolve, reject) => {
+                const handleResponse = (event) => {
+                  if (event.data && event.data.action === 'ELISTER_FETCH_DEPOP_PRODUCTS_RESPONSE') {
+                    window.removeEventListener('message', handleResponse);
+                    if (event.data.success) {
+                      resolve(event.data.products || []);
+                    } else {
+                      reject(new Error(event.data.error || 'Failed to fetch products'));
+                    }
+                  }
+                };
+                window.addEventListener('message', handleResponse);
+                window.postMessage({
+                  action: 'ELISTER_FETCH_DEPOP_PRODUCTS',
+                  userId,
+                  accessToken
+                }, '*');
+                
+                setTimeout(() => {
+                  window.removeEventListener('message', handleResponse);
+                  reject(new Error('Extension response timeout'));
+                }, 15000);
+              });
+            };
+
+            const depopAcc = user?.depopAccount;
+            if (depopAcc?.userId && depopAcc?.accessToken) {
+              toast.info("Fetching products directly from Depop via Extension...");
+              listings = await fetchListingsViaExtension(depopAcc.userId, depopAcc.accessToken);
+              console.log(`[Listings] Fetched ${listings.length} products via Extension.`);
+            }
+          } catch (e) {
+            console.warn('[Listings] Extension listing fetch failed, falling back to server scraping...', e);
+            toast.warning(`Extension Sync Warning: ${e.message}. Falling back to server scraper...`);
+          }
+        }
+
         toast.success(`Syncing ${selectedChannel} closet...`);
-        const res = await externalImportService.importCloset({ platform: selectedChannel, username });
+        const res = await externalImportService.importCloset({ 
+          platform: selectedChannel, 
+          username,
+          listings: listings.length > 0 ? listings : undefined
+        });
+
         if (res.data?.success) {
           toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${selectedChannel}!`);
           fetchChannelInventory();
