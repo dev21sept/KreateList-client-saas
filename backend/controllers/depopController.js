@@ -105,6 +105,7 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 // @access  Private
 exports.depopConnect = async (req, res) => {
   try {
+    console.log('[Depop Connect Request Body]:', JSON.stringify(req.body, null, 2));
     const { username, userId, accessToken, disconnect } = req.body;
 
     const user = await User.findById(req.user.id);
