@@ -996,7 +996,6 @@ async function resolveUsernameFromApi(token) {
     isResolvingUsername = false;
   }
 }
-}
 
 async function checkAndCompleteConnection() {
   const token = getAuthToken();
