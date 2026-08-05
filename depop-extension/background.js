@@ -158,46 +158,77 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   else if (message.action === 'CACHE_CONNECTION_DETAILS') {
     const { platform, data } = message;
     if (platform && data) {
-      getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
-        cachedDetails[platform] = data;
-        setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
-          console.log(`Cached Connection Details for ${platform}:`, data);
-          
-          // Get cookies for the domain to complete the session data
-          const domain = platform === 'depop' ? 'depop.com' : (platform === 'poshmark' ? 'poshmark.com' : '');
-          if (domain) {
-            chrome.cookies.getAll({ domain }, (cookiesList) => {
-              const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
-              data.sessionCookie = cookieString;
-              
-              // Find any open eLister tabs and post credentials back directly
-              chrome.tabs.query({}, (tabs) => {
-                const elisterTabs = (tabs || []).filter(tab => 
-                  tab.url && (tab.url.includes('elister.ai') || tab.url.includes('localhost') || tab.url.includes('127.0.0.1'))
-                );
+      const proceedCache = (resolvedData) => {
+        getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+          cachedDetails[platform] = resolvedData;
+          setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+            console.log(`Cached Connection Details for ${platform}:`, resolvedData);
+            
+            // Get cookies for the domain to complete the session data
+            const domain = platform === 'depop' ? 'depop.com' : (platform === 'poshmark' ? 'poshmark.com' : '');
+            if (domain) {
+              chrome.cookies.getAll({ domain }, (cookiesList) => {
+                const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
+                resolvedData.sessionCookie = cookieString;
                 
-                elisterTabs.forEach(tab => {
-                  chrome.tabs.sendMessage(tab.id, {
-                    action: 'ELISTER_CONNECTION_DETAILS_RESPONSE_BG',
-                    platform,
-                    success: true,
-                    data
+                // Find any open eLister tabs and post credentials back directly
+                chrome.tabs.query({}, (tabs) => {
+                  const elisterTabs = (tabs || []).filter(tab => 
+                    tab.url && (tab.url.includes('elister.ai') || tab.url.includes('localhost') || tab.url.includes('127.0.0.1'))
+                  );
+                  
+                  elisterTabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
+                      action: 'ELISTER_CONNECTION_DETAILS_RESPONSE_BG',
+                      platform,
+                      success: true,
+                      data: resolvedData
+                    });
                   });
                 });
               });
-            });
-          }
+            }
 
-          // Close the source tab (the Depop/login page) after a short delay
-          if (sender.tab && sender.tab.id) {
-            setTimeout(() => {
-              chrome.tabs.remove(sender.tab.id).catch(() => {});
-            }, 1000);
-          }
+            // Close the source tab (the Depop/login page) after a short delay
+            if (sender.tab && sender.tab.id) {
+              setTimeout(() => {
+                chrome.tabs.remove(sender.tab.id).catch(() => {});
+              }, 1000);
+            }
 
-          sendResponse({ success: true });
+            sendResponse({ success: true });
+          });
         });
-      });
+      };
+
+      if (platform === 'depop' && (!data.username || data.username === 'depop_user')) {
+        console.log('[Background Worker] CACHE_CONNECTION_DETAILS: Username missing. Resolving from background fetch...');
+        fetch('https://webapi.depop.com/api/v1/users/me/', {
+          method: 'GET',
+          headers: {
+            'Authorization': data.accessToken.startsWith('Bearer ') ? data.accessToken : `Bearer ${data.accessToken}`,
+            'Accept': 'application/json'
+          }
+        })
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error(`Status ${res.status}`);
+        })
+        .then(profile => {
+          const username = profile.username || profile.username_canonical;
+          if (username) {
+            console.log('[Background Worker] Successfully resolved username:', username);
+            data.username = username;
+          }
+          proceedCache(data);
+        })
+        .catch(err => {
+          console.error('[Background Worker] Failed to resolve username:', err.message);
+          proceedCache(data);
+        });
+      } else {
+        proceedCache(data);
+      }
       return true;
     }
     sendResponse({ success: true });
@@ -207,10 +238,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
       const platformDetails = cachedDetails[message.platform];
       if (platformDetails) {
-        chrome.cookies.getAll({ domain: 'depop.com' }, (cookiesList) => {
+        const domain = message.platform === 'depop' ? 'depop.com' : (message.platform === 'poshmark' ? 'poshmark.com' : '');
+        chrome.cookies.getAll({ domain }, (cookiesList) => {
           const cookieString = (cookiesList || []).map(c => `${c.name}=${c.value}`).join('; ');
           platformDetails.sessionCookie = cookieString;
-          sendResponse({ success: true, data: platformDetails });
+          
+          if (message.platform === 'depop' && (!platformDetails.username || platformDetails.username === 'depop_user')) {
+            console.log('[Background Worker] GET_CONNECTION_DETAILS: Username missing. Resolving...');
+            fetch('https://webapi.depop.com/api/v1/users/me/', {
+              method: 'GET',
+              headers: {
+                'Authorization': platformDetails.accessToken.startsWith('Bearer ') ? platformDetails.accessToken : `Bearer ${platformDetails.accessToken}`,
+                'Accept': 'application/json'
+              }
+            })
+            .then(res => {
+              if (res.ok) return res.json();
+              throw new Error(`Status ${res.status}`);
+            })
+            .then(profile => {
+              const username = profile.username || profile.username_canonical;
+              if (username) {
+                console.log('[Background Worker] Successfully resolved username:', username);
+                platformDetails.username = username;
+                // Update storage too
+                cachedDetails[message.platform] = platformDetails;
+                setStorageData('cachedConnectionDetails', cachedDetails);
+              }
+              sendResponse({ success: true, data: platformDetails });
+            })
+            .catch(err => {
+              console.error('[Background Worker] Failed to resolve username:', err.message);
+              sendResponse({ success: true, data: platformDetails });
+            });
+          } else {
+            sendResponse({ success: true, data: platformDetails });
+          }
         });
       } else {
         sendResponse({ success: false });
