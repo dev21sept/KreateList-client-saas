@@ -504,9 +504,36 @@ exports.depopGetLive = async (req, res) => {
       const { getListingsFromDepopPartner } = require('../services/depopPartnerService');
       liveListings = await getListingsFromDepopPartner(apiKey);
     } else {
+      console.log(`[Depop Controller] Checking database for synced products for user: ${req.user.id}`);
+      const dbProducts = await Product.find({ user: req.user.id, source: 'depop' });
+      
+      if (dbProducts.length > 0) {
+        console.log(`[Depop Controller] Returning ${dbProducts.length} synced products from database for getLive`);
+        const mappedListings = dbProducts.map(p => ({
+          _id: p._id,
+          title: p.title,
+          description: p.description,
+          price: p.selling_price || 0,
+          sku: p.sku || '',
+          category: p.category || 'Tops',
+          images: p.images || [],
+          thumbnail: p.thumbnail || (p.images && p.images[0]) || '',
+          platform: 'depop',
+          depopListingId: p.depopListingId,
+          depopUrl: p.depopUrl,
+          quantity: p.quantity || 1,
+          status: p.status === 'live' ? 'active' : 'inactive'
+        }));
+        
+        return res.status(200).json({
+          success: true,
+          data: mappedListings
+        });
+      }
+
       const depopAccount = user.depopAccount || {};
       const username = depopAccount.username;
-      console.log(`[Depop Controller] Fetching live inventory for Depop (${username}) via Scraping`);
+      console.log(`[Depop Controller] DB empty. Fetching live inventory for Depop (${username}) via Scraping fallback`);
       
       liveListings = await scrapeDepopShop(username, depopAccount);
 
