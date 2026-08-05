@@ -1440,7 +1440,7 @@ if (currentSite === 'depop') {
   let lastSentUsername = '';
   let lastSentTime = 0;
 
-  window.addEventListener('ELISTER_DEPOP_TOKEN_CAPTURED', (event) => {
+  window.addEventListener('ELISTER_DEPOP_TOKEN_CAPTURED', async (event) => {
     const token = event.detail.token;
     if (token) {
       sessionStorage.setItem('elister_captured_depop_token', token);
@@ -1449,8 +1449,11 @@ if (currentSite === 'depop') {
         data: { site: currentSite, token }
       }).catch(() => {});
 
-      // Parse username from pathname if on profile
-      let username = getDepopUsername();
+      // Parse username from profile API asynchronously
+      let username = await resolveUsernameFromApi(token);
+      if (!username) {
+        username = getDepopUsername();
+      }
 
       const now = Date.now();
       if (token === lastSentToken && username === lastSentUsername && (now - lastSentTime < 10000)) {
