@@ -148,6 +148,7 @@ const EbayAccounts = () => {
               const res = await externalImportService.connect({
                 platform: 'depop',
                 username: data.username,
+                userId: data.userId,
                 accessToken: data.accessToken,
                 sessionCookie: data.sessionCookie
               });
