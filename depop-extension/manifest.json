@@ -8,7 +8,8 @@
     "activeTab",
     "scripting",
     "cookies",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "tabs"
   ],
   "host_permissions": [
     "*://*.depop.com/*",
