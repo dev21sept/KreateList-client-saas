@@ -500,6 +500,10 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
     // Wait 2 seconds for dynamic contents to render
     await new Promise(resolve => setTimeout(resolve, 2000));
 
+    const currentUrl = page.url();
+    const pageTitle = await page.title();
+    console.log(`[Import Scraper] Puppeteer loaded page. Final URL: ${currentUrl}, Title: ${pageTitle}`);
+
     const html = await page.content();
     await browser.close();
     return html;
