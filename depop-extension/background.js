@@ -34,9 +34,32 @@ async function fetchWithRetry(url, options = {}, retries = 3, delayMs = 1500) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Elister Depop Fast Automator Service Worker installed!');
-});
+function resolveDepopUsernameFromTabs(accessToken) {
+  return new Promise((resolve) => {
+    chrome.tabs.query({}, (tabs) => {
+      const depopTab = (tabs || []).find(t => t.url && t.url.includes('depop.com'));
+      if (depopTab && depopTab.id) {
+        console.log('[Background Worker] Asking Depop tab ' + depopTab.id + ' to resolve username...');
+        chrome.tabs.sendMessage(depopTab.id, {
+          action: 'RESOLVE_DEPOP_USERNAME_FROM_PAGE',
+          token: accessToken
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[Background Worker] tab messaging failed:', chrome.runtime.lastError.message);
+            resolve(null);
+          } else if (response && response.success && response.username) {
+            resolve(response.username);
+          } else {
+            resolve(null);
+          }
+        });
+      } else {
+        console.warn('[Background Worker] No open Depop tab found to resolve username.');
+        resolve(null);
+      }
+    });
+  });
+}
 
 // Listener for runtime messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -202,30 +225,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
 
       if (platform === 'depop' && (!data.username || data.username === 'depop_user')) {
-        console.log('[Background Worker] CACHE_CONNECTION_DETAILS: Username missing. Resolving from background fetch...');
-        fetch('https://webapi.depop.com/api/v1/users/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': data.accessToken.startsWith('Bearer ') ? data.accessToken : `Bearer ${data.accessToken}`,
-            'Accept': 'application/json'
+        console.log('[Background Worker] CACHE_CONNECTION_DETAILS: Username missing. Resolving via tabs...');
+        resolveDepopUsernameFromTabs(data.accessToken).then(tabUsername => {
+          if (tabUsername) {
+            console.log('[Background Worker] CACHE_CONNECTION_DETAILS resolved username from tabs:', tabUsername);
+            data.username = tabUsername;
+            proceedCache(data);
+          } else {
+            console.log('[Background Worker] CACHE_CONNECTION_DETAILS tab resolution returned null. Falling back to background fetch...');
+            fetch('https://webapi.depop.com/api/v1/users/me', {
+              method: 'GET',
+              headers: {
+                'Authorization': data.accessToken.startsWith('Bearer ') ? data.accessToken : `Bearer ${data.accessToken}`,
+                'Accept': 'application/json'
+              }
+            })
+            .then(res => {
+              if (res.ok) return res.json();
+              throw new Error(`Status ${res.status}`);
+            })
+            .then(profile => {
+              const username = profile.username || profile.username_canonical;
+              if (username) {
+                console.log('[Background Worker] Successfully resolved username via background fetch:', username);
+                data.username = username;
+              }
+              proceedCache(data);
+            })
+            .catch(err => {
+              console.error('[Background Worker] Failed to resolve username via background fetch:', err.message);
+              data.resolutionError = err.message;
+              proceedCache(data);
+            });
           }
-        })
-        .then(res => {
-          if (res.ok) return res.json();
-          throw new Error(`Status ${res.status}`);
-        })
-        .then(profile => {
-          const username = profile.username || profile.username_canonical;
-          if (username) {
-            console.log('[Background Worker] Successfully resolved username:', username);
-            data.username = username;
-          }
-          proceedCache(data);
-        })
-        .catch(err => {
-          console.error('[Background Worker] Failed to resolve username:', err.message);
-          data.resolutionError = err.message;
-          proceedCache(data);
         });
       } else {
         proceedCache(data);
@@ -245,33 +277,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           platformDetails.sessionCookie = cookieString;
           
           if (message.platform === 'depop' && (!platformDetails.username || platformDetails.username === 'depop_user')) {
-            console.log('[Background Worker] GET_CONNECTION_DETAILS: Username missing. Resolving...');
-            fetch('https://webapi.depop.com/api/v1/users/me', {
-              method: 'GET',
-              headers: {
-                'Authorization': platformDetails.accessToken.startsWith('Bearer ') ? platformDetails.accessToken : `Bearer ${platformDetails.accessToken}`,
-                'Accept': 'application/json'
-              }
-            })
-            .then(res => {
-              if (res.ok) return res.json();
-              throw new Error(`Status ${res.status}`);
-            })
-            .then(profile => {
-              const username = profile.username || profile.username_canonical;
-              if (username) {
-                console.log('[Background Worker] Successfully resolved username:', username);
-                platformDetails.username = username;
-                // Update storage too
+            console.log('[Background Worker] GET_CONNECTION_DETAILS: Username missing. Resolving via tabs...');
+            resolveDepopUsernameFromTabs(platformDetails.accessToken).then(tabUsername => {
+              if (tabUsername) {
+                console.log('[Background Worker] GET_CONNECTION_DETAILS resolved username from tabs:', tabUsername);
+                platformDetails.username = tabUsername;
                 cachedDetails[message.platform] = platformDetails;
-                setStorageData('cachedConnectionDetails', cachedDetails);
+                setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
+                  sendResponse({ success: true, data: platformDetails });
+                });
+              } else {
+                console.log('[Background Worker] GET_CONNECTION_DETAILS tab resolution returned null. Falling back to background fetch...');
+                fetch('https://webapi.depop.com/api/v1/users/me', {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': platformDetails.accessToken.startsWith('Bearer ') ? platformDetails.accessToken : `Bearer ${platformDetails.accessToken}`,
+                    'Accept': 'application/json'
+                  }
+                })
+                .then(res => {
+                  if (res.ok) return res.json();
+                  throw new Error(`Status ${res.status}`);
+                })
+                .then(profile => {
+                  const username = profile.username || profile.username_canonical;
+                  if (username) {
+                    console.log('[Background Worker] Successfully resolved username via background fetch:', username);
+                    platformDetails.username = username;
+                    // Update storage too
+                    cachedDetails[message.platform] = platformDetails;
+                    setStorageData('cachedConnectionDetails', cachedDetails);
+                  }
+                  sendResponse({ success: true, data: platformDetails });
+                })
+                .catch(err => {
+                  console.error('[Background Worker] Failed to resolve username via background fetch:', err.message);
+                  platformDetails.resolutionError = err.message;
+                  sendResponse({ success: true, data: platformDetails });
+                });
               }
-              sendResponse({ success: true, data: platformDetails });
-            })
-            .catch(err => {
-              console.error('[Background Worker] Failed to resolve username:', err.message);
-              platformDetails.resolutionError = err.message;
-              sendResponse({ success: true, data: platformDetails });
             });
           } else {
             sendResponse({ success: true, data: platformDetails });

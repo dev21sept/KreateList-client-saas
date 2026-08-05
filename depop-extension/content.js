@@ -1584,6 +1584,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   }
 
+  else if (request.action === 'RESOLVE_DEPOP_USERNAME_FROM_PAGE') {
+    console.log('[Elister Depop] Received RESOLVE_DEPOP_USERNAME_FROM_PAGE request from background worker.');
+    resolveUsernameFromApi(request.token).then(username => {
+      if (username) {
+        console.log('[Elister Depop] Successfully resolved username via page context:', username);
+        sendResponse({ success: true, username });
+      } else {
+        const domUsername = getDepopUsername();
+        console.log('[Elister Depop] API resolution returned null, fallback to DOM/URL:', domUsername);
+        sendResponse({ success: !!domUsername, username: domUsername });
+      }
+    }).catch(err => {
+      console.error('[Elister Depop] Error resolving username via page context:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true; // Keep message channel open for async response
+  }
+
   else if (request.action === 'GET_SESSION_STATUS') {
     const token = getAuthToken();
     sendResponse({
