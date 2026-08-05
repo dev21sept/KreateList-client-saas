@@ -142,7 +142,7 @@
       const options = args[1] || {};
       const method = options.method || 'GET';
       
-      if (response.ok && (url.includes('auth/session') || url.includes('users/me/settings'))) {
+      if (response.ok && (url.includes('auth/session') || url.includes('users/me/settings') || url.includes('users/me'))) {
         try {
           const responseClone = response.clone();
           const data = await responseClone.json();
