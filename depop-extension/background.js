@@ -36,9 +36,15 @@ async function fetchWithRetry(url, options = {}, retries = 3, delayMs = 1500) {
 
 function resolveDepopUsernameFromTabs(accessToken) {
   return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      console.warn('[Background Worker] resolveDepopUsernameFromTabs timed out.');
+      resolve(null);
+    }, 1500);
+
     chrome.tabs.query({}, (tabs) => {
       if (!tabs || tabs.length === 0) {
         console.warn('[Background Worker] No open tabs found at all.');
+        clearTimeout(timeoutId);
         resolve(null);
         return;
       }
@@ -49,7 +55,10 @@ function resolveDepopUsernameFromTabs(accessToken) {
       tabs.forEach((tab) => {
         if (!tab.id) {
           pendingQueries--;
-          if (pendingQueries === 0 && !resolved) resolve(null);
+          if (pendingQueries === 0 && !resolved) {
+            clearTimeout(timeoutId);
+            resolve(null);
+          }
           return;
         }
         
@@ -65,14 +74,17 @@ function resolveDepopUsernameFromTabs(accessToken) {
             if (!resolved) {
               resolved = true;
               console.log('[Background Worker] Broadcast resolved username from tab ' + tab.id + ':', response.username);
+              clearTimeout(timeoutId);
               resolve(response.username);
             }
           }
           
           if (pendingQueries === 0 && !resolved) {
+            clearTimeout(timeoutId);
             resolve(null);
           }
         });
+      });
     });
   });
 }
