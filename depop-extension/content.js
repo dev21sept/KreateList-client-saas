@@ -865,7 +865,7 @@ function getDepopUsername() {
   try {
     const sessionUser = sessionStorage.getItem('elister_captured_depop_username');
     if (sessionUser) {
-      console.log('[Elister Depop] Resolved username from captured session:', sessionUser);
+      // console.log('[Elister Depop] Resolved username from captured session:', sessionUser);
       return sessionUser;
     }
   } catch (e) {}
@@ -969,7 +969,7 @@ async function resolveUsernameFromApi(token) {
   // Rate limit: Only allow API resolution once every 5 seconds to prevent 429 spam
   const now = Date.now();
   if (isResolvingUsername || (now - lastApiResolveTime < 5000)) {
-    console.log('[Elister Depop] API resolution locked or rate-limited. Skipping to prevent 429 spam.');
+    // console.log('[Elister Depop] API resolution locked or rate-limited. Skipping to prevent 429 spam.');
     return null;
   }
 
@@ -1490,7 +1490,7 @@ if (currentSite === 'depop') {
 
       const now = Date.now();
       if (token === lastSentToken && username === lastSentUsername && (now - lastSentTime < 10000)) {
-        console.log('[Elister Depop] Skipping duplicate token capture to prevent request flooding.');
+        // console.log('[Elister Depop] Skipping duplicate token capture to prevent request flooding.');
         return;
       }
       lastSentToken = token;
