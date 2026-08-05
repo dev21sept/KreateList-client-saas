@@ -1641,6 +1641,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   }
 
+  else if (request.action === 'FETCH_DEPOP_PRODUCTS_ON_DEPOP') {
+    if (currentSite !== 'depop') {
+      sendResponse({ success: false, error: 'Request not routed to Depop page context.' });
+      return false;
+    }
+    console.log('[Elister Depop] Executing API fetch in Depop page context...', request.userId);
+    const { userId, accessToken } = request;
+    const url = `https://webapi.depop.com/api/v3/shop/${userId}/products/?limit=100`;
+    const headers = {
+      'accept': 'application/json',
+      'authorization': accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`,
+      'referer': 'https://www.depop.com/',
+      'origin': 'https://www.depop.com'
+    };
+    fetch(url, {
+      headers,
+      credentials: 'include'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        const rawProducts = data.products || data.results || [];
+        console.log(`[Elister Depop] Successfully fetched ${rawProducts.length} products inside Depop context!`);
+        sendResponse({ success: true, products: rawProducts });
+      })
+      .catch(err => {
+        console.error('[Elister Depop] Fetch failed inside Depop context:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
+
   else if (request.action === 'RESOLVE_DEPOP_USERNAME_FROM_PAGE') {
     if (currentSite !== 'depop') {
       sendResponse({ success: false, error: 'Request not originating from Depop tab.' });

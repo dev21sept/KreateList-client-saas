@@ -139,7 +139,7 @@ const EbayAccounts = () => {
           }
         } catch (e) {
           console.warn('[Integrations] Extension listing fetch failed, falling back to server scraping...', e);
-          toast.info("Extension fetch skipped/failed, using server scraper fallback...");
+          toast.warning(`Extension Sync Warning: ${e.message}. Falling back to server scraper...`);
         }
       }
 

@@ -360,30 +360,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   else if (message.action === 'FETCH_DEPOP_PRODUCTS') {
-    const { userId, accessToken, sessionCookie } = message.data;
-    const url = `https://webapi.depop.com/api/v3/shop/${userId}/products/?limit=100`;
-    const headers = {
-      'accept': 'application/json',
-      'authorization': accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`,
-      'referer': 'https://www.depop.com/',
-      'origin': 'https://www.depop.com'
-    };
-    if (sessionCookie) {
-      headers['cookie'] = sessionCookie;
-    }
-    fetch(url, { headers })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        const rawProducts = data.products || data.results || [];
-        sendResponse({ success: true, products: rawProducts });
-      })
-      .catch(err => {
-        console.error('[Background] Failed to fetch products:', err);
-        sendResponse({ success: false, error: err.message });
-      });
+    const { userId, accessToken } = message.data;
+    chrome.tabs.query({ url: '*://*.depop.com/*' }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        // Send a message to the first open Depop tab to fetch the products
+        const activeTab = tabs[0];
+        console.log('[Background] Routing FETCH_DEPOP_PRODUCTS to Depop tab:', activeTab.id);
+        chrome.tabs.sendMessage(activeTab.id, {
+          action: 'FETCH_DEPOP_PRODUCTS_ON_DEPOP',
+          userId,
+          accessToken
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.error('[Background] Error contacting Depop tab content script:', chrome.runtime.lastError.message);
+            sendResponse({ success: false, error: 'Could not contact active Depop tab content script. Make sure Depop page is open.' });
+            return;
+          }
+          sendResponse(res);
+        });
+      } else {
+        console.warn('[Background] No open Depop tab found to broker API request.');
+        sendResponse({ 
+          success: false, 
+          error: 'No active Depop tab found. Please keep a Depop tab open in your browser to sync.' 
+        });
+      }
+    });
     return true;
   }
   
