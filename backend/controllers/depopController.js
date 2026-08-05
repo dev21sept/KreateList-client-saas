@@ -292,16 +292,30 @@ exports.depopImportCloset = async (req, res) => {
       }
 
       if (existingProduct) {
-        // If it exists, merge the Depop details
-        if (!existingProduct.depopListingId || !existingProduct.depopUrl) {
-          existingProduct.depopListingId = item.depopListingId;
-          existingProduct.depopUrl = item.depopUrl;
-          if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
-          if (item.size && !existingProduct.size) existingProduct.size = item.size;
+        // Self-healing: if the product is a placeholder/bad guest-scrape import (contains 'item listed by' or has 0 price), overwrite it with rich API details!
+        if (existingProduct.title.includes('item listed by') || parseFloat(existingProduct.selling_price) === 0) {
+          existingProduct.title = item.title;
+          existingProduct.description = item.description;
+          existingProduct.selling_price = parseFloat(item.price) || 0;
+          if (item.brand) existingProduct.brand = item.brand;
+          if (item.size) existingProduct.size = item.size;
+          if (item.images && item.images.length > 0) existingProduct.images = item.images;
+          existingProduct.status = 'live';
           existingProduct.updated_at = Date.now();
           await existingProduct.save();
+          importCount++;
+        } else {
+          // Standard merge
+          if (!existingProduct.depopListingId || !existingProduct.depopUrl) {
+            existingProduct.depopListingId = item.depopListingId;
+            existingProduct.depopUrl = item.depopUrl;
+            if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
+            if (item.size && !existingProduct.size) existingProduct.size = item.size;
+            existingProduct.updated_at = Date.now();
+            await existingProduct.save();
+          }
+          duplicateCount++;
         }
-        duplicateCount++;
         continue;
       }
 
