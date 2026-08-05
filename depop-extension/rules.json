@@ -3,7 +3,8 @@
     "id": 1,
     "priority": 1,
     "condition": {
-      "urlFilter": "*://*depop.com/*"
+      "urlFilter": "*://*depop.com/*",
+      "excludedInitiatorDomains": ["depop.com"]
     },
     "action": {
       "type": "modifyHeaders",
