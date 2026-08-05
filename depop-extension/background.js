@@ -266,13 +266,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               });
             }
 
-            // Close the source tab (the Depop/login page) after a short delay
-            if (sender.tab && sender.tab.id) {
-              setTimeout(() => {
-                chrome.tabs.remove(sender.tab.id).catch(() => {});
-              }, 1000);
-            }
-
             sendResponse({ success: true });
           });
         });
