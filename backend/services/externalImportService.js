@@ -389,6 +389,7 @@ async function scrapeDepopShop(username, credentials = {}) {
           images: [imgUrl],
           thumbnail: imgUrl,
           platform: 'depop',
+          depopListingId: slug || timestamp,
           depopUrl: fullUrl,
           quantity: 1,
           status: 'draft'

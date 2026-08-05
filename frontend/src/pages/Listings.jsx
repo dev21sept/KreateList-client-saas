@@ -691,10 +691,10 @@ const Listings = () => {
     }
   };
 
-  const renderChannelRow = (product) => {
+  const renderChannelRow = (product, idx) => {
     const details = getProductDetails(product);
     return (
-      <tr key={product._id || details.liveId} className="hover:bg-slate-50/50 transition-all group">
+      <tr key={product._id || (details.liveId !== '-' ? details.liveId : `scraped-${idx}`)} className="hover:bg-slate-50/50 transition-all group">
         <td className="px-6 py-4">
           <input type="checkbox" className="rounded text-indigo-600 cursor-pointer" />
         </td>
@@ -1239,7 +1239,7 @@ const Listings = () => {
                     <td colSpan="8" className="px-6 py-10 text-center text-slate-400">Loading {selectedChannel} inventory...</td>
                   </tr>
                 ) : filteredChannelProducts.length > 0 ? (
-                  filteredChannelProducts.map((product) => renderChannelRow(product))
+                  filteredChannelProducts.map((product, idx) => renderChannelRow(product, idx))
                 ) : (
                   <tr>
                     <td colSpan="8" className="px-6 py-10 text-center text-slate-400">
