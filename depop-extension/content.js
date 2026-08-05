@@ -1436,6 +1436,10 @@ if (currentSite === 'depop') {
   });
 
   // Listen for auth token updates
+  let lastSentToken = '';
+  let lastSentUsername = '';
+  let lastSentTime = 0;
+
   window.addEventListener('ELISTER_DEPOP_TOKEN_CAPTURED', (event) => {
     const token = event.detail.token;
     if (token) {
@@ -1447,6 +1451,15 @@ if (currentSite === 'depop') {
 
       // Parse username from pathname if on profile
       let username = getDepopUsername();
+
+      const now = Date.now();
+      if (token === lastSentToken && username === lastSentUsername && (now - lastSentTime < 10000)) {
+        console.log('[Elister Depop] Skipping duplicate token capture to prevent request flooding.');
+        return;
+      }
+      lastSentToken = token;
+      lastSentUsername = username;
+      lastSentTime = now;
 
       chrome.runtime.sendMessage({
         action: 'CACHE_CONNECTION_DETAILS',
