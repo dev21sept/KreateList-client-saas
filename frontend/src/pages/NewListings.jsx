@@ -510,10 +510,62 @@ const NewListings = () => {
           toast.error(`No connected username found for ${selectedChannel}.`);
           return;
         }
+
+        let listings = [];
+        if (selectedChannel === 'depop') {
+          try {
+            const fetchListingsViaExtension = (userId, accessToken) => {
+              return new Promise((resolve, reject) => {
+                const handleResponse = (event) => {
+                  if (event.data && event.data.action === 'ELISTER_FETCH_DEPOP_PRODUCTS_RESPONSE') {
+                    window.removeEventListener('message', handleResponse);
+                    if (event.data.success) {
+                      resolve(event.data.products || []);
+                    } else {
+                      reject(new Error(event.data.error || 'Failed to fetch products'));
+                    }
+                  }
+                };
+                window.addEventListener('message', handleResponse);
+                window.postMessage({
+                  action: 'ELISTER_FETCH_DEPOP_PRODUCTS',
+                  userId,
+                  accessToken
+                }, '*');
+                
+                setTimeout(() => {
+                  window.removeEventListener('message', handleResponse);
+                  reject(new Error('Extension response timeout'));
+                }, 15000);
+              });
+            };
+
+            const depopAcc = user?.depopAccount;
+            if (depopAcc?.userId && depopAcc?.accessToken) {
+              toast.info("Fetching products directly from Depop via Extension...");
+              listings = await fetchListingsViaExtension(depopAcc.userId, depopAcc.accessToken);
+              console.log(`[Listings] Fetched ${listings.length} products via Extension.`);
+            }
+          } catch (e) {
+            console.warn('[Listings] Extension listing fetch failed, falling back to server scraping...', e);
+            toast.warning(`Extension Sync Warning: ${e.message}. Falling back to server scraper...`);
+          }
+        }
+
         toast.success(`Syncing ${selectedChannel} closet...`);
-        const res = await externalImportService.importCloset({ platform: selectedChannel, username });
+        const res = await externalImportService.importCloset({ 
+          platform: selectedChannel, 
+          username,
+          listings: listings.length > 0 ? listings : undefined
+        });
+
         if (res.data?.success) {
-          toast.success(`Successfully imported ${res.data.data.importedCount} new products from ${selectedChannel}!`);
+          const count = res.data.data.importedCount;
+          if (count > 0) {
+            toast.success(`Successfully imported ${count} new products from ${selectedChannel}!`);
+          } else {
+            toast.success(`Synced successfully! Your ${selectedChannel} inventory is already up-to-date.`);
+          }
           fetchChannelInventory();
           fetchListings(); // reload local listings in background too
         }
@@ -2312,10 +2364,10 @@ const NewListings = () => {
                             </span>
                           ) : (
                             <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                              details.status === 'live' || details.status === 'published' ? 'bg-[#e6f4ea] text-[#137333]' :
+                              details.status === 'live' || details.status === 'published' || details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' :
                               'bg-[#fef7e0] text-[#b06000]'
                             }`}>
-                              {details.status === 'live' || details.status === 'published' ? 'Live' : 'Draft'}
+                              {details.status === 'live' || details.status === 'published' || details.status === 'active' ? 'Live' : 'Draft'}
                             </span>
                           )}
                         </td>
