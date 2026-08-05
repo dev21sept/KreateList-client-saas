@@ -1610,6 +1610,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   else if (request.action === 'RESOLVE_DEPOP_USERNAME_FROM_PAGE') {
+    if (currentSite !== 'depop') {
+      sendResponse({ success: false, error: 'Request not originating from Depop tab.' });
+      return false;
+    }
     console.log('[Elister Depop] Received RESOLVE_DEPOP_USERNAME_FROM_PAGE request from background worker.');
     resolveUsernameFromApi(request.token).then(username => {
       if (username) {
@@ -1641,6 +1645,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   else if (request.action === 'SYNC_SESSION_TO_ELISTER') {
+    if (currentSite !== 'depop') {
+      sendResponse({ success: false, error: 'Request not originating from Depop tab.' });
+      return false;
+    }
     const token = getAuthToken();
     let username = getDepopUsername();
     
