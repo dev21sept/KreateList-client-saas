@@ -1010,6 +1010,18 @@ async function checkAndCompleteConnection() {
 
   console.log('[Elister Depop] Checking connection status:', { username, hasToken: !!token });
 
+  if (token && username && username !== 'depop_user') {
+    console.log('[Elister Depop] Caching connection details on page load:', { username });
+    chrome.runtime.sendMessage({
+      action: 'CACHE_CONNECTION_DETAILS',
+      platform: 'depop',
+      data: {
+        username,
+        accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+      }
+    }).catch(() => {});
+  }
+
   if (!username) {
     console.warn('[Elister Depop] Could not resolve Depop username. Sending to backend to resolve dynamically.');
   }

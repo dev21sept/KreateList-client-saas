@@ -183,6 +183,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (platform && data) {
       const proceedCache = (resolvedData) => {
         getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
+          const existingDetails = cachedDetails[platform];
+          if (existingDetails && existingDetails.username && (!resolvedData.username || resolvedData.username === 'depop_user')) {
+             console.log('[Background Worker] Retaining existing cached username:', existingDetails.username);
+             resolvedData.username = existingDetails.username;
+          }
           cachedDetails[platform] = resolvedData;
           setStorageData('cachedConnectionDetails', cachedDetails).then(() => {
             console.log(`Cached Connection Details for ${platform}:`, resolvedData);
