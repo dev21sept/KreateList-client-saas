@@ -66,7 +66,7 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
 
     const result = await page.evaluate(async (token) => {
       try {
-        const response = await fetch('https://webapi.depop.com/api/v1/users/me/', {
+        const response = await fetch('https://webapi.depop.com/api/v1/users/me', {
           method: 'GET',
           headers: {
             'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,

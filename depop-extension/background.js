@@ -203,7 +203,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (platform === 'depop' && (!data.username || data.username === 'depop_user')) {
         console.log('[Background Worker] CACHE_CONNECTION_DETAILS: Username missing. Resolving from background fetch...');
-        fetch('https://webapi.depop.com/api/v1/users/me/', {
+        fetch('https://webapi.depop.com/api/v1/users/me', {
           method: 'GET',
           headers: {
             'Authorization': data.accessToken.startsWith('Bearer ') ? data.accessToken : `Bearer ${data.accessToken}`,
@@ -245,7 +245,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           
           if (message.platform === 'depop' && (!platformDetails.username || platformDetails.username === 'depop_user')) {
             console.log('[Background Worker] GET_CONNECTION_DETAILS: Username missing. Resolving...');
-            fetch('https://webapi.depop.com/api/v1/users/me/', {
+            fetch('https://webapi.depop.com/api/v1/users/me', {
               method: 'GET',
               headers: {
                 'Authorization': platformDetails.accessToken.startsWith('Bearer ') ? platformDetails.accessToken : `Bearer ${platformDetails.accessToken}`,

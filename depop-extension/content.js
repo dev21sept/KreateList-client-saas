@@ -965,7 +965,7 @@ async function resolveUsernameFromApi(token) {
     // 1. Try the users me API first via direct page-context fetch (includes cookies automatically)
     try {
       console.log('[Elister Depop] Fetching user details via page-context fetch...');
-      const res = await window.fetch('https://webapi.depop.com/api/v1/users/me/', {
+      const res = await window.fetch('https://webapi.depop.com/api/v1/users/me', {
         method: 'GET',
         headers: {
           'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
