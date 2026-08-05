@@ -965,7 +965,7 @@ async function resolveUsernameFromApi(token) {
     // 1. Try the users me API first via direct page-context fetch (includes cookies automatically)
     try {
       console.log('[Elister Depop] Fetching user details via page-context fetch...');
-      const res = await window.fetch('https://webapi.depop.com/api/v1/users/me', {
+      let res = await window.fetch('https://webapi.depop.com/api/v1/users/me', {
         method: 'GET',
         headers: {
           'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
@@ -974,7 +974,20 @@ async function resolveUsernameFromApi(token) {
         }
       });
       
-      console.log('[Elister Depop] Users Me API response status:', res.status);
+      console.log('[Elister Depop] Users Me API (v1) response status:', res.status);
+      
+      if (!res.ok) {
+        console.log('[Elister Depop] /api/v1/users/me failed, trying /api/users/me...');
+        res = await window.fetch('https://webapi.depop.com/api/users/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('[Elister Depop] Users Me API (non-v1) response status:', res.status);
+      }
       
       if (res.ok) {
         const data = await res.json();
@@ -1616,14 +1629,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   else if (request.action === 'GET_SESSION_STATUS') {
     const token = getAuthToken();
+    const username = getDepopUsername() || 'Depop User';
     sendResponse({
       success: true,
       data: {
         site: currentSite,
-        username: 'Depop User',
+        username: username,
         csrfToken: token ? `${token.substring(0, 15)}...` : null
       }
     });
+  }
+
+  else if (request.action === 'SYNC_SESSION_TO_ELISTER') {
+    const token = getAuthToken();
+    let username = getDepopUsername();
+    
+    const resolveAndSync = async () => {
+      if (!username && token) {
+        username = await resolveUsernameFromApi(token);
+      }
+      if (!username) {
+        username = getDepopUsername() || 'depop_user';
+      }
+      
+      chrome.runtime.sendMessage({
+        action: 'CACHE_CONNECTION_DETAILS',
+        platform: 'depop',
+        data: {
+          username,
+          accessToken: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        }
+      }, (res) => {
+        sendResponse({ success: true, username });
+      });
+    };
+    
+    resolveAndSync();
+    return true; // Keep message channel open for async response
   }
 
   else if (request.action === 'TEST_API_CONNECTION') {

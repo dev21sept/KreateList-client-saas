@@ -53,10 +53,14 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           API Operations
         </h2>
-        <div class="button-grid">
-          <button id="btn-test-api" class="btn btn-primary" style="grid-column: span 2;" disabled>
+        <div class="button-grid" style="display: flex; gap: 10px; margin-bottom: 8px;">
+          <button id="btn-test-api" class="btn btn-primary" style="flex: 1;" disabled>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Test Depop Connection
+            Test Depop
+          </button>
+          <button id="btn-sync-elister" class="btn btn-primary" style="flex: 1; background: #6c5ce7; border-color: #6c5ce7;" disabled>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Sync to eLister
           </button>
         </div>
         <div class="action-status" id="action-status">

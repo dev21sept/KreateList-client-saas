@@ -5,6 +5,7 @@ const platformVal = document.getElementById('platform-val');
 const csrfVal = document.getElementById('csrf-val');
 const userVal = document.getElementById('user-val');
 const btnTestApi = document.getElementById('btn-test-api');
+const btnSyncElister = document.getElementById('btn-sync-elister');
 const actionStatus = document.getElementById('action-status');
 const consoleEl = document.getElementById('console');
 const btnClearConsole = document.getElementById('btn-clear-console');
@@ -41,6 +42,7 @@ function setDisconnectedState(msg = 'Open Depop to activate options.') {
   
   userVal.textContent = 'N/A';
   btnTestApi.disabled = true;
+  if (btnSyncElister) btnSyncElister.disabled = true;
   actionStatus.textContent = msg;
 }
 
@@ -64,6 +66,7 @@ function setConnectedState(site, username, token) {
   
   userVal.textContent = username || 'Depop Seller';
   btnTestApi.disabled = false;
+  if (btnSyncElister) btnSyncElister.disabled = false;
   actionStatus.textContent = 'Ready for Depop API operations.';
 }
 
@@ -139,6 +142,36 @@ btnTestApi.addEventListener('click', () => {
     }
   });
 });
+
+// Action: Force Sync Session to eLister
+if (btnSyncElister) {
+  btnSyncElister.addEventListener('click', () => {
+    if (!activeTabId || !currentSite) return;
+    
+    log(`Force syncing Depop session to eLister...`, 'system');
+    actionStatus.textContent = `Syncing session...`;
+    btnSyncElister.disabled = true;
+    
+    chrome.tabs.sendMessage(activeTabId, { action: 'SYNC_SESSION_TO_ELISTER' }, (response) => {
+      btnSyncElister.disabled = false;
+      
+      if (chrome.runtime.lastError) {
+        log(`Sync failed: ${chrome.runtime.lastError.message}`, 'error');
+        actionStatus.textContent = 'Sync failed.';
+        return;
+      }
+      
+      if (response && response.success) {
+        log(`Sync Success! Depop username synced: ${response.username}`, 'success');
+        userVal.textContent = response.username;
+        actionStatus.textContent = 'Depop session synced to eLister!';
+      } else {
+        log(`Sync failed: ${response?.error || 'Unknown error'}`, 'error');
+        actionStatus.textContent = 'Sync failed.';
+      }
+    });
+  });
+}
 
 // Initialize connection on popup load
 document.addEventListener('DOMContentLoaded', checkActiveConnection);

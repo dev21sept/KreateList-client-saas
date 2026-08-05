@@ -37,28 +37,63 @@ async function fetchWithRetry(url, options = {}, retries = 3, delayMs = 1500) {
 function resolveDepopUsernameFromTabs(accessToken) {
   return new Promise((resolve) => {
     chrome.tabs.query({}, (tabs) => {
-      const depopTab = (tabs || []).find(t => t.url && t.url.includes('depop.com'));
-      if (depopTab && depopTab.id) {
-        console.log('[Background Worker] Asking Depop tab ' + depopTab.id + ' to resolve username...');
-        chrome.tabs.sendMessage(depopTab.id, {
+      if (!tabs || tabs.length === 0) {
+        console.warn('[Background Worker] No open tabs found at all.');
+        resolve(null);
+        return;
+      }
+      
+      let resolved = false;
+      let pendingQueries = tabs.length;
+      
+      tabs.forEach((tab) => {
+        if (!tab.id) {
+          pendingQueries--;
+          if (pendingQueries === 0 && !resolved) resolve(null);
+          return;
+        }
+        
+        chrome.tabs.sendMessage(tab.id, {
           action: 'RESOLVE_DEPOP_USERNAME_FROM_PAGE',
           token: accessToken
         }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.warn('[Background Worker] tab messaging failed:', chrome.runtime.lastError.message);
-            resolve(null);
-          } else if (response && response.success && response.username) {
-            resolve(response.username);
-          } else {
+          // Ignore lastError because non-matching tabs will throw a silent connection error
+          const err = chrome.runtime.lastError;
+          pendingQueries--;
+          
+          if (response && response.success && response.username) {
+            if (!resolved) {
+              resolved = true;
+              console.log('[Background Worker] Broadcast resolved username from tab ' + tab.id + ':', response.username);
+              resolve(response.username);
+            }
+          }
+          
+          if (pendingQueries === 0 && !resolved) {
             resolve(null);
           }
         });
-      } else {
-        console.warn('[Background Worker] No open Depop tab found to resolve username.');
-        resolve(null);
-      }
+      });
     });
   });
+function fetchUsernameFromBackground(accessToken) {
+  const tryFetch = (url) => {
+    return fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    })
+    .then(res => {
+      if (res.ok) return res.json();
+      throw new Error(`Status ${res.status}`);
+    });
+  };
+
+  return tryFetch('https://webapi.depop.com/api/v1/users/me')
+    .catch(() => tryFetch('https://webapi.depop.com/api/users/me'))
+    .then(profile => profile.username || profile.username_canonical || null);
 }
 
 // Listener for runtime messages
@@ -238,19 +273,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             proceedCache(data);
           } else {
             console.log('[Background Worker] CACHE_CONNECTION_DETAILS tab resolution returned null. Falling back to background fetch...');
-            fetch('https://webapi.depop.com/api/v1/users/me', {
-              method: 'GET',
-              headers: {
-                'Authorization': data.accessToken.startsWith('Bearer ') ? data.accessToken : `Bearer ${data.accessToken}`,
-                'Accept': 'application/json'
-              }
-            })
-            .then(res => {
-              if (res.ok) return res.json();
-              throw new Error(`Status ${res.status}`);
-            })
-            .then(profile => {
-              const username = profile.username || profile.username_canonical;
+            fetchUsernameFromBackground(data.accessToken).then(username => {
               if (username) {
                 console.log('[Background Worker] Successfully resolved username via background fetch:', username);
                 data.username = username;
@@ -293,23 +316,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 });
               } else {
                 console.log('[Background Worker] GET_CONNECTION_DETAILS tab resolution returned null. Falling back to background fetch...');
-                fetch('https://webapi.depop.com/api/v1/users/me', {
-                  method: 'GET',
-                  headers: {
-                    'Authorization': platformDetails.accessToken.startsWith('Bearer ') ? platformDetails.accessToken : `Bearer ${platformDetails.accessToken}`,
-                    'Accept': 'application/json'
-                  }
-                })
-                .then(res => {
-                  if (res.ok) return res.json();
-                  throw new Error(`Status ${res.status}`);
-                })
-                .then(profile => {
-                  const username = profile.username || profile.username_canonical;
+                fetchUsernameFromBackground(platformDetails.accessToken).then(username => {
                   if (username) {
                     console.log('[Background Worker] Successfully resolved username via background fetch:', username);
                     platformDetails.username = username;
-                    // Update storage too
                     cachedDetails[message.platform] = platformDetails;
                     setStorageData('cachedConnectionDetails', cachedDetails);
                   }
