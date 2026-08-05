@@ -944,6 +944,21 @@ function getDepopUsername() {
     }
   } catch (e) {}
 
+  // 7. Parse current document HTML for React Query dehydrated state
+  try {
+    const html = document.documentElement.innerHTML;
+    const cleanHtml = html.replace(/\\/g, '');
+    const match = cleanHtml.match(/"id"\s*:\s*(\d+)\s*,\s*"username"\s*:\s*"([^"]+)"/);
+    if (match && match[2] && isNaN(match[2])) {
+      console.log('[Elister Depop] Found username in page HTML state:', match[2]);
+      try {
+        sessionStorage.setItem('elister_captured_depop_userid', match[1]);
+        sessionStorage.setItem('elister_captured_depop_username', match[2]);
+      } catch (e) {}
+      return match[2];
+    }
+  } catch (e) {}
+
   return null;
 }
 
