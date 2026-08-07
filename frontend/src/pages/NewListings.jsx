@@ -1595,7 +1595,8 @@ const NewListings = () => {
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
     const disconnectOnly = activeTab === 'local';
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
-    const platformStatus = platformSpecificItem 
+    const isMasterListing = platformSpecificItem && platformSpecificItem._id === item._id;
+    const platformStatus = (platformSpecificItem && !isMasterListing)
       ? platformSpecificItem.status?.toLowerCase() 
       : item[`${platformName}Status`]?.toLowerCase();
 
@@ -1603,6 +1604,7 @@ const NewListings = () => {
     let isListed = false;
     let isDraft = false;
     let isDelisted = false;
+    let isFailed = false;
 
     if (platformStatus === 'published' || platformStatus === 'active') {
       isListed = true;
@@ -1610,6 +1612,8 @@ const NewListings = () => {
       isDraft = true;
     } else if (platformStatus === 'delisted') {
       isDelisted = true;
+    } else if (platformStatus === 'failed') {
+      isFailed = true;
     } else {
       // Fallbacks if platformStatus is undefined/none (e.g. for local listing representation)
       const specificStatus = platformSpecificItem?.status?.toLowerCase();
@@ -1619,6 +1623,8 @@ const NewListings = () => {
         isDraft = true;
       } else if (specificStatus === 'delisted') {
         isDelisted = true;
+      } else if (specificStatus === 'failed') {
+        isFailed = true;
       } else {
         // Main item checks
         const itemStatus = item.status?.toLowerCase();
@@ -1629,6 +1635,8 @@ const NewListings = () => {
             isDraft = true;
           } else if (itemStatus === 'delisted') {
             isDelisted = true;
+          } else if (itemStatus === 'failed') {
+            isFailed = true;
           }
         }
       }
@@ -1643,7 +1651,7 @@ const NewListings = () => {
     }
 
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
-    if (isListed || isDelisted || isDraft) {
+    if (isListed || isDelisted || isDraft || isFailed) {
       const liveUrl = getListingUrl(item, platformName, checkId);
 
       return (
@@ -1661,7 +1669,9 @@ const NewListings = () => {
                 ? 'border-slate-100 bg-white group-hover:border-indigo-200' 
                 : isDraft
                   ? 'border-orange-100 bg-white group-hover:border-orange-300'
-                  : 'border-amber-200 bg-amber-50/50 group-hover:border-amber-300 group-hover:bg-amber-100/50'
+                  : isFailed
+                    ? 'border-rose-100 bg-rose-50/50 group-hover:border-rose-300 group-hover:bg-rose-100/50'
+                    : 'border-amber-200 bg-amber-50/50 group-hover:border-amber-300 group-hover:bg-amber-100/50'
             }`}>
               <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0'}`} alt={platformName} />
             </div>
@@ -1670,9 +1680,11 @@ const NewListings = () => {
                 ? 'text-emerald-600 group-hover:text-indigo-650' 
                 : isDraft
                   ? 'text-orange-500 group-hover:text-orange-700'
-                  : 'text-amber-500 group-hover:text-amber-700'
+                  : isFailed
+                    ? 'text-rose-600 group-hover:text-rose-800'
+                    : 'text-amber-500 group-hover:text-amber-700'
             }`}>
-              {isListed ? 'Listed' : isDraft ? 'Draft' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              {isListed ? 'Listed' : isDraft ? 'Draft' : isFailed ? 'Failed' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </span>
             {isListed && (
               <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
@@ -1714,7 +1726,7 @@ const NewListings = () => {
                 <Edit size={13} className="text-indigo-500 shrink-0" />
                 Edit Listing
               </button>
-              {(isDraft || isDelisted) && (
+              {(isDraft || isDelisted || isFailed) && (
                 <button
                   type="button"
                   onClick={() => handleRelistItemDirect(item, platformName)}
