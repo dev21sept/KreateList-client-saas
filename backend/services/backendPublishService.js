@@ -198,7 +198,7 @@ async function publishToDepop(listing, depopAccount) {
   ];
 
   // Apply proxy if configured
-  const proxyUrl = process.env.DEPOP_PROXY || undefined;
+  const proxyUrl = process.env.DEPOP_PROXY || process.env.HTTP_PROXY_URL || undefined;
   if (proxyUrl) {
     const proxyHost = proxyUrl.replace(/https?:\/\//, '').split('@')[1] || proxyUrl.replace(/https?:\/\//, '');
     browserArgs.push(`--proxy-server=${proxyHost}`);
