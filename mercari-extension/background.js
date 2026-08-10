@@ -36,7 +36,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { token, backendUrl, frontendUrl } = message.data;
     const tabId = sender.tab ? sender.tab.id : null;
     if (tabId) {
-      chrome.tabs.update(tabId, { url: 'https://www.mercari.com/signin/' }, (tab) => {
+      chrome.tabs.update(tabId, { url: 'https://www.mercari.com/login/' }, (tab) => {
         const flow = {
           tabId: tab.id,
           token,

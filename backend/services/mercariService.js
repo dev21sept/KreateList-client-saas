@@ -112,7 +112,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
     });
 
     // Check if redirect to login occurred (session expired)
-    if (page.url().includes('/signin/')) {
+    if (page.url().includes('/signin/') || page.url().includes('/login/')) {
       console.warn('[Mercari Scraper] Session expired. Attempting fallback to public user profile page if possible...');
       if (username && !username.includes('@')) {
         await page.goto(`https://www.mercari.com/u/${username}/`, {
@@ -263,7 +263,7 @@ async function publishToMercari(listing, credentials = {}) {
       timeout: 45000
     });
 
-    if (page.url().includes('/signin/')) {
+    if (page.url().includes('/signin/') || page.url().includes('/login/')) {
       throw new Error('Failed to authenticate with Mercari. Session cookies are invalid or expired.');
     }
 

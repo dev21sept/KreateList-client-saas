@@ -23,6 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   btnLogin.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://www.mercari.com/signin/' });
+    chrome.tabs.create({ url: 'https://www.mercari.com/login/' });
   });
 });

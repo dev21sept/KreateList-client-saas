@@ -76,8 +76,8 @@ async function loginToMercari(username, password) {
       'Accept-Language': 'en-US,en;q=0.9'
     });
 
-    console.log('[Mercari Login] Navigating to Mercari signin...');
-    const response = await page.goto('https://www.mercari.com/signin/', {
+    console.log('[Mercari Login] Navigating to Mercari login...');
+    const response = await page.goto('https://www.mercari.com/login/', {
       waitUntil: 'networkidle2',
       timeout: 45000
     });

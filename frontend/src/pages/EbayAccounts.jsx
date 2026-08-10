@@ -245,7 +245,7 @@ const EbayAccounts = () => {
           } else if (platform === 'depop') {
             window.open('https://www.depop.com/login/', '_blank');
           } else if (platform === 'mercari') {
-            window.open('https://www.mercari.com/signin/', '_blank');
+            window.open('https://www.mercari.com/login/', '_blank');
           }
         }
       }
