@@ -148,7 +148,7 @@ async function loginToMercari(username, password) {
 
     // Check if successful login (cookies present)
     const cookies = await page.cookies();
-    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'mercarius_session' || c.name === '_mwus');
+    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'user_id');
     
     if (sidCookie) {
       const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
@@ -240,7 +240,7 @@ async function verifyMercari2FA(sessionId, code) {
     await new Promise(resolve => setTimeout(resolve, 7000));
 
     const cookies = await page.cookies();
-    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'mercarius_session' || c.name === '_mwus');
+    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'user_id');
     
     if (!sidCookie) {
       const errorText = await page.evaluate(() => {
