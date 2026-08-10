@@ -115,15 +115,23 @@ exports.mercariConnectPassword = async (req, res) => {
       });
     }
 
+    const isEmail = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
     let finalUsername = loginResult.username;
     let finalUserId = '';
     
-    // Scrape real profile name using the active cookies
-    console.log('[Mercari Connect Password] Fetching real username from sessionCookie...');
-    const profile = await getMercariProfile(loginResult.sessionCookie);
-    if (profile.success && profile.username) {
-      finalUsername = profile.username;
-      finalUserId = profile.userId;
+    // Only call fallback scraper if username is empty, 'Mercari User', or an email
+    if (!finalUsername || finalUsername === 'Mercari User' || isEmail(finalUsername)) {
+      console.log('[Mercari Connect Password] Fetching real username from sessionCookie...');
+      const profile = await getMercariProfile(loginResult.sessionCookie);
+      if (profile.success && profile.username && profile.username !== 'Mercari User' && !isEmail(profile.username)) {
+        finalUsername = profile.username;
+        finalUserId = profile.userId;
+      } else {
+        // Fallback to email prefix if scraper failed
+        if (isEmail(finalUsername)) {
+          finalUsername = finalUsername.split('@')[0];
+        }
+      }
     }
 
     user.mercariAccount = {
@@ -176,15 +184,23 @@ exports.mercariVerify2FA = async (req, res) => {
       });
     }
 
+    const isEmail = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
     let finalUsername = verifyResult.username;
     let finalUserId = '';
 
-    // Scrape real profile name using the active cookies
-    console.log('[Mercari Verify 2FA] Fetching real username from sessionCookie...');
-    const profile = await getMercariProfile(verifyResult.sessionCookie);
-    if (profile.success && profile.username) {
-      finalUsername = profile.username;
-      finalUserId = profile.userId;
+    // Only call fallback scraper if username is empty, 'Mercari User', or an email
+    if (!finalUsername || finalUsername === 'Mercari User' || isEmail(finalUsername)) {
+      console.log('[Mercari Verify 2FA] Fetching real username from sessionCookie...');
+      const profile = await getMercariProfile(verifyResult.sessionCookie);
+      if (profile.success && profile.username && profile.username !== 'Mercari User' && !isEmail(profile.username)) {
+        finalUsername = profile.username;
+        finalUserId = profile.userId;
+      } else {
+        // Fallback to email prefix if scraper failed
+        if (isEmail(finalUsername)) {
+          finalUsername = finalUsername.split('@')[0];
+        }
+      }
     }
 
     user.mercariAccount = {

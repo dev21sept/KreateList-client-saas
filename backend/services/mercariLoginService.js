@@ -153,12 +153,29 @@ async function loginToMercari(username, password) {
     if (sidCookie) {
       const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
       console.log('[Mercari Login] Login successful directly!');
+
+      // Navigate to My Page and scrape the real profile username in active session
+      let profileUsername = username;
+      try {
+        console.log('[Mercari Login] Navigating to My Page to scrape profile details in active session...');
+        await page.goto('https://www.mercari.com/mypage/', { waitUntil: 'networkidle2', timeout: 30000 });
+        const scrapedName = await page.evaluate(() => {
+          const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
+          return nameEl ? nameEl.textContent.trim() : '';
+        });
+        if (scrapedName) {
+          profileUsername = scrapedName;
+          console.log('[Mercari Login] Scraped profile username:', profileUsername);
+        }
+      } catch (e) {
+        console.warn('[Mercari Login] Failed to scrape username in active session:', e.message);
+      }
       
       await browser.close();
       return {
         success: true,
         '2faRequired': false,
-        username,
+        username: profileUsername,
         sessionCookie: sessionCookieStr,
         accessToken: sidCookie.value
       };
@@ -236,13 +253,30 @@ async function verifyMercari2FA(sessionId, code) {
     const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
     console.log('[Mercari 2FA] Verification successful! Credentials saved.');
 
+    // Navigate to My Page and scrape the real profile username in active session
+    let profileUsername = username;
+    try {
+      console.log('[Mercari 2FA] Navigating to My Page to scrape profile details in active session...');
+      await page.goto('https://www.mercari.com/mypage/', { waitUntil: 'networkidle2', timeout: 30000 });
+      const scrapedName = await page.evaluate(() => {
+        const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
+        return nameEl ? nameEl.textContent.trim() : '';
+      });
+      if (scrapedName) {
+        profileUsername = scrapedName;
+        console.log('[Mercari 2FA] Scraped profile username:', profileUsername);
+      }
+    } catch (e) {
+      console.warn('[Mercari 2FA] Failed to scrape username in active session:', e.message);
+    }
+
     // Cleanup session map
     activeSessions.delete(sessionId);
     await browser.close();
 
     return {
       success: true,
-      username,
+      username: profileUsername,
       sessionCookie: sessionCookieStr,
       accessToken: sidCookie.value
     };
