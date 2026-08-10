@@ -104,7 +104,7 @@ async function loginToMercari(username, password) {
     }
 
     // Wait and check if OTP/2FA or Successful login happens
-    await page.waitForTimeout(5000);
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const currentUrl = page.url();
     console.log('[Mercari Login] Navigation state URL:', currentUrl);
@@ -148,7 +148,7 @@ async function loginToMercari(username, password) {
 
     // Check if successful login (cookies present)
     const cookies = await page.cookies();
-    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session');
+    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'mercarius_session' || c.name === '_mwus');
     
     if (sidCookie) {
       const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
@@ -220,10 +220,10 @@ async function verifyMercari2FA(sessionId, code) {
       await page.keyboard.press('Enter');
     }
 
-    await page.waitForTimeout(7000);
+    await new Promise(resolve => setTimeout(resolve, 7000));
 
     const cookies = await page.cookies();
-    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session');
+    const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'mercarius_session' || c.name === '_mwus');
     
     if (!sidCookie) {
       const errorText = await page.evaluate(() => {

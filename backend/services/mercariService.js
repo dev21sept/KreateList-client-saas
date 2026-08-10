@@ -308,7 +308,7 @@ async function publishToMercari(listing, credentials = {}) {
       console.warn('[Mercari Publisher] File upload input selector not found.');
     }
 
-    await page.waitForTimeout(5000);
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Click publish button
     console.log('[Mercari Publisher] Submitting listing form...');
@@ -320,7 +320,7 @@ async function publishToMercari(listing, credentials = {}) {
       await page.keyboard.press('Enter');
     }
 
-    await page.waitForTimeout(10000);
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     const resultingUrl = page.url();
     console.log('[Mercari Publisher] Post submission URL:', resultingUrl);
@@ -432,21 +432,21 @@ async function getMercariProfile(sessionCookie) {
       timeout: 30000
     });
 
-    const currentCookies = await page.cookies();
-    const isLoggedIn = currentCookies.some(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session');
-    
-    if (!isLoggedIn) {
-      console.warn('[Mercari Profile Checker] Session cookie appears invalid or expired.');
+    const currentUrl = page.url();
+    if (currentUrl.includes('/login/') || currentUrl.includes('/signin/')) {
+      console.warn('[Mercari Profile Checker] Redirected to login page. Session is expired.');
       throw new Error('Session is invalid or expired. Please re-login on Mercari.');
     }
 
     // Wait a little bit for dynamic UI
-    await page.waitForTimeout(3000);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const currentCookies = await page.cookies();
 
     // Scrape user profile name
     const profileDetails = await page.evaluate(() => {
       // Look for profile name selectors
-      const nameEl = document.querySelector('[class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i]');
+      const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
       let username = nameEl ? nameEl.textContent.trim() : 'Mercari User';
       
       // Look for user_id from href link (e.g. /u/123456789/) or cookie
