@@ -341,17 +341,36 @@ const EbayAccounts = () => {
   // Trigger Automatic Connection via Extension
   const triggerAutoConnect = (platform) => {
     const isExtensionInstalled = document.body.dataset.elisterExtensionInstalled === "true" ||
-                                 document.body.dataset.elisterDepopExtensionInstalled === "true";
+                                 document.body.dataset.elisterDepopExtensionInstalled === "true" ||
+                                 document.body.dataset.elisterMercariExtensionInstalled === "true";
     if (!isExtensionInstalled) {
       toast.warning('Please install and enable the eLister Chrome Extension to connect automatically!');
       return;
     }
 
-    console.log(`[Integrations] Requesting silent connection details from extension for: ${platform}`);
-    window.postMessage({
-      action: 'ELISTER_GET_CONNECTION_DETAILS',
-      platform
-    }, '*');
+    if (platform === 'mercari') {
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.MODE === 'production'
+        ? (import.meta.env.VITE_API_URL || 'https://api.elister.ai')
+        : 'http://localhost:5000';
+      const frontendUrl = window.location.origin;
+
+      console.log('[Integrations] Starting interactive connect flow for Mercari...');
+      window.postMessage({
+        action: 'ELISTER_START_CONNECT_FLOW',
+        platform: 'mercari',
+        token,
+        backendUrl,
+        frontendUrl
+      }, '*');
+      toast.info('Opening Mercari login page to secure your session...');
+    } else {
+      console.log(`[Integrations] Requesting silent connection details from extension for: ${platform}`);
+      window.postMessage({
+        action: 'ELISTER_GET_CONNECTION_DETAILS',
+        platform
+      }, '*');
+    }
   };
 
   // Poshmark connection handlers removed (Cloud & Extension only)

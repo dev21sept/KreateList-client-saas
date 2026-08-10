@@ -36,7 +36,7 @@ if (currentSite === 'mercari') {
       const checkLoginInterval = setInterval(() => {
         // Mercari uses specific selectors for profile/mypage
         const myPageBtn = document.querySelector('a[href*="/mypage/"], [data-testid="MyPageButton"]');
-        const isLoggedIn = document.cookie.includes('sid=') || document.cookie.includes('user_id=') || myPageBtn;
+        const isLoggedIn = document.cookie.includes('sid=') || document.cookie.includes('mercarius_session=') || document.cookie.includes('_mercari_session=') || document.cookie.includes('user_id=') || myPageBtn;
         
         if (isLoggedIn) {
           clearInterval(checkLoginInterval);
@@ -44,7 +44,7 @@ if (currentSite === 'mercari') {
           
           let username = 'Mercari User';
           // Try to scrape name from UI
-          const nameEl = document.querySelector('[class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i]');
+          const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
           if (nameEl && nameEl.textContent) {
             username = nameEl.textContent.trim();
           }
