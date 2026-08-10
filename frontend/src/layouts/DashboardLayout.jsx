@@ -83,7 +83,9 @@ const DashboardLayout = ({ isAdmin = false }) => {
           ]
         },
         { name: 'Poshmark Listing', path: '/create-poshmark-listing', logo: '/poshmark.png' },
-        { name: 'Depop Listing', path: '/create-depop-listing', logo: '/depop.png' }
+        { name: 'Depop Listing', path: '/create-depop-listing', logo: '/depop.png' },
+        { name: 'Etsy Listing', path: '/create-etsy-listing', logo: '/etsy.png' },
+        { name: 'Mercari Listing', path: '/create-mercari-listing', logo: '/mercari.png' }
       ]
     },
     { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },

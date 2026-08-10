@@ -64,7 +64,7 @@ const listingSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['ebay', 'poshmark', 'etsy', 'depop'],
+    enum: ['ebay', 'poshmark', 'etsy', 'depop', 'mercari'],
     default: 'ebay'
   },
   poshmarkListingId: String,
@@ -73,6 +73,8 @@ const listingSchema = new mongoose.Schema({
   etsyUrl: String,
   depopListingId: String,
   depopUrl: String,
+  mercariListingId: String,
+  mercariUrl: String,
   brand: String,
   originalPrice: String,
   color: String,
@@ -144,6 +146,11 @@ const listingSchema = new mongoose.Schema({
     default: 'none'
   },
   etsyStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    default: 'none'
+  },
+  mercariStatus: {
     type: String,
     enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'

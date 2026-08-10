@@ -36,6 +36,8 @@ const productSchema = new mongoose.Schema({
   depopUrl: String,
   etsyListingId: String,
   etsyUrl: String,
+  mercariListingId: String,
+  mercariUrl: String,
   updated_at: {
     type: Date,
     default: Date.now

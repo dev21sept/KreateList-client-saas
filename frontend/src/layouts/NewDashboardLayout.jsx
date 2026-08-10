@@ -30,6 +30,7 @@ import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
 import CreateDepopListing from '../pages/CreateDepopListing';
 import CreateMasterListing from '../pages/CreateMasterListing';
 import CreateEtsyListing from '../pages/CreateEtsyListing';
+import CreateMercariListing from '../pages/CreateMercariListing';
 
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
@@ -703,6 +704,15 @@ const NewDashboardLayout = () => {
                   <span className="text-xs font-black text-slate-800 mt-3 block">Etsy</span>
                 </button>
 
+                {/* Mercari */}
+                <button 
+                  onClick={() => setSelectedPlatform('mercari')}
+                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
+                >
+                  <img src="/mercari.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
+                  <span className="text-xs font-black text-slate-800 mt-3 block">Mercari</span>
+                </button>
+
               </div>
             </div>
           ) : (
@@ -731,6 +741,7 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'depop' && <CreateDepopListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'etsy' && <CreateEtsyListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                {selectedPlatform === 'mercari' && <CreateMercariListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
               </div>
             </div>
           )}

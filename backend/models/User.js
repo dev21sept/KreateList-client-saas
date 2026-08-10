@@ -101,6 +101,17 @@ const userSchema = new mongoose.Schema({
     },
     connectedAt: Date
   },
+  mercariAccount: {
+    connected: {
+      type: Boolean,
+      default: false
+    },
+    username: String,
+    userId: String,
+    accessToken: String,
+    sessionCookie: String,
+    connectedAt: Date
+  },
   etsyCodeVerifier: String,
   etsyAccount: {
     connected: {

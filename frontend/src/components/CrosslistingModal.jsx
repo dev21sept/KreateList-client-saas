@@ -3,6 +3,7 @@ import CreateEtsyListing from '../pages/CreateEtsyListing';
 import CreateEbayListing from '../pages/CreateEbayListing';
 import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
 import CreateDepopListing from '../pages/CreateDepopListing';
+import CreateMercariListing from '../pages/CreateMercariListing';
 
 const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, isEditMode = false }) => {
   if (!isOpen || !listing || !platform) return null;
@@ -41,6 +42,14 @@ const CrosslistingModal = ({ isOpen, onClose, listing, platform, onSyncSuccess, 
       case 'depop':
         return (
           <CreateDepopListing 
+            isModal={true} 
+            editId={listing._id || listing.id} 
+            onClose={handleClose} 
+          />
+        );
+      case 'mercari':
+        return (
+          <CreateMercariListing 
             isModal={true} 
             editId={listing._id || listing.id} 
             onClose={handleClose} 

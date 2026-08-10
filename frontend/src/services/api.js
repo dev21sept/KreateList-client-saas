@@ -78,6 +78,7 @@ export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
   poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
   poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
+  mercariAnalyze: (data) => API.post('/ai/mercari-analyze', data),
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
   depopGetCategoryDetails: (params) => API.get('/ai/depop-category-details', { params }),
@@ -120,15 +121,24 @@ export const depopService = {
   getLive: () => API.get('/depop/live')
 };
 
+export const mercariService = {
+  importCloset: (data) => API.post('/mercari/import', data),
+  connect: (data) => API.post('/mercari/connect', data),
+  connectPassword: (data) => API.post('/mercari/connect-password', data),
+  verify2fa: (data) => API.post('/mercari/verify-2fa', data),
+  publish: (id, data) => API.post(`/mercari/publish/${id}`, data),
+  getLive: () => API.get('/mercari/live')
+};
+
 // Legacy mapping for compatibility
 export const externalImportService = {
-  importCloset: (data) => data.platform === 'depop' ? depopService.importCloset(data) : poshmarkService.importCloset(data),
-  connect: (data) => data.platform === 'depop' ? depopService.connect(data) : poshmarkService.connect(data),
-  connectPassword: (data) => poshmarkService.connectPassword(data),
+  importCloset: (data) => data.platform === 'depop' ? depopService.importCloset(data) : data.platform === 'mercari' ? mercariService.importCloset(data) : poshmarkService.importCloset(data),
+  connect: (data) => data.platform === 'depop' ? depopService.connect(data) : data.platform === 'mercari' ? mercariService.connect(data) : poshmarkService.connect(data),
+  connectPassword: (data) => data.platform === 'mercari' ? mercariService.connectPassword(data) : poshmarkService.connectPassword(data),
   connectInteractiveDepop: () => depopService.connectInteractive(),
-  verifyPoshmark2fa: (data) => poshmarkService.verify2fa(data),
-  publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : poshmarkService.publish(id, data),
-  getLive: (platform) => platform === 'depop' ? depopService.getLive() : poshmarkService.getLive()
+  verifyPoshmark2fa: (data) => data.platform === 'mercari' ? mercariService.verify2fa(data) : poshmarkService.verify2fa(data),
+  publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : data.platform === 'mercari' ? mercariService.publish(id, data) : poshmarkService.publish(id, data),
+  getLive: (platform) => platform === 'depop' ? depopService.getLive() : platform === 'mercari' ? mercariService.getLive() : poshmarkService.getLive()
 };
 
 export const orderService = {

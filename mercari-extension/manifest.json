@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Elister Mercari Fast Automator",
+  "version": "1.0.0",
+  "description": "Supercharge your Mercari listing, sharing, and management tasks using high-speed direct API automation.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "cookies",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.mercari.com/*",
+    "*://*.elister.ai/*",
+    "*://app.elister.ai/*",
+    "*://localhost/*",
+    "*://127.0.0.1/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.mercari.com/*",
+        "*://app.elister.ai/*",
+        "*://localhost/*",
+        "*://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

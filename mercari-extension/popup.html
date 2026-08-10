@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercari Fast Automator</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="brand">
+        <svg class="logo-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <h1 class="title">Elister <span>Mercari Automator</span></h1>
+      </div>
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot"></span>
+        <span class="status-text" id="status-text">Checking Session...</span>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="card glass shadow">
+        <h2 class="section-title">Active Session Info</h2>
+        <div class="session-info">
+          <div class="info-row">
+            <span class="label">Platform:</span>
+            <span class="value" id="platform-val">Mercari</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Session Status:</span>
+            <span class="value" id="session-status">Not Connected</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Current User:</span>
+            <span class="value" id="user-val">N/A</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card glass shadow">
+        <button id="btn-login-mercari" class="btn btn-primary" style="width: 100%;">
+          Open Mercari.com
+        </button>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Elister Mercari Engine v1.0.0</span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

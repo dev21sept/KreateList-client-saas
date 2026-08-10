@@ -35,6 +35,7 @@ const EbayAccounts = () => {
   const poshmark = user?.poshmarkAccount;
   const depop = user?.depopAccount;
   const etsy = user?.etsyAccount;
+  const mercari = user?.mercariAccount;
 
   const handleEtsyConnect = async () => {
     try {
@@ -94,6 +95,16 @@ const EbayAccounts = () => {
   const [depopUsername, setDepopUsername] = useState('');
   const [depopLoading, setDepopLoading] = useState(false);
   const [depopConnectMethod, setDepopConnectMethod] = useState('interactive'); // 'interactive', 'extension'
+
+  // Mercari Form state
+  const [isMercariModalOpen, setIsMercariModalOpen] = useState(false);
+  const [mercariUsername, setMercariUsername] = useState('');
+  const [mercariLoading, setMercariLoading] = useState(false);
+  const [mercariPassword, setMercariPassword] = useState('');
+  const [mercariConnectMethod, setMercariConnectMethod] = useState('password'); // 'password', 'extension'
+  const [showMercari2fa, setShowMercari2fa] = useState(false);
+  const [mercari2faCode, setMercari2faCode] = useState('');
+  const [mercari2faSessionId, setMercari2faSessionId] = useState('');
 
   // Sync state
   const [syncingPlatform, setSyncingPlatform] = useState(null);
@@ -207,12 +218,24 @@ const EbayAccounts = () => {
                 toast.success('Depop Connected Successfully via Extension!');
                 await loadUser();
               }
+            } else if (platform === 'mercari') {
+              setMercariLoading(true);
+              const res = await externalImportService.connect({
+                platform: 'mercari',
+                username: data.username,
+                sessionCookie: data.sessionCookie
+              });
+              if (res.data?.success) {
+                toast.success('Mercari Connected Successfully via Extension!');
+                await loadUser();
+              }
             }
           } catch (err) {
             toast.error(err.response?.data?.message || `Failed to connect ${platform} automatically.`);
           } finally {
             setPoshLoading(false);
             setDepopLoading(false);
+            setMercariLoading(false);
           }
         } else {
           // Credentials not cached in extension
@@ -221,6 +244,8 @@ const EbayAccounts = () => {
             window.open('https://poshmark.com/login', '_blank');
           } else if (platform === 'depop') {
             window.open('https://www.depop.com/login/', '_blank');
+          } else if (platform === 'mercari') {
+            window.open('https://www.mercari.com/signin/', '_blank');
           }
         }
       }
@@ -416,6 +441,93 @@ const EbayAccounts = () => {
     }
   };
 
+  const handleMercariPasswordConnect = async (e) => {
+    e.preventDefault();
+    if (!mercariUsername || !mercariPassword) {
+      toast.warning('Please enter your Mercari email and password.');
+      return;
+    }
+    try {
+      setMercariLoading(true);
+      toast.info('Connecting to Mercari via Cloud Login...');
+      const res = await externalImportService.connectPassword({
+        platform: 'mercari',
+        username: mercariUsername,
+        password: mercariPassword
+      });
+      if (res.data?.['2faRequired']) {
+        toast.info(res.data.message || 'Verification code sent to your email.');
+        setShowMercari2fa(true);
+        setMercari2faSessionId(res.data.sessionId);
+        return;
+      }
+      if (res.data?.success) {
+        toast.success('Mercari Connected Successfully via Cloud Login!');
+        await loadUser();
+        setMercariUsername('');
+        setMercariPassword('');
+        setIsMercariModalOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to connect Mercari. Please verify credentials or use Chrome Extension.');
+    } finally {
+      setMercariLoading(false);
+    }
+  };
+
+  const handleMercari2faSubmit = async (e) => {
+    e.preventDefault();
+    if (!mercari2faCode) {
+      toast.warning('Please enter the verification code.');
+      return;
+    }
+    try {
+      setMercariLoading(true);
+      toast.info('Submitting verification code...');
+      const res = await externalImportService.verifyPoshmark2fa({
+        platform: 'mercari',
+        sessionId: mercari2faSessionId,
+        code: mercari2faCode
+      });
+      if (res.data?.success) {
+        toast.success('Mercari Connected Successfully!');
+        await loadUser();
+        setShowMercari2fa(false);
+        setMercari2faCode('');
+        setMercari2faSessionId('');
+        setMercariUsername('');
+        setMercariPassword('');
+        setIsMercariModalOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Verification failed. Please try again.');
+    } finally {
+      setMercariLoading(false);
+    }
+  };
+
+  const handleMercariDisconnect = async () => {
+    if (await confirm('Disconnect Mercari Account?', { title: 'Disconnect Mercari', destructive: true })) {
+      try {
+        setMercariLoading(true);
+        const res = await externalImportService.connect({
+          platform: 'mercari',
+          disconnect: true
+        });
+        if (res.data?.success) {
+          toast.success('Mercari disconnected successfully.');
+          await loadUser();
+        }
+      } catch (err) {
+        toast.error('Failed to disconnect Mercari.');
+      } finally {
+        setMercariLoading(false);
+      }
+    }
+  };
+
   // Depop connection handler removed (In-App & Extension only)
 
   const handleDepopInteractiveConnect = async () => {
@@ -475,7 +587,7 @@ const EbayAccounts = () => {
     <div className="space-y-6 max-w-[1400px] mx-auto py-2">
       {/* Header removed due to dynamic header in NewDashboardLayout */}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             
             {/* 1. eBay Integration Card */}
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
@@ -740,6 +852,78 @@ const EbayAccounts = () => {
                     className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     Connect Etsy <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 5. Mercari Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <img src="/mercari.png" className="w-12 h-12 object-contain" alt="Mercari" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 mb-1">Mercari</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Buy and Sell Marketplace</p>
+
+                {/* Connection Badge */}
+                {mercari?.connected ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
+                    Disconnected
+                  </div>
+                )}
+
+                {/* Info Area */}
+                {mercari?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{mercari.username}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Connected at {mercari.connectedAt ? new Date(mercari.connectedAt).toLocaleDateString() : 'Active'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Import and crosslist products directly to your Mercari inventory.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {mercari?.connected ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleSyncCloset('mercari', mercari.username)}
+                      disabled={syncingPlatform === 'mercari'}
+                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncingPlatform === 'mercari' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                      Sync Closet
+                    </button>
+                    <button
+                      onClick={handleMercariDisconnect}
+                      disabled={mercariLoading}
+                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                    >
+                      Disconnect Channel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setMercariConnectMethod('password');
+                      setIsMercariModalOpen(true);
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    Connect Mercari <ChevronRight size={14} />
                   </button>
                 )}
               </div>
@@ -1124,6 +1308,171 @@ const EbayAccounts = () => {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isMercariModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-xl max-w-md w-full border border-slate-100 overflow-hidden relative flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
+              <div className="flex items-center gap-3">
+                <img src="/mercari.png" className="w-8 h-8 object-contain" alt="" />
+                <div>
+                  <h3 className="text-lg font-black text-slate-800">Connect Mercari</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsMercariModalOpen(false);
+                  setShowMercari2fa(false);
+                }}
+                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {showMercari2fa ? (
+                <form onSubmit={handleMercari2faSubmit} className="space-y-4">
+                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center">
+                    <h4 className="text-xs font-bold text-indigo-900 mb-1">Verification Code Required</h4>
+                    <p className="text-[11px] text-indigo-700">Please enter the security verification code sent by Mercari.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Verification Code</label>
+                    <input 
+                      type="text" 
+                      placeholder="Enter OTP / verification code" 
+                      value={mercari2faCode}
+                      onChange={(e) => setMercari2faCode(e.target.value)}
+                      className="w-full h-11 px-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none font-bold tracking-widest text-center focus:ring-2 focus:ring-indigo-500/10 transition-all text-slate-700"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowMercari2fa(false);
+                        setMercari2faCode('');
+                      }}
+                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                    >
+                      Back to Login
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={mercariLoading}
+                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
+                    >
+                      {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : 'Verify Code'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {/* Method selector tabs */}
+                  <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setMercariConnectMethod('password')}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                        mercariConnectMethod === 'password' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      Cloud Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMercariConnectMethod('extension')}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                        mercariConnectMethod === 'extension' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      Chrome Extension
+                    </button>
+                  </div>
+
+                  {mercariConnectMethod === 'password' && (
+                    <form onSubmit={handleMercariPasswordConnect} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Email Address</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. your_email@example.com" 
+                          value={mercariUsername}
+                          onChange={(e) => setMercariUsername(e.target.value)}
+                          className="w-full h-11 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-semibold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Password</label>
+                        <input 
+                          type="password" 
+                          placeholder="Your Mercari password" 
+                          value={mercariPassword}
+                          onChange={(e) => setMercariPassword(e.target.value)}
+                          className="w-full h-11 px-3 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:border-indigo-500 font-semibold"
+                        />
+                      </div>
+                      <div className="pt-2 flex gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => setIsMercariModalOpen(false)}
+                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit"
+                          disabled={mercariLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
+                        >
+                          {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Mercari <ChevronRight size={14} /></>}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {mercariConnectMethod === 'extension' && (
+                    <div className="space-y-4 py-2">
+                      <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
+                        <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                        <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
+                          <li>Requires eLister Chrome Extension.</li>
+                          <li>Make sure you are logged in to Mercari on your Chrome browser.</li>
+                          <li>The extension will automatically pull your session.</li>
+                        </ul>
+                      </div>
+                      
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          type="button"
+                          onClick={() => setIsMercariModalOpen(false)}
+                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={() => {
+                            triggerAutoConnect('mercari');
+                            setIsMercariModalOpen(false);
+                          }}
+                          disabled={mercariLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                        >
+                          {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

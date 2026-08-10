@@ -456,6 +456,7 @@ const NewListings = () => {
     if (selectedChannel === 'etsy') return !!user?.etsyAccount?.connected;
     if (selectedChannel === 'poshmark') return !!user?.poshmarkAccount?.connected;
     if (selectedChannel === 'depop') return !!user?.depopAccount?.connected;
+    if (selectedChannel === 'mercari') return !!user?.mercariAccount?.connected;
     return false;
   };
 
@@ -505,7 +506,11 @@ const NewListings = () => {
           fetchChannelInventory();
         }
       } else {
-        const username = selectedChannel === 'poshmark' ? user?.poshmarkAccount?.username : user?.depopAccount?.username;
+        const username = selectedChannel === 'poshmark' 
+          ? user?.poshmarkAccount?.username 
+          : selectedChannel === 'mercari'
+            ? user?.mercariAccount?.username
+            : user?.depopAccount?.username;
         if (!username) {
           toast.error(`No connected username found for ${selectedChannel}.`);
           return;
@@ -1172,6 +1177,7 @@ const NewListings = () => {
     if (channel === 'etsy') return 'Etsy';
     if (channel === 'poshmark') return 'Poshmark';
     if (channel === 'depop') return 'Depop';
+    if (channel === 'mercari') return 'Mercari';
     return channel;
   };
 
@@ -1570,6 +1576,12 @@ const NewListings = () => {
         const res = await externalImportService.publish(item._id, { platform: 'depop' });
         if (res.data?.success) {
           toast.success("Listing successfully reactivated on Depop!");
+          fetchListings();
+        }
+      } else if (platformName === 'mercari') {
+        const res = await externalImportService.publish(item._id, { platform: 'mercari' });
+        if (res.data?.success) {
+          toast.success("Listing successfully reactivated on Mercari!");
           fetchListings();
         }
       }
@@ -2057,6 +2069,19 @@ const NewListings = () => {
               >
                 Depop
               </button>
+              <button
+                onClick={() => {
+                  setSelectedChannel('mercari');
+                  localStorage.setItem('elister_selected_listings_channel', 'mercari');
+                }}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                  selectedChannel === 'mercari' 
+                    ? 'bg-white text-indigo-600 shadow-xs' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Mercari
+              </button>
             </div>
 
             {/* Sync Button */}
@@ -2170,7 +2195,7 @@ const NewListings = () => {
                   <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Qty</th>
                   <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Last Updated</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center border-l border-[#f3f4f6]" colSpan="4">
+                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center border-l border-[#f3f4f6]" colSpan="5">
                     Cross-listed On
                   </th>
                   <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
@@ -2182,6 +2207,7 @@ const NewListings = () => {
                   <th className="py-2.5 text-center w-20">Poshmark</th>
                   <th className="py-2.5 text-center w-20">Depop</th>
                   <th className="py-2.5 text-center w-20">Etsy</th>
+                  <th className="py-2.5 text-center w-20 border-r border-[#f3f4f6]">Mercari</th>
                   <th />
                 </tr>
               </thead>
@@ -2190,7 +2216,7 @@ const NewListings = () => {
               <tbody className="divide-y divide-[#f8fafc]">
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="px-6 py-16 text-center text-slate-400 font-semibold animate-pulse">
+                    <td colSpan="12" className="px-6 py-16 text-center text-slate-400 font-semibold animate-pulse">
                       Loading inventory data...
                     </td>
                   </tr>
@@ -2258,8 +2284,11 @@ const NewListings = () => {
                       <td>
                         {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
                       </td>
-                      <td className="border-r border-[#f3f4f6]">
+                      <td>
                         {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                      </td>
+                      <td className="border-r border-[#f3f4f6]">
+                        {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                       </td>
 
                       {/* Actions */}
@@ -2279,7 +2308,7 @@ const NewListings = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="11" className="px-6 py-16 text-center text-slate-400">
+                    <td colSpan="12" className="px-6 py-16 text-center text-slate-400">
                       No listings found matching filter constraints.
                     </td>
                   </tr>
