@@ -115,9 +115,21 @@ exports.mercariConnectPassword = async (req, res) => {
       });
     }
 
+    let finalUsername = loginResult.username;
+    let finalUserId = '';
+    
+    // Scrape real profile name using the active cookies
+    console.log('[Mercari Connect Password] Fetching real username from sessionCookie...');
+    const profile = await getMercariProfile(loginResult.sessionCookie);
+    if (profile.success && profile.username) {
+      finalUsername = profile.username;
+      finalUserId = profile.userId;
+    }
+
     user.mercariAccount = {
       connected: true,
-      username: loginResult.username,
+      username: finalUsername,
+      userId: finalUserId,
       sessionCookie: loginResult.sessionCookie,
       accessToken: loginResult.accessToken,
       connectedAt: new Date()
@@ -164,9 +176,21 @@ exports.mercariVerify2FA = async (req, res) => {
       });
     }
 
+    let finalUsername = verifyResult.username;
+    let finalUserId = '';
+
+    // Scrape real profile name using the active cookies
+    console.log('[Mercari Verify 2FA] Fetching real username from sessionCookie...');
+    const profile = await getMercariProfile(verifyResult.sessionCookie);
+    if (profile.success && profile.username) {
+      finalUsername = profile.username;
+      finalUserId = profile.userId;
+    }
+
     user.mercariAccount = {
       connected: true,
-      username: verifyResult.username,
+      username: finalUsername,
+      userId: finalUserId,
       sessionCookie: verifyResult.sessionCookie,
       accessToken: verifyResult.accessToken,
       connectedAt: new Date()
