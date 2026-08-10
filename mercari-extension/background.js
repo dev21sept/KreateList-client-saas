@@ -126,13 +126,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       getMercariCookies((cookieString) => {
         getStorageData('cachedConnectionDetails', {}).then((cachedDetails) => {
           const details = cachedDetails['mercari'] || {};
-          sendResponse({
-            success: true,
-            data: {
-              username: details.username || 'Mercari User',
-              sessionCookie: cookieString
-            }
-          });
+          
+          // Verify if there is an active logged-in session cookie
+          const hasSid = cookieString.includes('sid=') || cookieString.includes('mercarius_session=') || cookieString.includes('_mercari_session=');
+          
+          if (hasSid) {
+            sendResponse({
+              success: true,
+              data: {
+                username: details.username || 'Mercari User',
+                sessionCookie: cookieString
+              }
+            });
+          } else {
+            sendResponse({
+              success: false,
+              error: 'Session details not found in extension cache. Please login/open Mercari tab.'
+            });
+          }
         });
       });
       return true;
