@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('[Background] Captured Mercari cookies string length:', cookieString.length);
  
         console.log('Submitting captured Mercari credentials to backend:', backendUrl);
-        fetch(`${backendUrl}/mercari/connect`, {
+        fetch(`${backendUrl}/api/mercari/connect`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
