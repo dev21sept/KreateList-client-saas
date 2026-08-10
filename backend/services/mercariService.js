@@ -355,7 +355,145 @@ async function publishToMercari(listing, credentials = {}) {
   }
 }
 
+/**
+ * Verifies a Mercari session cookie using Puppeteer Stealth and extracts the user profile name.
+ * @param {string} sessionCookie 
+ * @returns {Promise<{success: boolean, username: string, userId: string}>}
+ */
+async function getMercariProfile(sessionCookie) {
+  let browser;
+  try {
+    const launchOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    };
+
+    // Proxy support if configured
+    const proxyUrl = process.env.PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = {
+            username: decodeURIComponent(parsedUrl.username),
+            password: decodeURIComponent(parsedUrl.password)
+          };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+    if (proxyAuth) {
+      await page.authenticate(proxyAuth);
+    }
+
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Load cookies if available
+    if (sessionCookie) {
+      const cookiePairs = sessionCookie.split(';');
+      for (const pair of cookiePairs) {
+        const trimmed = pair.trim();
+        if (!trimmed) continue;
+        const idx = trimmed.indexOf('=');
+        if (idx === -1) continue;
+        const name = trimmed.substring(0, idx);
+        const value = trimmed.substring(idx + 1);
+        await page.setCookie({
+          name,
+          value,
+          domain: '.mercari.com',
+          path: '/'
+        });
+      }
+    }
+
+    // Go to My Page or listings page
+    console.log('[Mercari Profile Checker] Navigating to My Page...');
+    await page.goto('https://www.mercari.com/mypage/', {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    const currentCookies = await page.cookies();
+    const isLoggedIn = currentCookies.some(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session');
+    
+    if (!isLoggedIn) {
+      console.warn('[Mercari Profile Checker] Session cookie appears invalid or expired.');
+      throw new Error('Session is invalid or expired. Please re-login on Mercari.');
+    }
+
+    // Wait a little bit for dynamic UI
+    await page.waitForTimeout(3000);
+
+    // Scrape user profile name
+    const profileDetails = await page.evaluate(() => {
+      // Look for profile name selectors
+      const nameEl = document.querySelector('[class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i]');
+      let username = nameEl ? nameEl.textContent.trim() : 'Mercari User';
+      
+      // Look for user_id from href link (e.g. /u/123456789/) or cookie
+      let userId = '';
+      const userLink = document.querySelector('a[href*="/u/"]');
+      if (userLink) {
+        const href = userLink.getAttribute('href');
+        const match = href.match(/\/u\/(\d+)/);
+        if (match) {
+          userId = match[1];
+        }
+      }
+      return { username, userId };
+    });
+
+    // Extract user ID from cookies if not found in page
+    if (!profileDetails.userId) {
+      const userIdCookie = currentCookies.find(c => c.name === 'user_id');
+      if (userIdCookie) {
+        profileDetails.userId = userIdCookie.value;
+      }
+    }
+
+    console.log('[Mercari Profile Checker] Scraped profile:', profileDetails);
+
+    await browser.close();
+    return {
+      success: true,
+      username: profileDetails.username,
+      userId: profileDetails.userId
+    };
+
+  } catch (err) {
+    console.error('[Mercari Profile Checker] Profile retrieval failed:', err.message);
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    return {
+      success: false,
+      username: 'Mercari User',
+      userId: ''
+    };
+  }
+}
+
 module.exports = {
   scrapeMercariCloset,
-  publishToMercari
+  publishToMercari,
+  getMercariProfile
 };

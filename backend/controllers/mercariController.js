@@ -1,7 +1,7 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { scrapeMercariCloset, publishToMercari } = require('../services/mercariService');
+const { scrapeMercariCloset, publishToMercari, getMercariProfile } = require('../services/mercariService');
 const { loginToMercari, verifyMercari2FA } = require('../services/mercariLoginService');
 
 // @desc    Connect Mercari credentials manually (cookies / token) or disconnect
@@ -40,9 +40,22 @@ exports.mercariConnect = async (req, res) => {
       return res.status(400).json({ success: false, message: 'username and sessionCookie are required.' });
     }
 
+    let finalUsername = username.trim();
+    let finalUserId = '';
+
+    if (finalUsername === 'Mercari User' || !finalUsername) {
+      console.log('[Mercari Controller] Fetching real username from Mercari sessionCookie...');
+      const profile = await getMercariProfile(sessionCookie.trim());
+      if (profile.success) {
+        finalUsername = profile.username;
+        finalUserId = profile.userId;
+      }
+    }
+
     user.mercariAccount = {
       connected: true,
-      username: username.trim(),
+      username: finalUsername,
+      userId: finalUserId,
       sessionCookie: sessionCookie.trim(),
       connectedAt: new Date()
     };
