@@ -447,7 +447,7 @@ async function getMercariProfile(sessionCookie) {
     const profileDetails = await page.evaluate(() => {
       // Look for profile name selectors
       const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
-      let username = nameEl ? nameEl.textContent.trim() : 'Mercari User';
+      let username = nameEl ? nameEl.textContent.trim() : '';
       
       // Look for user_id from href link (e.g. /u/123456789/) or cookie
       let userId = '';
@@ -486,7 +486,7 @@ async function getMercariProfile(sessionCookie) {
     }
     return {
       success: false,
-      username: 'Mercari User',
+      username: '',
       userId: ''
     };
   }

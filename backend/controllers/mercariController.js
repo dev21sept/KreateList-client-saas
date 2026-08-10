@@ -46,9 +46,14 @@ exports.mercariConnect = async (req, res) => {
     if (finalUsername === 'Mercari User' || !finalUsername) {
       console.log('[Mercari Controller] Fetching real username from Mercari sessionCookie...');
       const profile = await getMercariProfile(sessionCookie.trim());
-      if (profile.success) {
+      if (profile.success && profile.username && profile.username !== 'Mercari User') {
         finalUsername = profile.username;
         finalUserId = profile.userId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to retrieve your Mercari username. Please ensure you are logged in correctly on Mercari.'
+        });
       }
     }
 
