@@ -6,10 +6,440 @@
       "level": 0,
       "children": [
         {
+          "id": 21,
+          "name": "Women's handbags",
+          "level": 1,
+          "children": [
+            {
+              "id": 252,
+              "name": "Shoulder Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 253,
+              "name": "Tote Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 254,
+              "name": "Crossbody Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 255,
+              "name": "Satchel",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 256,
+              "name": "Hobo Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 258,
+              "name": "Backpacks",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 259,
+              "name": "Cosmetic bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1863,
+              "name": "Waist Bags & Fanny Packs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1864,
+              "name": "Messenger Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1865,
+              "name": "Bucket Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 260,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "name": "Shoes",
+          "level": 1,
+          "children": [
+            {
+              "id": 283,
+              "name": "Athletic",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 284,
+              "name": "Boots",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 285,
+              "name": "Fashion sneakers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 286,
+              "name": "Flats",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 289,
+              "name": "Outdoor",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 290,
+              "name": "Oxfords",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 291,
+              "name": "Heels",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 292,
+              "name": "Sandals",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 293,
+              "name": "Slippers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 294,
+              "name": "Work & safety",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2001,
+              "name": "Loafers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2002,
+              "name": "Slip-Ons",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2003,
+              "name": "Clogs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2004,
+              "name": "Mules",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 295,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 23,
+          "name": "Jewelry",
+          "level": 1,
+          "children": [
+            {
+              "id": 269,
+              "name": "Rings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 270,
+              "name": "Necklaces",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 271,
+              "name": "Earrings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 272,
+              "name": "Bracelets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2622,
+              "name": "Nose Rings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2623,
+              "name": "Toe Rings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 3168,
+              "name": "Pins",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "name": "Women's accessories",
+          "level": 1,
+          "children": [
+            {
+              "id": 261,
+              "name": "Sunglasses",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 262,
+              "name": "Wallets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 264,
+              "name": "Belts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 265,
+              "name": "Hats",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 266,
+              "name": "Hair accessories",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 267,
+              "name": "Watches",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1987,
+              "name": "Scarves",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1988,
+              "name": "Wraps",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2624,
+              "name": "Bandanas",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2625,
+              "name": "Fascinators",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2626,
+              "name": "Fashion Gloves",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2627,
+              "name": "Headbands",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2628,
+              "name": "Hijabs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2629,
+              "name": "Umbrellas",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 3169,
+              "name": "Cardholders",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 268,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
           "id": 19,
           "name": "Athletic apparel",
           "level": 1,
           "children": [
+            {
+              "id": 236,
+              "name": "Jackets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 237,
+              "name": "Jerseys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 240,
+              "name": "Shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 243,
+              "name": "Socks",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 244,
+              "name": "Sports bras",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 246,
+              "name": "Vests",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1968,
+              "name": "Athletic Leggings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1969,
+              "name": "Athletic Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1970,
+              "name": "Athletic Tights",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1971,
+              "name": "Athletic Polos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1972,
+              "name": "Athletic T-Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1973,
+              "name": "Athletic Tank Tops",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1974,
+              "name": "Athletic Dresses",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1975,
+              "name": "Athletic Skirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1976,
+              "name": "Athletic Skorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1977,
+              "name": "Snow Bibs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1978,
+              "name": "Snow Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1979,
+              "name": "Snowsuits",
+              "level": 2,
+              "children": []
+            },
             {
               "id": 1980,
               "name": "Athletic Hoodies",
@@ -17,8 +447,178 @@
               "children": []
             },
             {
-              "id": 1968,
-              "name": "Athletic Leggings",
+              "id": 1981,
+              "name": "Athletic Sweat Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1982,
+              "name": "Athletic Sweatshirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1983,
+              "name": "Athletic Sweatsuits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1984,
+              "name": "Track Jackets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1985,
+              "name": "Track Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1986,
+              "name": "Tracksuits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 247,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "name": "Tops & blouses",
+          "level": 1,
+          "children": [
+            {
+              "id": 155,
+              "name": "Blouse",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 156,
+              "name": "Button down shirt",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 157,
+              "name": "Halter",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 158,
+              "name": "Knit top",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 159,
+              "name": "Polo shirt",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 161,
+              "name": "T-shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 162,
+              "name": "Tunic",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 163,
+              "name": "Turtleneck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 164,
+              "name": "Wrap",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1955,
+              "name": "Bodysuits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1956,
+              "name": "Camisoles",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1957,
+              "name": "Tank Tops",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 165,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "name": "Dresses",
+          "level": 1,
+          "children": [
+            {
+              "id": 149,
+              "name": "Above knee, mini",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 150,
+              "name": "Knee-length",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 151,
+              "name": "Midi",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 152,
+              "name": "Maxi",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 153,
+              "name": "High Low",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1866,
+              "name": "Jumpsuits & Rompers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 154,
+              "name": "Other",
               "level": 2,
               "children": []
             }
@@ -122,13 +722,158 @@
           ]
         },
         {
-          "id": 11,
-          "name": "Dresses",
+          "id": 18,
+          "name": "Suits & blazers",
           "level": 1,
           "children": [
             {
-              "id": 151,
-              "name": "Midi",
+              "id": 231,
+              "name": "Blazer",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 232,
+              "name": "Dress suit",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 233,
+              "name": "Pant suit",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 234,
+              "name": "Skirt suit",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 235,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "name": "Sweaters",
+          "level": 1,
+          "children": [
+            {
+              "id": 166,
+              "name": "Cardigan",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 167,
+              "name": "Collared",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 168,
+              "name": "Cowl neck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 169,
+              "name": "Crewneck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 170,
+              "name": "Full zip",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 171,
+              "name": "Henley",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 172,
+              "name": "Hooded",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 173,
+              "name": "Poncho",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 174,
+              "name": "Scoop neck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 175,
+              "name": "Shrug",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 176,
+              "name": "Sweatercoat",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 177,
+              "name": "Tunic",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 180,
+              "name": "V-neck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 181,
+              "name": "Wrap",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1958,
+              "name": "Mock Sweaters",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1959,
+              "name": "Turtleneck Sweaters",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1960,
+              "name": "Sleeveless Sweaters",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1961,
+              "name": "Sweater Vests",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 182,
+              "name": "Other",
               "level": 2,
               "children": []
             }
@@ -138,44 +883,152 @@
           "id": 14,
           "name": "Jeans",
           "level": 1,
-          "children": []
-        },
-        {
-          "id": 23,
-          "name": "Jewelry",
-          "level": 1,
           "children": [
             {
-              "id": 270,
-              "name": "Necklaces",
+              "id": 183,
+              "name": "Boot cut",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 184,
+              "name": "Boyfriend",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 186,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 187,
+              "name": "Flare",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 188,
+              "name": "Leggings",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 189,
+              "name": "Overalls",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 190,
+              "name": "Relaxed",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 192,
+              "name": "Straight leg",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 193,
+              "name": "Wide leg",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1962,
+              "name": "Capri Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1963,
+              "name": "Cropped Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1964,
+              "name": "Skinny Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1965,
+              "name": "Slim Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 194,
+              "name": "Other",
               "level": 2,
               "children": []
             }
           ]
         },
         {
-          "id": 3550,
-          "name": "Kimono / Yukata",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 24,
-          "name": "Maternity",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 26,
-          "name": "Other",
-          "level": 1,
-          "children": []
-        },
-        {
           "id": 15,
           "name": "Pants",
           "level": 1,
           "children": [
+            {
+              "id": 196,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 197,
+              "name": "Casual pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 198,
+              "name": "Corduroys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 199,
+              "name": "Dress pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 200,
+              "name": "Khakis, chinos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 201,
+              "name": "Leather",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 202,
+              "name": "Linen",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1966,
+              "name": "Capri Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1967,
+              "name": "Cropped Pants",
+              "level": 2,
+              "children": []
+            },
             {
               "id": 203,
               "name": "Other",
@@ -185,150 +1038,400 @@
           ]
         },
         {
-          "id": 3551,
-          "name": "School Uniform",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 25,
-          "name": "Shoes",
-          "level": 1,
-          "children": []
-        },
-        {
           "id": 1936,
           "name": "Shorts",
           "level": 1,
-          "children": []
+          "children": [
+            {
+              "id": 1937,
+              "name": "Bermuda",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1938,
+              "name": "Bike",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1939,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1940,
+              "name": "Chino & khaki",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1941,
+              "name": "Denim",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1942,
+              "name": "High-waisted",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1943,
+              "name": "Pull-on",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1944,
+              "name": "Short shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1945,
+              "name": "Skort",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1946,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
         },
         {
           "id": 16,
           "name": "Skirts",
           "level": 1,
-          "children": []
-        },
-        {
-          "id": 1947,
-          "name": "Sleepwear & robes",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 18,
-          "name": "Suits & blazers",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 13,
-          "name": "Sweaters",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 20,
-          "name": "Swimwear",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 12,
-          "name": "Tops & blouses",
-          "level": 1,
-          "children": []
+          "children": [
+            {
+              "id": 204,
+              "name": "A-line",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 205,
+              "name": "Asymmetrical",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 206,
+              "name": "Bubble",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 207,
+              "name": "Full skirt",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 208,
+              "name": "Maxi",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 209,
+              "name": "Mini",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 210,
+              "name": "Peasant",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 211,
+              "name": "Pleated",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 212,
+              "name": "Straight, pencil",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 213,
+              "name": "Tiered",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 214,
+              "name": "Wrap",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 215,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
         },
         {
           "id": 1561,
           "name": "Underwear",
           "level": 1,
-          "children": []
-        },
-        {
-          "id": 22,
-          "name": "Women's accessories",
-          "level": 1,
           "children": [
             {
-              "id": 264,
-              "name": "Belts",
+              "id": 1562,
+              "name": "G-strings & thongs",
               "level": 2,
               "children": []
             },
             {
-              "id": 3169,
-              "name": "Cardholders",
+              "id": 1563,
+              "name": "Panties",
               "level": 2,
               "children": []
             },
             {
-              "id": 2626,
-              "name": "Fashion Gloves",
+              "id": 1564,
+              "name": "Thermal underwear",
               "level": 2,
               "children": []
             },
             {
-              "id": 266,
-              "name": "Hair accessories",
+              "id": 1565,
+              "name": "Bras",
               "level": 2,
               "children": []
             },
             {
-              "id": 265,
-              "name": "Hats",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 268,
+              "id": 1566,
               "name": "Other",
               "level": 2,
               "children": []
-            },
+            }
+          ]
+        },
+        {
+          "id": 20,
+          "name": "Swimwear",
+          "level": 1,
+          "children": [
             {
-              "id": 1987,
-              "name": "Scarves",
+              "id": 248,
+              "name": "One-piece",
               "level": 2,
               "children": []
             },
             {
-              "id": 261,
-              "name": "Sunglasses",
+              "id": 249,
+              "name": "Two-piece",
               "level": 2,
               "children": []
             },
             {
-              "id": 262,
-              "name": "Wallets",
+              "id": 250,
+              "name": "Cover-ups",
               "level": 2,
               "children": []
             },
             {
-              "id": 267,
-              "name": "Watches",
+              "id": 251,
+              "name": "Beach accessories",
               "level": 2,
               "children": []
             }
           ]
         },
         {
-          "id": 21,
-          "name": "Women's handbags",
+          "id": 1947,
+          "name": "Sleepwear & robes",
           "level": 1,
           "children": [
             {
-              "id": 252,
-              "name": "Shoulder Bags",
+              "id": 1948,
+              "name": "Nightgowns & sleep shirts",
               "level": 2,
               "children": []
             },
             {
-              "id": 253,
-              "name": "Tote Bags",
+              "id": 1949,
+              "name": "Pajama pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1950,
+              "name": "Pajama sets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1951,
+              "name": "Pajama shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1952,
+              "name": "Pajama tops",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1953,
+              "name": "Robes",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1954,
+              "name": "Other",
               "level": 2,
               "children": []
             }
           ]
+        },
+        {
+          "id": 24,
+          "name": "Maternity",
+          "level": 1,
+          "children": [
+            {
+              "id": 273,
+              "name": "Dresses",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 275,
+              "name": "Sweaters",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 276,
+              "name": "Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 277,
+              "name": "Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 278,
+              "name": "Skirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 279,
+              "name": "Coats & jackets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 281,
+              "name": "Athletic apparel",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1989,
+              "name": "Maternity Blouses",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1990,
+              "name": "Maternity Button-Ups",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1991,
+              "name": "Maternity Camisoles",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1992,
+              "name": "Maternity Polos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1993,
+              "name": "Maternity T-Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1994,
+              "name": "Maternity Tank Tops",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1995,
+              "name": "Maternity Blazers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1996,
+              "name": "Maternity Suit Jackets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1997,
+              "name": "Maternity Suit Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1998,
+              "name": "Maternity Suits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1999,
+              "name": "Maternity Suit Skirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2000,
+              "name": "Maternity Suit Vests",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 282,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 26,
+          "name": "Other",
+          "level": 1,
+          "children": []
         }
       ]
     },
@@ -338,13 +1441,552 @@
       "level": 0,
       "children": [
         {
+          "id": 39,
+          "name": "Shoes",
+          "level": 1,
+          "children": [
+            {
+              "id": 397,
+              "name": "Athletic",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 398,
+              "name": "Boots",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 399,
+              "name": "Fashion sneakers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 402,
+              "name": "Outdoor",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 403,
+              "name": "Oxfords",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 404,
+              "name": "Sandals",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 405,
+              "name": "Slippers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 406,
+              "name": "Work & safety",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2027,
+              "name": "Loafers",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2028,
+              "name": "Slip-Ons",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2029,
+              "name": "Clogs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2030,
+              "name": "Mules",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 38,
+          "name": "Men's accessories",
+          "level": 1,
+          "children": [
+            {
+              "id": 391,
+              "name": "Belts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 392,
+              "name": "Hats",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 393,
+              "name": "Sunglasses",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 394,
+              "name": "Ties",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 395,
+              "name": "Watches",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 1560,
+              "name": "Wallets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2024,
+              "name": "Backpacks",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2025,
+              "name": "Bags",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2026,
+              "name": "Briefcases",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2519,
+              "name": "Bandanas",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2520,
+              "name": "Bow Ties",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2521,
+              "name": "Collar Stays",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2522,
+              "name": "Fashion Gloves",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2523,
+              "name": "Handkerchiefs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2524,
+              "name": "Scarves",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2525,
+              "name": "Turbans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2526,
+              "name": "Umbrellas",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2881,
+              "name": "Cardholders",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 396,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
           "id": 36,
           "name": "Athletic apparel",
           "level": 1,
           "children": [
             {
+              "id": 376,
+              "name": "Competitive swimwear",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 377,
+              "name": "Jackets",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 378,
+              "name": "Jerseys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 379,
+              "name": "Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 381,
+              "name": "Shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 383,
+              "name": "Socks",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 385,
+              "name": "Vests",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2009,
+              "name": "Athletic Polos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2010,
+              "name": "Athletic Long Sleeve Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2011,
+              "name": "Athletic Short Sleeve Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2012,
+              "name": "Jerseys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2013,
+              "name": "Athletic T-Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2014,
+              "name": "Athletic Tank Tops",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2015,
+              "name": "Snow Bibs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2016,
+              "name": "Snow Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2017,
+              "name": "Snowsuits",
+              "level": 2,
+              "children": []
+            },
+            {
               "id": 2018,
               "name": "Athletic Hoodies",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2019,
+              "name": "Athletic Sweat Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2020,
+              "name": "Athletic Sweatshirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2022,
+              "name": "Track Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2023,
+              "name": "Tracksuits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 386,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 27,
+          "name": "Tops",
+          "level": 1,
+          "children": [
+            {
+              "id": 297,
+              "name": "Button-front",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 298,
+              "name": "Dress shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 299,
+              "name": "Hawaiian",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 300,
+              "name": "Henley",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 302,
+              "name": "Tank",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 303,
+              "name": "T-shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 304,
+              "name": "Turtleneck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2005,
+              "name": "Polos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2006,
+              "name": "Rugby Shirts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 305,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 28,
+          "name": "Sweats & hoodies",
+          "level": 1,
+          "children": [
+            {
+              "id": 306,
+              "name": "Hoodie",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 307,
+              "name": "Sweatshirt, pullover",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 308,
+              "name": "Sweat Pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 309,
+              "name": "Sweatsuits",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 310,
+              "name": "Track jacket",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 311,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "name": "Coats & jackets",
+          "level": 1,
+          "children": [
+            {
+              "id": 347,
+              "name": "Fleece jacket",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 348,
+              "name": "Flight/bomber",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 349,
+              "name": "Jean jacket",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 350,
+              "name": "Military",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 351,
+              "name": "Motorcycle",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 352,
+              "name": "Parka",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 353,
+              "name": "Peacoat",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 354,
+              "name": "Poncho",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 355,
+              "name": "Puffer",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 356,
+              "name": "Rainwear",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 357,
+              "name": "Trench",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 358,
+              "name": "Varsity/baseball",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 359,
+              "name": "Vest",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 360,
+              "name": "Windbreaker",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 361,
+              "name": "Wool",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 362,
+              "name": "Other",
               "level": 2,
               "children": []
             }
@@ -354,36 +1996,362 @@
           "id": 34,
           "name": "Blazers & sport coats",
           "level": 1,
-          "children": []
+          "children": [
+            {
+              "id": 363,
+              "name": "Double breasted",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 364,
+              "name": "Four button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 365,
+              "name": "One button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 366,
+              "name": "Three button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 367,
+              "name": "Two button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 368,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
         },
         {
-          "id": 33,
-          "name": "Coats & jackets",
+          "id": 35,
+          "name": "Suits",
           "level": 1,
           "children": [
-            { "id": 347, "name": "Fleece jacket", "level": 2, "children": [] },
-            { "id": 348, "name": "Flight/bomber", "level": 2, "children": [] },
-            { "id": 349, "name": "Jean jacket", "level": 2, "children": [] },
-            { "id": 350, "name": "Military", "level": 2, "children": [] },
-            { "id": 351, "name": "Motorcycle", "level": 2, "children": [] },
-            { "id": 352, "name": "Parka", "level": 2, "children": [] },
-            { "id": 353, "name": "Peacoat", "level": 2, "children": [] },
-            { "id": 354, "name": "Poncho", "level": 2, "children": [] },
-            { "id": 355, "name": "Puffer", "level": 2, "children": [] },
-            { "id": 356, "name": "Rainwear", "level": 2, "children": [] },
-            { "id": 357, "name": "Trench", "level": 2, "children": [] },
-            { "id": 358, "name": "Varsity/baseball", "level": 2, "children": [] },
-            { "id": 359, "name": "Vest", "level": 2, "children": [] },
-            { "id": 360, "name": "Windbreaker", "level": 2, "children": [] },
-            { "id": 361, "name": "Wool", "level": 2, "children": [] },
-            { "id": 362, "name": "Other", "level": 2, "children": [] }
+            {
+              "id": 369,
+              "name": "One button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 370,
+              "name": "Two button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 371,
+              "name": "Three button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 372,
+              "name": "Four button",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 373,
+              "name": "Double breasted",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 374,
+              "name": "Tuxedo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 375,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 29,
+          "name": "Sweaters",
+          "level": 1,
+          "children": [
+            {
+              "id": 312,
+              "name": "Cardigan",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 313,
+              "name": "Crewneck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 314,
+              "name": "Full zip",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 315,
+              "name": "Polo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 316,
+              "name": "Turtleneck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 317,
+              "name": "Vest",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 318,
+              "name": "V-neck",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 319,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
           ]
         },
         {
           "id": 30,
           "name": "Jeans",
           "level": 1,
-          "children": []
+          "children": [
+            {
+              "id": 320,
+              "name": "Baggy, loose",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 321,
+              "name": "Boot cut",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 322,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 323,
+              "name": "Carpenter",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 324,
+              "name": "Classic, straight leg",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 325,
+              "name": "Overalls",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 326,
+              "name": "Relaxed",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2007,
+              "name": "Skinny Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2008,
+              "name": "Slim Jeans",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 328,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 31,
+          "name": "Pants",
+          "level": 1,
+          "children": [
+            {
+              "id": 329,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 330,
+              "name": "Carpenter",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 331,
+              "name": "Casual pants",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 332,
+              "name": "Corduroys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 333,
+              "name": "Dress - flat front",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 334,
+              "name": "Dress - pleat",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 335,
+              "name": "Khakis, chinos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 336,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 32,
+          "name": "Shorts",
+          "level": 1,
+          "children": [
+            {
+              "id": 337,
+              "name": "Athletic",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 338,
+              "name": "Board, surf",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 339,
+              "name": "Cargo",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 340,
+              "name": "Carpenter, utility",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 341,
+              "name": "Casual shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 342,
+              "name": "Corduroys",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 343,
+              "name": "Denim",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 344,
+              "name": "Dress shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 345,
+              "name": "Khakis, chinos",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 346,
+              "name": "Other",
+              "level": 2,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 37,
+          "name": "Swimwear",
+          "level": 1,
+          "children": [
+            {
+              "id": 387,
+              "name": "Board shorts",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 388,
+              "name": "Swim briefs",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 389,
+              "name": "Swim trunks",
+              "level": 2,
+              "children": []
+            }
+          ]
         },
         {
           "id": 2874,
@@ -403,8 +2371,20 @@
               "children": []
             },
             {
+              "id": 2877,
+              "name": "Earrings",
+              "level": 2,
+              "children": []
+            },
+            {
               "id": 2878,
               "name": "Necklaces",
+              "level": 2,
+              "children": []
+            },
+            {
+              "id": 2879,
+              "name": "Pins",
               "level": 2,
               "children": []
             },
@@ -417,162 +2397,8 @@
           ]
         },
         {
-          "id": 3532,
-          "name": "Kimono / Yukata",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 38,
-          "name": "Men's accessories",
-          "level": 1,
-          "children": [
-            {
-              "id": 2024,
-              "name": "Backpacks",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 2025,
-              "name": "Bags",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 391,
-              "name": "Belts",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 2026,
-              "name": "Briefcases",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 2522,
-              "name": "Fashion Gloves",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 392,
-              "name": "Hats",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 396,
-              "name": "Other",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 393,
-              "name": "Sunglasses",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 394,
-              "name": "Ties",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 1560,
-              "name": "Wallets",
-              "level": 2,
-              "children": []
-            },
-            {
-              "id": 395,
-              "name": "Watches",
-              "level": 2,
-              "children": []
-            }
-          ]
-        },
-        {
           "id": 40,
           "name": "Other",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 31,
-          "name": "Pants",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 3533,
-          "name": "School Uniform",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 39,
-          "name": "Shoes",
-          "level": 1,
-          "children": [
-            {
-              "id": 397,
-              "name": "Athletic",
-              "level": 2,
-              "children": []
-            }
-          ]
-        },
-        {
-          "id": 32,
-          "name": "Shorts",
-          "level": 1,
-          "children": [
-            {
-              "id": 339,
-              "name": "Cargo",
-              "level": 2,
-              "children": []
-            }
-          ]
-        },
-        {
-          "id": 35,
-          "name": "Suits",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 29,
-          "name": "Sweaters",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 28,
-          "name": "Sweats & hoodies",
-          "level": 1,
-          "children": [
-            {
-              "id": 306,
-              "name": "Hoodie",
-              "level": 2,
-              "children": []
-            }
-          ]
-        },
-        {
-          "id": 37,
-          "name": "Swimwear",
-          "level": 1,
-          "children": []
-        },
-        {
-          "id": 27,
-          "name": "Tops",
           "level": 1,
           "children": []
         }
@@ -3422,12 +5248,588 @@
       "path": "Women"
     },
     {
+      "id": 2,
+      "name": "Men",
+      "level": 0,
+      "parentId": null,
+      "parentName": null,
+      "path": "Men"
+    },
+    {
+      "id": 21,
+      "name": "Women's handbags",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Women's handbags"
+    },
+    {
+      "id": 252,
+      "name": "Shoulder Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Shoulder Bags"
+    },
+    {
+      "id": 253,
+      "name": "Tote Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Tote Bags"
+    },
+    {
+      "id": 254,
+      "name": "Crossbody Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Crossbody Bags"
+    },
+    {
+      "id": 255,
+      "name": "Satchel",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Satchel"
+    },
+    {
+      "id": 256,
+      "name": "Hobo Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Hobo Bags"
+    },
+    {
+      "id": 258,
+      "name": "Backpacks",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Backpacks"
+    },
+    {
+      "id": 259,
+      "name": "Cosmetic bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Cosmetic bags"
+    },
+    {
+      "id": 1863,
+      "name": "Waist Bags & Fanny Packs",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Waist Bags & Fanny Packs"
+    },
+    {
+      "id": 1864,
+      "name": "Messenger Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Messenger Bags"
+    },
+    {
+      "id": 1865,
+      "name": "Bucket Bags",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Bucket Bags"
+    },
+    {
+      "id": 260,
+      "name": "Other",
+      "level": 2,
+      "parentId": 21,
+      "parentName": "Women's handbags",
+      "path": "Women > Women's handbags > Other"
+    },
+    {
+      "id": 25,
+      "name": "Shoes",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Shoes"
+    },
+    {
+      "id": 283,
+      "name": "Athletic",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Athletic"
+    },
+    {
+      "id": 284,
+      "name": "Boots",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Boots"
+    },
+    {
+      "id": 285,
+      "name": "Fashion sneakers",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Fashion sneakers"
+    },
+    {
+      "id": 286,
+      "name": "Flats",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Flats"
+    },
+    {
+      "id": 289,
+      "name": "Outdoor",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Outdoor"
+    },
+    {
+      "id": 290,
+      "name": "Oxfords",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Oxfords"
+    },
+    {
+      "id": 291,
+      "name": "Heels",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Heels"
+    },
+    {
+      "id": 292,
+      "name": "Sandals",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Sandals"
+    },
+    {
+      "id": 293,
+      "name": "Slippers",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Slippers"
+    },
+    {
+      "id": 294,
+      "name": "Work & safety",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Work & safety"
+    },
+    {
+      "id": 2001,
+      "name": "Loafers",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Loafers"
+    },
+    {
+      "id": 2002,
+      "name": "Slip-Ons",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Slip-Ons"
+    },
+    {
+      "id": 2003,
+      "name": "Clogs",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Clogs"
+    },
+    {
+      "id": 2004,
+      "name": "Mules",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Mules"
+    },
+    {
+      "id": 295,
+      "name": "Other",
+      "level": 2,
+      "parentId": 25,
+      "parentName": "Shoes",
+      "path": "Women > Shoes > Other"
+    },
+    {
+      "id": 23,
+      "name": "Jewelry",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Jewelry"
+    },
+    {
+      "id": 269,
+      "name": "Rings",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Rings"
+    },
+    {
+      "id": 270,
+      "name": "Necklaces",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Necklaces"
+    },
+    {
+      "id": 271,
+      "name": "Earrings",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Earrings"
+    },
+    {
+      "id": 272,
+      "name": "Bracelets",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Bracelets"
+    },
+    {
+      "id": 2622,
+      "name": "Nose Rings",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Nose Rings"
+    },
+    {
+      "id": 2623,
+      "name": "Toe Rings",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Toe Rings"
+    },
+    {
+      "id": 3168,
+      "name": "Pins",
+      "level": 2,
+      "parentId": 23,
+      "parentName": "Jewelry",
+      "path": "Women > Jewelry > Pins"
+    },
+    {
+      "id": 22,
+      "name": "Women's accessories",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Women's accessories"
+    },
+    {
+      "id": 261,
+      "name": "Sunglasses",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Sunglasses"
+    },
+    {
+      "id": 262,
+      "name": "Wallets",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Wallets"
+    },
+    {
+      "id": 264,
+      "name": "Belts",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Belts"
+    },
+    {
+      "id": 265,
+      "name": "Hats",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Hats"
+    },
+    {
+      "id": 266,
+      "name": "Hair accessories",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Hair accessories"
+    },
+    {
+      "id": 267,
+      "name": "Watches",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Watches"
+    },
+    {
+      "id": 1987,
+      "name": "Scarves",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Scarves"
+    },
+    {
+      "id": 1988,
+      "name": "Wraps",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Wraps"
+    },
+    {
+      "id": 2624,
+      "name": "Bandanas",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Bandanas"
+    },
+    {
+      "id": 2625,
+      "name": "Fascinators",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Fascinators"
+    },
+    {
+      "id": 2626,
+      "name": "Fashion Gloves",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Fashion Gloves"
+    },
+    {
+      "id": 2627,
+      "name": "Headbands",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Headbands"
+    },
+    {
+      "id": 2628,
+      "name": "Hijabs",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Hijabs"
+    },
+    {
+      "id": 2629,
+      "name": "Umbrellas",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Umbrellas"
+    },
+    {
+      "id": 3169,
+      "name": "Cardholders",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Cardholders"
+    },
+    {
+      "id": 268,
+      "name": "Other",
+      "level": 2,
+      "parentId": 22,
+      "parentName": "Women's accessories",
+      "path": "Women > Women's accessories > Other"
+    },
+    {
       "id": 19,
       "name": "Athletic apparel",
       "level": 1,
       "parentId": 1,
       "parentName": "Women",
       "path": "Women > Athletic apparel"
+    },
+    {
+      "id": 236,
+      "name": "Jackets",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Jackets"
+    },
+    {
+      "id": 237,
+      "name": "Jerseys",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Jerseys"
+    },
+    {
+      "id": 240,
+      "name": "Shorts",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Shorts"
+    },
+    {
+      "id": 243,
+      "name": "Socks",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Socks"
+    },
+    {
+      "id": 244,
+      "name": "Sports bras",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Sports bras"
+    },
+    {
+      "id": 246,
+      "name": "Vests",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Vests"
+    },
+    {
+      "id": 1968,
+      "name": "Athletic Leggings",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Leggings"
+    },
+    {
+      "id": 1969,
+      "name": "Athletic Pants",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Pants"
+    },
+    {
+      "id": 1970,
+      "name": "Athletic Tights",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Tights"
+    },
+    {
+      "id": 1971,
+      "name": "Athletic Polos",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Polos"
+    },
+    {
+      "id": 1972,
+      "name": "Athletic T-Shirts",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic T-Shirts"
+    },
+    {
+      "id": 1973,
+      "name": "Athletic Tank Tops",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Tank Tops"
+    },
+    {
+      "id": 1974,
+      "name": "Athletic Dresses",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Dresses"
+    },
+    {
+      "id": 1975,
+      "name": "Athletic Skirts",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Skirts"
+    },
+    {
+      "id": 1976,
+      "name": "Athletic Skorts",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Skorts"
+    },
+    {
+      "id": 1977,
+      "name": "Snow Bibs",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Snow Bibs"
+    },
+    {
+      "id": 1978,
+      "name": "Snow Pants",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Snow Pants"
+    },
+    {
+      "id": 1979,
+      "name": "Snowsuits",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Snowsuits"
     },
     {
       "id": 1980,
@@ -3438,12 +5840,236 @@
       "path": "Women > Athletic apparel > Athletic Hoodies"
     },
     {
-      "id": 1968,
-      "name": "Athletic Leggings",
+      "id": 1981,
+      "name": "Athletic Sweat Pants",
       "level": 2,
       "parentId": 19,
       "parentName": "Athletic apparel",
-      "path": "Women > Athletic apparel > Athletic Leggings"
+      "path": "Women > Athletic apparel > Athletic Sweat Pants"
+    },
+    {
+      "id": 1982,
+      "name": "Athletic Sweatshirts",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Sweatshirts"
+    },
+    {
+      "id": 1983,
+      "name": "Athletic Sweatsuits",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Athletic Sweatsuits"
+    },
+    {
+      "id": 1984,
+      "name": "Track Jackets",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Track Jackets"
+    },
+    {
+      "id": 1985,
+      "name": "Track Pants",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Track Pants"
+    },
+    {
+      "id": 1986,
+      "name": "Tracksuits",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Tracksuits"
+    },
+    {
+      "id": 247,
+      "name": "Other",
+      "level": 2,
+      "parentId": 19,
+      "parentName": "Athletic apparel",
+      "path": "Women > Athletic apparel > Other"
+    },
+    {
+      "id": 12,
+      "name": "Tops & blouses",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Tops & blouses"
+    },
+    {
+      "id": 155,
+      "name": "Blouse",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Blouse"
+    },
+    {
+      "id": 156,
+      "name": "Button down shirt",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Button down shirt"
+    },
+    {
+      "id": 157,
+      "name": "Halter",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Halter"
+    },
+    {
+      "id": 158,
+      "name": "Knit top",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Knit top"
+    },
+    {
+      "id": 159,
+      "name": "Polo shirt",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Polo shirt"
+    },
+    {
+      "id": 161,
+      "name": "T-shirts",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > T-shirts"
+    },
+    {
+      "id": 162,
+      "name": "Tunic",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Tunic"
+    },
+    {
+      "id": 163,
+      "name": "Turtleneck",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Turtleneck"
+    },
+    {
+      "id": 164,
+      "name": "Wrap",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Wrap"
+    },
+    {
+      "id": 1955,
+      "name": "Bodysuits",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Bodysuits"
+    },
+    {
+      "id": 1956,
+      "name": "Camisoles",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Camisoles"
+    },
+    {
+      "id": 1957,
+      "name": "Tank Tops",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Tank Tops"
+    },
+    {
+      "id": 165,
+      "name": "Other",
+      "level": 2,
+      "parentId": 12,
+      "parentName": "Tops & blouses",
+      "path": "Women > Tops & blouses > Other"
+    },
+    {
+      "id": 11,
+      "name": "Dresses",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Dresses"
+    },
+    {
+      "id": 149,
+      "name": "Above knee, mini",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Above knee, mini"
+    },
+    {
+      "id": 150,
+      "name": "Knee-length",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Knee-length"
+    },
+    {
+      "id": 151,
+      "name": "Midi",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Midi"
+    },
+    {
+      "id": 152,
+      "name": "Maxi",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Maxi"
+    },
+    {
+      "id": 153,
+      "name": "High Low",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > High Low"
+    },
+    {
+      "id": 1866,
+      "name": "Jumpsuits & Rompers",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Jumpsuits & Rompers"
+    },
+    {
+      "id": 154,
+      "name": "Other",
+      "level": 2,
+      "parentId": 11,
+      "parentName": "Dresses",
+      "path": "Women > Dresses > Other"
     },
     {
       "id": 17,
@@ -3574,132 +6200,52 @@
       "path": "Women > Coats & jackets > Other"
     },
     {
-      "id": 11,
-      "name": "Dresses",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Dresses"
-    },
-    {
-      "id": 151,
-      "name": "Midi",
-      "level": 2,
-      "parentId": 11,
-      "parentName": "Dresses",
-      "path": "Women > Dresses > Midi"
-    },
-    {
-      "id": 14,
-      "name": "Jeans",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Jeans"
-    },
-    {
-      "id": 23,
-      "name": "Jewelry",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Jewelry"
-    },
-    {
-      "id": 270,
-      "name": "Necklaces",
-      "level": 2,
-      "parentId": 23,
-      "parentName": "Jewelry",
-      "path": "Women > Jewelry > Necklaces"
-    },
-    {
-      "id": 3550,
-      "name": "Kimono / Yukata",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Kimono / Yukata"
-    },
-    {
-      "id": 24,
-      "name": "Maternity",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Maternity"
-    },
-    {
-      "id": 26,
-      "name": "Other",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Other"
-    },
-    {
-      "id": 15,
-      "name": "Pants",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Pants"
-    },
-    {
-      "id": 203,
-      "name": "Other",
-      "level": 2,
-      "parentId": 15,
-      "parentName": "Pants",
-      "path": "Women > Pants > Other"
-    },
-    {
-      "id": 3551,
-      "name": "School Uniform",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > School Uniform"
-    },
-    {
-      "id": 25,
-      "name": "Shoes",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Shoes"
-    },
-    {
-      "id": 1936,
-      "name": "Shorts",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Shorts"
-    },
-    {
-      "id": 16,
-      "name": "Skirts",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Skirts"
-    },
-    {
-      "id": 1947,
-      "name": "Sleepwear & robes",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Sleepwear & robes"
-    },
-    {
       "id": 18,
       "name": "Suits & blazers",
       "level": 1,
       "parentId": 1,
       "parentName": "Women",
       "path": "Women > Suits & blazers"
+    },
+    {
+      "id": 231,
+      "name": "Blazer",
+      "level": 2,
+      "parentId": 18,
+      "parentName": "Suits & blazers",
+      "path": "Women > Suits & blazers > Blazer"
+    },
+    {
+      "id": 232,
+      "name": "Dress suit",
+      "level": 2,
+      "parentId": 18,
+      "parentName": "Suits & blazers",
+      "path": "Women > Suits & blazers > Dress suit"
+    },
+    {
+      "id": 233,
+      "name": "Pant suit",
+      "level": 2,
+      "parentId": 18,
+      "parentName": "Suits & blazers",
+      "path": "Women > Suits & blazers > Pant suit"
+    },
+    {
+      "id": 234,
+      "name": "Skirt suit",
+      "level": 2,
+      "parentId": 18,
+      "parentName": "Suits & blazers",
+      "path": "Women > Suits & blazers > Skirt suit"
+    },
+    {
+      "id": 235,
+      "name": "Other",
+      "level": 2,
+      "parentId": 18,
+      "parentName": "Suits & blazers",
+      "path": "Women > Suits & blazers > Other"
     },
     {
       "id": 13,
@@ -3710,20 +6256,556 @@
       "path": "Women > Sweaters"
     },
     {
-      "id": 20,
-      "name": "Swimwear",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Swimwear"
+      "id": 166,
+      "name": "Cardigan",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Cardigan"
     },
     {
-      "id": 12,
-      "name": "Tops & blouses",
+      "id": 167,
+      "name": "Collared",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Collared"
+    },
+    {
+      "id": 168,
+      "name": "Cowl neck",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Cowl neck"
+    },
+    {
+      "id": 169,
+      "name": "Crewneck",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Crewneck"
+    },
+    {
+      "id": 170,
+      "name": "Full zip",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Full zip"
+    },
+    {
+      "id": 171,
+      "name": "Henley",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Henley"
+    },
+    {
+      "id": 172,
+      "name": "Hooded",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Hooded"
+    },
+    {
+      "id": 173,
+      "name": "Poncho",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Poncho"
+    },
+    {
+      "id": 174,
+      "name": "Scoop neck",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Scoop neck"
+    },
+    {
+      "id": 175,
+      "name": "Shrug",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Shrug"
+    },
+    {
+      "id": 176,
+      "name": "Sweatercoat",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Sweatercoat"
+    },
+    {
+      "id": 177,
+      "name": "Tunic",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Tunic"
+    },
+    {
+      "id": 180,
+      "name": "V-neck",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > V-neck"
+    },
+    {
+      "id": 181,
+      "name": "Wrap",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Wrap"
+    },
+    {
+      "id": 1958,
+      "name": "Mock Sweaters",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Mock Sweaters"
+    },
+    {
+      "id": 1959,
+      "name": "Turtleneck Sweaters",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Turtleneck Sweaters"
+    },
+    {
+      "id": 1960,
+      "name": "Sleeveless Sweaters",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Sleeveless Sweaters"
+    },
+    {
+      "id": 1961,
+      "name": "Sweater Vests",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Sweater Vests"
+    },
+    {
+      "id": 182,
+      "name": "Other",
+      "level": 2,
+      "parentId": 13,
+      "parentName": "Sweaters",
+      "path": "Women > Sweaters > Other"
+    },
+    {
+      "id": 14,
+      "name": "Jeans",
       "level": 1,
       "parentId": 1,
       "parentName": "Women",
-      "path": "Women > Tops & blouses"
+      "path": "Women > Jeans"
+    },
+    {
+      "id": 183,
+      "name": "Boot cut",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Boot cut"
+    },
+    {
+      "id": 184,
+      "name": "Boyfriend",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Boyfriend"
+    },
+    {
+      "id": 186,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Cargo"
+    },
+    {
+      "id": 187,
+      "name": "Flare",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Flare"
+    },
+    {
+      "id": 188,
+      "name": "Leggings",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Leggings"
+    },
+    {
+      "id": 189,
+      "name": "Overalls",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Overalls"
+    },
+    {
+      "id": 190,
+      "name": "Relaxed",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Relaxed"
+    },
+    {
+      "id": 192,
+      "name": "Straight leg",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Straight leg"
+    },
+    {
+      "id": 193,
+      "name": "Wide leg",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Wide leg"
+    },
+    {
+      "id": 1962,
+      "name": "Capri Jeans",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Capri Jeans"
+    },
+    {
+      "id": 1963,
+      "name": "Cropped Jeans",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Cropped Jeans"
+    },
+    {
+      "id": 1964,
+      "name": "Skinny Jeans",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Skinny Jeans"
+    },
+    {
+      "id": 1965,
+      "name": "Slim Jeans",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Slim Jeans"
+    },
+    {
+      "id": 194,
+      "name": "Other",
+      "level": 2,
+      "parentId": 14,
+      "parentName": "Jeans",
+      "path": "Women > Jeans > Other"
+    },
+    {
+      "id": 15,
+      "name": "Pants",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Pants"
+    },
+    {
+      "id": 196,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Cargo"
+    },
+    {
+      "id": 197,
+      "name": "Casual pants",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Casual pants"
+    },
+    {
+      "id": 198,
+      "name": "Corduroys",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Corduroys"
+    },
+    {
+      "id": 199,
+      "name": "Dress pants",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Dress pants"
+    },
+    {
+      "id": 200,
+      "name": "Khakis, chinos",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Khakis, chinos"
+    },
+    {
+      "id": 201,
+      "name": "Leather",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Leather"
+    },
+    {
+      "id": 202,
+      "name": "Linen",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Linen"
+    },
+    {
+      "id": 1966,
+      "name": "Capri Pants",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Capri Pants"
+    },
+    {
+      "id": 1967,
+      "name": "Cropped Pants",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Cropped Pants"
+    },
+    {
+      "id": 203,
+      "name": "Other",
+      "level": 2,
+      "parentId": 15,
+      "parentName": "Pants",
+      "path": "Women > Pants > Other"
+    },
+    {
+      "id": 1936,
+      "name": "Shorts",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Shorts"
+    },
+    {
+      "id": 1937,
+      "name": "Bermuda",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Bermuda"
+    },
+    {
+      "id": 1938,
+      "name": "Bike",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Bike"
+    },
+    {
+      "id": 1939,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Cargo"
+    },
+    {
+      "id": 1940,
+      "name": "Chino & khaki",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Chino & khaki"
+    },
+    {
+      "id": 1941,
+      "name": "Denim",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Denim"
+    },
+    {
+      "id": 1942,
+      "name": "High-waisted",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > High-waisted"
+    },
+    {
+      "id": 1943,
+      "name": "Pull-on",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Pull-on"
+    },
+    {
+      "id": 1944,
+      "name": "Short shorts",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Short shorts"
+    },
+    {
+      "id": 1945,
+      "name": "Skort",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Skort"
+    },
+    {
+      "id": 1946,
+      "name": "Other",
+      "level": 2,
+      "parentId": 1936,
+      "parentName": "Shorts",
+      "path": "Women > Shorts > Other"
+    },
+    {
+      "id": 16,
+      "name": "Skirts",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Skirts"
+    },
+    {
+      "id": 204,
+      "name": "A-line",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > A-line"
+    },
+    {
+      "id": 205,
+      "name": "Asymmetrical",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Asymmetrical"
+    },
+    {
+      "id": 206,
+      "name": "Bubble",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Bubble"
+    },
+    {
+      "id": 207,
+      "name": "Full skirt",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Full skirt"
+    },
+    {
+      "id": 208,
+      "name": "Maxi",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Maxi"
+    },
+    {
+      "id": 209,
+      "name": "Mini",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Mini"
+    },
+    {
+      "id": 210,
+      "name": "Peasant",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Peasant"
+    },
+    {
+      "id": 211,
+      "name": "Pleated",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Pleated"
+    },
+    {
+      "id": 212,
+      "name": "Straight, pencil",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Straight, pencil"
+    },
+    {
+      "id": 213,
+      "name": "Tiered",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Tiered"
+    },
+    {
+      "id": 214,
+      "name": "Wrap",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Wrap"
+    },
+    {
+      "id": 215,
+      "name": "Other",
+      "level": 2,
+      "parentId": 16,
+      "parentName": "Skirts",
+      "path": "Women > Skirts > Other"
     },
     {
       "id": 1561,
@@ -3734,124 +6816,588 @@
       "path": "Women > Underwear"
     },
     {
-      "id": 22,
-      "name": "Women's accessories",
-      "level": 1,
-      "parentId": 1,
-      "parentName": "Women",
-      "path": "Women > Women's accessories"
-    },
-    {
-      "id": 264,
-      "name": "Belts",
+      "id": 1562,
+      "name": "G-strings & thongs",
       "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Belts"
+      "parentId": 1561,
+      "parentName": "Underwear",
+      "path": "Women > Underwear > G-strings & thongs"
     },
     {
-      "id": 3169,
-      "name": "Cardholders",
+      "id": 1563,
+      "name": "Panties",
       "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Cardholders"
+      "parentId": 1561,
+      "parentName": "Underwear",
+      "path": "Women > Underwear > Panties"
     },
     {
-      "id": 2626,
-      "name": "Fashion Gloves",
+      "id": 1564,
+      "name": "Thermal underwear",
       "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Fashion Gloves"
+      "parentId": 1561,
+      "parentName": "Underwear",
+      "path": "Women > Underwear > Thermal underwear"
     },
     {
-      "id": 266,
-      "name": "Hair accessories",
+      "id": 1565,
+      "name": "Bras",
       "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Hair accessories"
+      "parentId": 1561,
+      "parentName": "Underwear",
+      "path": "Women > Underwear > Bras"
     },
     {
-      "id": 265,
-      "name": "Hats",
-      "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Hats"
-    },
-    {
-      "id": 268,
+      "id": 1566,
       "name": "Other",
       "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Other"
+      "parentId": 1561,
+      "parentName": "Underwear",
+      "path": "Women > Underwear > Other"
     },
     {
-      "id": 1987,
-      "name": "Scarves",
-      "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Scarves"
-    },
-    {
-      "id": 261,
-      "name": "Sunglasses",
-      "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Sunglasses"
-    },
-    {
-      "id": 262,
-      "name": "Wallets",
-      "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Wallets"
-    },
-    {
-      "id": 267,
-      "name": "Watches",
-      "level": 2,
-      "parentId": 22,
-      "parentName": "Women's accessories",
-      "path": "Women > Women's accessories > Watches"
-    },
-    {
-      "id": 21,
-      "name": "Women's handbags",
+      "id": 20,
+      "name": "Swimwear",
       "level": 1,
       "parentId": 1,
       "parentName": "Women",
-      "path": "Women > Women's handbags"
+      "path": "Women > Swimwear"
     },
     {
-      "id": 252,
-      "name": "Shoulder Bags",
+      "id": 248,
+      "name": "One-piece",
       "level": 2,
-      "parentId": 21,
-      "parentName": "Women's handbags",
-      "path": "Women > Women's handbags > Shoulder Bags"
+      "parentId": 20,
+      "parentName": "Swimwear",
+      "path": "Women > Swimwear > One-piece"
     },
     {
-      "id": 253,
-      "name": "Tote Bags",
+      "id": 249,
+      "name": "Two-piece",
       "level": 2,
-      "parentId": 21,
-      "parentName": "Women's handbags",
-      "path": "Women > Women's handbags > Tote Bags"
+      "parentId": 20,
+      "parentName": "Swimwear",
+      "path": "Women > Swimwear > Two-piece"
     },
     {
-      "id": 2,
-      "name": "Men",
-      "level": 0,
-      "parentId": null,
-      "parentName": null,
-      "path": "Men"
+      "id": 250,
+      "name": "Cover-ups",
+      "level": 2,
+      "parentId": 20,
+      "parentName": "Swimwear",
+      "path": "Women > Swimwear > Cover-ups"
+    },
+    {
+      "id": 251,
+      "name": "Beach accessories",
+      "level": 2,
+      "parentId": 20,
+      "parentName": "Swimwear",
+      "path": "Women > Swimwear > Beach accessories"
+    },
+    {
+      "id": 1947,
+      "name": "Sleepwear & robes",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Sleepwear & robes"
+    },
+    {
+      "id": 1948,
+      "name": "Nightgowns & sleep shirts",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Nightgowns & sleep shirts"
+    },
+    {
+      "id": 1949,
+      "name": "Pajama pants",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Pajama pants"
+    },
+    {
+      "id": 1950,
+      "name": "Pajama sets",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Pajama sets"
+    },
+    {
+      "id": 1951,
+      "name": "Pajama shorts",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Pajama shorts"
+    },
+    {
+      "id": 1952,
+      "name": "Pajama tops",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Pajama tops"
+    },
+    {
+      "id": 1953,
+      "name": "Robes",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Robes"
+    },
+    {
+      "id": 1954,
+      "name": "Other",
+      "level": 2,
+      "parentId": 1947,
+      "parentName": "Sleepwear & robes",
+      "path": "Women > Sleepwear & robes > Other"
+    },
+    {
+      "id": 24,
+      "name": "Maternity",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Maternity"
+    },
+    {
+      "id": 273,
+      "name": "Dresses",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Dresses"
+    },
+    {
+      "id": 275,
+      "name": "Sweaters",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Sweaters"
+    },
+    {
+      "id": 276,
+      "name": "Jeans",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Jeans"
+    },
+    {
+      "id": 277,
+      "name": "Pants",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Pants"
+    },
+    {
+      "id": 278,
+      "name": "Skirts",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Skirts"
+    },
+    {
+      "id": 279,
+      "name": "Coats & jackets",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Coats & jackets"
+    },
+    {
+      "id": 281,
+      "name": "Athletic apparel",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Athletic apparel"
+    },
+    {
+      "id": 1989,
+      "name": "Maternity Blouses",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Blouses"
+    },
+    {
+      "id": 1990,
+      "name": "Maternity Button-Ups",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Button-Ups"
+    },
+    {
+      "id": 1991,
+      "name": "Maternity Camisoles",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Camisoles"
+    },
+    {
+      "id": 1992,
+      "name": "Maternity Polos",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Polos"
+    },
+    {
+      "id": 1993,
+      "name": "Maternity T-Shirts",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity T-Shirts"
+    },
+    {
+      "id": 1994,
+      "name": "Maternity Tank Tops",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Tank Tops"
+    },
+    {
+      "id": 1995,
+      "name": "Maternity Blazers",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Blazers"
+    },
+    {
+      "id": 1996,
+      "name": "Maternity Suit Jackets",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Suit Jackets"
+    },
+    {
+      "id": 1997,
+      "name": "Maternity Suit Pants",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Suit Pants"
+    },
+    {
+      "id": 1998,
+      "name": "Maternity Suits",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Suits"
+    },
+    {
+      "id": 1999,
+      "name": "Maternity Suit Skirts",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Suit Skirts"
+    },
+    {
+      "id": 2000,
+      "name": "Maternity Suit Vests",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Maternity Suit Vests"
+    },
+    {
+      "id": 282,
+      "name": "Other",
+      "level": 2,
+      "parentId": 24,
+      "parentName": "Maternity",
+      "path": "Women > Maternity > Other"
+    },
+    {
+      "id": 26,
+      "name": "Other",
+      "level": 1,
+      "parentId": 1,
+      "parentName": "Women",
+      "path": "Women > Other"
+    },
+    {
+      "id": 39,
+      "name": "Shoes",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Shoes"
+    },
+    {
+      "id": 397,
+      "name": "Athletic",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Athletic"
+    },
+    {
+      "id": 398,
+      "name": "Boots",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Boots"
+    },
+    {
+      "id": 399,
+      "name": "Fashion sneakers",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Fashion sneakers"
+    },
+    {
+      "id": 402,
+      "name": "Outdoor",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Outdoor"
+    },
+    {
+      "id": 403,
+      "name": "Oxfords",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Oxfords"
+    },
+    {
+      "id": 404,
+      "name": "Sandals",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Sandals"
+    },
+    {
+      "id": 405,
+      "name": "Slippers",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Slippers"
+    },
+    {
+      "id": 406,
+      "name": "Work & safety",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Work & safety"
+    },
+    {
+      "id": 2027,
+      "name": "Loafers",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Loafers"
+    },
+    {
+      "id": 2028,
+      "name": "Slip-Ons",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Slip-Ons"
+    },
+    {
+      "id": 2029,
+      "name": "Clogs",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Clogs"
+    },
+    {
+      "id": 2030,
+      "name": "Mules",
+      "level": 2,
+      "parentId": 39,
+      "parentName": "Shoes",
+      "path": "Men > Shoes > Mules"
+    },
+    {
+      "id": 38,
+      "name": "Men's accessories",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Men's accessories"
+    },
+    {
+      "id": 391,
+      "name": "Belts",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Belts"
+    },
+    {
+      "id": 392,
+      "name": "Hats",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Hats"
+    },
+    {
+      "id": 393,
+      "name": "Sunglasses",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Sunglasses"
+    },
+    {
+      "id": 394,
+      "name": "Ties",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Ties"
+    },
+    {
+      "id": 395,
+      "name": "Watches",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Watches"
+    },
+    {
+      "id": 1560,
+      "name": "Wallets",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Wallets"
+    },
+    {
+      "id": 2024,
+      "name": "Backpacks",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Backpacks"
+    },
+    {
+      "id": 2025,
+      "name": "Bags",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Bags"
+    },
+    {
+      "id": 2026,
+      "name": "Briefcases",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Briefcases"
+    },
+    {
+      "id": 2519,
+      "name": "Bandanas",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Bandanas"
+    },
+    {
+      "id": 2520,
+      "name": "Bow Ties",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Bow Ties"
+    },
+    {
+      "id": 2521,
+      "name": "Collar Stays",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Collar Stays"
+    },
+    {
+      "id": 2522,
+      "name": "Fashion Gloves",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Fashion Gloves"
+    },
+    {
+      "id": 2523,
+      "name": "Handkerchiefs",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Handkerchiefs"
+    },
+    {
+      "id": 2524,
+      "name": "Scarves",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Scarves"
+    },
+    {
+      "id": 2525,
+      "name": "Turbans",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Turbans"
+    },
+    {
+      "id": 2526,
+      "name": "Umbrellas",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Umbrellas"
+    },
+    {
+      "id": 2881,
+      "name": "Cardholders",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Cardholders"
+    },
+    {
+      "id": 396,
+      "name": "Other",
+      "level": 2,
+      "parentId": 38,
+      "parentName": "Men's accessories",
+      "path": "Men > Men's accessories > Other"
     },
     {
       "id": 36,
@@ -3862,6 +7408,134 @@
       "path": "Men > Athletic apparel"
     },
     {
+      "id": 376,
+      "name": "Competitive swimwear",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Competitive swimwear"
+    },
+    {
+      "id": 377,
+      "name": "Jackets",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Jackets"
+    },
+    {
+      "id": 378,
+      "name": "Jerseys",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Jerseys"
+    },
+    {
+      "id": 379,
+      "name": "Pants",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Pants"
+    },
+    {
+      "id": 381,
+      "name": "Shorts",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Shorts"
+    },
+    {
+      "id": 383,
+      "name": "Socks",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Socks"
+    },
+    {
+      "id": 385,
+      "name": "Vests",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Vests"
+    },
+    {
+      "id": 2009,
+      "name": "Athletic Polos",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Polos"
+    },
+    {
+      "id": 2010,
+      "name": "Athletic Long Sleeve Shirts",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Long Sleeve Shirts"
+    },
+    {
+      "id": 2011,
+      "name": "Athletic Short Sleeve Shirts",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Short Sleeve Shirts"
+    },
+    {
+      "id": 2012,
+      "name": "Jerseys",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Jerseys"
+    },
+    {
+      "id": 2013,
+      "name": "Athletic T-Shirts",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic T-Shirts"
+    },
+    {
+      "id": 2014,
+      "name": "Athletic Tank Tops",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Tank Tops"
+    },
+    {
+      "id": 2015,
+      "name": "Snow Bibs",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Snow Bibs"
+    },
+    {
+      "id": 2016,
+      "name": "Snow Pants",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Snow Pants"
+    },
+    {
+      "id": 2017,
+      "name": "Snowsuits",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Snowsuits"
+    },
+    {
       "id": 2018,
       "name": "Athletic Hoodies",
       "level": 2,
@@ -3870,12 +7544,188 @@
       "path": "Men > Athletic apparel > Athletic Hoodies"
     },
     {
-      "id": 34,
-      "name": "Blazers & sport coats",
+      "id": 2019,
+      "name": "Athletic Sweat Pants",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Sweat Pants"
+    },
+    {
+      "id": 2020,
+      "name": "Athletic Sweatshirts",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Athletic Sweatshirts"
+    },
+    {
+      "id": 2022,
+      "name": "Track Pants",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Track Pants"
+    },
+    {
+      "id": 2023,
+      "name": "Tracksuits",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Tracksuits"
+    },
+    {
+      "id": 386,
+      "name": "Other",
+      "level": 2,
+      "parentId": 36,
+      "parentName": "Athletic apparel",
+      "path": "Men > Athletic apparel > Other"
+    },
+    {
+      "id": 27,
+      "name": "Tops",
       "level": 1,
       "parentId": 2,
       "parentName": "Men",
-      "path": "Men > Blazers & sport coats"
+      "path": "Men > Tops"
+    },
+    {
+      "id": 297,
+      "name": "Button-front",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Button-front"
+    },
+    {
+      "id": 298,
+      "name": "Dress shirts",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Dress shirts"
+    },
+    {
+      "id": 299,
+      "name": "Hawaiian",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Hawaiian"
+    },
+    {
+      "id": 300,
+      "name": "Henley",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Henley"
+    },
+    {
+      "id": 302,
+      "name": "Tank",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Tank"
+    },
+    {
+      "id": 303,
+      "name": "T-shirts",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > T-shirts"
+    },
+    {
+      "id": 304,
+      "name": "Turtleneck",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Turtleneck"
+    },
+    {
+      "id": 2005,
+      "name": "Polos",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Polos"
+    },
+    {
+      "id": 2006,
+      "name": "Rugby Shirts",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Rugby Shirts"
+    },
+    {
+      "id": 305,
+      "name": "Other",
+      "level": 2,
+      "parentId": 27,
+      "parentName": "Tops",
+      "path": "Men > Tops > Other"
+    },
+    {
+      "id": 28,
+      "name": "Sweats & hoodies",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Sweats & hoodies"
+    },
+    {
+      "id": 306,
+      "name": "Hoodie",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Hoodie"
+    },
+    {
+      "id": 307,
+      "name": "Sweatshirt, pullover",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Sweatshirt, pullover"
+    },
+    {
+      "id": 308,
+      "name": "Sweat Pants",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Sweat Pants"
+    },
+    {
+      "id": 309,
+      "name": "Sweatsuits",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Sweatsuits"
+    },
+    {
+      "id": 310,
+      "name": "Track jacket",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Track jacket"
+    },
+    {
+      "id": 311,
+      "name": "Other",
+      "level": 2,
+      "parentId": 28,
+      "parentName": "Sweats & hoodies",
+      "path": "Men > Sweats & hoodies > Other"
     },
     {
       "id": 33,
@@ -4014,12 +7864,476 @@
       "path": "Men > Coats & jackets > Other"
     },
     {
+      "id": 34,
+      "name": "Blazers & sport coats",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Blazers & sport coats"
+    },
+    {
+      "id": 363,
+      "name": "Double breasted",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > Double breasted"
+    },
+    {
+      "id": 364,
+      "name": "Four button",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > Four button"
+    },
+    {
+      "id": 365,
+      "name": "One button",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > One button"
+    },
+    {
+      "id": 366,
+      "name": "Three button",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > Three button"
+    },
+    {
+      "id": 367,
+      "name": "Two button",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > Two button"
+    },
+    {
+      "id": 368,
+      "name": "Other",
+      "level": 2,
+      "parentId": 34,
+      "parentName": "Blazers & sport coats",
+      "path": "Men > Blazers & sport coats > Other"
+    },
+    {
+      "id": 35,
+      "name": "Suits",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Suits"
+    },
+    {
+      "id": 369,
+      "name": "One button",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > One button"
+    },
+    {
+      "id": 370,
+      "name": "Two button",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Two button"
+    },
+    {
+      "id": 371,
+      "name": "Three button",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Three button"
+    },
+    {
+      "id": 372,
+      "name": "Four button",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Four button"
+    },
+    {
+      "id": 373,
+      "name": "Double breasted",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Double breasted"
+    },
+    {
+      "id": 374,
+      "name": "Tuxedo",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Tuxedo"
+    },
+    {
+      "id": 375,
+      "name": "Other",
+      "level": 2,
+      "parentId": 35,
+      "parentName": "Suits",
+      "path": "Men > Suits > Other"
+    },
+    {
+      "id": 29,
+      "name": "Sweaters",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Sweaters"
+    },
+    {
+      "id": 312,
+      "name": "Cardigan",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Cardigan"
+    },
+    {
+      "id": 313,
+      "name": "Crewneck",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Crewneck"
+    },
+    {
+      "id": 314,
+      "name": "Full zip",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Full zip"
+    },
+    {
+      "id": 315,
+      "name": "Polo",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Polo"
+    },
+    {
+      "id": 316,
+      "name": "Turtleneck",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Turtleneck"
+    },
+    {
+      "id": 317,
+      "name": "Vest",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Vest"
+    },
+    {
+      "id": 318,
+      "name": "V-neck",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > V-neck"
+    },
+    {
+      "id": 319,
+      "name": "Other",
+      "level": 2,
+      "parentId": 29,
+      "parentName": "Sweaters",
+      "path": "Men > Sweaters > Other"
+    },
+    {
       "id": 30,
       "name": "Jeans",
       "level": 1,
       "parentId": 2,
       "parentName": "Men",
       "path": "Men > Jeans"
+    },
+    {
+      "id": 320,
+      "name": "Baggy, loose",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Baggy, loose"
+    },
+    {
+      "id": 321,
+      "name": "Boot cut",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Boot cut"
+    },
+    {
+      "id": 322,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Cargo"
+    },
+    {
+      "id": 323,
+      "name": "Carpenter",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Carpenter"
+    },
+    {
+      "id": 324,
+      "name": "Classic, straight leg",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Classic, straight leg"
+    },
+    {
+      "id": 325,
+      "name": "Overalls",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Overalls"
+    },
+    {
+      "id": 326,
+      "name": "Relaxed",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Relaxed"
+    },
+    {
+      "id": 2007,
+      "name": "Skinny Jeans",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Skinny Jeans"
+    },
+    {
+      "id": 2008,
+      "name": "Slim Jeans",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Slim Jeans"
+    },
+    {
+      "id": 328,
+      "name": "Other",
+      "level": 2,
+      "parentId": 30,
+      "parentName": "Jeans",
+      "path": "Men > Jeans > Other"
+    },
+    {
+      "id": 31,
+      "name": "Pants",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Pants"
+    },
+    {
+      "id": 329,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Cargo"
+    },
+    {
+      "id": 330,
+      "name": "Carpenter",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Carpenter"
+    },
+    {
+      "id": 331,
+      "name": "Casual pants",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Casual pants"
+    },
+    {
+      "id": 332,
+      "name": "Corduroys",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Corduroys"
+    },
+    {
+      "id": 333,
+      "name": "Dress - flat front",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Dress - flat front"
+    },
+    {
+      "id": 334,
+      "name": "Dress - pleat",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Dress - pleat"
+    },
+    {
+      "id": 335,
+      "name": "Khakis, chinos",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Khakis, chinos"
+    },
+    {
+      "id": 336,
+      "name": "Other",
+      "level": 2,
+      "parentId": 31,
+      "parentName": "Pants",
+      "path": "Men > Pants > Other"
+    },
+    {
+      "id": 32,
+      "name": "Shorts",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Shorts"
+    },
+    {
+      "id": 337,
+      "name": "Athletic",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Athletic"
+    },
+    {
+      "id": 338,
+      "name": "Board, surf",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Board, surf"
+    },
+    {
+      "id": 339,
+      "name": "Cargo",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Cargo"
+    },
+    {
+      "id": 340,
+      "name": "Carpenter, utility",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Carpenter, utility"
+    },
+    {
+      "id": 341,
+      "name": "Casual shorts",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Casual shorts"
+    },
+    {
+      "id": 342,
+      "name": "Corduroys",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Corduroys"
+    },
+    {
+      "id": 343,
+      "name": "Denim",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Denim"
+    },
+    {
+      "id": 344,
+      "name": "Dress shorts",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Dress shorts"
+    },
+    {
+      "id": 345,
+      "name": "Khakis, chinos",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Khakis, chinos"
+    },
+    {
+      "id": 346,
+      "name": "Other",
+      "level": 2,
+      "parentId": 32,
+      "parentName": "Shorts",
+      "path": "Men > Shorts > Other"
+    },
+    {
+      "id": 37,
+      "name": "Swimwear",
+      "level": 1,
+      "parentId": 2,
+      "parentName": "Men",
+      "path": "Men > Swimwear"
+    },
+    {
+      "id": 387,
+      "name": "Board shorts",
+      "level": 2,
+      "parentId": 37,
+      "parentName": "Swimwear",
+      "path": "Men > Swimwear > Board shorts"
+    },
+    {
+      "id": 388,
+      "name": "Swim briefs",
+      "level": 2,
+      "parentId": 37,
+      "parentName": "Swimwear",
+      "path": "Men > Swimwear > Swim briefs"
+    },
+    {
+      "id": 389,
+      "name": "Swim trunks",
+      "level": 2,
+      "parentId": 37,
+      "parentName": "Swimwear",
+      "path": "Men > Swimwear > Swim trunks"
     },
     {
       "id": 2874,
@@ -4046,12 +8360,28 @@
       "path": "Men > Jewelry > Cufflinks"
     },
     {
+      "id": 2877,
+      "name": "Earrings",
+      "level": 2,
+      "parentId": 2874,
+      "parentName": "Jewelry",
+      "path": "Men > Jewelry > Earrings"
+    },
+    {
       "id": 2878,
       "name": "Necklaces",
       "level": 2,
       "parentId": 2874,
       "parentName": "Jewelry",
       "path": "Men > Jewelry > Necklaces"
+    },
+    {
+      "id": 2879,
+      "name": "Pins",
+      "level": 2,
+      "parentId": 2874,
+      "parentName": "Jewelry",
+      "path": "Men > Jewelry > Pins"
     },
     {
       "id": 2880,
@@ -4062,212 +8392,12 @@
       "path": "Men > Jewelry > Rings"
     },
     {
-      "id": 3532,
-      "name": "Kimono / Yukata",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Kimono / Yukata"
-    },
-    {
-      "id": 38,
-      "name": "Men's accessories",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Men's accessories"
-    },
-    {
-      "id": 2024,
-      "name": "Backpacks",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Backpacks"
-    },
-    {
-      "id": 2025,
-      "name": "Bags",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Bags"
-    },
-    {
-      "id": 391,
-      "name": "Belts",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Belts"
-    },
-    {
-      "id": 2026,
-      "name": "Briefcases",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Briefcases"
-    },
-    {
-      "id": 2522,
-      "name": "Fashion Gloves",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Fashion Gloves"
-    },
-    {
-      "id": 392,
-      "name": "Hats",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Hats"
-    },
-    {
-      "id": 396,
-      "name": "Other",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Other"
-    },
-    {
-      "id": 393,
-      "name": "Sunglasses",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Sunglasses"
-    },
-    {
-      "id": 394,
-      "name": "Ties",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Ties"
-    },
-    {
-      "id": 1560,
-      "name": "Wallets",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Wallets"
-    },
-    {
-      "id": 395,
-      "name": "Watches",
-      "level": 2,
-      "parentId": 38,
-      "parentName": "Men's accessories",
-      "path": "Men > Men's accessories > Watches"
-    },
-    {
       "id": 40,
       "name": "Other",
       "level": 1,
       "parentId": 2,
       "parentName": "Men",
       "path": "Men > Other"
-    },
-    {
-      "id": 31,
-      "name": "Pants",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Pants"
-    },
-    {
-      "id": 3533,
-      "name": "School Uniform",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > School Uniform"
-    },
-    {
-      "id": 39,
-      "name": "Shoes",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Shoes"
-    },
-    {
-      "id": 397,
-      "name": "Athletic",
-      "level": 2,
-      "parentId": 39,
-      "parentName": "Shoes",
-      "path": "Men > Shoes > Athletic"
-    },
-    {
-      "id": 32,
-      "name": "Shorts",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Shorts"
-    },
-    {
-      "id": 339,
-      "name": "Cargo",
-      "level": 2,
-      "parentId": 32,
-      "parentName": "Shorts",
-      "path": "Men > Shorts > Cargo"
-    },
-    {
-      "id": 35,
-      "name": "Suits",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Suits"
-    },
-    {
-      "id": 29,
-      "name": "Sweaters",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Sweaters"
-    },
-    {
-      "id": 28,
-      "name": "Sweats & hoodies",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Sweats & hoodies"
-    },
-    {
-      "id": 306,
-      "name": "Hoodie",
-      "level": 2,
-      "parentId": 28,
-      "parentName": "Sweats & hoodies",
-      "path": "Men > Sweats & hoodies > Hoodie"
-    },
-    {
-      "id": 37,
-      "name": "Swimwear",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Swimwear"
-    },
-    {
-      "id": 27,
-      "name": "Tops",
-      "level": 1,
-      "parentId": 2,
-      "parentName": "Men",
-      "path": "Men > Tops"
     },
     {
       "id": 3,
