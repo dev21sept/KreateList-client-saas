@@ -76,17 +76,35 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     });
   };
 
-  const filteredOptions = useMemo(() => {
+    const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) {
       // By default, show level 0 categories and any options that don't have a level property (like Rules, Condition, Model)
       return options.filter(opt => opt.level === undefined || opt.level === 0);
     }
+
+    const hasArrow = q.includes('>');
+    if (hasArrow) {
+      // Normalize spacing around '>' for accurate prefix matching
+      const normalizedQ = q.replace(/\s*>\s*/g, ' > ');
+      return options.filter((opt) => {
+        const label = String(opt?.label || '').toLowerCase().replace(/\s*>\s*/g, ' > ');
+        return label.startsWith(normalizedQ);
+      }).slice(0, 100);
+    }
+
     const queryWords = q.split(/\s+/).filter(Boolean);
     const matched = options.filter((opt) => {
       const label = String(opt?.label || '').toLowerCase();
       const desc = String(opt?.description || '').toLowerCase();
-      return queryWords.every(word => label.includes(word) || desc.includes(word));
+      
+      const labelWords = label.split(/[^a-z0-9&]+/i).filter(Boolean);
+      const descWords = desc.split(/[^a-z0-9&]+/i).filter(Boolean);
+      
+      return queryWords.every(qWord => 
+        labelWords.some(lWord => lWord.startsWith(qWord)) || 
+        descWords.some(dWord => dWord.startsWith(qWord))
+      );
     });
     // Limit to 100 items to keep list rendering smooth and fast
     return matched.slice(0, 100);
