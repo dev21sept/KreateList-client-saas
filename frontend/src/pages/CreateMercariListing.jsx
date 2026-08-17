@@ -53,12 +53,21 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt) => {
-    const label = String(opt?.label || '').toLowerCase();
-    const desc = String(opt?.description || '').toLowerCase();
-    const q = searchTerm.toLowerCase();
-    return label.includes(q) || desc.includes(q);
-  });
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) {
+      // By default, show level 0 categories and any options that don't have a level property (like Rules, Condition, Model)
+      return options.filter(opt => opt.level === undefined || opt.level === 0);
+    }
+    const queryWords = q.split(/\s+/).filter(Boolean);
+    const matched = options.filter((opt) => {
+      const label = String(opt?.label || '').toLowerCase();
+      const desc = String(opt?.description || '').toLowerCase();
+      return queryWords.every(word => label.includes(word) || desc.includes(word));
+    });
+    // Limit to 100 items to keep list rendering smooth and fast
+    return matched.slice(0, 100);
+  }, [searchTerm, options]);
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -107,9 +116,15 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                 key={opt.id || opt.label}
                 type="button"
                 onClick={() => {
-                  onSelect(opt);
-                  setIsOpen(false);
-                  setSearchTerm('');
+                  // Check if this option has child subcategories in the options array
+                  const hasChildren = options.some(o => o.label.startsWith(opt.label + ' > '));
+                  if (hasChildren) {
+                    setSearchTerm(opt.label + ' > ');
+                  } else {
+                    onSelect(opt);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }
                 }}
                 className={`w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors ${value === opt.label ? 'bg-indigo-50' : ''}`}
               >
@@ -297,17 +312,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     conditionNote: '',
   });
 
-  const categoryOptions = useMemo(() => {
+    const categoryOptions = useMemo(() => {
     const buildPaths = (nodes, currentPath = [], acc = []) => {
       nodes.forEach(node => {
         const path = [...currentPath, node.name];
-        if (node.level > 0) {
-          acc.push({
-            id: String(node.id),
-            label: path.join(' > '),
-            name: node.name
-          });
-        }
+        acc.push({
+          id: String(node.id),
+          label: path.join(' > '),
+          name: node.name,
+          level: node.level
+        });
         if (node.children && node.children.length > 0) {
           buildPaths(node.children, path, acc);
         }
