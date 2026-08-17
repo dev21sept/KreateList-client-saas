@@ -194,13 +194,23 @@ exports.mercariAnalyzeListing = async (req, res) => {
             }
         }));
 
-        let descriptionInstruction = '';
+                let descriptionInstruction = '';
         if (description_template && description_template.trim() !== '') {
             descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
     "${description_template.trim()}"
     
-    - Fill in the HTML template by replacing placeholders with actual analysis.
-    - Output the filled template as HTML (do NOT strip tags now).`;
+    - You MUST fill in the placeholders (words inside curly braces like {Title}, {hook}, {brandInfo}, {features}, {stylingTips}, {conditionReport}, {Brand}, {Size}, etc.) by replacing them with the following actual analysis:
+      * {Title}: The keyword-rich title of the product.
+      * {hook}: An engaging summary and visual appeal hook of the item.
+      * {brandInfo}: History, heritage, or quality details of the brand.
+      * {features}: A bulleted list of key design details, visual accents, and specifications.
+      * {stylingTips}: Styling tips, outfit matching suggestions, or use cases.
+      * {conditionReport}: The product condition "${condition_name}" and details.
+      * {Brand}: The brand name.
+      * {Size}: The size of the item.
+      * {Condition}: The condition level ("${condition_name}").
+    - Make sure you fill in every placeholder present in the template. Do not output the literal placeholder names.
+    - Keep all the surrounding HTML tags exactly as they are in the template.`;
         } else if (description_prompt && description_prompt.trim() !== '') {
             descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM INSTRUCTION/TEMPLATE:
     "${description_prompt.trim()}"
@@ -210,7 +220,7 @@ exports.mercariAnalyzeListing = async (req, res) => {
         } else {
             descriptionInstruction = `2. Description Construction:
     - Analyze the item to write a professional, engaging summary.
-    - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\\n\\n).
+    - Format with bold headers by using UPPERCASE words, and separate sections with double newlines (\n\n).
     - Use bullet points (• or -) for key features and design details.
     - Include these sections:
       THE ULTIMATE LOOK / PERFECT UPGRADE: {Engaging hook about the item}
@@ -226,6 +236,12 @@ exports.mercariAnalyzeListing = async (req, res) => {
       
       CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
         }
+        
+        // Extract Level 1 category paths as official category prefix constraints
+        const officialPrefixes = MERCARI_TAXONOMY
+            .filter(cat => cat.level === 1)
+            .map(cat => cat.path);
+        const prefixesText = officialPrefixes.join('\n');
 
         const mainResponse = await aiClient.chat.completions.create({
             model: finalModel,
@@ -253,7 +269,12 @@ exports.mercariAnalyzeListing = async (req, res) => {
 ${descriptionInstruction}
  
  3. Category Detection:
-    - Suggest a logical category path matching Mercari's tree structure (e.g. Women > Shoes > Sneakers, or Electronics > Video games & consoles > Games).
+    - You MUST suggest a category path that maps exactly to Mercari's official categories.
+    - Your path MUST begin with one of these official prefixes:
+${prefixesText}
+    - Choose the most relevant prefix from the list above, and then append a logical level 2 subcategory name to make a complete path (e.g., "Men > Coats & jackets > Parka", or "Electronics > Video games & consoles > Games").
+    - Always output the full 3-level path in the "category" field.
+ 
  4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' in USD.
  5. Attribute Extraction:
     - Identify 'brand'. STRICT RULES: The brand name MUST be a valid and standard retail brand. If the product is unbranded, handmade, custom, from an obscure/unknown brand, or not a widely recognized brand, you MUST return 'Other'. Do NOT output or invent obscure brand names.
