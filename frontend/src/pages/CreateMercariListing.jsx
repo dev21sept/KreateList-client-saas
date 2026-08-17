@@ -53,6 +53,29 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const getInitialSearchTerm = (val) => {
+    if (!val) return '';
+    const hasChildren = options.some(o => o.label.startsWith(val + ' > '));
+    if (hasChildren) {
+      return val + ' > ';
+    }
+    const lastIndex = val.lastIndexOf(' > ');
+    if (lastIndex !== -1) {
+      return val.substring(0, lastIndex) + ' > ';
+    }
+    return '';
+  };
+
+  const handleToggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setSearchTerm(getInitialSearchTerm(value));
+      }
+      return next;
+    });
+  };
+
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) {
@@ -74,7 +97,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleToggle}
         className={`w-full h-12 px-4 bg-white border ${
           error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
         } rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
