@@ -336,6 +336,10 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
+  const [brandSuggestions, setBrandSuggestions] = useState([]);
+  const [isBrandOpen, setIsBrandOpen] = useState(false);
+  const brandDropdownRef = React.useRef(null);
+
   const [formData, setFormData] = useState({
     images: [],
     selectedRule: '',
@@ -502,6 +506,42 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
       fetchListing();
     }
   }, [editId]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target)) {
+        setIsBrandOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    const handleMsg = (e) => {
+      if (e.data && e.data.action === 'ELISTER_MERCARI_BRAND_SEARCH_RESPONSE') {
+        if (e.data.success) {
+          setBrandSuggestions(e.data.brands || []);
+        }
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
+  const handleBrandChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, brand: value }));
+    setIsBrandOpen(true);
+    if (!value.trim()) {
+      setBrandSuggestions([]);
+      return;
+    }
+    window.postMessage({
+      action: 'ELISTER_MERCARI_BRAND_SEARCH',
+      query: value
+    }, '*');
+  };
 
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
@@ -902,14 +942,33 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Brand */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 relative" ref={brandDropdownRef}>
                     <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
                     <input 
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.brand}
-                      onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                      onChange={handleBrandChange}
+                      onFocus={() => setIsBrandOpen(true)}
                       placeholder="e.g. Nike, Adidas..."
                     />
+                    {isBrandOpen && brandSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-2xl z-[9999] py-1 animate-in fade-in slide-in-from-top-2 duration-100">
+                        {brandSuggestions.map((b) => (
+                          <button
+                            key={b.id || b.name}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, brand: b.name, brandId: String(b.id || '') }));
+                              setIsBrandOpen(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between cursor-pointer border-none bg-transparent"
+                          >
+                            <span>{b.name}</span>
+                            <span className="text-[9px] font-bold text-slate-400">ID: {b.id}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {/* SKU */}
                   <div className="space-y-1.5">

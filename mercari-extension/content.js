@@ -70,7 +70,20 @@ if (currentSite === 'elister') {
     // Only accept messages from same window
     if (event.source !== window) return;
     
-    if (event.data && event.data.action === 'ELISTER_START_CONNECT_FLOW' && event.data.platform === 'mercari') {
+    if (event.data && event.data.action === 'ELISTER_MERCARI_BRAND_SEARCH') {
+      chrome.runtime.sendMessage({
+        action: 'SEARCH_MERCARI_BRANDS',
+        query: event.data.query
+      }, (response) => {
+        window.postMessage({
+          action: 'ELISTER_MERCARI_BRAND_SEARCH_RESPONSE',
+          success: response?.success || false,
+          brands: response?.brands || []
+        }, '*');
+      });
+    }
+    
+    else if (event.data && event.data.action === 'ELISTER_START_CONNECT_FLOW' && event.data.platform === 'mercari') {
       console.log('[Elister Mercari Extension] Initiating Mercari Connect Flow with credentials...');
       const { token, backendUrl, frontendUrl } = event.data;
       chrome.runtime.sendMessage({

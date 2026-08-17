@@ -121,6 +121,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  else if (message.action === 'SEARCH_MERCARI_BRANDS') {
+    const url = `https://www.mercari.com/api/v1/brands/suggest?query=${encodeURIComponent(message.query)}`;
+    fetch(url)
+      .then(res => res.json())
+      .then((data) => {
+        const brands = (data.brands || []).map(b => ({ id: b.id, name: b.name }));
+        sendResponse({ success: true, brands });
+      })
+      .catch((err) => {
+        console.error('[Background] Brand suggest search failed:', err);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true; // Keep channel open
+  }
+
   else if (message.action === 'GET_CONNECTION_DETAILS') {
     if (message.platform === 'mercari') {
       getMercariCookies((cookieString) => {
