@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   Sparkles,
-  CreditCard
+  CreditCard,
+  Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
@@ -81,6 +82,7 @@ const NewDashboardLayout = () => {
     { title: 'New Listing', subtitle: 'Create a new AI-generated listing', path: 'new_listing_action', type: 'page', badge: 'AI Tool' },
     { title: 'Orders', subtitle: 'View customer sales & invoices', path: '/orders', type: 'page', badge: 'Orders' },
     { title: 'Analytics', subtitle: 'View platform charts and metrics', path: '/analytics', type: 'page', badge: 'Reports' },
+    { title: 'Rules Engine', subtitle: 'Manage listing templates and AI rules', path: '/rules', type: 'page', badge: 'AI Rules' },
     { title: 'Subscription', subtitle: 'Manage active plans and billing', path: '/subscription', type: 'page', badge: 'Billing' },
     { title: 'Settings', subtitle: 'Change profile info or credentials', path: '/settings', type: 'page', badge: 'Account' },
     { title: 'Integrations', subtitle: 'Connect to eBay, Poshmark, Depop', path: '/integrations', type: 'page', badge: 'Channels' }
@@ -214,6 +216,7 @@ const NewDashboardLayout = () => {
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
     { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
+    { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
     { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
     { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
@@ -228,6 +231,7 @@ const NewDashboardLayout = () => {
     if (path.includes('/crosslisting')) return 'Crosslisting';
     if (path.includes('/sales') || path.includes('/orders')) return 'Orders';
     if (path.includes('/analytics')) return 'Analytics';
+    if (path.includes('/rules')) return 'Rules Engine';
     if (path.includes('/subscription')) return 'Subscription';
     if (path.includes('/settings')) return 'Settings';
     if (path.includes('/integrations')) return 'Integrations';
