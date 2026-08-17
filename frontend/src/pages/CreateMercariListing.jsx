@@ -29,6 +29,22 @@ import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
+const POPULAR_BRANDS = [
+  { id: 4578, name: "Nike" },
+  { id: 54, name: "Adidas" },
+  { id: 3370, name: "Jordan" },
+  { id: 115, name: "Air Jordan" },
+  { id: 3778, name: "Levi's" },
+  { id: 5487, name: "ROCKMOUNT" },
+  { id: 27436, name: "Rockmount Ranchwear" },
+  { id: 969, name: "Carhartt" },
+  { id: 4867, name: "Patagonia" },
+  { id: 5212, name: "Polo Ralph Lauren" },
+  { id: 5971, name: "The North Face" },
+  { id: 6223, name: "Under Armour" }
+];
+
+
 const MERCARI_CONDITIONS = [
   { id: "new", label: "New (with tags)", description: "Brand new, never used, with original tags/packaging." },
   { id: "like_new", label: "Like New", description: "Excellent condition, no tags but looks and feels brand new." },
@@ -248,72 +264,59 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     return buildPaths(MERCARI_CATEGORY_TREE);
   }, []);
 
-  const recommendedShipping = useMemo(() => {
-    if (formData.shippingPayer !== 'buyer') return null;
-
+  const carrierOptions = useMemo(() => {
     const lbs = formData.shippingWeightLbs || 0;
     const oz = formData.shippingWeightOz || 0;
     const totalOz = (lbs * 16) + oz;
-
+    
     const length = formData.shippingLength || 0;
     const width = formData.shippingWidth || 0;
     const height = formData.shippingHeight || 0;
-    const isLargePackage = !formData.shippingFitsShoebox && (length >= 15 || width >= 15 || height >= 15 || (length * width * height) >= 3375);
+    const isLarge = !formData.shippingFitsShoebox && (length >= 15 || width >= 15 || height >= 15 || (length * width * height) >= 3375);
 
-    // Large package logic (exceeds 15" or volume threshold)
-    if (isLargePackage) {
-      // Both USPS Ground Advantage and UPS Ground Saver are restricted for boxes exceeding 12-15" or large volumes.
-      // Only UPS Ground, FedEx Ground, and USPS Priority Mail are available.
-      if (totalOz <= 80) { // Up to 5 lb
-        return { 
-          carrier: 'UPS Ground / FedEx Ground', 
-          weightText: '5 lb', 
-          price: '11.50',
-          warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. Both UPS Ground and FedEx Ground are available and recommended.'
-        };
+    if (isLarge) {
+      return [
+        { carrier: 'UPS Ground', weightText: '5 lb', price: '11.50', warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. UPS Ground is recommended.' },
+        { carrier: 'FedEx Ground', weightText: '5 lb', price: '11.50', warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. FedEx Ground is recommended.' }
+      ];
+    }
+
+    const options = [];
+    
+    // USPS Ground Advantage
+    if (totalOz <= 4) options.push({ carrier: 'USPS Ground Advantage', weightText: '4 oz', price: '4.30' });
+    else if (totalOz <= 8) options.push({ carrier: 'USPS Ground Advantage', weightText: '8 oz', price: '4.99' });
+    else if (totalOz <= 12) options.push({ carrier: 'USPS Ground Advantage', weightText: '12 oz', price: '5.40' });
+    else if (totalOz <= 16) options.push({ carrier: 'USPS Ground Advantage', weightText: '1 lb', price: '7.48' });
+    else if (totalOz <= 32) options.push({ carrier: 'USPS Ground Advantage', weightText: '2 lb', price: '8.50' });
+
+    // UPS Ground Saver
+    if (totalOz <= 16) options.push({ carrier: 'UPS Ground Saver', weightText: '1 lb', price: '7.20' });
+    else if (totalOz <= 32) options.push({ carrier: 'UPS Ground Saver', weightText: '2 lb', price: '7.97' });
+
+    // FedEx Ground Economy
+    if (totalOz <= 48) options.push({ carrier: 'FedEx Ground Economy', weightText: '3 lb', price: '8.99' });
+
+    // UPS Ground
+    if (totalOz <= 80) options.push({ carrier: 'UPS Ground', weightText: '5 lb', price: '11.50' });
+    else options.push({ carrier: 'UPS Ground', weightText: `${Math.ceil(totalOz/16)} lb`, price: '15.00' });
+
+    return options;
+  }, [formData.shippingWeightLbs, formData.shippingWeightOz, formData.shippingFitsShoebox, formData.shippingLength, formData.shippingWidth, formData.shippingHeight]);
+
+  // Sync shipping carrier and price with options when options change
+  useEffect(() => {
+    if (formData.shippingPayer === 'buyer' && carrierOptions.length > 0) {
+      const exists = carrierOptions.some(c => c.carrier === formData.shippingCarrier);
+      if (!exists) {
+        setFormData(prev => ({ 
+          ...prev, 
+          shippingCarrier: carrierOptions[0].carrier,
+          shippingPrice: carrierOptions[0].price
+        }));
       }
-      return { 
-        carrier: 'UPS Ground', 
-        weightText: `${Math.ceil(totalOz/16)} lb`, 
-        price: '18.00',
-        warning: 'Oversized package. USPS/UPS Saver restricted. UPS Ground and FedEx Ground are recommended.'
-      };
     }
-
-    if (totalOz === 0) {
-      return { carrier: 'USPS Ground Advantage', weightText: '4 oz', price: '4.30' };
-    }
-    if (totalOz <= 4) {
-      return { carrier: 'USPS Ground Advantage', weightText: '4 oz', price: '4.30' };
-    }
-    if (totalOz <= 8) {
-      return { carrier: 'USPS Ground Advantage', weightText: '8 oz', price: '4.99' };
-    }
-    if (totalOz <= 12) {
-      return { carrier: 'USPS Ground Advantage', weightText: '12 oz', price: '5.40' };
-    }
-    if (totalOz <= 16) {
-      return { carrier: 'USPS Ground Advantage', weightText: '1 lb', price: '7.48' };
-    }
-    if (totalOz <= 32) {
-      return { carrier: 'UPS Ground Saver', weightText: '2 lb', price: '7.97' };
-    }
-    if (totalOz <= 48) {
-      return { carrier: 'FedEx Ground Economy', weightText: '3 lb', price: '8.99' };
-    }
-    if (totalOz <= 80) {
-      return { carrier: 'UPS Ground', weightText: '5 lb', price: '11.50' };
-    }
-    return { carrier: 'UPS Ground', weightText: `${Math.ceil(totalOz/16)} lb`, price: '15.00' };
-  }, [
-    formData.shippingPayer, 
-    formData.shippingWeightLbs, 
-    formData.shippingWeightOz, 
-    formData.shippingFitsShoebox, 
-    formData.shippingLength, 
-    formData.shippingWidth, 
-    formData.shippingHeight
-  ]);
+  }, [carrierOptions, formData.shippingPayer]);
 
   const activeSizeOptions = useMemo(() => {
     if (!formData.category) return [];
@@ -855,7 +858,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         </div>
 
         {/* Step 2: Prefilled Details Form (Only visible once scanned) */}
-        {hasScanned && (
+        {hasScanned && (<>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-10 pt-8 border-t border-slate-100 animate-in fade-in duration-300">
             {/* Left Column: Essential details */}
             <div className="lg:col-span-6 space-y-6">
@@ -887,7 +890,12 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.brand}
                       onChange={handleBrandChange}
-                      onFocus={() => setIsBrandOpen(true)}
+                      onFocus={() => {
+                        setIsBrandOpen(true);
+                        if (!formData.brand.trim()) {
+                          setBrandSuggestions(POPULAR_BRANDS);
+                        }
+                      }}
                       placeholder="e.g. Nike, Adidas..."
                     />
                     {isBrandOpen && brandSuggestions.length > 0 && (
@@ -948,164 +956,11 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       />
                     </div>
                   </div>
-                  {/* Original Price */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Original Price ($)</label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                      <input 
-                        type="number"
-                        className="w-full pl-10 pr-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
-                        value={formData.originalPrice}
-                        onChange={(e) => setFormData({...formData, originalPrice: e.target.value})}
-                        placeholder="0.00"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>
+
+  
                 </div>
 
-                {/* Shipping Method Section */}
-                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Shipping Method</h4>
-                  
-                  <div className="space-y-3">
-                    {/* Option 1: Prepaid Label */}
-                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData.shippingPayer === 'buyer' ? 'bg-white border-indigo-500 shadow-sm' : 'bg-transparent border-slate-150'}`}>
-                      <input 
-                        type="radio" 
-                        name="shippingPayer" 
-                        value="buyer"
-                        checked={formData.shippingPayer === 'buyer'}
-                        onChange={() => setFormData(prev => ({ ...prev, shippingPayer: 'buyer' }))}
-                        className="mt-0.5"
-                      />
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-800">Prepaid label (Buyer Pays)</span>
-                        <p className="text-[10px] font-medium text-slate-500">We'll email you a label and you'll ship the item. Includes delivery protection.</p>
-                        {formData.shippingPayer === 'buyer' && recommendedShipping && (
-                          <div className="space-y-1.5 mt-2">
-                            <div className="bg-indigo-50/50 border border-indigo-100 p-2.5 rounded-lg text-[10px] text-indigo-800 font-bold flex items-center justify-between">
-                              <span>Carrier: {recommendedShipping.carrier} (Up to {recommendedShipping.weightText})</span>
-                              <span className="text-xs font-extrabold text-indigo-700">${recommendedShipping.price}</span>
-                            </div>
-                            {recommendedShipping.warning && (
-                              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded-lg text-[9px] font-bold leading-relaxed">
-                                ⚠️ {recommendedShipping.warning}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </label>
 
-                    {/* Option 2: Ship on your own */}
-                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData.shippingPayer === 'seller' ? 'bg-white border-indigo-500 shadow-sm' : 'bg-transparent border-slate-150'}`}>
-                      <input 
-                        type="radio" 
-                        name="shippingPayer" 
-                        value="seller"
-                        checked={formData.shippingPayer === 'seller'}
-                        onChange={() => setFormData(prev => ({ ...prev, shippingPayer: 'seller' }))}
-                        className="mt-0.5"
-                      />
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-800">Ship on your own (Seller Pays / Free Shipping)</span>
-                        <p className="text-[10px] font-medium text-slate-500">You provide your own label and ship the item. It's not covered by shipping protection.</p>
-                      </div>
-                    </label>
-                  </div>
-
-                  {formData.shippingPayer === 'buyer' && (
-                    <div className="space-y-4 pt-2 border-t border-slate-100 animate-in fade-in duration-200">
-                      {/* Weight Section */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Weight (lb)</label>
-                          <input 
-                            type="number"
-                            className="w-full px-4 h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                            value={formData.shippingWeightLbs}
-                            min="0"
-                            onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightLbs: Math.max(0, parseInt(e.target.value) || 0) }))}
-                            placeholder="0"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Weight (oz)</label>
-                          <input 
-                            type="number"
-                            className="w-full px-4 h-11 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                            value={formData.shippingWeightOz}
-                            min="0"
-                            max="15"
-                            onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightOz: Math.min(15, Math.max(0, parseInt(e.target.value) || 0)) }))}
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Shoebox Question */}
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Will your item fit in a standard shoebox?</label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                            <input 
-                              type="radio" 
-                              name="shippingFitsShoebox" 
-                              checked={formData.shippingFitsShoebox === true}
-                              onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: true }))}
-                            /> Yes
-                          </label>
-                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                            <input 
-                              type="radio" 
-                              name="shippingFitsShoebox" 
-                              checked={formData.shippingFitsShoebox === false}
-                              onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: false }))}
-                            /> No
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Dimensions fields */}
-                      {formData.shippingFitsShoebox === false && (
-                        <div className="grid grid-cols-3 gap-3 animate-in fade-in duration-200">
-                          <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Length (in)</label>
-                            <input 
-                              type="number"
-                              className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.shippingLength}
-                              onChange={(e) => setFormData(prev => ({ ...prev, shippingLength: Math.max(0, parseInt(e.target.value) || 0) }))}
-                              placeholder="L"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Width (in)</label>
-                            <input 
-                              type="number"
-                              className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.shippingWidth}
-                              onChange={(e) => setFormData(prev => ({ ...prev, shippingWidth: Math.max(0, parseInt(e.target.value) || 0) }))}
-                              placeholder="W"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-455 uppercase tracking-widest ml-1">Height (in)</label>
-                            <input 
-                              type="number"
-                              className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                              value={formData.shippingHeight}
-                              onChange={(e) => setFormData(prev => ({ ...prev, shippingHeight: Math.max(0, parseInt(e.target.value) || 0) }))}
-                              placeholder="H"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
 
                 {/* Size (Only render if category requires sizing) */}
                   {activeSizeOptions.length > 0 && (
@@ -1178,6 +1033,160 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
             </div>
 
           </div>
+
+          {/* Shipping Method Section (Full Width at Bottom) */}
+          <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150 space-y-5 mt-6 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-150 pb-3 gap-3">
+              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider">
+                5. Shipping Method Details
+              </h3>
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">Offer buyers free shipping?</label>
+                <select 
+                  className="px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
+                  value={formData.shippingPayer === 'seller' ? 'yes' : 'no'}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    shippingPayer: e.target.value === 'yes' ? 'seller' : 'buyer' 
+                  }))}
+                >
+                  <option value="no">No (Buyer Pays)</option>
+                  <option value="yes">Yes (Seller Pays / Free Shipping)</option>
+                </select>
+              </div>
+            </div>
+
+            {formData.shippingPayer === 'buyer' ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Weight Inputs */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-100 space-y-3 shadow-sm">
+                    <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">Package Weight</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">lb</label>
+                        <input 
+                          type="number"
+                          className="w-full px-3 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                          value={formData.shippingWeightLbs}
+                          min="0"
+                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightLbs: Math.max(0, parseInt(e.target.value) || 0) }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">oz</label>
+                        <input 
+                          type="number"
+                          className="w-full px-3 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                          value={formData.shippingWeightOz}
+                          min="0"
+                          max="15"
+                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightOz: Math.min(15, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fits in Shoebox Question */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-100 space-y-3 flex flex-col justify-between shadow-sm">
+                    <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">Fits in Standard Shoebox?</span>
+                    <div className="flex gap-4 pb-2">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="shippingFitsShoebox" 
+                          checked={formData.shippingFitsShoebox === true}
+                          onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: true }))}
+                        /> Yes (under 14"x10"x5")
+                      </label>
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="shippingFitsShoebox" 
+                          checked={formData.shippingFitsShoebox === false}
+                          onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: false }))}
+                        /> No (Custom size)
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Dimensions Inputs (only if fits shoebox is false) */}
+                  <div className={`bg-white p-5 rounded-2xl border border-slate-100 space-y-3 transition-opacity duration-200 shadow-sm ${formData.shippingFitsShoebox ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                    <span className="text-[10px] font-black text-slate-455 uppercase tracking-wider block">Dimensions (inches)</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Length</label>
+                        <input 
+                          type="number"
+                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                          value={formData.shippingFitsShoebox ? '' : formData.shippingLength}
+                          disabled={formData.shippingFitsShoebox}
+                          onChange={(e) => setFormData(prev => ({ ...prev, shippingLength: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          placeholder="L"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Width</label>
+                        <input 
+                          type="number"
+                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                          value={formData.shippingFitsShoebox ? '' : formData.shippingWidth}
+                          disabled={formData.shippingFitsShoebox}
+                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWidth: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          placeholder="W"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Height</label>
+                        <input 
+                          type="number"
+                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                          value={formData.shippingFitsShoebox ? '' : formData.shippingHeight}
+                          disabled={formData.shippingFitsShoebox}
+                          onChange={(e) => setFormData(prev => ({ ...prev, shippingHeight: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          placeholder="H"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Carrier Selection Cards */}
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] font-black text-slate-455 uppercase tracking-wider block ml-1">Select Shipping Carrier (Partner)</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {carrierOptions.map((opt) => {
+                      const isSelected = formData.shippingCarrier === opt.carrier;
+                      return (
+                        <div 
+                          key={opt.carrier}
+                          onClick={() => setFormData(prev => ({ ...prev, shippingCarrier: opt.carrier, shippingPrice: opt.price }))}
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between h-24 shadow-sm ${isSelected ? 'bg-indigo-50/50 border-indigo-500 ring-2 ring-indigo-500/15' : 'bg-white border-slate-200 hover:border-indigo-400'}`}
+                        >
+                          <span className="text-[10px] font-black text-slate-800 leading-tight">{opt.carrier}</span>
+                          <div className="flex items-end justify-between mt-2">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Up to {opt.weightText}</span>
+                            <span className="text-sm font-black text-indigo-600">${opt.price}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Warning Alerts */}
+                  {carrierOptions.some(o => o.warning && o.carrier === formData.shippingCarrier) && (
+                    <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-2xl text-[10px] font-semibold leading-relaxed animate-in fade-in duration-200">
+                      ⚠️ {carrierOptions.find(o => o.warning && o.carrier === formData.shippingCarrier).warning}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 text-xs font-semibold text-slate-600 leading-relaxed shadow-sm">
+                ℹ️ You will ship the item on your own. Shipping protection is not included. Shipping is set to **Free for buyers**.
+              </div>
+            )}
+          </div>
+          </>
         )}
 
         {/* Form Bottom Submission Control (Only visible when scanned) */}
