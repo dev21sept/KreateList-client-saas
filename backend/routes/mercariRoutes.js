@@ -8,7 +8,8 @@ const {
   mercariGetLive,
   mercariInitiateLogin,
   mercariSessionStatus,
-  mercariSubmit2faStream
+  mercariSubmit2faStream,
+  getMercariBrands
 } = require('../controllers/mercariController');
 const { protect } = require('../middleware/auth');
 const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
@@ -27,5 +28,6 @@ router.post('/submit-2fa-stream', mercariSubmit2faStream);
 router.post('/import', requireWithinFetchLimit, mercariImportCloset);
 router.post('/publish/:id', mercariPublish);
 router.get('/live', mercariGetLive);
+router.get('/brands', getMercariBrands);
 
 module.exports = router;

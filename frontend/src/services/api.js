@@ -130,7 +130,8 @@ export const mercariService = {
   getSessionStatus: (sessionId) => API.get(`/mercari/session-status/${sessionId}`),
   submit2faStream: (data) => API.post('/mercari/submit-2fa-stream', data),
   publish: (id, data) => API.post(`/mercari/publish/${id}`, data),
-  getLive: () => API.get('/mercari/live')
+  getLive: () => API.get('/mercari/live'),
+  suggestBrands: (query) => API.get(`/mercari/brands?query=${encodeURIComponent(query)}`)
 };
 
 // Legacy mapping for compatibility

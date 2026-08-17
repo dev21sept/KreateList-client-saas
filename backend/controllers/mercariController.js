@@ -579,3 +579,31 @@ exports.mercariSubmit2faStream = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// @desc    Get local brand suggestions from offline database
+// @route   GET /api/mercari/brands
+// @access  Private
+exports.getMercariBrands = async (req, res) => {
+  try {
+    const mercariBrands = require('../constants/mercariBrands.json');
+    const query = String(req.query.query || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    if (!query) {
+      return res.json({ success: true, brands: [] });
+    }
+
+    const matches = [];
+    for (const normKey of Object.keys(mercariBrands)) {
+      if (normKey.includes(query)) {
+        matches.push({
+          id: mercariBrands[normKey].id,
+          name: mercariBrands[normKey].name
+        });
+        if (matches.length >= 20) break;
+      }
+    }
+
+    res.json({ success: true, brands: matches });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

@@ -173,6 +173,22 @@ function getLevel2Categories(level1Path) {
 }
 
 
+
+// Helper to retrieve official size labels for a given category path
+function getSizeOptionsForCategory(categoryPath) {
+    const cat = MERCARI_TAXONOMY.find(x => x.path === categoryPath);
+    if (!cat || !cat.itemSizeGroupId || cat.itemSizeGroupId === 0) return [];
+    try {
+        const masterConfig = require('../constants/mercariMasterRaw.json');
+        const groupSizes = masterConfig.itemSizes.filter(s => s.itemSizeGroupId === cat.itemSizeGroupId);
+        groupSizes.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+        return groupSizes.map(s => s.title + (s.subtitle ? ' ' + s.subtitle : ''));
+    } catch (err) {
+        console.error("Error loading sizes for category:", err);
+        return [];
+    }
+}
+
 exports.mercariAnalyzeListing = async (req, res) => {
     console.log(`\n--- [Mercari AI] New Analysis Request Received ---`);
     try {
@@ -304,7 +320,7 @@ exports.mercariAnalyzeListing = async (req, res) => {
                             text: `Analyze the product images and output the following details as JSON:
                             
  1. Visual Research & Attribute Extraction:
-    - Identify the 'brand'. STRICT RULES: The brand name MUST be a valid and standard retail brand (e.g. Nike, Adidas, Gucci). If the product is unbranded, handmade, custom, from an obscure/unknown brand, or not a widely recognized brand, you MUST return 'Other'. Do NOT output or invent obscure brand names.
+    - Identify the 'brand'. Look closely at the product tag, label, or logo. If a brand name is clearly visible (e.g. Rockmount, Nike, Adidas, Carhartt), output that brand name. If the product is completely unbranded, handmade, or lacks any label/logo, return 'Other'.
     - Identify 'color'(s) (e.g. 'Green', 'White').
     - Identify 'size'. STRICT RULES: Output standard abbreviations for clothing (e.g., XS, S, M, L, XL, XXL). For shoes/footwear, output numbers (e.g., 8, 9, 10). NEVER output full words like 'Large', 'Medium', or 'Small'.
     - Suggest up to 3 style tags / keywords as comma-separated values in 'style_tag'.
@@ -351,12 +367,24 @@ Response ONLY as JSON:
         const finalCategoryOptions = level2Options.length > 0 ? level2Options : [normalizedL1];
 
         console.log(`[Mercari AI] Running Step 2: Text Optimization & Template Filling with ${finalCategoryOptions.length} category options...`);
+        
+        // Build size options map for each allowed category
+        const sizeOptionsStrings = [];
+        finalCategoryOptions.forEach(optPath => {
+            const sizes = getSizeOptionsForCategory(optPath);
+            if (sizes.length > 0) {
+                sizeOptionsStrings.push(`- Category "${optPath}": [${sizes.map(s => `"${s}"`).join(', ')}]`);
+            } else {
+                sizeOptionsStrings.push(`- Category "${optPath}": No size required (must output "" empty string)`);
+            }
+        });
+
         const textPrompt = `You are a world-class Mercari listing expert.
 
 Given the following product details analyzed from images:
 - Brand: ${visionData.brand}
 - Color: ${visionData.color}
-- Size: ${visionData.size}
+- Size (from tag/image): ${visionData.size}
 - Visual Details/Features: substituteFeatures
 - Title attributes extracted: substituteTitleParts
 
@@ -367,11 +395,19 @@ Perform the following tasks:
 ${finalCategoryOptions.join('\n')}
    - Output your selection in the "category" field.
 
+2. Size Mapping:
+   - Depending on the category you select, map the tag size ("${visionData.size}") to the closest official size label allowed for that category.
+   - Here are the allowed sizes for each category option:
+${sizeOptionsStrings.join('\n')}
+   - Select the exact matching string option from the brackets. If the category does not require sizes, you MUST return an empty string "".
+   - Output your selection in the "size" field.
+
 ${descriptionInstruction}
 
 Response ONLY as JSON:
 {
   "category": "Selected category path from the list",
+  "size": "Selected official size label, or empty string",
   "description": "Clean formatted plain text description (NO HTML tags)"
 }`;
 
@@ -405,7 +441,7 @@ Response ONLY as JSON:
             original_price: visionData.original_price,
             color: visionData.color,
             style_tag: visionData.style_tag,
-            size: visionData.size,
+            size: textData.size || visionData.size || '',
             category: textData.category || normalizedL1,
             description: textData.description
         };

@@ -21,7 +21,7 @@ import {
   ArrowLeft,
   ArrowRight
 } from 'lucide-react';
-import { ruleService, aiService, listingService, externalImportService } from '../services/api';
+import { ruleService, aiService, listingService, externalImportService, mercariService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -362,7 +362,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     return () => window.removeEventListener('message', handleMsg);
   }, []);
 
-  const handleBrandChange = (e) => {
+  const handleBrandChange = async (e) => {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, brand: value }));
     setIsBrandOpen(true);
@@ -370,10 +370,22 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
       setBrandSuggestions([]);
       return;
     }
+    
+    // Send background query to Chrome Extension
     window.postMessage({
       action: 'ELISTER_MERCARI_BRAND_SEARCH',
       query: value
     }, '*');
+
+    // Query local offline backend brand search in parallel
+    try {
+      const response = await mercariService.suggestBrands(value);
+      if (response.data && response.data.success && response.data.brands) {
+        setBrandSuggestions(response.data.brands);
+      }
+    } catch (err) {
+      console.warn("Backend brand autocomplete fetch failed:", err);
+    }
   };
 
   const handleImageUpload = async (e) => {
