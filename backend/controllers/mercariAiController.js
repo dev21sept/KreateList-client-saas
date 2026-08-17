@@ -129,6 +129,49 @@ function normalizeMercariCategory(rawCategory = '', itemGender = 'Unisex') {
     return bestMatch;
 }
 
+
+function normalizeLevel1Category(rawCategory = '') {
+    let cleanAi = String(rawCategory).toLowerCase().trim();
+    
+    // Find direct match in level 1 categories
+    let directMatch = MERCARI_TAXONOMY.find(cat => cat.level === 1 && cat.path.toLowerCase() === cleanAi);
+    if (directMatch) return directMatch.path;
+
+    // Token overlap check among level 1 paths
+    const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+    let bestMatch = MERCARI_TAXONOMY.find(cat => cat.level === 1 && cat.path.startsWith("Women > Tops")) || MERCARI_TAXONOMY.find(cat => cat.level === 1);
+    let maxOverlap = 0;
+
+    const level1Cats = MERCARI_TAXONOMY.filter(cat => cat.level === 1);
+    for (const cat of level1Cats) {
+        const catTokens = cat.path.toLowerCase().replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+        let overlap = 0;
+        for (const token of aiTokens) {
+            if (catTokens.includes(token)) {
+                if (catTokens[0] === token) {
+                    overlap += 10; // Root match weight
+                } else {
+                    overlap += 1;
+                }
+            }
+        }
+        if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            bestMatch = cat;
+        }
+    }
+    return bestMatch.path;
+}
+
+function getLevel2Categories(level1Path) {
+    if (!level1Path) return [];
+    const prefix = level1Path.toLowerCase().trim() + ' > ';
+    return MERCARI_TAXONOMY
+        .filter(cat => cat.level === 2 && cat.path.toLowerCase().startsWith(prefix))
+        .map(cat => cat.path);
+}
+
+
 exports.mercariAnalyzeListing = async (req, res) => {
     console.log(`\n--- [Mercari AI] New Analysis Request Received ---`);
     try {
@@ -194,7 +237,7 @@ exports.mercariAnalyzeListing = async (req, res) => {
             }
         }));
 
-                let descriptionInstruction = '';
+        let descriptionInstruction = '';
         if (description_template && description_template.trim() !== '') {
             descriptionInstruction = `2. Description Construction - STRICTLY FOLLOW THE USER'S CUSTOM HTML TEMPLATE:
     "${description_template.trim()}"
@@ -236,65 +279,54 @@ exports.mercariAnalyzeListing = async (req, res) => {
       
       CONDITION REPORT: ${condition_name}. ${appliedConditionNote ? `Note: ${appliedConditionNote}` : ''}`;
         }
-        
-        // Extract Level 1 category paths as official category prefix constraints
+
+        // Get list of Level 1 category paths
         const officialPrefixes = MERCARI_TAXONOMY
             .filter(cat => cat.level === 1)
             .map(cat => cat.path);
         const prefixesText = officialPrefixes.join('\n');
 
-        const mainResponse = await aiClient.chat.completions.create({
+        console.log(`[Mercari AI] Running Step 1: Vision Analysis...`);
+        const visionResponse = await aiClient.chat.completions.create({
             model: finalModel,
             temperature: 0,
             messages: [
                 {
                     role: "system",
-                    content: `You are a world-class Mercari listing expert. You strictly follow instructions.`
+                    content: "You are a visual analysis expert. Analyze the product images to extract listing details."
                 },
                 {
                     role: "user",
                     content: [
                         {
                             type: "text",
-                            text: `Analyze images for a professional Mercari listing.
+                            text: `Analyze the product images and output the following details as JSON:
                             
- 1. Visual Research & Title Construction:
-    - Identify the EXACT retail name of this product.
-    - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
-    
-    CRITICAL RULES:
-    - GOAL: A professional, keyword-rich title between 70-80 characters.
-    - Output as a JSON object inside 'title_parts'.
- 
-${descriptionInstruction}
- 
- 3. Category Detection:
-    - You MUST suggest a category path that maps exactly to Mercari's official categories.
-    - Your path MUST begin with one of these official prefixes:
-${prefixesText}
-    - Choose the most relevant prefix from the list above, and then append a logical level 2 subcategory name to make a complete path (e.g., "Men > Coats & jackets > Parka", or "Electronics > Video games & consoles > Games").
-    - Always output the full 3-level path in the "category" field.
- 
- 4. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' in USD.
- 5. Attribute Extraction:
-    - Identify 'brand'. STRICT RULES: The brand name MUST be a valid and standard retail brand. If the product is unbranded, handmade, custom, from an obscure/unknown brand, or not a widely recognized brand, you MUST return 'Other'. Do NOT output or invent obscure brand names.
-    - Identify the primary 'color'(s) (e.g., 'Black', 'Blue').
+ 1. Visual Research & Attribute Extraction:
+    - Identify the 'brand'. STRICT RULES: The brand name MUST be a valid and standard retail brand (e.g. Nike, Adidas, Gucci). If the product is unbranded, handmade, custom, from an obscure/unknown brand, or not a widely recognized brand, you MUST return 'Other'. Do NOT output or invent obscure brand names.
+    - Identify 'color'(s) (e.g. 'Green', 'White').
+    - Identify 'size'. STRICT RULES: Output standard abbreviations for clothing (e.g., XS, S, M, L, XL, XXL). For shoes/footwear, output numbers (e.g., 8, 9, 10). NEVER output full words like 'Large', 'Medium', or 'Small'.
     - Suggest up to 3 style tags / keywords as comma-separated values in 'style_tag'.
-    - Identify 'size'. STRICT RULES: Output standard abbreviations for clothing (e.g., XS, S, M, L, XL, XXL). For shoes/footwear, output numbers (e.g., 8, 9, 10, 42) or standard shoe sizes. NEVER output full words like 'Large', 'Medium', or 'Small'.
- 
-Context: Gender: ${gender}.
- 
-Response ONLY as JSON: {
-  "brand": "Company Name",
-  "title": "A long, descriptive, 80-character marketplace title",
-  "title_parts": { "AttributeName": "Value", ... },
-  "description": "Clean formatted plain text description (NO HTML tags)",
-  "category": "Suggested category path",
+    
+ 2. Level 1 Category Prefix:
+    - Choose the single most relevant Category Prefix from this list:
+${prefixesText}
+    
+ 3. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' in USD.
+ 4. Title Attributes:
+    - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
+    - Output these as a key-value dictionary in 'title_parts'.
+
+Response ONLY as JSON:
+{
+  "brand": "Brand Name",
+  "color": "Color(s)",
+  "size": "Size",
+  "style_tag": "style tags",
+  "level1_category": "Selected Category Prefix",
   "selling_price": 0.00,
   "original_price": 0.00,
-  "color": "Primary color(s)",
-  "style_tag": "style tags (comma-separated)",
-  "size": "Size"
+  "title_parts": { "AttributeName": "Value", ... }
 }`
                         },
                         ...imageContent
@@ -304,11 +336,68 @@ Response ONLY as JSON: {
             response_format: { type: "json_object" }
         });
 
-        const finalData = JSON.parse(mainResponse.choices[0].message.content);
+        const visionData = JSON.parse(visionResponse.choices[0].message.content);
+        console.log(`[Mercari AI] Step 1 complete. Predicted Level 1 category: "${visionData.level1_category}"`);
 
-        if (!finalData) {
-            throw new Error("OpenAI returned an empty or invalid JSON response.");
-        }
+        // Normalize L1 category path and retrieve Level 2 subcategories
+        const normalizedL1 = normalizeLevel1Category(visionData.level1_category);
+        const level2Options = getLevel2Categories(normalizedL1);
+        const finalCategoryOptions = level2Options.length > 0 ? level2Options : [normalizedL1];
+
+        console.log(`[Mercari AI] Running Step 2: Text Optimization & Template Filling with ${finalCategoryOptions.length} category options...`);
+        const textPrompt = `You are a world-class Mercari listing expert.
+
+Given the following product details analyzed from images:
+- Brand: ${visionData.brand}
+- Color: ${visionData.color}
+- Size: ${visionData.size}
+- Title attributes extracted: ${JSON.stringify(visionData.title_parts)}
+
+Perform the following tasks:
+
+1. Category Classification:
+   - You MUST select the single most relevant category path for this item from this list:
+${finalCategoryOptions.join('\n')}
+   - Output your selection in the "category" field.
+
+${descriptionInstruction}
+
+Response ONLY as JSON:
+{
+  "category": "Selected category path from the list",
+  "description": "Clean formatted plain text description (NO HTML tags)"
+}`;
+
+        const textResponse = await aiClient.chat.completions.create({
+            model: finalModel.startsWith('gemini') ? finalModel : 'gpt-4o-mini',
+            temperature: 0,
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a professional listing optimizer who strictly follows formatting templates and category lists."
+                },
+                {
+                    role: "user",
+                    content: textPrompt
+                }
+            ],
+            response_format: { type: "json_object" }
+        });
+
+        const textData = JSON.parse(textResponse.choices[0].message.content);
+        console.log(`[Mercari AI] Step 2 complete. Selected final category: "${textData.category}"`);
+
+        const finalData = {
+            brand: visionData.brand,
+            title_parts: visionData.title_parts,
+            selling_price: visionData.selling_price,
+            original_price: visionData.original_price,
+            color: visionData.color,
+            style_tag: visionData.style_tag,
+            size: visionData.size,
+            category: textData.category || normalizedL1,
+            description: textData.description
+        };
 
         // DYNAMIC SKU GENERATION
         let skuCode = '';
