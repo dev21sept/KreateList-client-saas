@@ -260,29 +260,23 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     const height = formData.shippingHeight || 0;
     const isLargePackage = !formData.shippingFitsShoebox && (length >= 15 || width >= 15 || height >= 15 || (length * width * height) >= 3375);
 
-    // Large package logic (USPS Ground Advantage is restricted/surcharged; only UPS & FedEx are available)
+    // Large package logic (exceeds 15" or volume threshold)
     if (isLargePackage) {
-      if (totalOz <= 32) {
-        return { 
-          carrier: 'UPS Ground Saver', 
-          weightText: '2 lb', 
-          price: '7.97', 
-          warning: 'Large package (exceeds 15" or shoebox size). USPS Ground Advantage is restricted; UPS Ground Saver is recommended.'
-        };
-      }
-      if (totalOz <= 80) {
+      // Both USPS Ground Advantage and UPS Ground Saver are restricted for boxes exceeding 12-15" or large volumes.
+      // Only UPS Ground, FedEx Ground, and USPS Priority Mail are available.
+      if (totalOz <= 80) { // Up to 5 lb
         return { 
           carrier: 'UPS Ground', 
           weightText: '5 lb', 
           price: '11.50',
-          warning: 'Large package. UPS Ground is recommended to avoid heavy dimensional size penalties.'
+          warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. UPS Ground is recommended.'
         };
       }
       return { 
         carrier: 'UPS Ground', 
         weightText: `${Math.ceil(totalOz/16)} lb`, 
         price: '18.00',
-        warning: 'Large package. Surcharges apply. Only UPS Ground and FedEx are recommended.'
+        warning: 'Oversized package. USPS/UPS Saver restricted. UPS Ground and FedEx Ground are recommended.'
       };
     }
 
