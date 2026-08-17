@@ -37,9 +37,6 @@ const MERCARI_CONDITIONS = [
   { id: "poor", label: "Poor", description: "Heavy wear, obvious flaws or functionality issues." }
 ];
 
-const MERCARI_COLORS = [
-  'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
-];
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -188,142 +185,6 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
   );
 };
 
-const ColorSelectDropdown = ({ value = '', onChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const wrapperRef = React.useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selected = useMemo(() => {
-    if (!value) return [];
-    return value.split(',').map(s => s.trim()).filter(Boolean);
-  }, [value]);
-
-  const filteredOptions = MERCARI_COLORS.filter(color => 
-    color.toLowerCase().includes(searchTerm.toLowerCase().trim())
-  );
-
-  const handleSelect = (color) => {
-    let next;
-    if (selected.includes(color)) {
-      next = selected.filter(c => c !== color);
-    } else {
-      if (selected.length >= 2) return; // Limit to 2 colors
-      next = [...selected, color];
-    }
-    onChange(next.join(', '));
-  };
-
-  const placeholder = selected.length > 0 
-    ? `Colors (${selected.length} selected)` 
-    : 'Select item colors...';
-
-  return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full h-12 px-4 bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl text-left flex items-center justify-between text-xs font-bold text-slate-700 cursor-pointer transition-all focus:ring-2 focus:ring-indigo-500/10"
-      >
-        <div className="flex gap-1.5 flex-wrap items-center overflow-hidden">
-          {selected.length > 0 ? (
-            selected.map(item => (
-              <span 
-                key={item} 
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-black uppercase"
-              >
-                {item}
-                <button
-                  type="button"
-                  onClick={() => handleSelect(item)}
-                  className="p-0.5 hover:bg-indigo-100 rounded-md text-indigo-400 hover:text-indigo-700 transition-all cursor-pointer flex items-center justify-center"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))
-          ) : (
-            <span className="text-slate-400 font-semibold">{placeholder}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          {selected.length > 0 && (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange('');
-                setSearchTerm('');
-              }}
-              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </span>
-          )}
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </div>
-      </div>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 font-sans">
-          <div className="p-3 bg-slate-50 border-b border-slate-100">
-            <div className="relative">
-              <input
-                autoFocus
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search colors..."
-                className="w-full h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          
-          <div className="max-h-60 overflow-y-auto">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((item) => {
-                const isSelected = selected.includes(item);
-                const isLimitReached = selected.length >= 2 && !isSelected;
-                return (
-                  <button
-                    key={item}
-                    type="button"
-                    disabled={isLimitReached}
-                    onClick={() => handleSelect(item)}
-                    className={`w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 transition-colors flex items-center justify-between ${
-                      isSelected 
-                        ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' 
-                        : isLimitReached 
-                          ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400' 
-                          : 'hover:bg-indigo-600 hover:text-white text-slate-700'
-                    }`}
-                  >
-                    <span className="text-xs font-bold">{item}</span>
-                    {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="p-4 text-xs text-slate-400 text-center font-medium">No colors found</div>
-            )}
-          </div>
-
-          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
-            <span>Limit: 1 - 2 colors</span>
-            <span className={selected.length < 1 || selected.length > 2 ? 'text-rose-500 font-extrabold' : 'text-indigo-600 font-extrabold'}>
-              {selected.length}/2 Selected
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
@@ -347,8 +208,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     title: '',
     brand: '',
     originalPrice: '',
-    color: '',
-    styleTag: '',
+        styleTag: '',
     quantity: 1,
     size: '',
     category: '',
@@ -480,8 +340,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               title: l.title || '',
               brand: l.brand || '',
               originalPrice: l.originalPrice || '',
-              color: l.color || '',
-              styleTag: l.styleTag || '',
+                            styleTag: l.styleTag || '',
               quantity: l.quantity || 1,
               size: l.size || '',
               category: l.category || '',
@@ -615,8 +474,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
           title: result.title,
           brand: result.brand || '',
           originalPrice: result.originalPrice || '',
-          color: result.color || '',
-          styleTag: result.styleTag || '',
+                    styleTag: result.styleTag || '',
           quantity: 1,
           size: result.size || '',
           price: result.price,
@@ -697,8 +555,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         title: formData.title,
         brand: formData.brand,
         originalPrice: formData.originalPrice,
-        color: formData.color,
-        styleTag: formData.styleTag,
+                styleTag: formData.styleTag,
         quantity: formData.quantity,
         size: formData.size,
         category: formData.category,
@@ -1026,34 +883,24 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  {/* Color Select */}
-                  <div className="col-span-2 space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Color(s)</label>
-                    <ColorSelectDropdown 
-                      value={formData.color}
-                      onChange={(val) => setFormData({ ...formData, color: val })}
-                    />
-                  </div>
+                <div className="space-y-1.5">
                   {/* Size */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
-                    {activeSizeOptions.length > 0 ? (
-                      <SearchableDropdown
-                        value={formData.size}
-                        onSelect={(opt) => setFormData({ ...formData, size: opt.label || opt.id })}
-                        options={activeSizeOptions}
-                        placeholder="Select size..."
-                      />
-                    ) : (
-                      <input 
-                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
-                        value={formData.size}
-                        onChange={(e) => setFormData({...formData, size: e.target.value})}
-                        placeholder="e.g. M, 8, 38..."
-                      />
-                    )}
-                  </div>
+                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
+                  {activeSizeOptions.length > 0 ? (
+                    <SearchableDropdown
+                      value={formData.size}
+                      onSelect={(opt) => setFormData({ ...formData, size: opt.label || opt.id })}
+                      options={activeSizeOptions}
+                      placeholder="Select size..."
+                    />
+                  ) : (
+                    <input 
+                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      value={formData.size}
+                      onChange={(e) => setFormData({...formData, size: e.target.value})}
+                      placeholder="e.g. M, 8, 38..."
+                    />
+                  )}
                 </div>
               </div>
             </div>
