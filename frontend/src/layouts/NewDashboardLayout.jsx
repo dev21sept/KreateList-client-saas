@@ -216,7 +216,6 @@ const NewDashboardLayout = () => {
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
     { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
-    { name: 'Rules Engine', icon: <Database size={20} />, path: '/rules' },
     { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
     { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
     { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
@@ -619,6 +618,14 @@ const NewDashboardLayout = () => {
                     >
                       <User size={15} className="text-slate-400" />
                       Profile Settings
+                    </Link>
+                    <Link 
+                      to="/rules"
+                      onClick={() => setIsProfileDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-xl transition-all"
+                    >
+                      <Database size={15} className="text-slate-400" />
+                      Rules Engine
                     </Link>
                     <button 
                       onClick={handleLogout}

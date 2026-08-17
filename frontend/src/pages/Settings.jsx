@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const Settings = () => {
   const { user, loadUser } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   
   // Profile Form State
@@ -187,6 +189,7 @@ const Settings = () => {
     { id: 'notifications', name: 'Notifications', icon: <Bell size={18} /> },
     { id: 'privacy', name: 'Privacy & Data', icon: <Shield size={18} /> },
     { id: 'defaults', name: 'Listing Defaults', icon: <Database size={18} /> },
+    { id: 'rules', name: 'Rules Engine', icon: <Database size={18} />, path: '/rules' },
   ];
 
   return (
@@ -202,7 +205,13 @@ const Settings = () => {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.path) {
+                  navigate(item.path);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={`w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all ${
                 activeTab === item.id
                   ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-100'
