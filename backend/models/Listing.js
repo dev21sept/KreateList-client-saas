@@ -76,6 +76,7 @@ const listingSchema = new mongoose.Schema({
   mercariListingId: String,
   mercariUrl: String,
   brand: String,
+  brandId: String,
   originalPrice: String,
   color: String,
   styleTag: String,

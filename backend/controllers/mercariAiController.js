@@ -3,6 +3,7 @@ const sharp = require('sharp');
 const Listing = require('../models/Listing');
 const { logActivity } = require('../utils/activityUtils');
 const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
+const mercariBrands = require('../constants/mercariBrands.json');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
@@ -464,10 +465,19 @@ Response ONLY as JSON:
 
         const matchedCategory = normalizeMercariCategory(finalData.category, gender);
 
+        // Resolve official Mercari Brand ID from offline brands lookup dictionary
+        const predictedBrand = finalData.brand || 'Other';
+        let resolvedBrandId = '';
+        const normBrand = predictedBrand.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        if (normBrand && mercariBrands[normBrand]) {
+            resolvedBrandId = String(mercariBrands[normBrand].id);
+        }
+
         return res.json({
             success: true,
             data: {
-                brand: finalData.brand || 'Other',
+                brand: predictedBrand,
+                brandId: resolvedBrandId,
                 title: finalTitle,
                 description: templatedDescription,
                 title_parts: standardizedParts,
