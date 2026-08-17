@@ -1035,156 +1035,213 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
           </div>
 
           {/* Shipping Method Section (Full Width at Bottom) */}
-          <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150 space-y-5 mt-6 animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-150 pb-3 gap-3">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider">
-                5. Shipping Method Details
-              </h3>
-              <div className="flex items-center gap-3">
-                <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">Offer buyers free shipping?</label>
-                <select 
-                  className="px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
-                  value={formData.shippingPayer === 'seller' ? 'yes' : 'no'}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    shippingPayer: e.target.value === 'yes' ? 'seller' : 'buyer' 
-                  }))}
-                >
-                  <option value="no">No (Buyer Pays)</option>
-                  <option value="yes">Yes (Seller Pays / Free Shipping)</option>
-                </select>
-              </div>
-            </div>
+          <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150 space-y-6 mt-6 animate-in fade-in duration-300">
+            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-150 pb-3">
+              5. Shipping Method Details
+            </h3>
 
-            {formData.shippingPayer === 'buyer' ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Weight Inputs */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-100 space-y-3 shadow-sm">
-                    <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">Package Weight</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">lb</label>
-                        <input 
-                          type="number"
-                          className="w-full px-3 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                          value={formData.shippingWeightLbs}
-                          min="0"
-                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightLbs: Math.max(0, parseInt(e.target.value) || 0) }))}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">oz</label>
-                        <input 
-                          type="number"
-                          className="w-full px-3 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                          value={formData.shippingWeightOz}
-                          min="0"
-                          max="15"
-                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightOz: Math.min(15, Math.max(0, parseInt(e.target.value) || 0)) }))}
-                        />
-                      </div>
-                    </div>
+            <div className="space-y-4">
+              {/* Option 1: Prepaid Label */}
+              <div className={`p-5 rounded-2xl border transition-all ${formData.shippingMethod === 'prepaid' ? 'bg-white border-indigo-500 shadow-sm ring-2 ring-indigo-500/5' : 'bg-transparent border-slate-200 opacity-70'}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="shippingMethod" 
+                    value="prepaid"
+                    checked={formData.shippingMethod === 'prepaid'}
+                    onChange={() => setFormData(prev => ({ 
+                      ...prev, 
+                      shippingMethod: 'prepaid', 
+                      shippingPayer: prev.shippingPayer === 'seller' ? 'seller' : 'buyer' 
+                    }))}
+                    className="mt-1"
+                  />
+                  <div className="space-y-1 w-full">
+                    <span className="text-xs font-extrabold text-slate-800">Prepaid label</span>
+                    <p className="text-[10px] font-medium text-slate-500">We'll email you a label and you'll ship the item. Includes delivery protection. Save an average of 25% off retail.</p>
                   </div>
+                </label>
 
-                  {/* Fits in Shoebox Question */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-100 space-y-3 flex flex-col justify-between shadow-sm">
-                    <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">Fits in Standard Shoebox?</span>
-                    <div className="flex gap-4 pb-2">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="shippingFitsShoebox" 
-                          checked={formData.shippingFitsShoebox === true}
-                          onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: true }))}
-                        /> Yes (under 14"x10"x5")
-                      </label>
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="shippingFitsShoebox" 
-                          checked={formData.shippingFitsShoebox === false}
-                          onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: false }))}
-                        /> No (Custom size)
-                      </label>
+                {formData.shippingMethod === 'prepaid' && (
+                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
+                    {/* Offer Free Shipping Dropdown inside Prepaid */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Offer buyers free shipping?</span>
+                      <select 
+                        className="px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer w-full sm:w-56"
+                        value={formData.shippingPayer === 'seller' ? 'yes' : 'no'}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          shippingPayer: e.target.value === 'yes' ? 'seller' : 'buyer' 
+                        }))}
+                      >
+                        <option value="no">No (Buyer Pays)</option>
+                        <option value="yes">Yes (Seller Pays / Free for Buyer)</option>
+                      </select>
                     </div>
-                  </div>
 
-                  {/* Dimensions Inputs (only if fits shoebox is false) */}
-                  <div className={`bg-white p-5 rounded-2xl border border-slate-100 space-y-3 transition-opacity duration-200 shadow-sm ${formData.shippingFitsShoebox ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
-                    <span className="text-[10px] font-black text-slate-455 uppercase tracking-wider block">Dimensions (inches)</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Length</label>
-                        <input 
-                          type="number"
-                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                          value={formData.shippingFitsShoebox ? '' : formData.shippingLength}
-                          disabled={formData.shippingFitsShoebox}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shippingLength: Math.max(0, parseInt(e.target.value) || 0) }))}
-                          placeholder="L"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Width</label>
-                        <input 
-                          type="number"
-                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                          value={formData.shippingFitsShoebox ? '' : formData.shippingWidth}
-                          disabled={formData.shippingFitsShoebox}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shippingWidth: Math.max(0, parseInt(e.target.value) || 0) }))}
-                          placeholder="W"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Height</label>
-                        <input 
-                          type="number"
-                          className="w-full px-2.5 h-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                          value={formData.shippingFitsShoebox ? '' : formData.shippingHeight}
-                          disabled={formData.shippingFitsShoebox}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shippingHeight: Math.max(0, parseInt(e.target.value) || 0) }))}
-                          placeholder="H"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Carrier Selection Cards */}
-                <div className="space-y-2 pt-2">
-                  <span className="text-[10px] font-black text-slate-455 uppercase tracking-wider block ml-1">Select Shipping Carrier (Partner)</span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {carrierOptions.map((opt) => {
-                      const isSelected = formData.shippingCarrier === opt.carrier;
-                      return (
-                        <div 
-                          key={opt.carrier}
-                          onClick={() => setFormData(prev => ({ ...prev, shippingCarrier: opt.carrier, shippingPrice: opt.price }))}
-                          className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between h-24 shadow-sm ${isSelected ? 'bg-indigo-50/50 border-indigo-500 ring-2 ring-indigo-500/15' : 'bg-white border-slate-200 hover:border-indigo-400'}`}
-                        >
-                          <span className="text-[10px] font-black text-slate-800 leading-tight">{opt.carrier}</span>
-                          <div className="flex items-end justify-between mt-2">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Up to {opt.weightText}</span>
-                            <span className="text-sm font-black text-indigo-600">${opt.price}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Weight Inputs */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 shadow-inner">
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Package Weight</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">lb</label>
+                            <input 
+                              type="number"
+                              className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                              value={formData.shippingWeightLbs}
+                              min="0"
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightLbs: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">oz</label>
+                            <input 
+                              type="number"
+                              className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                              value={formData.shippingWeightOz}
+                              min="0"
+                              max="15"
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingWeightOz: Math.min(15, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                            />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  {/* Warning Alerts */}
-                  {carrierOptions.some(o => o.warning && o.carrier === formData.shippingCarrier) && (
-                    <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-2xl text-[10px] font-semibold leading-relaxed animate-in fade-in duration-200">
-                      ⚠️ {carrierOptions.find(o => o.warning && o.carrier === formData.shippingCarrier).warning}
+                      </div>
+
+                      {/* Fits in Shoebox Question */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 flex flex-col justify-between shadow-inner">
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Fits in Standard Shoebox?</span>
+                        <div className="flex gap-4 pb-1">
+                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="shippingFitsShoebox" 
+                              checked={formData.shippingFitsShoebox === true}
+                              onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: true }))}
+                            /> Yes (under 14"x10"x5")
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="shippingFitsShoebox" 
+                              checked={formData.shippingFitsShoebox === false}
+                              onChange={() => setFormData(prev => ({ ...prev, shippingFitsShoebox: false }))}
+                            /> No (Custom size)
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Dimensions Inputs (only if fits shoebox is false) */}
+                      <div className={`bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 transition-opacity duration-200 shadow-inner ${formData.shippingFitsShoebox ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Dimensions (inches)</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Length</label>
+                            <input 
+                              type="number"
+                              className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                              value={formData.shippingFitsShoebox ? '' : formData.shippingLength}
+                              disabled={formData.shippingFitsShoebox}
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingLength: Math.max(0, parseInt(e.target.value) || 0) }))}
+                              placeholder="L"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Width</label>
+                            <input 
+                              type="number"
+                              className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                              value={formData.shippingFitsShoebox ? '' : formData.shippingWidth}
+                              disabled={formData.shippingFitsShoebox}
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingWidth: Math.max(0, parseInt(e.target.value) || 0) }))}
+                              placeholder="W"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Height</label>
+                            <input 
+                              type="number"
+                              className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                              value={formData.shippingFitsShoebox ? '' : formData.shippingHeight}
+                              disabled={formData.shippingFitsShoebox}
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingHeight: Math.max(0, parseInt(e.target.value) || 0) }))}
+                              placeholder="H"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Carrier Selection Cards */}
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Select Shipping Label / Carrier Partner</span>
+                        {formData.shippingPayer === 'seller' && (
+                          <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-md">
+                            Seller Pays (${formData.shippingPrice} deducted from payout)
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {carrierOptions.map((opt) => {
+                          const isSelected = formData.shippingCarrier === opt.carrier;
+                          return (
+                            <div 
+                              key={opt.carrier}
+                              onClick={() => setFormData(prev => ({ ...prev, shippingCarrier: opt.carrier, shippingPrice: opt.price }))}
+                              className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between h-24 shadow-sm ${isSelected ? 'bg-indigo-50/50 border-indigo-500 ring-2 ring-indigo-500/15' : 'bg-white border-slate-200 hover:border-indigo-400'}`}
+                            >
+                              <span className="text-[10px] font-black text-slate-800 leading-tight">{opt.carrier}</span>
+                              <div className="flex items-end justify-between mt-2">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Up to {opt.weightText}</span>
+                                <span className="text-sm font-black text-indigo-650">${opt.price}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Warning Alerts */}
+                      {carrierOptions.some(o => o.warning && o.carrier === formData.shippingCarrier) && (
+                        <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-2xl text-[10px] font-semibold leading-relaxed animate-in fade-in duration-200">
+                          ⚠️ {carrierOptions.find(o => o.warning && o.carrier === formData.shippingCarrier).warning}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 text-xs font-semibold text-slate-600 leading-relaxed shadow-sm">
-                ℹ️ You will ship the item on your own. Shipping protection is not included. Shipping is set to **Free for buyers**.
+
+              {/* Option 2: Ship on your own */}
+              <div className={`p-5 rounded-2xl border transition-all ${formData.shippingMethod === 'ship_on_your_own' ? 'bg-white border-indigo-500 shadow-sm ring-2 ring-indigo-500/5' : 'bg-transparent border-slate-200 opacity-70'}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="shippingMethod" 
+                    value="ship_on_your_own"
+                    checked={formData.shippingMethod === 'ship_on_your_own'}
+                    onChange={() => setFormData(prev => ({ 
+                      ...prev, 
+                      shippingMethod: 'ship_on_your_own', 
+                      shippingPayer: 'seller', // Always seller pays for ship on your own
+                      shippingCarrier: 'Ship on your own',
+                      shippingPrice: '0.00'
+                    }))}
+                    className="mt-1"
+                  />
+                  <div className="space-y-1 w-full">
+                    <span className="text-xs font-extrabold text-slate-800">Ship on your own</span>
+                    <p className="text-[10px] font-medium text-slate-500">You provide your own label and ship the item. It's not covered by shipping protection.</p>
+                  </div>
+                </label>
+
+                {formData.shippingMethod === 'ship_on_your_own' && (
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-650 leading-relaxed bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-150 animate-in fade-in duration-200">
+                    ℹ️ You will manually buy a shipping label outside Mercari. Shipping is free for the buyer. Delivery protection is not included.
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
           </>
         )}

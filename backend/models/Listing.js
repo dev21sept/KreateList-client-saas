@@ -78,6 +78,7 @@ const listingSchema = new mongoose.Schema({
   brand: String,
   brandId: String,
   shippingPayer: String,
+  shippingMethod: String,
   shippingWeightLbs: Number,
   shippingWeightOz: Number,
   shippingFitsShoebox: Boolean,
