@@ -255,6 +255,37 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     const oz = formData.shippingWeightOz || 0;
     const totalOz = (lbs * 16) + oz;
 
+    const length = formData.shippingLength || 0;
+    const width = formData.shippingWidth || 0;
+    const height = formData.shippingHeight || 0;
+    const isLargePackage = !formData.shippingFitsShoebox && (length >= 15 || width >= 15 || height >= 15 || (length * width * height) >= 3375);
+
+    // Large package logic (USPS Ground Advantage is restricted/surcharged; only UPS & FedEx are available)
+    if (isLargePackage) {
+      if (totalOz <= 32) {
+        return { 
+          carrier: 'UPS Ground Saver', 
+          weightText: '2 lb', 
+          price: '7.97', 
+          warning: 'Large package (exceeds 15" or shoebox size). USPS Ground Advantage is restricted; UPS Ground Saver is recommended.'
+        };
+      }
+      if (totalOz <= 80) {
+        return { 
+          carrier: 'UPS Ground', 
+          weightText: '5 lb', 
+          price: '11.50',
+          warning: 'Large package. UPS Ground is recommended to avoid heavy dimensional size penalties.'
+        };
+      }
+      return { 
+        carrier: 'UPS Ground', 
+        weightText: `${Math.ceil(totalOz/16)} lb`, 
+        price: '18.00',
+        warning: 'Large package. Surcharges apply. Only UPS Ground and FedEx are recommended.'
+      };
+    }
+
     if (totalOz === 0) {
       return { carrier: 'USPS Ground Advantage', weightText: '4 oz', price: '4.30' };
     }
@@ -280,7 +311,15 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
       return { carrier: 'UPS Ground', weightText: '5 lb', price: '11.50' };
     }
     return { carrier: 'UPS Ground', weightText: `${Math.ceil(totalOz/16)} lb`, price: '15.00' };
-  }, [formData.shippingPayer, formData.shippingWeightLbs, formData.shippingWeightOz]);
+  }, [
+    formData.shippingPayer, 
+    formData.shippingWeightLbs, 
+    formData.shippingWeightOz, 
+    formData.shippingFitsShoebox, 
+    formData.shippingLength, 
+    formData.shippingWidth, 
+    formData.shippingHeight
+  ]);
 
   const activeSizeOptions = useMemo(() => {
     if (!formData.category) return [];
@@ -951,9 +990,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                         <span className="text-xs font-bold text-slate-800">Prepaid label (Buyer Pays)</span>
                         <p className="text-[10px] font-medium text-slate-500">We'll email you a label and you'll ship the item. Includes delivery protection.</p>
                         {formData.shippingPayer === 'buyer' && recommendedShipping && (
-                          <div className="mt-2 bg-indigo-50/50 border border-indigo-100 p-2 rounded-lg text-[10px] text-indigo-800 font-bold flex items-center justify-between">
-                            <span>Carrier: {recommendedShipping.carrier} (Up to {recommendedShipping.weightText})</span>
-                            <span className="text-xs font-extrabold text-indigo-700">${recommendedShipping.price}</span>
+                          <div className="space-y-1.5 mt-2">
+                            <div className="bg-indigo-50/50 border border-indigo-100 p-2.5 rounded-lg text-[10px] text-indigo-800 font-bold flex items-center justify-between">
+                              <span>Carrier: {recommendedShipping.carrier} (Up to {recommendedShipping.weightText})</span>
+                              <span className="text-xs font-extrabold text-indigo-700">${recommendedShipping.price}</span>
+                            </div>
+                            {recommendedShipping.warning && (
+                              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded-lg text-[9px] font-bold leading-relaxed">
+                                ⚠️ {recommendedShipping.warning}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
