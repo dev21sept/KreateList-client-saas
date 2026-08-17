@@ -266,10 +266,10 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
       // Only UPS Ground, FedEx Ground, and USPS Priority Mail are available.
       if (totalOz <= 80) { // Up to 5 lb
         return { 
-          carrier: 'UPS Ground', 
+          carrier: 'UPS Ground / FedEx Ground', 
           weightText: '5 lb', 
           price: '11.50',
-          warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. UPS Ground is recommended.'
+          warning: 'Large package (exceeds 15"). USPS Ground Advantage and UPS Ground Saver are restricted due to size limits. Both UPS Ground and FedEx Ground are available and recommended.'
         };
       }
       return { 
