@@ -310,10 +310,13 @@ exports.mercariAnalyzeListing = async (req, res) => {
     
  2. Level 1 Category Prefix:
     - Choose the single most relevant Category Prefix from this list:
+
 ${prefixesText}
     
  3. Pricing: Estimate a realistic 'selling_price' in USD and estimate the 'original_price' in USD.
- 4. Title Attributes:
+ 4. Visual features: 
+    - Describe the item's key design, style, cuts, sleeve style/length, button front, neck/collar style, zippers, pockets, patterns, and any distinguishing characteristics in 'visual_description'.
+ 5. Title Attributes:
     - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
     - Output these as a key-value dictionary in 'title_parts'.
 
@@ -326,6 +329,7 @@ Response ONLY as JSON:
   "level1_category": "Selected Category Prefix",
   "selling_price": 0.00,
   "original_price": 0.00,
+  "visual_description": "Detailed visual description including sleeves, buttons, zippers, collar, pattern, etc.",
   "title_parts": { "AttributeName": "Value", ... }
 }`
                         },
@@ -338,6 +342,7 @@ Response ONLY as JSON:
 
         const visionData = JSON.parse(visionResponse.choices[0].message.content);
         console.log(`[Mercari AI] Step 1 complete. Predicted Level 1 category: "${visionData.level1_category}"`);
+        console.log(`[Mercari AI] Visual Description: "${visionData.visual_description}"`);
 
         // Normalize L1 category path and retrieve Level 2 subcategories
         const normalizedL1 = normalizeLevel1Category(visionData.level1_category);
@@ -351,7 +356,8 @@ Given the following product details analyzed from images:
 - Brand: ${visionData.brand}
 - Color: ${visionData.color}
 - Size: ${visionData.size}
-- Title attributes extracted: ${JSON.stringify(visionData.title_parts)}
+- Visual Details/Features: substituteFeatures
+- Title attributes extracted: substituteTitleParts
 
 Perform the following tasks:
 
@@ -368,6 +374,10 @@ Response ONLY as JSON:
   "description": "Clean formatted plain text description (NO HTML tags)"
 }`;
 
+        const completeTextPrompt = textPrompt
+            .replace('\substituteFeatures', visionData.visual_description)
+            .replace('\substituteTitleParts', JSON.stringify(visionData.title_parts));
+
         const textResponse = await aiClient.chat.completions.create({
             model: finalModel.startsWith('gemini') ? finalModel : 'gpt-4o-mini',
             temperature: 0,
@@ -378,7 +388,7 @@ Response ONLY as JSON:
                 },
                 {
                     role: "user",
-                    content: textPrompt
+                    content: completeTextPrompt
                 }
             ],
             response_format: { type: "json_object" }
