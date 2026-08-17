@@ -1,4 +1,4 @@
-name: Deploy Elister to AWS EC2
+name: Deploy Elister to Cloud Server
 
 on:
   push:
@@ -70,7 +70,7 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
           
-          # SSH into EC2, pull latest changes, install dependencies, restart backend
+          # SSH into Server, pull latest changes, install dependencies, restart backend
           ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
             cd ~/elister
             
@@ -81,7 +81,11 @@ jobs:
             # Install production dependencies and restart backend
             cd backend
             npm install --production
-            pm2 restart elister-backend || pm2 start ecosystem.config.js --env production
+            
+            # Load NVM and restart PM2 to pick up the updated .env configurations
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            pm2 restart elister-backend --update-env || pm2 start ecosystem.config.js --env production --update-env
             pm2 save
           EOF
           rm private_key.pem

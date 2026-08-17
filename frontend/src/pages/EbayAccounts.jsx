@@ -106,6 +106,60 @@ const EbayAccounts = () => {
   const [mercari2faCode, setMercari2faCode] = useState('');
   const [mercari2faSessionId, setMercari2faSessionId] = useState('');
 
+  const [sessionScreenshot, setSessionScreenshot] = useState(null);
+  const [sessionStatusMessage, setSessionStatusMessage] = useState('');
+  const mercariPollInterval = useRef(null);
+
+  const startMercariPolling = (sessionId) => {
+    if (mercariPollInterval.current) {
+      clearInterval(mercariPollInterval.current);
+    }
+    mercariPollInterval.current = setInterval(async () => {
+      try {
+        const res = await externalImportService.getSessionStatus(sessionId);
+        if (res.data?.success) {
+          const { status, message, latestScreenshot, '2faRequired': twoFaRequired } = res.data;
+          setSessionStatusMessage(message || '');
+          if (latestScreenshot) {
+            setSessionScreenshot(latestScreenshot);
+          }
+          if (status === 'completed') {
+            clearInterval(mercariPollInterval.current);
+            toast.success('Mercari Connected Successfully!');
+            await loadUser();
+            setMercariLoading(false);
+            setSessionScreenshot(null);
+            setSessionStatusMessage('');
+            setIsMercariModalOpen(false);
+          } else if (status === '2fa_required' || twoFaRequired) {
+            clearInterval(mercariPollInterval.current);
+            setShowMercari2fa(true);
+            setMercariLoading(false);
+            if (message && message !== 'Verification code required.') {
+              toast.error(message);
+            }
+          } else if (status === 'failed') {
+            clearInterval(mercariPollInterval.current);
+            toast.error(message || 'Login failed.');
+            setMercariLoading(false);
+            setSessionScreenshot(null);
+            setSessionStatusMessage('');
+          }
+        }
+      } catch (err) {
+        console.error('[Mercari Poll Error]:', err);
+      }
+    }, 800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (mercariPollInterval.current) {
+        clearInterval(mercariPollInterval.current);
+      }
+    };
+  }, []);
+
   // Sync state
   const [syncingPlatform, setSyncingPlatform] = useState(null);
 
@@ -468,29 +522,24 @@ const EbayAccounts = () => {
     }
     try {
       setMercariLoading(true);
-      toast.info('Connecting to Mercari via Cloud Login...');
-      const res = await externalImportService.connectPassword({
-        platform: 'mercari',
+      setSessionScreenshot(null);
+      setSessionStatusMessage('Initiating connection...');
+      toast.info('Starting Mercari login session...');
+
+      const res = await externalImportService.initiateLogin({
         username: mercariUsername,
         password: mercariPassword
       });
-      if (res.data?.['2faRequired']) {
-        toast.info(res.data.message || 'Verification code sent to your email.');
-        setShowMercari2fa(true);
+
+      if (res.data?.success && res.data.sessionId) {
         setMercari2faSessionId(res.data.sessionId);
-        return;
-      }
-      if (res.data?.success) {
-        toast.success('Mercari Connected Successfully via Cloud Login!');
-        await loadUser();
-        setMercariUsername('');
-        setMercariPassword('');
-        setIsMercariModalOpen(false);
+        startMercariPolling(res.data.sessionId);
+      } else {
+        throw new Error(res.data?.message || 'Failed to initiate login');
       }
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to connect Mercari. Please verify credentials or use Chrome Extension.');
-    } finally {
+      toast.error(err.response?.data?.message || err.message || 'Failed to connect Mercari.');
       setMercariLoading(false);
     }
   };
@@ -503,26 +552,22 @@ const EbayAccounts = () => {
     }
     try {
       setMercariLoading(true);
+      setSessionStatusMessage('Submitting 2FA code...');
       toast.info('Submitting verification code...');
-      const res = await externalImportService.verifyPoshmark2fa({
-        platform: 'mercari',
+
+      const res = await externalImportService.submit2faStream({
         sessionId: mercari2faSessionId,
         code: mercari2faCode
       });
+
       if (res.data?.success) {
-        toast.success('Mercari Connected Successfully!');
-        await loadUser();
-        setShowMercari2fa(false);
-        setMercari2faCode('');
-        setMercari2faSessionId('');
-        setMercariUsername('');
-        setMercariPassword('');
-        setIsMercariModalOpen(false);
+        startMercariPolling(mercari2faSessionId);
+      } else {
+        throw new Error(res.data?.message || 'Failed to submit 2FA');
       }
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Verification failed. Please try again.');
-    } finally {
+      toast.error(err.response?.data?.message || err.message || 'Verification failed. Please try again.');
       setMercariLoading(false);
     }
   };
@@ -1358,7 +1403,28 @@ const EbayAccounts = () => {
 
             {/* Body */}
             <div className="p-6 overflow-y-auto space-y-4">
-              {showMercari2fa ? (
+              {mercariLoading ? (
+                <div className="space-y-4 py-4 text-center">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="animate-spin text-indigo-600" size={32} />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Automating Login Process...</p>
+                      <p className="text-[11px] text-slate-500 mt-1 font-semibold">{sessionStatusMessage || 'Please wait...'}</p>
+                    </div>
+                  </div>
+                  
+                  {sessionScreenshot && (
+                    <div className="mt-4 border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-slate-50">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider py-1.5 bg-slate-100 border-b border-slate-200">Live Browser Stream</p>
+                      <img 
+                        src={`data:image/jpeg;base64,${sessionScreenshot}`} 
+                        className="w-full h-auto object-contain border-t border-slate-200" 
+                        alt="Live Browser" 
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : showMercari2fa ? (
                 <form onSubmit={handleMercari2faSubmit} className="space-y-4">
                   <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center">
                     <h4 className="text-xs font-bold text-indigo-900 mb-1">Verification Code Required</h4>

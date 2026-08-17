@@ -485,3 +485,97 @@ exports.mercariGetLive = async (req, res) => {
     res.status(200).json({ success: false, message: err.message, data: [] });
   }
 };
+
+// @desc    Initiate background login flow
+// @route   POST /api/mercari/initiate-login
+// @access  Private
+exports.mercariInitiateLogin = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username/Email and password are required.' });
+    }
+
+    const sessionId = 'mercari_' + Math.random().toString(36).substring(2, 15);
+    
+    // Start loginToMercari asynchronously in the background (no await!)
+    loginToMercari(username, password, sessionId, req.user.id)
+      .then(result => {
+        console.log(`[Mercari Background Login] Finished for session ${sessionId}:`, result.success);
+      })
+      .catch(err => {
+        console.error(`[Mercari Background Login] Error for session ${sessionId}:`, err.message);
+      });
+
+    res.status(200).json({
+      success: true,
+      sessionId,
+      message: 'Login initiated. Monitoring stream...'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get current session status and screenshot frame
+// @route   GET /api/mercari/session-status/:sessionId
+// @access  Private
+exports.mercariSessionStatus = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { getSessionState } = require('../services/mercariLoginService');
+    const state = getSessionState(sessionId);
+    
+    if (!state) {
+      // Check if user is already connected (if completed, it clears session state)
+      const user = await User.findById(req.user.id);
+      if (user?.mercariAccount?.connected) {
+        return res.status(200).json({
+          success: true,
+          status: 'completed',
+          message: 'Login successful!',
+          latestScreenshot: null
+        });
+      }
+      return res.status(404).json({ success: false, message: 'Session expired or not found.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      status: state.status,
+      message: state.message,
+      latestScreenshot: state.latestScreenshot,
+      '2faRequired': state['2faRequired']
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Submit 2FA OTP in the background
+// @route   POST /api/mercari/submit-2fa-stream
+// @access  Private
+exports.mercariSubmit2faStream = async (req, res) => {
+  try {
+    const { sessionId, code } = req.body;
+    if (!sessionId || !code) {
+      return res.status(400).json({ success: false, message: 'Session ID and verification code are required.' });
+    }
+
+    // Start verification in background
+    verifyMercari2FA(sessionId, code, req.user.id)
+      .then(result => {
+        console.log(`[Mercari Background 2FA] Finished for session ${sessionId}:`, result.success);
+      })
+      .catch(err => {
+        console.error(`[Mercari Background 2FA] Error for session ${sessionId}:`, err.message);
+      });
+
+    res.status(200).json({
+      success: true,
+      message: 'Code submitted. Verifying...'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

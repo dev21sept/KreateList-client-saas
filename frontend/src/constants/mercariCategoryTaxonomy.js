@@ -30,7 +30,18 @@ export const MERCARI_CATEGORY_TREE = [
         "id": 17,
         "name": "Coats & jackets",
         "level": 1,
-        "children": []
+        "children": [
+          { "id": 1701, "name": "Parka", "level": 2, "children": [] },
+          { "id": 1702, "name": "Peacoat", "level": 2, "children": [] },
+          { "id": 1703, "name": "Poncho", "level": 2, "children": [] },
+          { "id": 1704, "name": "Puffer", "level": 2, "children": [] },
+          { "id": 1705, "name": "Raincoat", "level": 2, "children": [] },
+          { "id": 1706, "name": "Trench", "level": 2, "children": [] },
+          { "id": 1707, "name": "Vest", "level": 2, "children": [] },
+          { "id": 1708, "name": "Windbreaker", "level": 2, "children": [] },
+          { "id": 1709, "name": "Wool", "level": 2, "children": [] },
+          { "id": 1710, "name": "Other", "level": 2, "children": [] }
+        ]
       },
       {
         "id": 11,
@@ -272,12 +283,16 @@ export const MERCARI_CATEGORY_TREE = [
         "name": "Coats & jackets",
         "level": 1,
         "children": [
-          {
-            "id": 359,
-            "name": "Vest",
-            "level": 2,
-            "children": []
-          }
+          { "id": 3301, "name": "Parka", "level": 2, "children": [] },
+          { "id": 3302, "name": "Peacoat", "level": 2, "children": [] },
+          { "id": 3303, "name": "Poncho", "level": 2, "children": [] },
+          { "id": 3304, "name": "Puffer", "level": 2, "children": [] },
+          { "id": 3305, "name": "Raincoat", "level": 2, "children": [] },
+          { "id": 3306, "name": "Trench", "level": 2, "children": [] },
+          { "id": 359, "name": "Vest", "level": 2, "children": [] },
+          { "id": 3308, "name": "Windbreaker", "level": 2, "children": [] },
+          { "id": 3309, "name": "Wool", "level": 2, "children": [] },
+          { "id": 3310, "name": "Other", "level": 2, "children": [] }
         ]
       },
       {

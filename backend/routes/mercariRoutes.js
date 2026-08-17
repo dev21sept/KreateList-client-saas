@@ -5,7 +5,10 @@ const {
   mercariVerify2FA,
   mercariImportCloset, 
   mercariPublish, 
-  mercariGetLive 
+  mercariGetLive,
+  mercariInitiateLogin,
+  mercariSessionStatus,
+  mercariSubmit2faStream
 } = require('../controllers/mercariController');
 const { protect } = require('../middleware/auth');
 const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
@@ -18,6 +21,9 @@ router.use(protect);
 router.post('/connect', mercariConnect);
 router.post('/connect-password', mercariConnectPassword);
 router.post('/verify-2fa', mercariVerify2FA);
+router.post('/initiate-login', mercariInitiateLogin);
+router.get('/session-status/:sessionId', mercariSessionStatus);
+router.post('/submit-2fa-stream', mercariSubmit2faStream);
 router.post('/import', requireWithinFetchLimit, mercariImportCloset);
 router.post('/publish/:id', mercariPublish);
 router.get('/live', mercariGetLive);

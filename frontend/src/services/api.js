@@ -126,6 +126,9 @@ export const mercariService = {
   connect: (data) => API.post('/mercari/connect', data),
   connectPassword: (data) => API.post('/mercari/connect-password', data),
   verify2fa: (data) => API.post('/mercari/verify-2fa', data),
+  initiateLogin: (data) => API.post('/mercari/initiate-login', data),
+  getSessionStatus: (sessionId) => API.get(`/mercari/session-status/${sessionId}`),
+  submit2faStream: (data) => API.post('/mercari/submit-2fa-stream', data),
   publish: (id, data) => API.post(`/mercari/publish/${id}`, data),
   getLive: () => API.get('/mercari/live')
 };
@@ -135,6 +138,9 @@ export const externalImportService = {
   importCloset: (data) => data.platform === 'depop' ? depopService.importCloset(data) : data.platform === 'mercari' ? mercariService.importCloset(data) : poshmarkService.importCloset(data),
   connect: (data) => data.platform === 'depop' ? depopService.connect(data) : data.platform === 'mercari' ? mercariService.connect(data) : poshmarkService.connect(data),
   connectPassword: (data) => data.platform === 'mercari' ? mercariService.connectPassword(data) : poshmarkService.connectPassword(data),
+  initiateLogin: (data) => mercariService.initiateLogin(data),
+  getSessionStatus: (sessionId) => mercariService.getSessionStatus(sessionId),
+  submit2faStream: (data) => mercariService.submit2faStream(data),
   connectInteractiveDepop: () => depopService.connectInteractive(),
   verifyPoshmark2fa: (data) => data.platform === 'mercari' ? mercariService.verify2fa(data) : poshmarkService.verify2fa(data),
   publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : data.platform === 'mercari' ? mercariService.publish(id, data) : poshmarkService.publish(id, data),

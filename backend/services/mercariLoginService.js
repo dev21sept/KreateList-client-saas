@@ -2,28 +2,54 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
+const User = require('../models/User');
 
-// Global map to hold active Mercari login sessions in memory for 2FA verification
+// Global map to hold active Mercari login sessions in memory
 const activeSessions = new Map();
 
 // Apply the stealth plugin to avoid Cloudflare detection
 puppeteer.use(StealthPlugin());
 
+// Helper to capture screenshot as base64
+async function captureScreenshot(page) {
+  try {
+    if (page && !page.isClosed()) {
+      return await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 30 });
+    }
+  } catch (e) {
+    // Silent fail
+  }
+  return null;
+}
+
 /**
  * Performs server-side login to Mercari using Puppeteer Stealth Browser automation.
- * 
- * @param {string} username Mercari email or username
- * @param {string} password Mercari account password
- * @returns {Promise<Object>} Connection details or OTP request state
  */
-async function loginToMercari(username, password) {
-  console.log(`[Mercari Login] Launching Stealth Browser for: ${username}`);
+async function loginToMercari(username, password, sessionId, userId) {
+  console.log(`[Mercari Login] Launching Stealth Browser for: ${username} (Session: ${sessionId})`);
+
+  const sessionState = {
+    status: 'initializing',
+    message: 'Launching stealth browser...',
+    latestScreenshot: null,
+    '2faRequired': false,
+    browser: null,
+    page: null,
+    username,
+    createdAt: Date.now()
+  };
+  activeSessions.set(sessionId, sessionState);
 
   let browser = null;
   let page = null;
+  let intervalId = null;
+
   try {
+    const isHeadless = process.env.HEADLESS !== 'false';
+    console.log(`[Mercari Login] Running browser in headless: ${isHeadless}`);
+
     const launchOptions = {
-      headless: true,
+      headless: isHeadless,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -36,7 +62,6 @@ async function loginToMercari(username, password) {
     const proxyUrl = process.env.HTTP_PROXY_URL;
     let proxyAuth = null;
     if (proxyUrl) {
-      console.log(`[Mercari Login] Setting browser proxy: ${proxyUrl}`);
       try {
         const parsedUrl = new URL(proxyUrl);
         const cleanProxyUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
@@ -65,18 +90,30 @@ async function loginToMercari(username, password) {
     }
 
     browser = await puppeteer.launch(launchOptions);
+    sessionState.browser = browser;
+
     page = await browser.newPage();
+    sessionState.page = page;
+
     if (proxyAuth) {
       await page.authenticate(proxyAuth);
     }
 
-    await page.setViewport({ width: 1280, height: 800 });
+    await page.setViewport({ width: 1024, height: 768 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9'
     });
 
-    console.log('[Mercari Login] Navigating to Mercari login...');
+    // Start capturing screenshots periodically
+    intervalId = setInterval(async () => {
+      const frame = await captureScreenshot(page);
+      if (frame) sessionState.latestScreenshot = frame;
+    }, 800);
+
+    sessionState.status = 'navigating';
+    sessionState.message = 'Loading Mercari login page...';
+
     const response = await page.goto('https://www.mercari.com/login/', {
       waitUntil: 'networkidle2',
       timeout: 45000
@@ -86,16 +123,25 @@ async function loginToMercari(username, password) {
       throw new Error(`Failed to load Mercari login page. HTTP status: ${response ? response.status() : 'No Response'}`);
     }
 
+    // Capture screenshot after navigation
+    sessionState.latestScreenshot = await captureScreenshot(page);
+
     // Enter credentials
-    console.log('[Mercari Login] Typing email and password...');
+    sessionState.status = 'typing_credentials';
+    sessionState.message = 'Typing email and password...';
+    
     await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 15000 });
     await page.type('input[type="email"], input[name="email"]', username, { delay: 50 });
+    sessionState.latestScreenshot = await captureScreenshot(page);
 
     await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 15000 });
     await page.type('input[type="password"], input[name="password"]', password, { delay: 50 });
+    sessionState.latestScreenshot = await captureScreenshot(page);
 
     // Submit form
-    console.log('[Mercari Login] Clicking signin button...');
+    sessionState.status = 'submitting';
+    sessionState.message = 'Submitting login credentials...';
+    
     const submitBtn = await page.$('button[type="submit"], button[data-testid="login-submit"]');
     if (submitBtn) {
       await submitBtn.click();
@@ -105,28 +151,24 @@ async function loginToMercari(username, password) {
 
     // Wait and check if OTP/2FA or Successful login happens
     await new Promise(resolve => setTimeout(resolve, 5000));
+    sessionState.latestScreenshot = await captureScreenshot(page);
 
     const currentUrl = page.url();
     console.log('[Mercari Login] Navigation state URL:', currentUrl);
 
     // Check if 2FA code is requested
     const is2faPresent = await page.evaluate(() => {
-      // Find input fields for code, otp, or verify
       const selector = 'input[name="code"], input[name="otp"], input[data-testid="otp-input"], input[placeholder*="code" i]';
       return !!document.querySelector(selector);
     });
 
     if (is2faPresent) {
-      const sessionId = 'mercari_' + Math.random().toString(36).substring(2, 15);
-      console.log(`[Mercari Login] 2FA required. Saving session ID: ${sessionId}`);
+      console.log(`[Mercari Login] 2FA required for session: ${sessionId}`);
       
-      // Save Puppeteer session state to verify later
-      activeSessions.set(sessionId, {
-        browser,
-        page,
-        username,
-        createdAt: Date.now()
-      });
+      if (intervalId) clearInterval(intervalId);
+      sessionState.status = '2fa_required';
+      sessionState.message = 'Verification code required. Please check your email or phone.';
+      sessionState['2faRequired'] = true;
 
       // Cleanup session after 10 minutes timeout
       setTimeout(() => {
@@ -142,7 +184,7 @@ async function loginToMercari(username, password) {
         success: true,
         '2faRequired': true,
         sessionId,
-        message: 'Verification code sent by Mercari. Please check your email or phone.'
+        message: 'Verification code required.'
       };
     }
 
@@ -154,24 +196,45 @@ async function loginToMercari(username, password) {
       const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
       console.log('[Mercari Login] Login successful directly!');
 
-      // Navigate to My Page and scrape the real profile username in active session
       let profileUsername = username;
       try {
-        console.log('[Mercari Login] Navigating to My Page to scrape profile details in active session...');
+        sessionState.status = 'fetching_profile';
+        sessionState.message = 'Retrieving profile information...';
         await page.goto('https://www.mercari.com/mypage/', { waitUntil: 'networkidle2', timeout: 30000 });
         const scrapedName = await page.evaluate(() => {
-          const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
+          const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i]');
           return nameEl ? nameEl.textContent.trim() : '';
         });
-        if (scrapedName) {
-          profileUsername = scrapedName;
-          console.log('[Mercari Login] Scraped profile username:', profileUsername);
-        }
+        if (scrapedName) profileUsername = scrapedName;
       } catch (e) {
-        console.warn('[Mercari Login] Failed to scrape username in active session:', e.message);
+        console.warn('[Mercari Login] Failed to scrape username:', e.message);
       }
       
+      // Save credentials to User document
+      try {
+        const user = await User.findById(userId);
+        if (user) {
+          user.mercariAccount = {
+            connected: true,
+            username: profileUsername,
+            userId: '',
+            sessionCookie: sessionCookieStr,
+            accessToken: sidCookie.value,
+            connectedAt: new Date()
+          };
+          await user.save();
+          console.log(`[Mercari Login] Saved Mercari connection for user: ${userId}`);
+        }
+      } catch (dbErr) {
+        console.error('[Mercari Login] Database save error:', dbErr.message);
+      }
+
+      if (intervalId) clearInterval(intervalId);
+      sessionState.status = 'completed';
+      sessionState.message = 'Login successful!';
       await browser.close();
+      activeSessions.delete(sessionId);
+
       return {
         success: true,
         '2faRequired': false,
@@ -191,9 +254,13 @@ async function loginToMercari(username, password) {
 
   } catch (err) {
     console.error('[Mercari Login] Automation error:', err.message);
+    if (intervalId) clearInterval(intervalId);
+    sessionState.status = 'failed';
+    sessionState.message = err.message;
     if (browser) {
       await browser.close().catch(() => {});
     }
+    activeSessions.delete(sessionId);
     return {
       success: false,
       message: err.message
@@ -203,12 +270,8 @@ async function loginToMercari(username, password) {
 
 /**
  * Submits the 2FA code to complete Mercari login process.
- * 
- * @param {string} sessionId Unique session reference key
- * @param {string} code OTP validation code
- * @returns {Promise<Object>} Connection details or error object
  */
-async function verifyMercari2FA(sessionId, code) {
+async function verifyMercari2FA(sessionId, code, userId) {
   const session = activeSessions.get(sessionId);
   if (!session) {
     throw new Error('Session has expired or does not exist. Please restart login.');
@@ -217,27 +280,55 @@ async function verifyMercari2FA(sessionId, code) {
   const { browser, page, username } = session;
   console.log(`[Mercari 2FA] Verifying code for session: ${sessionId}`);
 
+  let intervalId = null;
   try {
-    const inputSelector = 'input[name="code"], input[name="otp"], input[data-testid="otp-input"], input[placeholder*="code" i]';
-    await page.waitForSelector(inputSelector, { timeout: 10000 });
-    
-    // Clear and type code
-    await page.evaluate((sel) => {
-      const el = document.querySelector(sel);
-      if (el) el.value = '';
-    }, inputSelector);
-    await page.type(inputSelector, code.trim(), { delay: 50 });
+    session.status = 'submitting_2fa';
+    session.message = 'Verifying security code...';
 
-    // Click submit
-    console.log('[Mercari 2FA] Clicking verification submit button...');
-    const submitBtn = await page.$('button[type="submit"], button[class*="verify" i]');
-    if (submitBtn) {
-      await submitBtn.click();
-    } else {
+    // Start capturing screenshots periodically again
+    intervalId = setInterval(async () => {
+      const frame = await captureScreenshot(page);
+      if (frame) session.latestScreenshot = frame;
+    }, 800);
+
+    const inputSelector = 'input[name="code"], input[name="otp"], input[data-testid="otp-input"], input[placeholder*="code" i]';
+    await page.waitForSelector(inputSelector, { timeout: 15500 });
+    
+    // Focus and type using native keyboard events so React triggers updates
+    await page.focus(inputSelector);
+    await page.keyboard.down('Control');
+    await page.keyboard.press('A');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type(code.trim(), { delay: 100 });
+
+    // Wait a brief moment for React state to latch
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Capture screenshot after typing
+    session.latestScreenshot = await captureScreenshot(page);
+
+    // Submit the form by clicking the verify button inside page.evaluate
+    const submitted = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const verifyBtn = buttons.find(b => 
+        b.type === 'submit' || 
+        b.textContent.toLowerCase().includes('verify')
+      );
+      if (verifyBtn) {
+        verifyBtn.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (!submitted) {
+      console.log('[Mercari 2FA] Verify button not found by content, pressing Enter key as fallback');
       await page.keyboard.press('Enter');
     }
 
     await new Promise(resolve => setTimeout(resolve, 7000));
+    session.latestScreenshot = await captureScreenshot(page);
 
     const cookies = await page.cookies();
     const sidCookie = cookies.find(c => c.name === 'sid' || c.name === 'session' || c.name === '_mercari_session' || c.name === 'user_id');
@@ -251,28 +342,46 @@ async function verifyMercari2FA(sessionId, code) {
     }
 
     const sessionCookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-    console.log('[Mercari 2FA] Verification successful! Credentials saved.');
+    console.log('[Mercari 2FA] Verification successful!');
 
-    // Navigate to My Page and scrape the real profile username in active session
     let profileUsername = username;
     try {
-      console.log('[Mercari 2FA] Navigating to My Page to scrape profile details in active session...');
+      session.status = 'fetching_profile';
+      session.message = 'Retrieving profile details...';
       await page.goto('https://www.mercari.com/mypage/', { waitUntil: 'networkidle2', timeout: 30000 });
       const scrapedName = await page.evaluate(() => {
-        const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i], h1[class*="Name"], [class*="name" i] h1');
+        const nameEl = document.querySelector('[data-testid="MyPageProfileName"], [class*="profile" i] [class*="name" i], [class*="MyPage" i] h1, [class*="userName" i]');
         return nameEl ? nameEl.textContent.trim() : '';
       });
-      if (scrapedName) {
-        profileUsername = scrapedName;
-        console.log('[Mercari 2FA] Scraped profile username:', profileUsername);
-      }
+      if (scrapedName) profileUsername = scrapedName;
     } catch (e) {
-      console.warn('[Mercari 2FA] Failed to scrape username in active session:', e.message);
+      console.warn('[Mercari 2FA] Failed to scrape username:', e.message);
     }
 
-    // Cleanup session map
-    activeSessions.delete(sessionId);
+    // Save credentials to User document
+    try {
+      const user = await User.findById(userId);
+      if (user) {
+        user.mercariAccount = {
+          connected: true,
+          username: profileUsername,
+          userId: '',
+          sessionCookie: sessionCookieStr,
+          accessToken: sidCookie.value,
+          connectedAt: new Date()
+        };
+        await user.save();
+        console.log(`[Mercari 2FA] Saved Mercari connection for user: ${userId}`);
+      }
+    } catch (dbErr) {
+      console.error('[Mercari 2FA] Database save error:', dbErr.message);
+    }
+
+    if (intervalId) clearInterval(intervalId);
+    session.status = 'completed';
+    session.message = 'Verification successful!';
     await browser.close();
+    activeSessions.delete(sessionId);
 
     return {
       success: true,
@@ -283,7 +392,9 @@ async function verifyMercari2FA(sessionId, code) {
 
   } catch (err) {
     console.error('[Mercari 2FA] Verification error:', err.message);
-    // Keep browser session alive in case they input wrong code and want to retry
+    if (intervalId) clearInterval(intervalId);
+    session.status = '2fa_required'; // Reset status to 2fa required
+    session.message = err.message;
     return {
       success: false,
       message: err.message
@@ -291,7 +402,21 @@ async function verifyMercari2FA(sessionId, code) {
   }
 }
 
+// Function to retrieve current session state for streaming
+function getSessionState(sessionId) {
+  const session = activeSessions.get(sessionId);
+  if (!session) return null;
+  return {
+    status: session.status,
+    message: session.message,
+    latestScreenshot: session.latestScreenshot,
+    '2faRequired': session['2faRequired']
+  };
+}
+
 module.exports = {
   loginToMercari,
-  verifyMercari2FA
+  verifyMercari2FA,
+  getSessionState,
+  activeSessions
 };

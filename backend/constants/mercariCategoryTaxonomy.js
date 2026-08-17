@@ -1123,6 +1123,139 @@ const MERCARI_TAXONOMY = [
     "parentId": "33"
   },
   {
+    "id": "1701",
+    "name": "Parka",
+    "path": "Women > Coats & jackets > Parka",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1702",
+    "name": "Peacoat",
+    "path": "Women > Coats & jackets > Peacoat",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1703",
+    "name": "Poncho",
+    "path": "Women > Coats & jackets > Poncho",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1704",
+    "name": "Puffer",
+    "path": "Women > Coats & jackets > Puffer",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1705",
+    "name": "Raincoat",
+    "path": "Women > Coats & jackets > Raincoat",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1706",
+    "name": "Trench",
+    "path": "Women > Coats & jackets > Trench",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1707",
+    "name": "Vest",
+    "path": "Women > Coats & jackets > Vest",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1708",
+    "name": "Windbreaker",
+    "path": "Women > Coats & jackets > Windbreaker",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1709",
+    "name": "Wool",
+    "path": "Women > Coats & jackets > Wool",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "1710",
+    "name": "Other",
+    "path": "Women > Coats & jackets > Other",
+    "level": 2,
+    "parentId": "17"
+  },
+  {
+    "id": "3301",
+    "name": "Parka",
+    "path": "Men > Coats & jackets > Parka",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3302",
+    "name": "Peacoat",
+    "path": "Men > Coats & jackets > Peacoat",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3303",
+    "name": "Poncho",
+    "path": "Men > Coats & jackets > Poncho",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3304",
+    "name": "Puffer",
+    "path": "Men > Coats & jackets > Puffer",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3305",
+    "name": "Raincoat",
+    "path": "Men > Coats & jackets > Raincoat",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3306",
+    "name": "Trench",
+    "path": "Men > Coats & jackets > Trench",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3308",
+    "name": "Windbreaker",
+    "path": "Men > Coats & jackets > Windbreaker",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3309",
+    "name": "Wool",
+    "path": "Men > Coats & jackets > Wool",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
+    "id": "3310",
+    "name": "Other",
+    "path": "Men > Coats & jackets > Other",
+    "level": 2,
+    "parentId": "33"
+  },
+  {
     "id": "391",
     "name": "Belts",
     "path": "Men > Men's accessories > Belts",

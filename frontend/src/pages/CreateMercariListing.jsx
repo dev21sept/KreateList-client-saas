@@ -25,6 +25,7 @@ import { ruleService, aiService, listingService, externalImportService } from '.
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
+import { MERCARI_CATEGORY_TREE } from '../constants/mercariCategoryTaxonomy';
 
 const MERCARI_CONDITIONS = [
   { id: "new", label: "New (with tags)", description: "Brand new, never used, with original tags/packaging." },
@@ -289,10 +290,31 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     quantity: 1,
     size: '',
     category: '',
+    categoryId: '',
     price: '',
     description: '',
     conditionNote: '',
   });
+
+  const categoryOptions = useMemo(() => {
+    const buildPaths = (nodes, currentPath = [], acc = []) => {
+      nodes.forEach(node => {
+        const path = [...currentPath, node.name];
+        if (node.level > 0) {
+          acc.push({
+            id: String(node.id),
+            label: path.join(' > '),
+            name: node.name
+          });
+        }
+        if (node.children && node.children.length > 0) {
+          buildPaths(node.children, path, acc);
+        }
+      });
+      return acc;
+    };
+    return buildPaths(MERCARI_CATEGORY_TREE);
+  }, []);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
 
@@ -360,6 +382,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               quantity: l.quantity || 1,
               size: l.size || '',
               category: l.category || '',
+              categoryId: l.categoryId || '',
               price: l.price || '',
               description: l.description || '',
               conditionNote: l.conditionNote || '',
@@ -460,7 +483,8 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
-          category: result.category || '',
+          category: result.category_name || result.category || '',
+          categoryId: result.category_id || '',
           sku: result.sku || ''
         }));
       }
@@ -539,6 +563,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         quantity: formData.quantity,
         size: formData.size,
         category: formData.category,
+        categoryId: formData.categoryId,
         price: formData.price,
         description: formData.description,
         conditionNote: formData.conditionNote,
@@ -802,11 +827,11 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 {/* Category */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Category</label>
-                  <input 
-                    className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  <SearchableDropdown 
                     value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    placeholder="e.g. Women > Shoes > Sneakers"
+                    onSelect={(opt) => setFormData({ ...formData, category: opt.label, categoryId: opt.id })}
+                    options={categoryOptions}
+                    placeholder="Select Mercari category..."
                   />
                 </div>
 
