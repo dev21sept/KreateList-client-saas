@@ -26,6 +26,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
 import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
+import { MERCARI_SIZES } from '../constants/mercariSizes';
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
 const MERCARI_CONDITIONS = [
@@ -371,6 +372,48 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     };
     return buildPaths(MERCARI_CATEGORY_TREE);
   }, []);
+
+  const activeSizeOptions = useMemo(() => {
+    const cat = String(formData.category || '').toLowerCase();
+    if (!cat) return [];
+
+    // Women's Shoes
+    if (cat.startsWith('women > shoes')) {
+      return MERCARI_SIZES.WOMENS_SHOES;
+    }
+    // Women's Bottoms
+    if (cat.startsWith('women > jeans') || cat.startsWith('women > pants') || cat.startsWith('women > shorts') || cat.startsWith('women > skirts')) {
+      return MERCARI_SIZES.WOMENS_BOTTOMS;
+    }
+    // Women's Apparel
+    if (cat.startsWith('women')) {
+      return MERCARI_SIZES.WOMENS_APPAREL;
+    }
+
+    // Men's Shoes
+    if (cat.startsWith('men > shoes')) {
+      return MERCARI_SIZES.MENS_SHOES;
+    }
+    // Men's Bottoms
+    if (cat.startsWith('men > jeans') || cat.startsWith('men > pants') || cat.startsWith('men > shorts')) {
+      return MERCARI_SIZES.MENS_BOTTOMS;
+    }
+    // Men's Apparel
+    if (cat.startsWith('men')) {
+      return MERCARI_SIZES.MENS_APPAREL;
+    }
+
+    // Kids' Shoes
+    if (cat.startsWith('kids > shoes')) {
+      return MERCARI_SIZES.KIDS_SHOES;
+    }
+    // Kids' Apparel
+    if (cat.startsWith('kids')) {
+      return MERCARI_SIZES.KIDS_APPAREL;
+    }
+
+    return [];
+  }, [formData.category]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
 
@@ -936,12 +979,21 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                   {/* Size */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
-                    <input 
-                      className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
-                      value={formData.size}
-                      onChange={(e) => setFormData({...formData, size: e.target.value})}
-                      placeholder="e.g. M, 8, 38..."
-                    />
+                    {activeSizeOptions.length > 0 ? (
+                      <SearchableDropdown
+                        value={formData.size}
+                        onSelect={(opt) => setFormData({ ...formData, size: opt.label || opt.id })}
+                        options={activeSizeOptions}
+                        placeholder="Select size..."
+                      />
+                    ) : (
+                      <input 
+                        className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                        value={formData.size}
+                        onChange={(e) => setFormData({...formData, size: e.target.value})}
+                        placeholder="e.g. M, 8, 38..."
+                      />
+                    )}
                   </div>
                 </div>
               </div>
