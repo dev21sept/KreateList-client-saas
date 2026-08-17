@@ -25,7 +25,8 @@ import { ruleService, aiService, listingService, externalImportService } from '.
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
-import { MERCARI_CATEGORY_TREE } from '../constants/mercariCategoryTaxonomy';
+import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
+const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
 const MERCARI_CONDITIONS = [
   { id: "new", label: "New (with tags)", description: "Brand new, never used, with original tags/packaging." },

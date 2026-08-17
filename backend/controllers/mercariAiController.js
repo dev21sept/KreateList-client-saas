@@ -2,7 +2,7 @@ const OpenAI = require('openai');
 const sharp = require('sharp');
 const Listing = require('../models/Listing');
 const { logActivity } = require('../utils/activityUtils');
-const { MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy');
+const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
