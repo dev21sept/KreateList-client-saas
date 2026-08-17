@@ -450,20 +450,12 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     return () => window.removeEventListener('message', handleMsg);
   }, []);
 
-  const handleBrandChange = async (e) => {
-    const value = e.target.value;
-    setFormData(prev => ({ ...prev, brand: value }));
+  const triggerBrandSearch = async (value) => {
     setIsBrandOpen(true);
     if (!value.trim()) {
-      setBrandSuggestions([]);
+      setBrandSuggestions(POPULAR_BRANDS);
       return;
     }
-    
-    // Send background query to Chrome Extension
-    window.postMessage({
-      action: 'ELISTER_MERCARI_BRAND_SEARCH',
-      query: value
-    }, '*');
 
     // Query local offline backend brand search in parallel
     try {
@@ -474,6 +466,18 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     } catch (err) {
       console.warn("Backend brand autocomplete fetch failed:", err);
     }
+
+    // Send background query to Chrome Extension
+    window.postMessage({
+      action: 'ELISTER_MERCARI_BRAND_SEARCH',
+      query: value
+    }, '*');
+  };
+
+  const handleBrandChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, brand: value }));
+    triggerBrandSearch(value);
   };
 
   const handleImageUpload = async (e) => {
@@ -890,12 +894,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.brand}
                       onChange={handleBrandChange}
-                      onFocus={() => {
-                        setIsBrandOpen(true);
-                        if (!formData.brand.trim()) {
-                          setBrandSuggestions(POPULAR_BRANDS);
-                        }
-                      }}
+                      onFocus={() => triggerBrandSearch(formData.brand)}
                       placeholder="e.g. Nike, Adidas..."
                     />
                     {isBrandOpen && brandSuggestions.length > 0 && (
