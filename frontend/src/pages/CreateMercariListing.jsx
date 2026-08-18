@@ -226,6 +226,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     brandId: '',
     originalPrice: '',
     shippingPayer: 'buyer',
+    shippingMethod: 'prepaid',
     shippingWeightLbs: 0,
     shippingWeightOz: 0,
     shippingFitsShoebox: true,
@@ -234,9 +235,10 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     shippingHeight: 0,
     shippingCarrier: '',
     shippingPrice: '',
-        styleTag: '',
+    styleTag: '',
     quantity: 1,
     size: '',
+    sizeId: '',
     category: '',
     categoryId: '',
     price: '',
@@ -394,6 +396,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               brandId: l.brandId || '',
               originalPrice: l.originalPrice || '',
               shippingPayer: l.shippingPayer || 'buyer',
+              shippingMethod: l.shippingMethod || 'prepaid',
               shippingWeightLbs: l.shippingWeightLbs || 0,
               shippingWeightOz: l.shippingWeightOz || 0,
               shippingFitsShoebox: l.shippingFitsShoebox !== undefined ? l.shippingFitsShoebox : true,
@@ -402,9 +405,10 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               shippingHeight: l.shippingHeight || 0,
               shippingCarrier: l.shippingCarrier || '',
               shippingPrice: l.shippingPrice || '',
-                            styleTag: l.styleTag || '',
+              styleTag: l.styleTag || '',
               quantity: l.quantity || 1,
               size: l.size || '',
+              sizeId: l.sizeId || '',
               category: l.category || '',
               categoryId: l.categoryId || '',
               price: l.price || '',
@@ -636,17 +640,19 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         brandId: formData.brandId,
         originalPrice: formData.originalPrice,
         shippingPayer: formData.shippingPayer,
+        shippingMethod: formData.shippingMethod,
         shippingWeightLbs: formData.shippingWeightLbs,
         shippingWeightOz: formData.shippingWeightOz,
         shippingFitsShoebox: formData.shippingFitsShoebox,
         shippingLength: formData.shippingLength,
         shippingWidth: formData.shippingWidth,
         shippingHeight: formData.shippingHeight,
-        shippingCarrier: recommendedShipping ? recommendedShipping.carrier : '',
-        shippingPrice: recommendedShipping ? recommendedShipping.price : '',
-                styleTag: formData.styleTag,
+        shippingCarrier: formData.shippingCarrier,
+        shippingPrice: formData.shippingPrice,
+        styleTag: formData.styleTag,
         quantity: formData.quantity,
         size: formData.size,
+        sizeId: formData.sizeId,
         category: formData.category,
         categoryId: formData.categoryId,
         price: formData.price,
@@ -967,7 +973,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
                       <SearchableDropdown
                         value={formData.size}
-                        onSelect={(opt) => setFormData({ ...formData, size: opt.label || opt.id })}
+                        onSelect={(opt) => setFormData({ ...formData, size: opt.label, sizeId: opt.id })}
                         options={activeSizeOptions}
                         placeholder="Select size..."
                       />

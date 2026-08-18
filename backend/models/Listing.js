@@ -97,6 +97,7 @@ const listingSchema = new mongoose.Schema({
     default: 1
   },
   size: String,
+  sizeId: String,
   isbn: String,
   author: String,
   bookTitle: String,
