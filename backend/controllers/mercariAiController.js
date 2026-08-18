@@ -179,10 +179,8 @@ function getSizeOptionsForCategory(categoryPath) {
     const cat = MERCARI_TAXONOMY.find(x => x.path === categoryPath);
     if (!cat || !cat.itemSizeGroupId || cat.itemSizeGroupId === 0) return [];
     try {
-        const masterConfig = require('../constants/mercariMasterRaw.json');
-        const groupSizes = masterConfig.itemSizes.filter(s => s.itemSizeGroupId === cat.itemSizeGroupId);
-        groupSizes.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-        return groupSizes.map(s => s.title + (s.subtitle ? ' ' + s.subtitle : ''));
+        const sizesMap = require('../constants/mercariSizes.json');
+        return sizesMap[cat.itemSizeGroupId] || [];
     } catch (err) {
         console.error("Error loading sizes for category:", err);
         return [];
