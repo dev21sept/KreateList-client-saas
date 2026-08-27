@@ -4,9 +4,12 @@ import { motion } from 'framer-motion';
 import { Lock, Eye, EyeOff, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { authService } from '../services/api';
 import { getLandingUrl } from '../utils/urls';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Button from '../components/ui/Button';
 
 const ResetPassword = () => {
   const { token } = useParams();
+  const reduceMotion = useReducedMotion();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -52,8 +55,9 @@ const ResetPassword = () => {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.4 }}
         className="max-w-md w-full"
       >
         <div className="text-center mb-10">
@@ -136,13 +140,15 @@ const ResetPassword = () => {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
-                disabled={loading}
-                className={`btn-primary w-full py-4 text-lg ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                loading={loading}
+                className="w-full py-4 text-base rounded-2xl"
               >
                 {loading ? 'Resetting password...' : 'Reset Password'}
-              </button>
+              </Button>
             </form>
           )}
         </div>

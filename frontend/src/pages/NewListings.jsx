@@ -1,22 +1,29 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  ChevronDown, 
-  SlidersHorizontal, 
-  ChevronLeft, 
-  ChevronRight, 
+import { motion } from 'framer-motion';
+import {
+  Search,
+  ChevronDown,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
   AlertCircle,
   Edit,
   Trash2,
   ExternalLink,
   RefreshCw,
   X,
-  Clock,
-  CheckCircle2,
   XCircle,
-  Ban
+  Package,
+  ImageOff,
+  Plus,
+  ShoppingBag,
+  Boxes,
+  CheckCircle2,
+  FileText,
+  EyeOff
 } from 'lucide-react';
 import { listingService, ebayService, externalImportService, etsyService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +31,12 @@ import { useNotification } from '../context/NotificationContext';
 import CrosslistingModal from '../components/CrosslistingModal';
 import { DEPOP_CATEGORY_MAPPING } from '../constants/depopCategoryAttributes';
 import { DEPOP_BRANDS } from '../constants/depopBrands';
+import { StatusBadge } from '../components/ui/Badge';
+import EmptyState from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import IconButton from '../components/ui/IconButton';
+import Button from '../components/ui/Button';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 const getDepopBrandId = (brandName) => {
   if (!brandName) return 'unbranded';
   const clean = brandName.trim().toLowerCase();
@@ -294,6 +307,7 @@ const groupListingsBySku = (rawListings) => {
 const NewListings = () => {
   const navigate = useNavigate();
   const { toast, confirm } = useNotification();
+  const reducedMotion = useReducedMotion();
   const handleUpdateRef = useRef();
 
   // Auth and Channel Sync state
@@ -643,19 +657,8 @@ const NewListings = () => {
   }, []);
 
   const getStatusBadge = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'published':
-      case 'active':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100"><CheckCircle2 size={12} className="mr-1" /> Published</span>;
-      case 'draft':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200"><Clock size={12} className="mr-1" /> Draft</span>;
-      case 'scheduled':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100"><Clock size={12} className="mr-1" /> Scheduled</span>;
-      case 'failed':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100"><AlertCircle size={12} className="mr-1" /> Failed</span>;
-      default:
-        return null;
-    }
+    if (!status) return null;
+    return <StatusBadge status={status} className="text-[10px] px-3 py-1" />;
   };
 
   const handleOpenPreview = async (listing, platform) => {
@@ -1364,6 +1367,19 @@ const NewListings = () => {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Close the floating crosslisting dropdown if the page scrolls out from under it,
+  // since its position is computed once (fixed, in viewport coords) at open time.
+  useEffect(() => {
+    if (!activeListedDropdown) return;
+    const closeOnScroll = () => setActiveListedDropdown(null);
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('resize', closeOnScroll);
+    return () => {
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('resize', closeOnScroll);
+    };
+  }, [activeListedDropdown]);
+
   const getListingUrl = (item, platformName, checkId) => {
     if (item[`${platformName}Url`]) return item[`${platformName}Url`];
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
@@ -1668,10 +1684,27 @@ const NewListings = () => {
 
       return (
         <div className="relative flex flex-col items-center justify-center py-1 select-none w-full">
-          <div 
+          <div
             onClick={(e) => {
               e.stopPropagation();
-              setActiveListedDropdown(isDropdownOpen ? null : { itemId: item._id, platform: platformName });
+              if (isDropdownOpen) {
+                setActiveListedDropdown(null);
+                return;
+              }
+              const rect = e.currentTarget.getBoundingClientRect();
+              const openUpward = rect.bottom > window.innerHeight * 0.6;
+              const menuWidth = 180;
+              const left = Math.min(
+                Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                window.innerWidth - menuWidth - 8
+              );
+              setActiveListedDropdown({
+                itemId: item._id,
+                platform: platformName,
+                openUpward,
+                left,
+                verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+              });
             }}
             className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
             title="Click for options"
@@ -1703,10 +1736,16 @@ const NewListings = () => {
             )}
           </div>
 
-          {isDropdownOpen && (
-            <div 
+          {isDropdownOpen && createPortal(
+            <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute top-full mt-1 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-150 text-left"
+              style={{
+                position: 'fixed',
+                left: activeListedDropdown.left,
+                [activeListedDropdown.openUpward ? 'bottom' : 'top']: activeListedDropdown.verticalOffset,
+                width: 180,
+              }}
+              className="z-[999] bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 animate-in fade-in zoom-in-95 duration-150 text-left"
             >
               {!isDraft && liveUrl && liveUrl !== '#' && (
                 <a
@@ -1787,7 +1826,8 @@ const NewListings = () => {
                   Delete from {getChannelDisplayName(platformName)}
                 </button>
               )}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       );
@@ -1798,7 +1838,7 @@ const NewListings = () => {
           onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
           className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
         >
-          <div className="w-8 h-8 rounded-full border border-[#f3f4f6] flex items-center justify-center bg-[#fcfcff] text-[#9ca3af] shadow-sm shrink-0 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100">
+          <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-slate-50 text-slate-400 shadow-sm shrink-0 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100">
             {/* Custom generic shop/building logo for grey placeholder */}
             <svg className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1846,152 +1886,98 @@ const NewListings = () => {
     return base;
   };
 
+  // Derived flag used purely for empty-state copy/actions (no filtering behavior change)
+  const hasActiveLocalFilters = !!(searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0);
+
+  const statCards = [
+    {
+      key: 'all',
+      label: 'Total Listings',
+      value: stats?.total ?? 0,
+      icon: <Boxes size={20} />,
+      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
+    },
+    {
+      key: 'active',
+      label: 'Active',
+      value: stats?.published ?? 0,
+      icon: <CheckCircle2 size={20} />,
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
+    },
+    {
+      key: 'draft',
+      label: 'Drafts',
+      value: stats?.draft ?? 0,
+      icon: <FileText size={20} />,
+      color: 'bg-amber-50 text-amber-600 border-amber-100',
+      ring: 'border-amber-500 ring-2 ring-amber-500/15',
+    },
+    {
+      key: 'failed',
+      label: 'Errors',
+      value: stats?.failed ?? 0,
+      icon: <AlertCircle size={20} />,
+      color: 'bg-rose-50 text-rose-600 border-rose-100',
+      ring: 'border-rose-500 ring-2 ring-rose-500/15',
+    },
+    {
+      key: 'unlisted',
+      label: 'Unlisted',
+      value: stats?.unlisted ?? 0,
+      icon: <EyeOff size={20} />,
+      color: 'bg-slate-100 text-slate-500 border-slate-200',
+      ring: 'border-slate-400 ring-2 ring-slate-400/15',
+    },
+  ];
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      
+    <div className="space-y-6">
+
       {/* STATS BANNER */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-        
-        {/* Total Listings */}
-        <div 
-          onClick={() => setStatusFilter('all')}
-          className={`p-6 rounded-3xl border flex flex-col justify-between h-36 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-            statusFilter === 'all' 
-              ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/10' 
-              : 'border-[#f1f3f9] bg-white shadow-sm'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="bg-violet-50 p-3 rounded-2xl text-indigo-600">
-              <SlidersHorizontal size={20} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+        {statCards.map((card, idx) => (
+          <motion.div
+            key={card.key}
+            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
+            onClick={() => setStatusFilter(card.key)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') setStatusFilter(card.key); }}
+            className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
+              statusFilter === card.key
+                ? `${card.ring} bg-white shadow-md`
+                : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
+            }`}
+          >
+            <div className="flex justify-between items-start">
+              <div className={`p-3 rounded-2xl border shrink-0 ${card.color}`}>
+                {card.icon}
+              </div>
             </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1">
-              ↑ 12% <span className="text-slate-400 font-semibold lowercase">vs 7d</span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Listings</h3>
-            <p className="text-2xl font-black text-[#111827] mt-1">{(stats?.total ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-
-        {/* Active */}
-        <div 
-          onClick={() => setStatusFilter('active')}
-          className={`p-6 rounded-3xl border flex flex-col justify-between h-36 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-            statusFilter === 'active' 
-              ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10' 
-              : 'border-[#f1f3f9] bg-white shadow-sm'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
-              {/* Checkmark icon for active */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+            <div>
+              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{card.label}</h3>
+              <p className="text-2xl font-black text-slate-900 mt-0.5">{(card.value ?? 0).toLocaleString()}</p>
             </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1">
-              ↑ 8% <span className="text-slate-400 font-semibold lowercase">vs 7d</span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Active</h3>
-            <p className="text-2xl font-black text-[#111827] mt-1">{(stats?.published ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-
-        {/* Drafts */}
-        <div 
-          onClick={() => setStatusFilter('draft')}
-          className={`p-6 rounded-3xl border flex flex-col justify-between h-36 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-            statusFilter === 'draft' 
-              ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/10' 
-              : 'border-[#f1f3f9] bg-white shadow-sm'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="bg-amber-50 p-3 rounded-2xl text-amber-600">
-              {/* File Icon */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 flex items-center gap-1">
-              ↓ 5% <span className="text-slate-400 font-semibold lowercase">vs 7d</span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Drafts</h3>
-            <p className="text-2xl font-black text-[#111827] mt-1">{(stats?.draft ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-
-        {/* Errors */}
-        <div 
-          onClick={() => setStatusFilter('failed')}
-          className={`p-6 rounded-3xl border flex flex-col justify-between h-36 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-            statusFilter === 'failed' 
-              ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10' 
-              : 'border-[#f1f3f9] bg-white shadow-sm'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="bg-rose-50 p-3 rounded-2xl text-rose-600">
-              <AlertCircle size={20} />
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 flex items-center gap-1">
-              ↓ 8% <span className="text-slate-400 font-semibold lowercase">vs 7d</span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Errors</h3>
-            <p className="text-2xl font-black text-[#111827] mt-1">{(stats?.failed ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-
-        {/* Unlisted */}
-        <div 
-          onClick={() => setStatusFilter('unlisted')}
-          className={`p-6 rounded-3xl border flex flex-col justify-between h-36 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-            statusFilter === 'unlisted' 
-              ? 'border-slate-500 ring-2 ring-slate-500/20 bg-slate-50/10' 
-              : 'border-[#f1f3f9] bg-white shadow-sm'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="bg-slate-50 p-3 rounded-2xl text-slate-500">
-              {/* Eye-off icon */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </svg>
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1">
-              ↑ 3% <span className="text-slate-400 font-semibold lowercase">vs 7d</span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Unlisted</h3>
-            <p className="text-2xl font-black text-[#111827] mt-1">{(stats?.unlisted ?? 0).toLocaleString()}</p>
-          </div>
-        </div>
-
+          </motion.div>
+        ))}
       </div>
 
       {/* TABS SWITCHER & SYNC BAR */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4.5 rounded-3xl border border-[#f1f3f9] shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
         {/* Tabs */}
-        <div className="flex bg-[#f3f4f6] p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
           <button
             onClick={() => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
             }}
             className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              activeTab === 'local' 
-                ? 'bg-white text-indigo-650 shadow-sm' 
+              activeTab === 'local'
+                ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2003,8 +1989,8 @@ const NewListings = () => {
               localStorage.setItem('elister_active_listings_tab', 'channel');
             }}
             className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              activeTab === 'channel' 
-                ? 'bg-white text-indigo-650 shadow-sm' 
+              activeTab === 'channel'
+                ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2016,15 +2002,15 @@ const NewListings = () => {
         {activeTab === 'channel' && (
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {/* Channel Toggle Buttons */}
-            <div className="flex bg-[#f3f4f6] p-1 rounded-xl gap-1 w-full sm:w-auto">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
               <button
                 onClick={() => {
                   setSelectedChannel('ebay');
                   localStorage.setItem('elister_selected_listings_channel', 'ebay');
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                  selectedChannel === 'ebay' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  selectedChannel === 'ebay'
+                    ? 'bg-white text-indigo-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -2035,7 +2021,7 @@ const NewListings = () => {
                   setSelectedChannel('etsy');
                   localStorage.setItem('elister_selected_listings_channel', 'etsy');
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
                   selectedChannel === 'etsy'
                     ? 'bg-white text-indigo-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -2048,9 +2034,9 @@ const NewListings = () => {
                   setSelectedChannel('poshmark');
                   localStorage.setItem('elister_selected_listings_channel', 'poshmark');
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                  selectedChannel === 'poshmark' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  selectedChannel === 'poshmark'
+                    ? 'bg-white text-indigo-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -2061,9 +2047,9 @@ const NewListings = () => {
                   setSelectedChannel('depop');
                   localStorage.setItem('elister_selected_listings_channel', 'depop');
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                  selectedChannel === 'depop' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  selectedChannel === 'depop'
+                    ? 'bg-white text-indigo-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -2074,9 +2060,9 @@ const NewListings = () => {
                   setSelectedChannel('mercari');
                   localStorage.setItem('elister_selected_listings_channel', 'mercari');
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                  selectedChannel === 'mercari' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  selectedChannel === 'mercari'
+                    ? 'bg-white text-indigo-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -2085,38 +2071,30 @@ const NewListings = () => {
             </div>
 
             {/* Sync Button */}
-            <button
+            <Button
               onClick={handleSyncInventory}
               disabled={syncing || !isChannelConnected()}
-              className="flex items-center justify-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-150 disabled:cursor-not-allowed border border-transparent text-white text-xs font-black rounded-xl cursor-pointer transition-all shadow-sm shadow-indigo-150"
+              size="sm"
+              icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />}
+              className="w-full sm:w-auto"
             >
-              {syncing ? (
-                <>
-                  <RefreshCw size={14} className="animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={14} />
-                  Sync {getChannelDisplayName(selectedChannel)}
-                </>
-              )}
-            </button>
+              {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
+            </Button>
           </div>
         )}
       </div>
 
       {/* FILTER / SEARCH ROW */}
-      <div className="bg-white p-4 rounded-3xl border border-[#f1f3f9] shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-        
+      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
+
         {/* Search Input */}
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
-          <input 
+          <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === 'local' ? "Search listings..." : `Search ${selectedChannel} products...`}
+            placeholder={activeTab === 'local' ? "Search listings by title or SKU..." : `Search ${selectedChannel} products...`}
             className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
@@ -2125,12 +2103,12 @@ const NewListings = () => {
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           {/* Channel Inventory Status Filter: All / Active / Inactive */}
           {activeTab === 'channel' && (
-            <div className="flex bg-[#f3f4f6] p-1 rounded-xl gap-1">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
               {['all', 'active', 'inactive', 'draft'].map((option) => (
                 <button
                   key={option}
                   onClick={() => setChannelStatusFilter(option)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
                     channelStatusFilter === option
                       ? 'bg-white text-indigo-600 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
@@ -2144,7 +2122,7 @@ const NewListings = () => {
 
           {/* Consolidated Filter Button */}
           {activeTab === 'local' && (
-            <button 
+            <button
               onClick={() => {
                 setTempListedOn(filterListedOn);
                 setTempNoListedOn(filterNoListedOn);
@@ -2152,7 +2130,7 @@ const NewListings = () => {
                 setFilterModalOpen(true);
               }}
               className={`flex items-center gap-2 px-4 py-2.5 bg-white border rounded-2xl text-xs font-extrabold text-slate-700 hover:border-indigo-200 transition-all cursor-pointer ${
-                (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-[#e5e7eb]'
+                (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-200'
               }`}
             >
               <SlidersHorizontal size={14} className="text-slate-400" />
@@ -2167,7 +2145,7 @@ const NewListings = () => {
 
           {/* Clear filter button */}
           {(searchTerm || statusFilter !== 'all' || channelStatusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
-            <button 
+            <button
               onClick={handleClearFilters}
               className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
             >
@@ -2179,207 +2157,329 @@ const NewListings = () => {
       </div>
 
       {/* TABLE */}
-      <div className="bg-white rounded-3xl border border-[#f1f3f9] shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          {activeTab === 'local' ? (
-            <table className="w-full text-left border-collapse">
-              
-              {/* Headers */}
-              <thead>
-                <tr className="bg-[#fcfcff] border-b border-[#f3f4f6]">
-                  <th className="px-6 py-4.5 w-12 text-center">
-                    <input type="checkbox" className="w-4 h-4 text-indigo-600 border-[#d1d5db] rounded focus:ring-indigo-500 cursor-pointer" />
-                  </th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Item</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Qty</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Last Updated</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center border-l border-[#f3f4f6]" colSpan="5">
-                    Cross-listed On
-                  </th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                </tr>
-                {/* Platform subheaders matching image */}
-                <tr className="bg-[#fcfcff] border-b border-[#f3f4f6] text-[10px] font-extrabold text-slate-400 select-none">
-                  <th colSpan="6" />
-                  <th className="py-2.5 text-center border-l border-[#f3f4f6] w-20">eBay</th>
-                  <th className="py-2.5 text-center w-20">Poshmark</th>
-                  <th className="py-2.5 text-center w-20">Depop</th>
-                  <th className="py-2.5 text-center w-20">Etsy</th>
-                  <th className="py-2.5 text-center w-20 border-r border-[#f3f4f6]">Mercari</th>
-                  <th />
-                </tr>
-              </thead>
-
-              {/* Rows */}
-              <tbody className="divide-y divide-[#f8fafc]">
-                {loading ? (
-                  <tr>
-                    <td colSpan="12" className="px-6 py-16 text-center text-slate-400 font-semibold animate-pulse">
-                      Loading inventory data...
-                    </td>
-                  </tr>
-                ) : paginatedListings.length > 0 ? (
-                  paginatedListings.map((item) => (
-                    <tr key={item._id} className="hover:bg-[#fafbfe]/40 transition-colors">
-                      
-                      {/* Checkbox */}
-                      <td className="px-6 py-4.5 text-center">
-                        <input type="checkbox" className="w-4 h-4 text-indigo-600 border-[#d1d5db] rounded focus:ring-indigo-500 cursor-pointer" />
-                      </td>
-
-                      {/* Item */}
-                      <td className="px-6 py-4.5 max-w-sm">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-[#f3f4f6] rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-[#e5e7eb]">
-                            {item.thumbnail || (item.images && item.images.length > 0) ? (
-                              <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                              <span className="text-slate-300 font-bold text-xs">No img</span>
-                            )}
-                          </div>
-                          <span className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-relaxed">
-                            {item.title}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* SKU */}
-                      <td className="px-6 py-4.5">
-                        <span className="font-mono text-xs font-bold text-slate-500">{item.sku || '-'}</span>
-                      </td>
-
-                      {/* Qty */}
-                      <td className="px-6 py-4.5 text-center">
-                        <span className="text-xs font-extrabold text-slate-700">{item.quantity || 1}</span>
-                      </td>
-
-                      {/* Status badge */}
-                      <td className="px-6 py-4.5">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                          item.status === 'Active' ? 'bg-[#e6f4ea] text-[#137333]' : 
-                          item.status === 'Draft' ? 'bg-[#fef7e0] text-[#b06000]' : 
-                          item.status === 'Delisted' ? 'bg-amber-50 text-amber-700' :
-                          'bg-rose-50 text-rose-600'
-                        }`}>
-                          {item.status || 'Draft'}
-                        </span>
-                      </td>
-
-                      {/* Last Updated */}
-                      <td className="px-6 py-4.5">
-                        <span className="text-xs font-semibold text-slate-400">
-                          {formatTimeAgo(item.createdAt)}
-                        </span>
-                      </td>
-
-                      {/* Crosslisting cell components: eBay, Poshmark, Depop, Vinted */}
-                      <td className="border-l border-[#f3f4f6]">
-                        {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
-                      </td>
-                      <td>
-                        {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                      </td>
-                      <td>
-                        {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
-                      </td>
-                      <td>
-                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
-                      </td>
-                      <td className="border-r border-[#f3f4f6]">
-                        {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4.5 text-center">
-                        <div className="flex justify-center items-center gap-2">
-                          <button 
-                            onClick={() => handleDelete(item)}
-                            className="p-1.5 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-slate-400 transition-all cursor-pointer"
-                            title="Delete Listing"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="12" className="px-6 py-16 text-center text-slate-400">
-                      No listings found matching filter constraints.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-
-            </table>
-          ) : !isChannelConnected() ? (
-            <div className="flex flex-col items-center justify-center py-20 px-6 text-center bg-white">
-              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-5 border border-amber-100 animate-pulse text-amber-500">
-                <AlertCircle size={28} />
-              </div>
-              <h3 className="text-base font-extrabold text-slate-900 mb-1.5 capitalize">
-                {selectedChannel} Channel Not Connected
-              </h3>
-              <p className="text-xs font-semibold text-slate-400 max-w-sm mb-6 leading-relaxed">
-                Connect your {selectedChannel} account in Integrations settings to view and synchronize your live inventory.
-              </p>
-              <button 
-                onClick={() => navigate('/integrations')}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-2xl shadow-md shadow-indigo-150 transition-all text-xs cursor-pointer active:scale-95"
-              >
-                Connect {getChannelDisplayName(selectedChannel)}
-              </button>
-            </div>
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        {activeTab === 'local' ? (
+          loading ? (
+            <LoadingState label="Loading inventory data..." />
+          ) : paginatedListings.length === 0 ? (
+            <EmptyState
+              icon={<Package size={20} />}
+              title={hasActiveLocalFilters ? 'No listings match your filters' : 'No listings yet'}
+              description={hasActiveLocalFilters
+                ? 'Try adjusting or clearing your filters to see more results.'
+                : 'Create your first listing to start cross-listing it across marketplaces.'}
+              action={hasActiveLocalFilters ? (
+                <Button variant="secondary" size="sm" onClick={handleClearFilters}>
+                  Clear Filters
+                </Button>
+              ) : (
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/create-ebay-listing')}>
+                  Create a Listing
+                </Button>
+              )}
+            />
           ) : (
-            <table className="w-full text-left border-collapse">
-              
-              {/* Headers */}
-              <thead>
-                <tr className="bg-[#fcfcff] border-b border-[#f3f4f6]">
-                  <th className="px-6 py-4.5 w-12 text-center">
-                    <input type="checkbox" className="w-4 h-4 text-indigo-600 border-[#d1d5db] rounded focus:ring-indigo-500 cursor-pointer" />
-                  </th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Live ID</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider">Last Synced / Live</th>
-                  <th className="px-6 py-4.5 text-xs font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                </tr>
-              </thead>
+            <>
+              {/* MOBILE CARD VIEW */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {paginatedListings.map((item) => (
+                  <div key={item._id} className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <input type="checkbox" className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
+                      <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                        {item.thumbnail || (item.images && item.images.length > 0) ? (
+                          <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <ImageOff size={16} className="text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">
+                          {item.title}
+                        </p>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+                          <span className="font-mono text-slate-500">{item.sku || '-'}</span>
+                          <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
+                          <span>{formatTimeAgo(item.createdAt)}</span>
+                        </div>
+                      </div>
+                      <IconButton
+                        variant="danger"
+                        size="sm"
+                        aria-label="Delete Listing"
+                        onClick={() => handleDelete(item)}
+                        className="shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </div>
 
-              {/* Rows */}
-              <tbody className="divide-y divide-[#f8fafc]">
-                {channelLoading ? (
-                  <tr>
-                    <td colSpan="8" className="px-6 py-16 text-center text-slate-400 font-semibold animate-pulse">
-                      Loading {selectedChannel} inventory...
-                    </td>
-                  </tr>
-                ) : paginatedChannelProducts.length > 0 ? (
-                  paginatedChannelProducts.map((product, index) => {
-                    const details = getProductDetails(product);
-                    return (
-                      <tr key={product._id || `${details.liveId}-${index}`} className="hover:bg-[#fafbfe]/40 transition-colors">
-                        
+                    <div>
+                      <StatusBadge status={item.status} />
+                    </div>
+
+                    <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
+                      {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                      {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                      {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
+                      {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                      {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DESKTOP TABLE VIEW */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+
+                  {/* Headers */}
+                  <thead className="sticky top-20 z-10 bg-slate-50">
+                    <tr className="border-b border-slate-100">
+                      <th className="px-6 py-4 w-12 text-center">
+                        <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Item</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Qty</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Last Updated</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center border-l border-slate-100" colSpan="5">
+                        Cross-listed On
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                    </tr>
+                    {/* Platform subheaders matching image */}
+                    <tr className="border-b border-slate-100 text-[10px] font-extrabold text-slate-400 select-none">
+                      <th colSpan="6" />
+                      <th className="py-2.5 text-center border-l border-slate-100 w-20">eBay</th>
+                      <th className="py-2.5 text-center w-20">Poshmark</th>
+                      <th className="py-2.5 text-center w-20">Depop</th>
+                      <th className="py-2.5 text-center w-20">Etsy</th>
+                      <th className="py-2.5 text-center w-20 border-r border-slate-100">Mercari</th>
+                      <th />
+                    </tr>
+                  </thead>
+
+                  {/* Rows */}
+                  <tbody className="divide-y divide-slate-50">
+                    {paginatedListings.map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
+
                         {/* Checkbox */}
-                        <td className="px-6 py-4.5 text-center">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-[#d1d5db] rounded focus:ring-indigo-500 cursor-pointer" />
+                        <td className="px-6 py-4 text-center">
+                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                        </td>
+
+                        {/* Item */}
+                        <td className="px-6 py-4 max-w-sm">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                              {item.thumbnail || (item.images && item.images.length > 0) ? (
+                                <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <ImageOff size={16} className="text-slate-300" />
+                              )}
+                            </div>
+                            <span className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-relaxed">
+                              {item.title}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* SKU */}
+                        <td className="px-6 py-4">
+                          <span className="font-mono text-xs font-bold text-slate-500">{item.sku || '-'}</span>
+                        </td>
+
+                        {/* Qty */}
+                        <td className="px-6 py-4 text-center">
+                          <span className="text-xs font-extrabold text-slate-700">{item.quantity || 1}</span>
+                        </td>
+
+                        {/* Status badge */}
+                        <td className="px-6 py-4">
+                          <StatusBadge status={item.status} />
+                        </td>
+
+                        {/* Last Updated */}
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-semibold text-slate-400">
+                            {formatTimeAgo(item.createdAt)}
+                          </span>
+                        </td>
+
+                        {/* Crosslisting cell components: eBay, Poshmark, Depop, Etsy, Mercari */}
+                        <td className="border-l border-slate-100">
+                          {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                        </td>
+                        <td>
+                          {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                        </td>
+                        <td>
+                          {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
+                        </td>
+                        <td>
+                          {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                        </td>
+                        <td className="border-r border-slate-100">
+                          {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex justify-center items-center gap-2">
+                            <IconButton
+                              variant="danger"
+                              size="sm"
+                              aria-label="Delete Listing"
+                              onClick={() => handleDelete(item)}
+                            >
+                              <Trash2 size={15} />
+                            </IconButton>
+                          </div>
+                        </td>
+
+                      </tr>
+                    ))}
+                  </tbody>
+
+                </table>
+              </div>
+            </>
+          )
+        ) : !isChannelConnected() ? (
+          <EmptyState
+            icon={<AlertCircle size={20} className="text-amber-500" />}
+            title={<span className="capitalize">{selectedChannel} Channel Not Connected</span>}
+            description={`Connect your ${selectedChannel} account in Integrations settings to view and synchronize your live inventory.`}
+            action={
+              <Button size="sm" onClick={() => navigate('/integrations')}>
+                Connect {getChannelDisplayName(selectedChannel)}
+              </Button>
+            }
+          />
+        ) : channelLoading ? (
+          <LoadingState label={`Loading ${selectedChannel} inventory...`} />
+        ) : paginatedChannelProducts.length === 0 ? (
+          <EmptyState
+            icon={<ShoppingBag size={20} />}
+            title="No products found"
+            description={`No products found matching the current filters. Click "Sync ${getChannelDisplayName(selectedChannel)}" to fetch your items.`}
+            action={
+              <Button size="sm" icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />} onClick={handleSyncInventory} disabled={syncing}>
+                Sync {getChannelDisplayName(selectedChannel)}
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            {/* MOBILE CARD VIEW */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {paginatedChannelProducts.map((product, index) => {
+                const details = getProductDetails(product);
+                const isMarketplaceStatus = selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark';
+                const badgeStatus = isMarketplaceStatus
+                  ? details.status
+                  : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
+                return (
+                  <div key={product._id || `${details.liveId}-${index}`} className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <input type="checkbox" className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
+                      <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                        {details.thumbnail ? (
+                          <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <ImageOff size={16} className="text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">
+                          {details.title}
+                        </p>
+                        {details.brand && (
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{details.brand}</p>
+                        )}
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+                          <span className="font-mono text-slate-500">{details.sku || '-'}</span>
+                          <span className="text-slate-700 font-extrabold">${details.price.toFixed(2)}</span>
+                          <span>{details.dateText}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <StatusBadge status={badgeStatus} />
+                      {isMarketplaceStatus ? (
+                        renderCrosslistingCell(
+                          buildChannelDropdownItem(product, details, selectedChannel),
+                          selectedChannel,
+                          details.liveId,
+                          selectedChannel === 'ebay' ? '/ebay.png' : selectedChannel === 'etsy' ? '/etsy.png' : '/poshmark.png'
+                        )
+                      ) : (
+                        details.url && (
+                          <a
+                            href={details.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-slate-500 hover:text-slate-900 text-[10px] font-black transition-all cursor-pointer"
+                          >
+                            <ExternalLink size={13} />
+                            View on {selectedChannel}
+                          </a>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP TABLE VIEW */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+
+                {/* Headers */}
+                <thead className="sticky top-20 z-10 bg-slate-50">
+                  <tr className="border-b border-slate-100">
+                    <th className="px-6 py-4 w-12 text-center">
+                      <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Product</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Live ID</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Price</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Last Synced / Live</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                  </tr>
+                </thead>
+
+                {/* Rows */}
+                <tbody className="divide-y divide-slate-50">
+                  {paginatedChannelProducts.map((product, index) => {
+                    const details = getProductDetails(product);
+                    const isMarketplaceStatus = selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark';
+                    const badgeStatus = isMarketplaceStatus
+                      ? details.status
+                      : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
+                    return (
+                      <tr key={product._id || `${details.liveId}-${index}`} className="hover:bg-slate-50/60 transition-colors">
+
+                        {/* Checkbox */}
+                        <td className="px-6 py-4 text-center">
+                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                         </td>
 
                         {/* Product info */}
-                        <td className="px-6 py-4.5 max-w-sm">
+                        <td className="px-6 py-4 max-w-sm">
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-[#f3f4f6] rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-[#e5e7eb]">
+                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
                               {details.thumbnail ? (
                                 <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
                               ) : (
-                                <span className="text-slate-300 font-bold text-xs">No img</span>
+                                <ImageOff size={16} className="text-slate-300" />
                               )}
                             </div>
                             <div>
@@ -2394,48 +2494,33 @@ const NewListings = () => {
                         </td>
 
                         {/* Status */}
-                        <td className="px-6 py-4.5">
-                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark') ? (
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                              details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' : 
-                              details.status === 'draft' ? 'bg-[#fef7e0] text-[#b06000]' : 
-                              'bg-amber-50 text-amber-700'
-                            }`}>
-                              {details.status === 'active' ? 'Active' : details.status === 'draft' ? 'Draft' : 'Inactive'}
-                            </span>
-                          ) : (
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold ${
-                              details.status === 'live' || details.status === 'published' || details.status === 'active' ? 'bg-[#e6f4ea] text-[#137333]' :
-                              'bg-[#fef7e0] text-[#b06000]'
-                            }`}>
-                              {details.status === 'live' || details.status === 'published' || details.status === 'active' ? 'Live' : 'Draft'}
-                            </span>
-                          )}
+                        <td className="px-6 py-4">
+                          <StatusBadge status={badgeStatus} />
                         </td>
 
                         {/* Live ID */}
-                        <td className="px-6 py-4.5">
+                        <td className="px-6 py-4">
                           <span className="font-mono text-xs font-bold text-slate-500">{details.liveId}</span>
                         </td>
 
                         {/* SKU */}
-                        <td className="px-6 py-4.5">
+                        <td className="px-6 py-4">
                           <span className="font-mono text-xs font-bold text-slate-500">{details.sku || '-'}</span>
                         </td>
 
                         {/* Price */}
-                        <td className="px-6 py-4.5 font-bold text-slate-900 text-sm">
+                        <td className="px-6 py-4 font-bold text-slate-900 text-sm">
                           ${details.price.toFixed(2)}
                         </td>
 
                         {/* Date */}
-                        <td className="px-6 py-4.5 text-xs font-semibold text-slate-400">
+                        <td className="px-6 py-4 text-xs font-semibold text-slate-400">
                           {details.dateText}
                         </td>
 
                         {/* Actions */}
-                        <td className="px-6 py-4.5 text-center">
-                          {(selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark') ? (
+                        <td className="px-6 py-4 text-center">
+                          {isMarketplaceStatus ? (
                             <div className="flex justify-center">
                               {renderCrosslistingCell(
                                 buildChannelDropdownItem(product, details, selectedChannel),
@@ -2451,8 +2536,8 @@ const NewListings = () => {
                                   href={details.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="p-1.5 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-slate-400 transition-all cursor-pointer"
-                                  title={`View on ${selectedChannel}`}
+                                  aria-label={`View on ${selectedChannel}`}
+                                  className="inline-flex items-center justify-center p-2.5 rounded-2xl text-slate-400 hover:text-indigo-600 hover:bg-slate-50 border border-border transition-all active:scale-95 cursor-pointer"
                                 >
                                   <ExternalLink size={16} />
                                 </a>
@@ -2463,36 +2548,31 @@ const NewListings = () => {
 
                       </tr>
                     );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="px-6 py-16 text-center text-slate-400">
-                      No products found matching the current filters. Click &quot;Sync {getChannelDisplayName(selectedChannel)}&quot; to fetch your items.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                  })}
+                </tbody>
 
-            </table>
-          )}
-        </div>
+              </table>
+            </div>
+          </>
+        )}
 
         {/* Bottom Pagination */}
-        <div className="px-6 py-4 bg-[#fcfcff] border-t border-[#f3f4f6] flex items-center justify-between">
-          <p className="text-xs font-extrabold text-slate-400 select-none">
+        <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs font-extrabold text-slate-400 select-none order-2 sm:order-1">
             Showing {displayedTotalCount === 0 ? 0 : displayedStartIndex + 1} to {displayedEndIndex} of {displayedTotalCount.toLocaleString()} {activeTab === 'local' ? 'listings' : 'live products'}
           </p>
-          
-          <div className="flex items-center gap-6">
+
+          <div className="flex items-center gap-4 sm:gap-6 order-1 sm:order-2">
             <div className="flex items-center gap-1">
-              <button 
+              <IconButton
+                aria-label="Previous page"
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
                 disabled={displayedActivePage === 1}
+                size="sm"
               >
                 <ChevronLeft size={16} />
-              </button>
-              
+              </IconButton>
+
               {getPageNumbers(displayedActivePage, displayedTotalPages).map((page, index) => {
                 if (page === '...') {
                   return (
@@ -2506,10 +2586,10 @@ const NewListings = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg font-extrabold text-xs transition-all ${
-                      isCurrent 
-                        ? 'border-2 border-indigo-600 bg-white text-indigo-600' 
-                        : 'text-slate-500 hover:bg-slate-50 font-bold cursor-pointer'
+                    className={`w-8 h-8 flex items-center justify-center rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
+                      isCurrent
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                        : 'text-slate-500 hover:bg-slate-100 font-bold'
                     }`}
                   >
                     {page}
@@ -2517,24 +2597,25 @@ const NewListings = () => {
                 );
               })}
 
-              <button 
+              <IconButton
+                aria-label="Next page"
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, displayedTotalPages))}
-                className="p-1.5 bg-white border border-[#e5e7eb] rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
                 disabled={displayedActivePage === displayedTotalPages}
+                size="sm"
               >
                 <ChevronRight size={16} />
-              </button>
+              </IconButton>
             </div>
 
             {/* page count indicator */}
             <div className="relative flex items-center">
-              <select 
+              <select
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-[#e5e7eb] hover:border-indigo-200 rounded-lg text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-border hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
               >
                 <option value={5}>5 / page</option>
                 <option value={10}>10 / page</option>
@@ -2550,31 +2631,29 @@ const NewListings = () => {
 
       {/* Filter Inventory Modal */}
       {filterModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-[#f1f3f9] animate-in zoom-in-95 duration-200 flex flex-col">
-            
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-border animate-in zoom-in-95 duration-200 flex flex-col">
+
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-[#f1f3f9] flex justify-between items-center bg-white">
+            <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-white">
               <div className="flex items-center gap-2.5">
-                <svg className="w-5 h-5 text-indigo-650" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                <h2 className="text-base font-extrabold text-slate-800">Filter Inventory</h2>
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <SlidersHorizontal size={16} />
+                </div>
+                <h2 className="text-base font-extrabold text-slate-900">Filter Inventory</h2>
               </div>
-              <button 
+              <IconButton
+                aria-label="Close"
                 onClick={() => setFilterModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-all cursor-pointer"
               >
-                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" stroke="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X size={16} />
+              </IconButton>
             </div>
 
             {/* Modal Content */}
             <div className="p-6 space-y-6 flex-1 overflow-y-auto">
               {/* Sort Listings Section */}
-              <div className="border-b border-[#f1f3f9] pb-6">
+              <div className="border-b border-border pb-6">
                 <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sort Listings</h3>
                 <p className="text-[10px] text-slate-400 font-semibold mt-0.5 leading-normal">Choose how you want to order your inventory</p>
                 
@@ -2592,8 +2671,8 @@ const NewListings = () => {
                       onClick={() => setTempSortOption(option.value)}
                       className={`px-4 py-2.5 rounded-2xl text-xs font-bold border transition-all cursor-pointer text-center ${
                         tempSortOption === option.value
-                          ? 'border-indigo-650 bg-indigo-50/20 text-indigo-650 font-extrabold ring-2 ring-indigo-650/10'
-                          : 'border-slate-150 bg-white text-slate-600 hover:border-slate-300'
+                          ? 'border-indigo-500 bg-indigo-50/40 text-indigo-600 font-extrabold ring-2 ring-indigo-500/10'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                       }`}
                     >
                       {option.label}
@@ -2609,7 +2688,7 @@ const NewListings = () => {
 
               <div className="space-y-4">
                 {/* Listed On Row */}
-                <div className="p-5.5 rounded-2xl border border-[#e6f4ea] bg-[#e6f4ea]/10 flex items-start gap-4">
+                <div className="p-5.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 flex items-start gap-4">
                   <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -2626,9 +2705,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempListedOn.includes('ebay')}
                           onChange={() => toggleTempListedOn('ebay')}
-                          className="w-4.5 h-4.5 text-emerald-650 border-[#d1d5db] rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
                           <img src="/ebay.png" className="w-6 h-6 object-contain" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
@@ -2640,9 +2719,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempListedOn.includes('poshmark')}
                           onChange={() => toggleTempListedOn('poshmark')}
-                          className="w-4.5 h-4.5 text-emerald-650 border-[#d1d5db] rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
                           <img src="/poshmark.png" className="w-6 h-6 object-contain" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
@@ -2654,9 +2733,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempListedOn.includes('depop')}
                           onChange={() => toggleTempListedOn('depop')}
-                          className="w-4.5 h-4.5 text-emerald-650 border-[#d1d5db] rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
                           <img src="/depop.png" className="w-6 h-6 object-contain" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Depop</span>
                         </div>
@@ -2668,9 +2747,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempListedOn.includes('etsy')}
                           onChange={() => toggleTempListedOn('etsy')}
-                          className="w-4.5 h-4.5 text-emerald-650 border-[#d1d5db] rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
                           <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
@@ -2680,7 +2759,7 @@ const NewListings = () => {
                 </div>
 
                 {/* No Listed On Row */}
-                <div className="p-5.5 rounded-2xl border border-[#fce8e6] bg-[#fce8e6]/10 flex items-start gap-4">
+                <div className="p-5.5 rounded-2xl border border-rose-100 bg-rose-50/40 flex items-start gap-4">
                   <div className="w-5 h-5 rounded-full border-2 border-rose-500 text-rose-500 flex items-center justify-center shrink-0 mt-0.5 bg-white font-black text-xs select-none">
                     {/* Circle icon */}
                   </div>
@@ -2695,9 +2774,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempNoListedOn.includes('ebay')}
                           onChange={() => toggleTempNoListedOn('ebay')}
-                          className="w-4.5 h-4.5 text-rose-600 border-[#d1d5db] rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
                           <img src="/ebay.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
@@ -2709,9 +2788,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempNoListedOn.includes('poshmark')}
                           onChange={() => toggleTempNoListedOn('poshmark')}
-                          className="w-4.5 h-4.5 text-rose-600 border-[#d1d5db] rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
                           <img src="/poshmark.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
@@ -2723,9 +2802,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempNoListedOn.includes('depop')}
                           onChange={() => toggleTempNoListedOn('depop')}
-                          className="w-4.5 h-4.5 text-rose-600 border-[#d1d5db] rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
                           <img src="/depop.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Depop</span>
                         </div>
@@ -2737,9 +2816,9 @@ const NewListings = () => {
                           type="checkbox" 
                           checked={tempNoListedOn.includes('etsy')}
                           onChange={() => toggleTempNoListedOn('etsy')}
-                          className="w-4.5 h-4.5 text-rose-600 border-[#d1d5db] rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-[#f1f3f9] rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
                           <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
@@ -2752,8 +2831,11 @@ const NewListings = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4.5 border-t border-[#f1f3f9] flex justify-between items-center bg-slate-50">
-              <button 
+            <div className="px-6 py-4.5 border-t border-border flex justify-between items-center bg-slate-50">
+              <Button
+                variant="outline"
+                size="md"
+                icon={<RefreshCw size={14} />}
                 onClick={() => {
                   setTempListedOn([]);
                   setTempNoListedOn([]);
@@ -2762,28 +2844,22 @@ const NewListings = () => {
                   setTempSortOption('newest');
                   setSortOption('newest');
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-100 border border-[#e5e7eb] text-slate-600 hover:text-slate-900 text-xs font-extrabold rounded-xl cursor-pointer transition-all shadow-xs"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
                 Reset
-              </button>
-              
-              <button 
+              </Button>
+
+              <Button
+                size="md"
+                icon={<SlidersHorizontal size={14} />}
                 onClick={() => {
                   setFilterListedOn(tempListedOn);
                   setFilterNoListedOn(tempNoListedOn);
                   setSortOption(tempSortOption);
                   setFilterModalOpen(false);
                 }}
-                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl cursor-pointer transition-all shadow-md shadow-indigo-100"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
                 Apply Filters
-              </button>
+              </Button>
             </div>
 
           </div>
@@ -2806,20 +2882,21 @@ const NewListings = () => {
 
       {/* Preview Modal */}
       {previewListing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-border flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div>
+            <div className="px-6 py-4 bg-slate-50 border-b border-border flex items-center justify-between">
+              <div className="min-w-0 pr-4">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview ({previewListing.platform?.toUpperCase()})</span>
                 <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
               </div>
-              <button 
+              <IconButton
+                aria-label="Close"
                 onClick={() => setPreviewListing(null)}
-                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all"
+                className="shrink-0"
               >
-                <X size={20} />
-              </button>
+                <X size={18} />
+              </IconButton>
             </div>
 
             {/* Modal Body */}
@@ -3091,16 +3168,19 @@ const NewListings = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-3 font-sans">
-              <button 
+            <div className="px-6 py-4 bg-slate-50 border-t border-border flex items-center justify-end gap-3 font-sans">
+              <Button
+                variant="outline"
                 onClick={() => setPreviewListing(null)}
-                className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-605 hover:bg-slate-100 transition-all cursor-pointer"
               >
                 Close
-              </button>
+              </Button>
 
               {!previewListing.isChannelProduct && (
-                <button
+                <Button
+                  variant="secondary"
+                  className="bg-amber-500! hover:bg-amber-600! text-white! shadow-amber-500/20!"
+                  icon={<Edit size={16} />}
                   onClick={() => {
                     setSelectedListing(previewListing);
                     setSelectedPlatform(previewListing.platform || 'ebay');
@@ -3108,11 +3188,9 @@ const NewListings = () => {
                     setModalOpen(true);
                     setPreviewListing(null);
                   }}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-amber-100 flex items-center gap-1.5 cursor-pointer active:scale-95"
                 >
-                  <Edit size={16} />
                   Edit Listing
-                </button>
+                </Button>
               )}
 
               {renderModalFooter()}

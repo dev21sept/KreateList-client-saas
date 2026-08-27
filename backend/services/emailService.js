@@ -246,3 +246,32 @@ exports.sendResetPasswordEmail = async (email, resetUrl, name = '') => {
   `;
   return await sendEmail({ to: email, subject, text, html });
 };
+
+/**
+ * Send Password Reset OTP email
+ */
+exports.sendResetPasswordOtpEmail = async (email, otp, name = '') => {
+  const subject = `Reset Your Elister.ai Password - OTP: ${otp}`;
+  const text = `Hi ${name || 'User'},\n\nYour OTP for resetting your password is: ${otp}. It is valid for 15 minutes.\n\nThank you,\nElister.ai Team`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #4f46e5; margin: 0;">Elister.ai</h2>
+        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Password Recovery OTP</p>
+      </div>
+      <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px; margin-bottom: 20px;">
+        <p style="font-size: 16px; color: #1e293b; margin-top: 0;">Hi <strong>${name || 'User'}</strong>,</p>
+        <p style="font-size: 15px; color: #334155; line-height: 1.5;">Aapke account ka password reset karne ke liye OTP request kiya gaya tha. Niche diya gaya OTP enter karein:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; background: #e0e7ff; padding: 12px 24px; border-radius: 8px; border: 1px dashed #818cf8;">${otp}</span>
+        </div>
+        <p style="font-size: 13px; color: #64748b;">Ye OTP agle <strong>15 minutes</strong> ke liye hi valid hai. Kripya ise kisi ke sath share na karein.</p>
+      </div>
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        Agar aapne ye request nahi ki thi, toh kripya is email ko ignore karein.<br>
+        &copy; ${new Date().getFullYear()} Elister.ai. All rights reserved.
+      </p>
+    </div>
+  `;
+  return await sendEmail({ to: email, subject, text, html });
+};

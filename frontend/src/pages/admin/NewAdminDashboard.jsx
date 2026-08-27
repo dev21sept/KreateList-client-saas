@@ -1,31 +1,29 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, 
-  CreditCard, 
-  ShoppingBag, 
-  BarChart3, 
+import { motion } from 'framer-motion';
+import {
+  Users,
+  CreditCard,
+  ShoppingBag,
+  BarChart3,
   Activity,
   UserPlus,
-  TrendingUp,
   ArrowUpRight,
-  CheckCircle,
-  AlertCircle,
-  FileText,
   ShieldAlert,
-  Calendar,
-  Layers,
-  ChevronDown
+  AlertCircle
 } from 'lucide-react';
 import { adminService } from '../../services/api';
+import StatCard from '../../components/ui/StatCard';
+import { LoadingState } from '../../components/ui/LoadingState';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const NewAdminDashboard = () => {
+  const reducedMotion = useReducedMotion();
   const [statsData, setStatsData] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Chart Interaction states
   const [timeframe, setTimeframe] = useState('monthly'); // 'monthly', 'weekly'
   const [hoveredIndex, setHoveredIndex] = useState(null);
@@ -39,7 +37,7 @@ const NewAdminDashboard = () => {
           adminService.getStats(),
           adminService.getUsers()
         ]);
-        
+
         if (statsRes.data?.success) {
           setStatsData(statsRes.data.data);
         }
@@ -75,11 +73,11 @@ const NewAdminDashboard = () => {
   // Compile Dynamic Line Chart Data (Registrations by Month)
   const chartData = useMemo(() => {
     if (allUsers.length === 0) return [];
-    
+
     // Group users by month
     const monthsMap = {};
     const monthsList = [];
-    
+
     // Generate last 6 months list
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -89,7 +87,7 @@ const NewAdminDashboard = () => {
       monthsMap[key] = { label, key, total: 0, premium: 0 };
       monthsList.push(key);
     }
-    
+
     // Allocate users
     allUsers.forEach(u => {
       if (!u.createdAt) return;
@@ -122,11 +120,11 @@ const NewAdminDashboard = () => {
   // Donut Chart Plan Distribution Data
   const donutData = useMemo(() => {
     const plansCount = { free: 0, basic: 0, pro: 0, enterprise: 0 };
-    
+
     allUsers.forEach(u => {
       const plan = String(u.subscription?.plan || 'free').toLowerCase();
       const status = u.subscription?.status || 'inactive';
-      
+
       if (planPieMode === 'active') {
         if (status === 'active' && plan !== 'free') {
           plansCount[plan] = (plansCount[plan] || 0) + 1;
@@ -149,20 +147,20 @@ const NewAdminDashboard = () => {
     const totalUsers = allUsers.length;
     const premiumUsers = allUsers.filter(u => u.subscription?.status === 'active' && u.subscription?.plan !== 'free').length;
     const monthlyRev = premiumUsers * 29; // $29 average tier
-    
+
     let totalListingsCount = 0;
     let publishedListingsCount = 0;
-    
+
     allUsers.forEach(u => {
       totalListingsCount += u.stats?.total || 0;
       publishedListingsCount += u.stats?.published || 0;
     });
 
     return [
-      { name: 'Total Users', value: totalUsers, icon: <Users size={20} />, color: 'bg-indigo-50 text-indigo-655 border-indigo-100', subtitle: 'Registered Accounts' },
-      { name: 'Active Premium', value: premiumUsers, icon: <Activity size={20} />, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', subtitle: 'Premium Tiers' },
-      { name: 'Monthly Revenue', value: `$${monthlyRev.toLocaleString()}`, icon: <CreditCard size={20} />, color: 'bg-amber-50 text-amber-600 border-amber-100', subtitle: 'Average estimate' },
-      { name: 'Total Listings', value: totalListingsCount, icon: <ShoppingBag size={20} />, color: 'bg-violet-50 text-violet-650 border-violet-100', subtitle: `${publishedListingsCount} Published` }
+      { name: 'Total Users', value: totalUsers, icon: <Users size={20} />, color: 'indigo', subtitle: 'Registered Accounts' },
+      { name: 'Active Premium', value: premiumUsers, icon: <Activity size={20} />, color: 'emerald', subtitle: 'Premium Tiers' },
+      { name: 'Monthly Revenue', value: `$${monthlyRev.toLocaleString()}`, icon: <CreditCard size={20} />, color: 'amber', subtitle: 'Average estimate' },
+      { name: 'Total Listings', value: totalListingsCount, icon: <ShoppingBag size={20} />, color: 'sky', subtitle: `${publishedListingsCount} Published` }
     ];
   }, [allUsers]);
 
@@ -170,7 +168,7 @@ const NewAdminDashboard = () => {
   const drawLineChart = () => {
     if (chartData.length === 0) {
       return (
-        <div className="h-[200px] flex items-center justify-center text-slate-400 text-xs font-bold">
+        <div className="h-[200px] flex items-center justify-center text-slate-400 text-xs font-bold text-center px-6">
           Processing historical signup data...
         </div>
       );
@@ -245,29 +243,29 @@ const NewAdminDashboard = () => {
 
             return (
               <g key={idx}>
-                <circle 
-                  cx={x} 
-                  cy={yUser} 
-                  r={hoveredIndex === idx ? "6" : "4"} 
+                <circle
+                  cx={x}
+                  cy={yUser}
+                  r={hoveredIndex === idx ? "6" : "4"}
                   className="fill-white stroke-indigo-600 stroke-[3px] transition-all duration-150 cursor-pointer"
                 />
-                <circle 
-                  cx={x} 
-                  cy={yPremium} 
-                  r={hoveredIndex === idx ? "6" : "4"} 
+                <circle
+                  cx={x}
+                  cy={yPremium}
+                  r={hoveredIndex === idx ? "6" : "4"}
                   className="fill-white stroke-emerald-500 stroke-[3px] transition-all duration-150 cursor-pointer"
                 />
-                
+
                 {/* X axis labels */}
-                <text x={x} y={height - 5} textAnchor="middle" className="text-[9px] font-black fill-slate-450">{d.label}</text>
+                <text x={x} y={height - 5} textAnchor="middle" className="text-[9px] font-black fill-slate-400">{d.label}</text>
 
                 {/* Hover zones */}
-                <rect 
-                  x={x - 20} 
-                  y={paddingTop} 
-                  width="40" 
-                  height={chartHeight} 
-                  fill="transparent" 
+                <rect
+                  x={x - 20}
+                  y={paddingTop}
+                  width="40"
+                  height={chartHeight}
+                  fill="transparent"
                   className="cursor-pointer"
                   onMouseEnter={() => setHoveredIndex(idx)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -287,8 +285,8 @@ const NewAdminDashboard = () => {
 
         {/* Tooltip render */}
         {hoveredIndex !== null && chartData[hoveredIndex] && (
-          <div 
-            className="absolute bg-slate-900 border border-slate-800 text-white p-3 rounded-2xl shadow-2xl flex flex-col gap-1.5 z-50 pointer-events-none select-none text-[11px] animate-in fade-in duration-100"
+          <div
+            className="absolute bg-slate-900 border border-slate-800 text-white p-3 rounded-2xl shadow-2xl flex flex-col gap-1.5 z-50 pointer-events-none select-none text-[11px]"
             style={{
               left: `${(getX(hoveredIndex) / width) * 100}%`,
               top: `${(getY(chartData[hoveredIndex].cumulativeUsers) / height) * 100 - 32}%`,
@@ -323,8 +321,8 @@ const NewAdminDashboard = () => {
 
     if (totalPlanUsers === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-48 py-4 bg-slate-50/55 rounded-2xl border border-dashed border-slate-150">
-          <ShieldAlert size={24} className="text-slate-350 mb-2" />
+        <div className="flex flex-col items-center justify-center h-48 py-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-150">
+          <ShieldAlert size={24} className="text-slate-300 mb-2" />
           <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">No Subscriber Data</span>
           <p className="text-[9px] text-slate-400 font-bold mt-1 text-center max-w-[180px]">Active tiers count is currently 0. Switch to "All accounts" above!</p>
         </div>
@@ -356,30 +354,30 @@ const NewAdminDashboard = () => {
                   strokeDasharray={circ}
                   strokeDashoffset={strokeOffset}
                   transform={`rotate(${rotation} 65 65)`}
-                  className="transition-all duration-500 hover:opacity-90 cursor-pointer"
+                  className="transition-all duration-300 hover:opacity-90 cursor-pointer"
                 />
               );
             })}
           </svg>
-          <div className="absolute flex flex-col items-center justify-center text-center">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total</span>
-            <span className="text-2xl font-black text-slate-900 leading-tight">{totalPlanUsers}</span>
+          <div className="absolute inset-0 flex flex-col justify-center items-center pointer-events-none select-none">
+            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest leading-none">Total</span>
+            <span className="text-xl font-black text-slate-900 mt-1.5">{totalPlanUsers}</span>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex-1 space-y-2.5 w-full">
+        <div className="flex-1 w-full flex flex-col gap-2.5">
           {donutData.map((item, idx) => {
             const pct = totalPlanUsers > 0 ? Math.round((item.value / totalPlanUsers) * 100) : 0;
             return (
-              <div key={idx} className="flex items-center justify-between text-xs font-bold">
+              <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                  <span className="text-slate-600">{item.label}</span>
+                  <span className="text-xs font-black text-slate-700">{item.label}</span>
                 </div>
-                <div className="flex gap-4">
-                  <span className="text-slate-400 font-mono font-medium">{item.value} users</span>
-                  <span className="text-slate-900 font-black">{pct}%</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-mono text-slate-400 font-bold">{item.value} users</span>
+                  <span className="text-xs font-black text-slate-900 font-mono w-10 text-right">{pct}%</span>
                 </div>
               </div>
             );
@@ -390,16 +388,13 @@ const NewAdminDashboard = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[450px] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <LoadingState label="Loading admin dashboard..." />;
   }
 
   if (error) {
     return (
-      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-6 rounded-3xl text-center font-bold">
+      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-6 rounded-3xl text-center font-bold text-sm flex items-center justify-center gap-2.5">
+        <AlertCircle size={18} />
         {error}
       </div>
     );
@@ -407,68 +402,57 @@ const NewAdminDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Dynamic Dashboard Header matching Client Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full -mr-32 -mt-32 blur-2xl transition-all duration-700" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Admin Overview</h1>
-            <div className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-200">
-              System Admin
-            </div>
+      {/* Admin Welcome Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 p-8 rounded-3xl text-white relative overflow-hidden shadow-xl shadow-indigo-100">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="max-w-xl">
+            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 bg-indigo-500/30 px-3 py-1 rounded-full border border-indigo-400/20">System Admin</span>
+            <h1 className="text-2xl font-black mt-4">Admin Overview</h1>
+            <p className="text-xs text-indigo-100/90 font-medium leading-relaxed mt-2.5">
+              System-wide performance monitoring and user signup analytics.
+            </p>
           </div>
-          <p className="text-slate-500 font-medium text-sm">System-wide performance monitoring and user signup analytics.</p>
-        </div>
-        <div className="relative flex gap-3">
-          <span className="bg-emerald-50 text-emerald-600 px-4 py-2.5 rounded-2xl text-xs font-black border border-emerald-100 flex items-center shadow-sm">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-ping"></span> Live Dashboard
+          <span className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 text-white px-4 py-2.5 rounded-2xl text-xs font-black shrink-0 self-start">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Live Dashboard
           </span>
         </div>
+        <div className="absolute -bottom-16 -right-16 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl" />
+        <div className="absolute -top-16 -right-16 w-48 h-48 bg-indigo-600/30 rounded-full blur-2xl" />
       </div>
 
       {/* Aggregate Stats Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
-          <motion.div
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {stats.map((stat, idx) => (
+          <StatCard
             key={stat.name}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08 }}
-            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group"
-          >
-            <div>
-              <div className={`${stat.color} w-11 h-11 rounded-2xl flex items-center justify-center border mb-4 group-hover:scale-105 transition-transform duration-300`}>
-                {stat.icon}
-              </div>
-              <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{stat.name}</h3>
-              <p className="text-3xl font-black text-slate-900 mt-1 tracking-tight">{stat.value}</p>
-            </div>
-            <div className="pt-3 border-t border-slate-50 mt-4 text-[10px] font-bold text-slate-455 flex justify-between items-center">
-              <span>{stat.subtitle}</span>
-              <ArrowUpRight size={12} className="text-slate-400 group-hover:text-indigo-650 transition-colors" />
-            </div>
-          </motion.div>
+            name={stat.name}
+            value={stat.value}
+            icon={stat.icon}
+            color={stat.color}
+            trend={stat.subtitle}
+            delay={reducedMotion ? 0 : idx * 0.05}
+          />
         ))}
       </div>
 
       {/* Main Charts & logs section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left Column: Users growth line chart */}
-        <div className="lg:col-span-7 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-between min-h-[400px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between min-h-[400px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h3 className="text-lg font-bold text-slate-955">Registration Trend</h3>
-              <p className="text-slate-400 text-xs font-semibold mt-0.5">Historical user signups and subscription counts</p>
+              <h3 className="text-base font-black text-slate-900">Registration Trend</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">Historical user signups and subscription counts</p>
             </div>
-            
+
             {/* Chart Legends */}
             <div className="flex gap-4">
-              <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase">
-                <span className="w-2 h-2 rounded-full bg-indigo-500" /> Total Users
+              <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Total Users
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" /> Premium
+              <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Premium
               </div>
             </div>
           </div>
@@ -479,27 +463,27 @@ const NewAdminDashboard = () => {
         </div>
 
         {/* Right Column: Plans distribution pie/donut chart */}
-        <div className="lg:col-span-5 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-between min-h-[400px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="lg:col-span-5 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between min-h-[400px]">
+          <div className="flex items-center justify-between gap-2 mb-6">
             <div>
-              <h3 className="text-lg font-bold text-slate-955">Subscription Plans</h3>
-              <p className="text-slate-400 text-xs font-semibold mt-0.5">Distribution of user accounts</p>
+              <h3 className="text-base font-black text-slate-900">Subscription Plans</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">Distribution of user accounts</p>
             </div>
-            
+
             {/* Pie Toggles */}
-            <div className="flex bg-slate-100 p-1 rounded-xl">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
               <button
                 onClick={() => setPlanPieMode('active')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
-                  planPieMode === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer ${
+                  planPieMode === 'active' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Active
               </button>
               <button
                 onClick={() => setPlanPieMode('all')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
-                  planPieMode === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-550'
+                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer ${
+                  planPieMode === 'all' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 All
@@ -507,7 +491,7 @@ const NewAdminDashboard = () => {
             </div>
           </div>
 
-          <div className="flex-grow flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center">
             {drawDonutChart()}
           </div>
         </div>
@@ -516,41 +500,41 @@ const NewAdminDashboard = () => {
 
       {/* Bottom Row: Recent System activity & users listings */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left list: Recent Signups */}
-        <div className="lg:col-span-8 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h3 className="text-lg font-bold text-slate-955">Recent System Signups</h3>
-              <p className="text-slate-400 text-xs font-semibold mt-0.5">Latest registrations and user listings activity</p>
+              <h3 className="text-base font-black text-slate-900">Recent System Signups</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">Latest registrations and user listings activity</p>
             </div>
           </div>
 
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-100">
             {recentUsers.length > 0 ? (
               recentUsers.map((user, i) => (
-                <div key={user._id || i} className="flex items-center justify-between py-4.5 first:pt-0 last:pb-0 group">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-11 h-11 bg-indigo-50 text-indigo-650 rounded-xl flex items-center justify-center shrink-0 border border-indigo-100 group-hover:scale-105 transition-transform duration-300">
-                      <UserPlus size={18} />
+                <div key={user._id || i} className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0 group">
+                  <div className="flex items-center space-x-3.5 min-w-0">
+                    <div className="w-11 h-11 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0 border border-indigo-100 shadow-inner">
+                      <UserPlus size={16} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-extrabold text-slate-900">{user.firstName} {user.lastName}</span>
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase border ${
+                        <span className="text-xs font-extrabold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{user.firstName} {user.lastName}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shrink-0 ${
                           user.subscription?.status === 'active' && user.subscription?.plan !== 'free'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                            : 'bg-slate-50 text-slate-550 border-slate-100'
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                            : 'bg-slate-50 text-slate-500 border-slate-100'
                         }`}>
                           {user.subscription?.plan || 'Free'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 font-semibold mt-0.5">{user.email}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate">{user.email}</p>
                     </div>
                   </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-xs font-extrabold text-slate-800 font-mono">
-                      {user.stats?.total || 0} listings total
+                  <div className="text-right space-y-1 shrink-0 pl-3">
+                    <div className="text-[11px] font-black text-slate-800 font-mono">
+                      {user.stats?.total || 0} listings
                     </div>
                     <div className="text-[10px] font-bold text-slate-400">
                       Joined {formatTimeAgo(user.createdAt)}
@@ -559,7 +543,7 @@ const NewAdminDashboard = () => {
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-slate-400 text-xs font-bold">
+              <div className="text-center py-16 text-slate-400 font-bold text-xs">
                 No recent signups found in system database.
               </div>
             )}
@@ -567,53 +551,50 @@ const NewAdminDashboard = () => {
         </div>
 
         {/* Right Info: Server Health & Analytics */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden border border-slate-800 shadow-xl shadow-indigo-950/10">
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-violet-600/10 rounded-full blur-3xl" />
-
-          <div className="relative space-y-6 flex flex-col justify-between h-full">
-            <div className="space-y-6">
-              <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20 shadow-inner">
-                <BarChart3 size={24} className="animate-pulse" />
+        <div className="lg:col-span-4 bg-indigo-950 p-7 rounded-3xl text-white relative overflow-hidden shadow-xl shadow-slate-100 flex flex-col justify-between">
+          <div className="relative z-10 space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 bg-indigo-900/50 border border-indigo-800 rounded-2xl flex items-center justify-center text-indigo-300">
+                <BarChart3 size={20} />
               </div>
-              <div className="space-y-2">
-                <h4 className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                  System Health & Services
-                </h4>
-                <p className="text-slate-450 text-xs leading-relaxed font-medium">
-                  Continuous performance indexing and load balancing for active cross-listing microservices.
-                </p>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between text-xs font-bold border-b border-white/5 pb-2.5">
-                  <span className="text-slate-400">Database Server</span>
-                  <span className="text-emerald-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-                    Online
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold border-b border-white/5 pb-2.5">
-                  <span className="text-slate-455">Queue Worker</span>
-                  <span className="text-emerald-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-                    Online (0 lag)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-405">API Gateway latency</span>
-                  <span className="text-slate-200 font-mono font-medium">42 ms</span>
-                </div>
-              </div>
+              <span className="text-[9px] font-black text-indigo-300 bg-indigo-900/50 border border-indigo-800 px-3 py-1 rounded-full uppercase tracking-wider">Metrics</span>
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-lg font-black">System Health & Services</h4>
+              <p className="text-indigo-200/80 text-xs leading-relaxed font-medium">
+                Continuous performance indexing and load balancing for active cross-listing microservices.
+              </p>
             </div>
 
-            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Metrics</span>
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 text-[9px] font-black uppercase tracking-wide">
-                v1.2.0 Stable
-              </span>
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between text-xs font-bold border-b border-indigo-900/60 pb-2.5">
+                <span className="text-indigo-300">Database Server</span>
+                <span className="text-emerald-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                  Online
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-bold border-b border-indigo-900/60 pb-2.5">
+                <span className="text-indigo-300">Queue Worker</span>
+                <span className="text-emerald-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                  Online (0 lag)
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-indigo-300">API Gateway latency</span>
+                <span className="text-white font-mono font-black">42 ms</span>
+              </div>
             </div>
           </div>
+
+          <div className="relative z-10 pt-6 mt-6 border-t border-indigo-900/60 flex items-center justify-between">
+            <span className="text-[9px] text-indigo-300 font-black uppercase tracking-wider">Build</span>
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200 border border-indigo-500/40 text-[9px] font-black uppercase tracking-wide">
+              v1.2.0 Stable
+            </span>
+          </div>
+          <div className="absolute top-0 right-0 -mr-8 -mt-8 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl" />
         </div>
 
       </div>

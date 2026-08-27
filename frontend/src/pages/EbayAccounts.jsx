@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { 
-  Link as LinkIcon, 
-  Unlink, 
-  RefreshCw, 
-  ExternalLink, 
-  CheckCircle2, 
+import {
+  Link as LinkIcon,
+  Unlink,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle2,
   XCircle,
   AlertTriangle,
   Mail,
@@ -27,6 +27,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { ebayService, externalImportService, etsyService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import { StatusBadge } from '../components/ui/Badge';
 
 const EbayAccounts = () => {
   const { user, loadUser } = useAuth();
@@ -665,16 +668,8 @@ const EbayAccounts = () => {
                 <p className="text-slate-400 text-xs font-semibold mb-3">Online Auction & Retail</p>
 
                 {/* Connection Badge */}
-                {ebay?.connected ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    Disconnected
-                  </div>
-                )}
+                <StatusBadge status={ebay?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
 
                 {/* Info Area */}
                 {ebay?.connected ? (
@@ -694,23 +689,13 @@ const EbayAccounts = () => {
               {/* Button Area */}
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {ebay?.connected ? (
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handleDisconnect}
-                      disabled={loading}
-                      className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1"
-                    >
-                      Disconnect Channel
-                    </button>
-                  </div>
+                  <Button variant="danger" size="md" className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!" onClick={handleDisconnect} disabled={loading}>
+                    Disconnect Channel
+                  </Button>
                 ) : (
-                  <button
-                    onClick={handleConnect}
-                    disabled={loading}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="animate-spin" size={14} /> : <>Connect eBay <ChevronRight size={14} /></>}
-                  </button>
+                  <Button size="md" className="w-full" iconRight={<ChevronRight size={14} />} loading={loading} onClick={handleConnect}>
+                    Connect eBay
+                  </Button>
                 )}
                 {statusMsg && <p className="text-indigo-600 font-bold text-[10px] mt-2 animate-pulse">{statusMsg}</p>}
               </div>
@@ -728,16 +713,8 @@ const EbayAccounts = () => {
                 <p className="text-slate-400 text-xs font-semibold mb-3">Social Commerce Closet</p>
 
                 {/* Connection Badge */}
-                {poshmark?.connected ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    Disconnected
-                  </div>
-                )}
+                <StatusBadge status={poshmark?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
 
                 {/* Info Area */}
                 {poshmark?.connected ? (
@@ -758,32 +735,37 @@ const EbayAccounts = () => {
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {poshmark?.connected ? (
                   <div className="space-y-2">
-                    <button
+                    <Button
+                      size="md"
+                      className="w-full bg-indigo-50! text-indigo-600! shadow-none! hover:bg-indigo-100!"
+                      icon={<RefreshCw size={12} />}
+                      loading={syncingPlatform === 'poshmark'}
                       onClick={() => handleSyncCloset('poshmark', poshmark.username)}
-                      disabled={syncingPlatform === 'poshmark'}
-                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      {syncingPlatform === 'poshmark' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
                       Sync Closet
-                    </button>
-                    <button
-                      onClick={handlePoshmarkDisconnect}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="md"
+                      className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!"
                       disabled={poshLoading}
-                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                      onClick={handlePoshmarkDisconnect}
                     >
                       Disconnect Channel
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <button
+                  <Button
+                    size="md"
+                    className="w-full"
+                    iconRight={<ChevronRight size={14} />}
                     onClick={() => {
                       setPoshConnectMethod('password');
                       setIsPoshModalOpen(true);
                     }}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    Connect Poshmark <ChevronRight size={14} />
-                  </button>
+                    Connect Poshmark
+                  </Button>
                 )}
               </div>
             </div>
@@ -800,16 +782,8 @@ const EbayAccounts = () => {
                 <p className="text-slate-400 text-xs font-semibold mb-3">Fashion Marketplace & Shop</p>
 
                 {/* Connection Badge */}
-                {depop?.connected ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    Disconnected
-                  </div>
-                )}
+                <StatusBadge status={depop?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
 
                 {/* Info Area */}
                 {depop?.connected ? (
@@ -833,32 +807,37 @@ const EbayAccounts = () => {
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {depop?.connected ? (
                   <div className="space-y-2">
-                    <button
+                    <Button
+                      size="md"
+                      className="w-full bg-indigo-50! text-indigo-600! shadow-none! hover:bg-indigo-100!"
+                      icon={<RefreshCw size={12} />}
+                      loading={syncingPlatform === 'depop'}
                       onClick={() => handleSyncCloset('depop', depop.username)}
-                      disabled={syncingPlatform === 'depop'}
-                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      {syncingPlatform === 'depop' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
                       Sync Shop
-                    </button>
-                    <button
-                      onClick={handleDepopDisconnect}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="md"
+                      className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!"
                       disabled={depopLoading}
-                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                      onClick={handleDepopDisconnect}
                     >
                       Disconnect Channel
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <button
+                  <Button
+                    size="md"
+                    className="w-full"
+                    iconRight={<ChevronRight size={14} />}
                     onClick={() => {
                       setDepopConnectMethod('interactive');
                       setIsDepopModalOpen(true);
                     }}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    Connect Depop <ChevronRight size={14} />
-                  </button>
+                    Connect Depop
+                  </Button>
                 )}
               </div>
             </div>
@@ -875,16 +854,8 @@ const EbayAccounts = () => {
                 <p className="text-slate-400 text-xs font-semibold mb-3">Handmade & Vintage Goods</p>
 
                 {/* Connection Badge */}
-                {etsy?.connected ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    Disconnected
-                  </div>
-                )}
+                <StatusBadge status={etsy?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
 
                 {/* Info Area */}
                 {etsy?.connected ? (
@@ -902,21 +873,18 @@ const EbayAccounts = () => {
               {/* Button Area */}
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {etsy?.connected ? (
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleEtsyDisconnect}
-                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
-                    >
-                      Disconnect Channel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleEtsyConnect}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  <Button
+                    variant="danger"
+                    size="md"
+                    className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!"
+                    onClick={handleEtsyDisconnect}
                   >
-                    Connect Etsy <ChevronRight size={14} />
-                  </button>
+                    Disconnect Channel
+                  </Button>
+                ) : (
+                  <Button size="md" className="w-full" iconRight={<ChevronRight size={14} />} onClick={handleEtsyConnect}>
+                    Connect Etsy
+                  </Button>
                 )}
               </div>
             </div>
@@ -933,16 +901,8 @@ const EbayAccounts = () => {
                 <p className="text-slate-400 text-xs font-semibold mb-3">Buy and Sell Marketplace</p>
 
                 {/* Connection Badge */}
-                {mercari?.connected ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider mb-4">
-                    Disconnected
-                  </div>
-                )}
+                <StatusBadge status={mercari?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
 
                 {/* Info Area */}
                 {mercari?.connected ? (
@@ -963,32 +923,37 @@ const EbayAccounts = () => {
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {mercari?.connected ? (
                   <div className="space-y-2">
-                    <button
+                    <Button
+                      size="md"
+                      className="w-full bg-indigo-50! text-indigo-600! shadow-none! hover:bg-indigo-100!"
+                      icon={<RefreshCw size={12} />}
+                      loading={syncingPlatform === 'mercari'}
                       onClick={() => handleSyncCloset('mercari', mercari.username)}
-                      disabled={syncingPlatform === 'mercari'}
-                      className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      {syncingPlatform === 'mercari' ? <Loader2 className="animate-spin" size={12} /> : <RefreshCw size={12} />}
                       Sync Closet
-                    </button>
-                    <button
-                      onClick={handleMercariDisconnect}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="md"
+                      className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!"
                       disabled={mercariLoading}
-                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition-all"
+                      onClick={handleMercariDisconnect}
                     >
                       Disconnect Channel
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <button
+                  <Button
+                    size="md"
+                    className="w-full"
+                    iconRight={<ChevronRight size={14} />}
                     onClick={() => {
                       setMercariConnectMethod('password');
                       setIsMercariModalOpen(true);
                     }}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    Connect Mercari <ChevronRight size={14} />
-                  </button>
+                    Connect Mercari
+                  </Button>
                 )}
               </div>
             </div>
@@ -1100,15 +1065,15 @@ const EbayAccounts = () => {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
                 </div>
               </div>
-              <button 
+              <IconButton
+                aria-label="Close"
                 onClick={() => {
                   setIsPoshModalOpen(false);
                   setShowPosh2fa(false);
                 }}
-                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
               >
                 <X size={18} />
-              </button>
+              </IconButton>
             </div>
 
             {/* Body */}
@@ -1121,32 +1086,29 @@ const EbayAccounts = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Verification Code</label>
-                    <input 
-                      type="text" 
-                      placeholder="Enter OTP / verification code" 
+                    <input
+                      type="text"
+                      placeholder="Enter OTP / verification code"
                       value={posh2faCode}
                       onChange={(e) => setPosh2faCode(e.target.value)}
                       className="w-full h-11 px-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none font-bold tracking-widest text-center focus:ring-2 focus:ring-indigo-500/10 transition-all text-slate-700"
                     />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button 
+                    <Button
                       type="button"
+                      variant="outline"
+                      className="flex-1"
                       onClick={() => {
                         setShowPosh2fa(false);
                         setPosh2faCode('');
                       }}
-                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-100"
                     >
                       Back to Login
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={poshLoading}
-                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
-                    >
-                      {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Verify Code'}
-                    </button>
+                    </Button>
+                    <Button type="submit" className="flex-1" loading={poshLoading}>
+                      Verify Code
+                    </Button>
                   </div>
                 </form>
               ) : (
@@ -1209,20 +1171,12 @@ const EbayAccounts = () => {
                         />
                       </div>
                       <div className="pt-2 flex gap-3">
-                        <button 
-                          type="button"
-                          onClick={() => setIsPoshModalOpen(false)}
-                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                        >
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setIsPoshModalOpen(false)}>
                           Cancel
-                        </button>
-                        <button 
-                          type="submit"
-                          disabled={poshLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
-                        >
-                          {poshLoading ? <Loader2 className="animate-spin" size={14} /> : 'Connect Closet'}
-                        </button>
+                        </Button>
+                        <Button type="submit" className="flex-1" loading={poshLoading}>
+                          Connect Closet
+                        </Button>
                       </div>
                     </form>
                   )}
@@ -1237,25 +1191,22 @@ const EbayAccounts = () => {
                           <li>The extension will automatically pull your session.</li>
                         </ul>
                       </div>
-                      
+
                       <div className="flex gap-3 pt-2">
-                        <button 
-                          type="button"
-                          onClick={() => setIsPoshModalOpen(false)}
-                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                        >
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setIsPoshModalOpen(false)}>
                           Cancel
-                        </button>
-                        <button 
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          loading={poshLoading}
+                          iconRight={<Zap size={12} className="text-yellow-400 fill-yellow-400" />}
                           onClick={() => {
                             triggerAutoConnect('poshmark');
                             setIsPoshModalOpen(false);
                           }}
-                          disabled={poshLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                         >
-                          {poshLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
-                        </button>
+                          Connect Automatically
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -1278,12 +1229,9 @@ const EbayAccounts = () => {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsDepopModalOpen(false)}
-                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
-              >
+              <IconButton aria-label="Close" onClick={() => setIsDepopModalOpen(false)}>
                 <X size={18} />
-              </button>
+              </IconButton>
             </div>
 
             {/* Body */}
@@ -1320,23 +1268,20 @@ const EbayAccounts = () => {
                   </div>
                   
                   <div className="flex gap-3 pt-2">
-                    <button 
-                      type="button"
-                      onClick={() => setIsDepopModalOpen(false)}
-                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                    >
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDepopModalOpen(false)}>
                       Cancel
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      loading={depopLoading}
+                      iconRight={<Zap size={12} className="text-yellow-400 fill-yellow-400" />}
                       onClick={() => {
                         handleDepopInteractiveConnect();
                         setIsDepopModalOpen(false);
                       }}
-                      disabled={depopLoading}
-                      className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                     >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Start Login Flow <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
-                    </button>
+                      Start Login Flow
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1351,25 +1296,22 @@ const EbayAccounts = () => {
                       <li>The extension will automatically pull your session.</li>
                     </ul>
                   </div>
-                  
+
                   <div className="flex gap-3 pt-2">
-                    <button 
-                      type="button"
-                      onClick={() => setIsDepopModalOpen(false)}
-                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                    >
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDepopModalOpen(false)}>
                       Cancel
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      loading={depopLoading}
+                      iconRight={<Zap size={12} className="text-yellow-400 fill-yellow-400" />}
                       onClick={() => {
                         triggerAutoConnect('depop');
                         setIsDepopModalOpen(false);
                       }}
-                      disabled={depopLoading}
-                      className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                     >
-                      {depopLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
-                    </button>
+                      Connect Automatically
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1390,15 +1332,15 @@ const EbayAccounts = () => {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
                 </div>
               </div>
-              <button 
+              <IconButton
+                aria-label="Close"
                 onClick={() => {
                   setIsMercariModalOpen(false);
                   setShowMercari2fa(false);
                 }}
-                className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
               >
                 <X size={18} />
-              </button>
+              </IconButton>
             </div>
 
             {/* Body */}
@@ -1441,23 +1383,20 @@ const EbayAccounts = () => {
                     />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button 
+                    <Button
                       type="button"
+                      variant="outline"
+                      className="flex-1"
                       onClick={() => {
                         setShowMercari2fa(false);
                         setMercari2faCode('');
                       }}
-                      className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs transition-all border border-slate-100"
                     >
                       Back to Login
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={mercariLoading}
-                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
-                    >
-                      {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : 'Verify Code'}
-                    </button>
+                    </Button>
+                    <Button type="submit" className="flex-1" loading={mercariLoading}>
+                      Verify Code
+                    </Button>
                   </div>
                 </form>
               ) : (
@@ -1507,20 +1446,12 @@ const EbayAccounts = () => {
                         />
                       </div>
                       <div className="pt-2 flex gap-3">
-                        <button 
-                          type="button"
-                          onClick={() => setIsMercariModalOpen(false)}
-                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                        >
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setIsMercariModalOpen(false)}>
                           Cancel
-                        </button>
-                        <button 
-                          type="submit"
-                          disabled={mercariLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
-                        >
-                          {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Mercari <ChevronRight size={14} /></>}
-                        </button>
+                        </Button>
+                        <Button type="submit" className="flex-1" loading={mercariLoading} iconRight={<ChevronRight size={14} />}>
+                          Connect Mercari
+                        </Button>
                       </div>
                     </form>
                   )}
@@ -1535,25 +1466,22 @@ const EbayAccounts = () => {
                           <li>The extension will automatically pull your session.</li>
                         </ul>
                       </div>
-                      
+
                       <div className="flex gap-3 pt-2">
-                        <button 
-                          type="button"
-                          onClick={() => setIsMercariModalOpen(false)}
-                          className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-xs transition-all border border-slate-100"
-                        >
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setIsMercariModalOpen(false)}>
                           Cancel
-                        </button>
-                        <button 
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          loading={mercariLoading}
+                          iconRight={<Zap size={12} className="text-yellow-400 fill-yellow-400" />}
                           onClick={() => {
                             triggerAutoConnect('mercari');
                             setIsMercariModalOpen(false);
                           }}
-                          disabled={mercariLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                         >
-                          {mercariLoading ? <Loader2 className="animate-spin" size={14} /> : <>Connect Automatically <Zap size={12} className="text-yellow-400 fill-yellow-400" /></>}
-                        </button>
+                          Connect Automatically
+                        </Button>
                       </div>
                     </div>
                   )}

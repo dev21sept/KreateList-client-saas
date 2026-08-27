@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, Quote, Sparkles, MessageSquare, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const testimonialsData = [
   {
@@ -67,6 +68,8 @@ const testimonialsData = [
 ];
 
 const Testimonials = () => {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="bg-slate-50 min-h-screen pt-28 pb-16">
       {/* Background Decorative Blur */}
@@ -77,9 +80,14 @@ const Testimonials = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center space-y-4 mb-16">
+        <motion.div
+          initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.5 }}
+          className="text-center space-y-4 mb-16"
+        >
           <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 tracking-wide uppercase">
-            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-indigo-500 fill-indigo-500" /> 
+            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-indigo-500 fill-indigo-500" />
             Customer Love
           </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-none font-sans">
@@ -91,16 +99,17 @@ const Testimonials = () => {
           <p className="text-base text-slate-500 max-w-xl mx-auto leading-relaxed font-medium">
             Discover how Elister.ai is helping sellers automate aspects extraction, draft titles, and list products 10x faster.
           </p>
-        </div>
+        </motion.div>
 
         {/* Testimonials Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           {testimonialsData.map((item, idx) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: idx * 0.1 }}
+              initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: reduceMotion ? 0 : 0.4, delay: reduceMotion ? 0 : (idx % 3) * 0.1 }}
               className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative flex flex-col justify-between hover:shadow-md transition-all duration-300 group"
             >
               <div className="absolute -top-3 -right-3 w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500 opacity-20 group-hover:opacity-100 transition-opacity duration-300">
@@ -144,7 +153,13 @@ const Testimonials = () => {
         </div>
 
         {/* CTA Teaser */}
-        <div className="bg-slate-900 rounded-[2.5rem] p-12 text-center relative overflow-hidden shadow-xl max-w-4xl mx-auto">
+        <motion.div
+          initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: reduceMotion ? 0 : 0.5 }}
+          className="bg-slate-900 rounded-[2.5rem] p-12 text-center relative overflow-hidden shadow-xl max-w-4xl mx-auto"
+        >
           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-indigo-600/10 blur-[100px] rounded-full"></div>
           <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-violet-600/10 blur-[100px] rounded-full"></div>
           
@@ -165,7 +180,7 @@ const Testimonials = () => {
               </Link>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

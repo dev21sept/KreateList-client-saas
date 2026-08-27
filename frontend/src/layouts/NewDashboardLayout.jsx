@@ -1,28 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  List, 
-  ShoppingBag, 
-  BarChart3, 
-  Settings, 
-  Plug, 
-  HelpCircle, 
-  Bell, 
-  Search, 
-  ChevronDown, 
-  Plus, 
-  User, 
+import {
+  LayoutDashboard,
+  List,
+  ShoppingBag,
+  BarChart3,
+  Settings,
+  Plug,
+  HelpCircle,
+  Bell,
+  Search,
+  Plus,
+  User,
   LogOut,
   Menu,
   X,
-  Sparkles,
   CreditCard,
   Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
 import { listingService } from '../services/api';
+import IconButton from '../components/ui/IconButton';
+import Drawer from '../components/ui/Drawer';
 
 // Import creation page components directly to mount them in modal popup
 import CreateEbayListing from '../pages/CreateEbayListing';
@@ -33,9 +33,51 @@ import CreateMasterListing from '../pages/CreateMasterListing';
 import CreateEtsyListing from '../pages/CreateEtsyListing';
 import CreateMercariListing from '../pages/CreateMercariListing';
 
+// Sidebar Menu Items based on screenshot:
+// Dashboard, Listings, Crosslisting, Orders, Analytics, Settings, Integrations, Help & Support
+const sidebarItems = [
+  { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+  { name: 'Listings', icon: <List size={20} />, path: '/listings' },
+  { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
+  { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
+  { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
+  { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
+  { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
+  { name: 'Help & Support', icon: <HelpCircle size={20} />, path: '/help' },
+];
+
+const SidebarNav = ({ collapsed, onNavigate }) => {
+  const location = useLocation();
+  return (
+    <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+      {sidebarItems.map((item) => {
+        const isActive = location.pathname === item.path || (item.path === '/listings' && location.pathname.startsWith('/create-'));
+        return (
+          <Link
+            key={item.name}
+            to={item.path}
+            onClick={onNavigate}
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all group font-bold text-sm ${
+              isActive
+                ? 'bg-indigo-50 text-indigo-600'
+                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <span className={`transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-900'}`}>
+              {item.icon}
+            </span>
+            {!collapsed && <span>{item.name}</span>}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+};
+
 const NewDashboardLayout = () => {
   const { logout, user, loadUser } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -96,17 +138,17 @@ const NewDashboardLayout = () => {
     }
 
     const lowerQuery = query.toLowerCase().trim();
-    
+
     // Filter matching pages
-    const matchedPages = pages.filter(p => 
-      p.title.toLowerCase().includes(lowerQuery) || 
+    const matchedPages = pages.filter(p =>
+      p.title.toLowerCase().includes(lowerQuery) ||
       p.subtitle.toLowerCase().includes(lowerQuery) ||
       p.badge.toLowerCase().includes(lowerQuery)
     );
 
     // Filter matching database listings
     const matchedListings = listings
-      .filter(l => 
+      .filter(l =>
         (l.title && l.title.toLowerCase().includes(lowerQuery)) ||
         (l.sku && l.sku.toLowerCase().includes(lowerQuery)) ||
         (l.platform && l.platform.toLowerCase().includes(lowerQuery)) ||
@@ -128,7 +170,7 @@ const NewDashboardLayout = () => {
     setSearchQuery('');
     setSearchResults([]);
     setIsSearchFocused(false);
-    
+
     if (res.path === 'new_listing_action') {
       setIsCreateModalOpen(true);
     } else {
@@ -186,6 +228,7 @@ const NewDashboardLayout = () => {
   useEffect(() => {
     setIsCreateModalOpen(false);
     setSelectedPlatform('');
+    setIsMobileDrawerOpen(false);
   }, [location.key]);
 
   useEffect(() => {
@@ -208,19 +251,6 @@ const NewDashboardLayout = () => {
     logout();
     window.location.href = getLandingUrl('/');
   };
-
-  // Sidebar Menu Items based on screenshot:
-  // Dashboard, Listings, Crosslisting, Orders, Analytics, Settings, Integrations, Help & Support
-  const sidebarItems = [
-    { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-    { name: 'Listings', icon: <List size={20} />, path: '/listings' },
-    { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
-    { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
-    { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
-    { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
-    { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
-    { name: 'Help & Support', icon: <HelpCircle size={20} />, path: '/help' },
-  ];
 
   // Dynamic Page Title
   const getPageTitle = () => {
@@ -260,38 +290,41 @@ const NewDashboardLayout = () => {
   const listingsCount = user?.usage?.listingsCount ?? 0;
   const fetchesCount = user?.usage?.fetchesCount ?? 0;
   const daysLeft = user?.usage?.daysLeft ?? 0;
-  
+
   const progressPct = listingLimit > 0 ? Math.min(100, Math.round((listingsCount / listingLimit) * 100)) : 0;
   const aiFetchPct = aiFetchLimit > 0 ? Math.min(100, Math.round((fetchesCount / aiFetchLimit) * 100)) : 0;
-  
+
   const firstName = user?.firstName || 'John';
   const lastName = user?.lastName || 'Doe';
   const rawPlan = user?.subscription?.plan || 'Pro';
   const planName = rawPlan.charAt(0).toUpperCase() + rawPlan.slice(1);
   const planStatus = user?.subscription?.status || 'Active';
 
-  return (
-    <div className="min-h-screen bg-[#fafbfe] flex font-sans antialiased text-[#1f2937]">
-      
-      {/* Mobile Menu Toggle Button */}
-      <button 
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="md:hidden fixed bottom-6 right-6 z-50 bg-indigo-600 text-white p-4 rounded-full shadow-2xl hover:bg-indigo-700 active:scale-95 transition-all"
-      >
-        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
+  const unreadCount = notifications.filter(n => !n.read).length;
 
-      {/* SIDEBAR */}
-      <aside 
+  const platformOptions = [
+    { id: 'ebay', label: 'eBay Single', icon: '/ebay.png' },
+    { id: 'ebay-bulk', label: 'eBay Bulk', icon: '/ebay.png' },
+    { id: 'poshmark', label: 'Poshmark', icon: '/poshmark.png' },
+    { id: 'depop', label: 'Depop', icon: '/depop.png' },
+    { id: 'etsy', label: 'Etsy', icon: '/etsy.png' },
+    { id: 'mercari', label: 'Mercari', icon: '/mercari.png' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-app-bg flex font-sans antialiased text-slate-900">
+
+      {/* DESKTOP SIDEBAR */}
+      <aside
         onMouseEnter={() => setIsSidebarOpen(true)}
         onMouseLeave={() => setIsSidebarOpen(false)}
-        className={`fixed inset-y-0 left-0 z-45 bg-white border-r border-[#f1f3f9] flex flex-col justify-between transition-all duration-300 ${
-          isSidebarOpen ? 'w-64 translate-x-0 shadow-xl' : 'w-0 -translate-x-full md:w-20 md:translate-x-0 overflow-hidden'
+        className={`hidden md:flex fixed inset-y-0 left-0 z-45 bg-surface border-r border-border flex-col justify-between transition-all duration-300 ${
+          isSidebarOpen ? 'w-64 shadow-xl' : 'w-20 overflow-hidden'
         }`}
       >
         <div className="flex flex-col flex-1">
           {/* Logo Section */}
-          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-[#fbfcfe]">
+          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-border">
             {isSidebarOpen ? (
               <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain transition-all duration-300" />
             ) : (
@@ -299,36 +332,14 @@ const NewDashboardLayout = () => {
             )}
           </div>
 
-          {/* Sidebar Menu Items */}
-          <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-            {sidebarItems.map((item) => {
-              const isActive = location.pathname === item.path || (item.path === '/listings' && location.pathname.startsWith('/create-'));
-              return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all group font-bold text-sm ${
-                    isActive 
-                      ? 'bg-[#f4f5ff] text-indigo-600' 
-                      : 'text-[#6b7280] hover:text-[#111827] hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={`transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-[#111827]'}`}>
-                    {item.icon}
-                  </span>
-                  {isSidebarOpen && <span>{item.name}</span>}
-                </Link>
-              );
-            })}
-          </nav>
+          <SidebarNav collapsed={!isSidebarOpen} onNavigate={() => {}} />
         </div>
 
         {/* Logout Section */}
-        <div className="p-4 border-t border-[#f1f3f9] bg-white">
+        <div className="p-4 border-t border-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-[#6b7280] hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
+            className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
           >
             <span className="text-slate-400 group-hover:text-rose-500 transition-colors shrink-0">
               <LogOut size={18} />
@@ -338,47 +349,75 @@ const NewDashboardLayout = () => {
         </div>
       </aside>
 
+      {/* MOBILE DRAWER */}
+      <Drawer open={isMobileDrawerOpen} onClose={() => setIsMobileDrawerOpen(false)}>
+        <div className="h-20 px-6 flex items-center justify-between select-none border-b border-border">
+          <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain" />
+          <IconButton aria-label="Close menu" onClick={() => setIsMobileDrawerOpen(false)}>
+            <X size={18} />
+          </IconButton>
+        </div>
+        <SidebarNav collapsed={false} onNavigate={() => setIsMobileDrawerOpen(false)} />
+        <div className="p-4 border-t border-border">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all font-bold text-sm text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
+      </Drawer>
+
       {/* MAIN VIEW CONTENT CONTAINER */}
-      <div className="flex-1 flex flex-col md:ml-20 transition-all duration-300">
-        
+      <div className="flex-1 min-w-0 flex flex-col md:ml-20 transition-all duration-300">
+
         {/* TOP HEADER */}
-        <header className="h-20 bg-white border-b border-[#f1f3f9] flex items-center justify-between px-8 sticky top-0 z-40">
-          
+        <header className="h-16 sm:h-20 bg-surface border-b border-border flex items-center justify-between px-3 sm:px-8 sticky top-0 z-40">
+
           {/* Left Side: Page Title and Search */}
-          <div className="flex items-center gap-6 flex-1">
-            <span className="text-2xl font-extrabold text-[#111827] select-none tracking-tight shrink-0">
+          <div className="flex items-center gap-2 sm:gap-6 flex-1 min-w-0">
+            <IconButton
+              aria-label="Open menu"
+              className="md:hidden shrink-0 p-2 sm:p-2.5"
+              onClick={() => setIsMobileDrawerOpen(true)}
+            >
+              <Menu size={18} />
+            </IconButton>
+
+            <span className="text-base sm:text-2xl font-extrabold text-slate-900 select-none tracking-tight shrink-0 truncate">
               {getPageTitle()}
             </span>
 
             {/* Global Search Bar */}
-            <div className="hidden lg:flex items-center bg-[#f3f4f6] rounded-2xl px-4 py-2 w-96 relative border border-transparent focus-within:border-indigo-150 focus-within:bg-white transition-all z-50">
+            <div className="hidden lg:flex items-center bg-slate-100 rounded-2xl px-4 py-2 w-96 relative border border-transparent focus-within:border-indigo-200 focus-within:bg-white transition-all z-50">
               <Search size={18} className="text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search pages, listings, SKUs..." 
+              <input
+                type="text"
+                placeholder="Search pages, listings, SKUs..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={handleSearchFocus}
                 onBlur={handleSearchBlur}
-                className="bg-transparent border-none outline-none px-2.5 text-xs font-bold text-slate-650 w-full placeholder:text-slate-400"
+                className="bg-transparent border-none outline-none px-2.5 text-xs font-bold text-slate-700 w-full placeholder:text-slate-400"
               />
               {searchQuery && (
-                <button 
+                <button
                   onClick={() => handleSearchChange('')}
                   className="mr-12 hover:text-rose-600 text-slate-400 text-xs font-bold bg-transparent border-0 cursor-pointer"
                 >
                   Clear
                 </button>
               )}
-              <span className="absolute right-3.5 px-2 py-0.5 bg-white border border-[#e5e7eb] rounded-lg text-[9px] font-black text-slate-400 select-none shadow-sm">
+              <span className="absolute right-3.5 px-2 py-0.5 bg-white border border-border rounded-lg text-[9px] font-black text-slate-400 select-none shadow-sm">
                 ⌘ K
               </span>
 
               {/* Search Results Dropdown */}
               {isSearchFocused && (searchQuery.trim().length > 0 || searchResults.length > 0) && (
-                <div 
+                <div
                   onMouseDown={(e) => e.preventDefault()} // prevent blur when clicking dropdown items
-                  className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-80 overflow-y-auto z-55 py-2 animate-in fade-in slide-in-from-top-1 duration-100"
+                  className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-80 overflow-y-auto z-55 py-2"
                 >
                   {searchResults.length === 0 ? (
                     <div className="px-4 py-3 text-xs font-bold text-slate-400 text-center">
@@ -397,7 +436,7 @@ const NewDashboardLayout = () => {
                               {res.type === 'page' ? <LayoutDashboard size={14} /> : <ShoppingBag size={14} />}
                             </span>
                             <div>
-                              <div className="text-xs font-black text-slate-800 group-hover:text-indigo-650 transition-colors">
+                              <div className="text-xs font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
                                 {res.title}
                               </div>
                               <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
@@ -420,56 +459,56 @@ const NewDashboardLayout = () => {
           </div>
 
           {/* Right Side Controls */}
-          <div className="flex items-center gap-6 shrink-0">
-            
+          <div className="flex items-center gap-1.5 sm:gap-6 shrink-0">
+
             {/* New Listing Button */}
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-5 py-2.5 rounded-2xl flex items-center gap-2 text-xs transition-all active:scale-95 shadow-md shadow-indigo-150 cursor-pointer"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold p-2.5 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl flex items-center gap-2 text-xs transition-all active:scale-95 shadow-md shadow-indigo-500/20 cursor-pointer"
               >
                 <Plus size={16} strokeWidth={2.5} />
-                New Listing
+                <span className="hidden sm:inline">New Listing</span>
               </button>
             </div>
 
             {/* Bell/Notifications */}
             <div className="relative" ref={notificationsDropdownRef}>
-              <button 
+              <IconButton
+                aria-label="Notifications"
+                active={isNotificationsOpen}
+                className="p-2 sm:p-2.5"
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                className={`p-2.5 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-2xl relative transition-all border border-[#f3f4f6] cursor-pointer ${
-                  isNotificationsOpen ? 'bg-slate-50 text-indigo-600' : ''
-                }`}
               >
-                <Bell size={18} />
-                {notifications.filter(n => !n.read).length > 0 && (
-                  <span className="absolute top-2 right-2 w-4 h-4 bg-rose-500 rounded-full border-2 border-white text-[9px] font-black text-white flex items-center justify-center animate-pulse">
-                    {notifications.filter(n => !n.read).length}
+                <Bell size={17} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-rose-500 rounded-full border-2 border-white text-[8px] sm:text-[9px] font-black text-white flex items-center justify-center">
+                    {unreadCount}
                   </span>
                 )}
-              </button>
+              </IconButton>
 
               {/* Notifications Dropdown Panel */}
               {isNotificationsOpen && (
-                <div className="absolute right-0 mt-3.5 w-80 bg-white rounded-3xl border border-[#f1f3f9] shadow-2xl z-[999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-5 py-4 border-b border-[#f8fafc] bg-slate-50/40 flex justify-between items-center">
+                <div className="absolute right-0 mt-3.5 w-80 max-w-[85vw] bg-white rounded-3xl border border-border shadow-2xl z-[999] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border bg-slate-50/60 flex justify-between items-center">
                     <div>
-                      <h4 className="text-xs font-extrabold text-[#111827]">Notifications</h4>
-                      <p className="text-[9px] font-bold text-[#94a3b8] mt-0.5">
-                        {notifications.filter(n => !n.read).length} unread messages
+                      <h4 className="text-xs font-extrabold text-slate-900">Notifications</h4>
+                      <p className="text-[9px] font-bold text-slate-400 mt-0.5">
+                        {unreadCount} unread messages
                       </p>
                     </div>
                     <div className="flex gap-2.5 items-center">
-                      {notifications.filter(n => !n.read).length > 0 && (
-                        <button 
+                      {unreadCount > 0 && (
+                        <button
                           onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}
-                          className="text-[9px] font-extrabold text-indigo-650 hover:text-indigo-850 hover:underline bg-transparent border-0 cursor-pointer"
+                          className="text-[9px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer"
                         >
                           Mark read
                         </button>
                       )}
                       {notifications.length > 0 && (
-                        <button 
+                        <button
                           onClick={() => setNotifications([])}
                           className="text-[9px] font-extrabold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer"
                         >
@@ -479,15 +518,15 @@ const NewDashboardLayout = () => {
                     </div>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto divide-y divide-[#f8fafc]">
+                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
                     {notifications.length === 0 ? (
                       <div className="p-5 text-center text-xs font-bold text-slate-400">
                         No notifications yet
                       </div>
                     ) : (
                       notifications.map((n) => (
-                        <div 
-                          key={n.id} 
+                        <div
+                          key={n.id}
                           onClick={() => setNotifications(notifications.map(item => item.id === n.id ? { ...item, read: true } : item))}
                           className={`p-4 text-left transition-colors cursor-pointer flex gap-3 relative group ${
                             n.read ? 'hover:bg-slate-50/50' : 'bg-indigo-50/20 hover:bg-indigo-50/40'
@@ -500,7 +539,7 @@ const NewDashboardLayout = () => {
                           </div>
                           <div className="space-y-0.5 flex-1 min-w-0 pr-4">
                             <div className="flex justify-between items-start gap-2">
-                              <h5 className={`text-xs text-[#111827] truncate ${n.read ? 'font-bold' : 'font-extrabold'}`}>
+                              <h5 className={`text-xs text-slate-900 truncate ${n.read ? 'font-bold' : 'font-extrabold'}`}>
                                 {n.title}
                               </h5>
                               <span className="text-[9px] font-semibold text-slate-400 shrink-0 mt-0.5">{n.time}</span>
@@ -510,12 +549,13 @@ const NewDashboardLayout = () => {
                             </p>
                           </div>
                           {/* Close/delete button */}
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setNotifications(prev => prev.filter(item => item.id !== n.id));
                             }}
-                            className="absolute right-3.5 top-3.5 p-1 text-slate-350 hover:text-rose-500 rounded-lg hover:bg-slate-100 transition-all bg-transparent border-0 shrink-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Dismiss notification"
+                            className="absolute right-3.5 top-3.5 p-1 text-slate-350 hover:text-rose-500 rounded-lg hover:bg-slate-100 transition-all bg-transparent border-0 shrink-0 cursor-pointer opacity-0 group-hover:opacity-100"
                           >
                             <X size={12} />
                           </button>
@@ -529,42 +569,42 @@ const NewDashboardLayout = () => {
 
             {/* User Profile Info Dropdown */}
             <div className="relative" ref={profileDropdownRef}>
-              <button 
+              <button
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center gap-3.5 text-left p-1.5 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
+                className="flex items-center gap-3.5 text-left p-1 sm:p-1.5 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
               >
-                <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 shadow-sm shrink-0 overflow-hidden">
-                  <span className="text-sm">{firstName.charAt(0)}{lastName.charAt(0)}</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 shadow-sm shrink-0 overflow-hidden">
+                  <span className="text-xs sm:text-sm">{firstName.charAt(0)}{lastName.charAt(0)}</span>
                 </div>
                 <div className="hidden sm:block min-w-0 pr-1.5">
-                  <h4 className="font-extrabold text-xs text-[#111827] tracking-tight">{firstName} {lastName}</h4>
-                  <p className="text-[10px] font-bold text-[#4f46e5] mt-0.5 capitalize">{planName} Plan</p>
+                  <h4 className="font-extrabold text-xs text-slate-900 tracking-tight">{firstName} {lastName}</h4>
+                  <p className="text-[10px] font-bold text-indigo-600 mt-0.5 capitalize">{planName} Plan</p>
                 </div>
               </button>
 
               {/* Profile Dropdown Menu */}
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-3.5 w-80 bg-white rounded-3xl border border-[#f1f3f9] shadow-2xl z-[999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-5 py-4 border-b border-[#f8fafc] bg-slate-50/40">
-                    <p className="text-[9px] font-bold text-[#94a3b8] uppercase tracking-widest">Logged in as</p>
-                    <p className="text-xs font-extrabold text-[#111827] mt-0.5 truncate">{user?.email || 'user@elister.ai'}</p>
+                <div className="absolute right-0 mt-3.5 w-80 max-w-[85vw] bg-white rounded-3xl border border-border shadow-2xl z-[999] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border bg-slate-50/40">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Logged in as</p>
+                    <p className="text-xs font-extrabold text-slate-900 mt-0.5 truncate">{user?.email || 'user@elister.ai'}</p>
                   </div>
-                  
+
                   {/* Subscription Details */}
-                  <div className="p-5 border-b border-[#f8fafc] space-y-4">
+                  <div className="p-5 border-b border-border space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Plan</span>
                       <div className="flex items-center gap-1.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          planName.toLowerCase() === 'pro' ? 'bg-indigo-50 text-indigo-650 border border-indigo-100' :
-                          planName.toLowerCase() === 'enterprise' ? 'bg-emerald-50 text-emerald-655 border border-emerald-100' :
-                          planName.toLowerCase() === 'basic' ? 'bg-blue-50 text-blue-655 border border-blue-100' :
-                          'bg-slate-100 text-slate-655'
+                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                          planName.toLowerCase() === 'pro' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                          planName.toLowerCase() === 'enterprise' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          planName.toLowerCase() === 'basic' ? 'bg-sky-50 text-sky-600 border-sky-100' :
+                          'bg-slate-100 text-slate-500 border-border'
                         }`}>
                           {planName}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                          planStatus.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-650' : 'bg-rose-50 text-rose-650'
+                          planStatus.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
                         }`}>
                           {planStatus}
                         </span>
@@ -572,7 +612,7 @@ const NewDashboardLayout = () => {
                     </div>
 
                     {planStatus.toLowerCase() === 'active' && (
-                      <div className="bg-[#fbfcfe] border border-[#f1f3f9] p-3 rounded-2xl flex items-center justify-between">
+                      <div className="bg-slate-50 border border-border p-3 rounded-2xl flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-500">Days Remaining:</span>
                         <span className="text-[11px] font-black text-indigo-600">
                           {daysLeft > 0 ? `${daysLeft} Days` : 'Expires Today'}
@@ -587,9 +627,9 @@ const NewDashboardLayout = () => {
                           <span>AI Listings Used</span>
                           <span className="font-extrabold text-slate-800">{listingsCount.toLocaleString()} / {listingLimit.toLocaleString()}</span>
                         </div>
-                        <div className="w-full h-1.5 bg-[#f1f3f9] rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-600 rounded-full transition-all duration-500"
                             style={{ width: `${progressPct}%` }}
                           />
                         </div>
@@ -600,9 +640,9 @@ const NewDashboardLayout = () => {
                           <span>AI Fetches Used</span>
                           <span className="font-extrabold text-slate-800">{fetchesCount.toLocaleString()} / {aiFetchLimit.toLocaleString()}</span>
                         </div>
-                        <div className="w-full h-1.5 bg-[#f1f3f9] rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-emerald-600 rounded-full transition-all duration-500" 
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-600 rounded-full transition-all duration-500"
                             style={{ width: `${aiFetchPct}%` }}
                           />
                         </div>
@@ -611,7 +651,7 @@ const NewDashboardLayout = () => {
                   </div>
 
                   <div className="p-2 bg-slate-50/30 flex flex-col gap-1">
-                    <Link 
+                    <Link
                       to="/settings"
                       onClick={() => setIsProfileDropdownOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-xl transition-all"
@@ -619,7 +659,7 @@ const NewDashboardLayout = () => {
                       <User size={15} className="text-slate-400" />
                       Profile Settings
                     </Link>
-                    <Link 
+                    <Link
                       to="/rules"
                       onClick={() => setIsProfileDropdownOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-xl transition-all"
@@ -627,9 +667,9 @@ const NewDashboardLayout = () => {
                       <Database size={15} className="text-slate-400" />
                       Rules Engine
                     </Link>
-                    <button 
+                    <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-[#e11d48] hover:bg-rose-50 rounded-xl transition-all text-left cursor-pointer"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all text-left cursor-pointer"
                     >
                       <LogOut size={15} />
                       Logout
@@ -644,94 +684,51 @@ const NewDashboardLayout = () => {
         </header>
 
         {/* Page Content Outlet */}
-        <main className="p-8 flex-grow">
+        <main className="p-4 sm:p-8 flex-grow">
           <Outlet />
         </main>
       </div>
 
       {/* POPUP MODAL FOR CREATING NEW LISTING */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
           {selectedPlatform === '' ? (
             /* Step 1: Select Platform */
-            <div className="bg-white rounded-3xl max-w-xl w-full p-8 border border-[#e2e8f0] shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-              <button 
+            <div className="bg-white rounded-3xl max-w-xl w-full p-8 border border-slate-100 shadow-2xl relative">
+              <IconButton
+                aria-label="Close"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="absolute top-6 right-6 p-2 hover:bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute top-6 right-6"
               >
                 <X size={18} />
-              </button>
-              
+              </IconButton>
+
               <div className="text-center mb-6">
-                <span className="text-[10px] font-black text-indigo-650 uppercase tracking-widest block mb-1">Create Listing</span>
+                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Create Listing</span>
                 <h3 className="text-xl font-black text-slate-900">Select Platform</h3>
                 <p className="text-slate-400 text-xs font-semibold mt-1">Choose where you want to list your product</p>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {/* eBay Single */}
-                <button 
-                  onClick={() => setSelectedPlatform('ebay')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/ebay.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">eBay Single</span>
-                </button>
-
-                {/* eBay Bulk */}
-                <button 
-                  onClick={() => setSelectedPlatform('ebay-bulk')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/ebay.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">eBay Bulk</span>
-                </button>
-
-                {/* Poshmark */}
-                <button 
-                  onClick={() => setSelectedPlatform('poshmark')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/poshmark.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">Poshmark</span>
-                </button>
-
-                {/* Depop */}
-                <button 
-                  onClick={() => setSelectedPlatform('depop')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/depop.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">Depop</span>
-                </button>
-
-                {/* Etsy */}
-                <button 
-                  onClick={() => setSelectedPlatform('etsy')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/etsy.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">Etsy</span>
-                </button>
-
-                {/* Mercari */}
-                <button 
-                  onClick={() => setSelectedPlatform('mercari')}
-                  className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
-                >
-                  <img src="/mercari.png" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
-                  <span className="text-xs font-black text-slate-800 mt-3 block">Mercari</span>
-                </button>
-
+                {platformOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setSelectedPlatform(opt.id)}
+                    className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
+                  >
+                    <img src={opt.icon} className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
+                    <span className="text-xs font-black text-slate-800 mt-3 block">{opt.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
             /* Step 2: Render selected creation page inside modal container */
-            <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto relative p-6 pt-16 border border-[#e2e8f0] shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-              
+            <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[94vh] overflow-y-auto relative p-6 pt-16 border border-slate-100 shadow-2xl">
+
               {/* Back to selection */}
-              <button 
+              <button
                 onClick={() => setSelectedPlatform('')}
                 className="absolute top-4 left-6 z-[999] px-4.5 py-2 bg-slate-50 border border-slate-100 hover:bg-slate-100 text-xs font-black text-slate-650 rounded-2xl cursor-pointer flex items-center gap-1.5 transition-all"
               >
@@ -739,12 +736,13 @@ const NewDashboardLayout = () => {
               </button>
 
               {/* Close Modal */}
-              <button 
+              <IconButton
+                aria-label="Close"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="absolute top-4 right-6 z-[999] p-2 bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-2xl cursor-pointer transition-all"
+                className="absolute top-4 right-6 z-[999]"
               >
                 <X size={18} />
-              </button>
+              </IconButton>
 
               <div className="w-full">
                 {selectedPlatform === 'ebay' && <CreateEbayListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}

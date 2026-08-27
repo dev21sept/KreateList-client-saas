@@ -23,6 +23,8 @@ import { ruleService, aiService, listingService, etsyService } from '../services
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { useNotification } from '../context/NotificationContext';
 import { compressImage } from '../utils/imageCompressor';
+import Button from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -713,12 +715,13 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
         ))}
       </div>
 
-      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+      <div className="flex justify-between items-start gap-4">
         <div>
+          <Badge variant="brand" className="mb-2.5">{editId ? 'Edit Mode' : 'AI Powered'}</Badge>
           <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit Product Listing' : targetPlatform === 'etsy' ? 'Create Etsy Product Listing' : 'Create Master Product Listing'}
           </h1>
-          <p className="text-slate-500 text-xs font-semibold mt-1">
+          <p className="text-slate-400 text-xs font-semibold mt-1.5">
             {targetPlatform === 'etsy' ? 'Prefill Etsy Listing Details and Images using AI Scan' : 'Prefill All Marketplace Listings from Image Scan'}
           </p>
         </div>
@@ -728,15 +731,18 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
         <div className="lg:col-span-5 space-y-6">
 
           <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <ImageIcon className="text-indigo-500" size={16} /> Product Images
-            </h2>
+            <div className="flex items-center gap-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <ImageIcon size={14} />
+              </span>
+              <h2 className="text-sm font-black text-slate-900">Product Images</h2>
+            </div>
 
             <div className="grid grid-cols-3 gap-3">
               {formData.images.map((img, idx) => (
                 <div key={idx} className="relative aspect-square border border-slate-100 rounded-2xl overflow-hidden group">
                   <img src={img} className="w-full h-full object-cover" alt="" />
-                  
+
                   {/* Hover Actions */}
                   <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                     {idx > 0 && (
@@ -772,9 +778,9 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
               ))}
 
               {formData.images.length < 12 && (
-                <label className="aspect-square border border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-50/50 hover:bg-indigo-50/10 transition-all">
-                  <Upload size={16} className="text-slate-400" />
-                  <span className="text-[10px] font-bold text-slate-500">Upload</span>
+                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-2xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-50 hover:bg-indigo-50/40 transition-all group">
+                  <Upload size={16} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                  <span className="text-[10px] font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider transition-colors">Upload</span>
                   <input type="file" multiple onChange={handleImageUpload} className="hidden" />
                 </label>
               )}
@@ -782,9 +788,12 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
           </div>
 
           <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-            <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <Zap className="text-indigo-500" size={16} /> Scanning Parameters
-            </h2>
+            <div className="flex items-center gap-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <Zap size={14} />
+              </span>
+              <h2 className="text-sm font-black text-slate-900">Scanning Parameters</h2>
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -814,14 +823,18 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                 />
               </div>
 
-              <button
+              <Button
+                type="button"
+                variant="primary"
+                size="lg"
+                className="w-full"
                 onClick={startAIFetch}
+                loading={loading}
                 disabled={loading || isConvertingImages}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                icon={<Sparkles size={16} />}
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 {loading ? 'AI Scanning Product...' : 'Scan Image with AI'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -829,9 +842,12 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
         <div className="lg:col-span-7 space-y-6">
           {hasScanned ? (
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-              <h2 className="text-sm font-black text-slate-900 flex items-center gap-2 border-b border-slate-50 pb-4">
-                <List className="text-indigo-500" size={16} /> Listing Details
-              </h2>
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                  <List size={14} />
+                </span>
+                <h2 className="text-sm font-black text-slate-900">Listing Details</h2>
+              </div>
 
               <div className="space-y-4">
                 <div>
@@ -893,7 +909,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Size</label>
                       <input
                         value={formData.size}
                         onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
@@ -902,7 +918,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Color</label>
                       <input
                         value={formData.color}
                         onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
@@ -914,7 +930,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                 ) : (
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Size</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Size</label>
                       {etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size') ? (
                         (() => {
                           const prop = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
@@ -938,7 +954,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                       )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Color</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Color</label>
                       {etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color') ? (
                         (() => {
                           const prop = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
@@ -962,7 +978,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                       )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Quantity</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Quantity</label>
                       <input
                         type="number"
                         min="1"
@@ -977,7 +993,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Materials</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Materials</label>
                     {etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi') ? (
                       (() => {
                         const prop = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
@@ -1001,7 +1017,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                     )}
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
                     <input
                       value={formData.styleTag}
                       onChange={(e) => setFormData(prev => ({ ...prev, styleTag: e.target.value }))}
@@ -1013,7 +1029,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Who Made It?</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Who Made It?</label>
                     <select
                       value={formData.who_made || 'i_did'}
                       onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
@@ -1026,7 +1042,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">What Is It?</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">What Is It?</label>
                     <select
                       value={formData.is_supply || 'false'}
                       onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
@@ -1040,7 +1056,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">When Was It Made?</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">When Was It Made?</label>
                     <select
                       value={formData.when_made || '2020_2026'}
                       onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
@@ -1060,7 +1076,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block mb-2">Renewal Options</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Renewal Options</label>
                     <select
                       value={formData.renewal || 'manual'}
                       onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
@@ -1075,7 +1091,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                 <div className="grid grid-cols-1 gap-4 mb-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest block">Etsy Delivery Profile</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Etsy Delivery Profile</label>
                       <button 
                         type="button" 
                         onClick={handleRefreshShippingProfiles}
@@ -1105,11 +1121,11 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                 {/* Etsy Dynamic Category Properties */}
                 {targetPlatform === 'etsy' && etsyProperties.length > 0 && (
-                  <div className="border border-slate-200 p-6 rounded-3xl bg-slate-50/20 mb-4 space-y-4">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span>Etsy Category Attributes</span>
-                      <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg font-extrabold">Taxonomy: {formData.categoryId || '-'}</span>
-                    </h4>
+                  <div className="border border-slate-100 p-6 rounded-3xl bg-slate-50/50 mb-4 space-y-4">
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <h4 className="text-sm font-black text-slate-900">Etsy Category Attributes</h4>
+                      <Badge variant="neutral">Taxonomy: {formData.categoryId || '-'}</Badge>
+                    </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2">
                       {etsyProperties
@@ -1150,7 +1166,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
                         return (
                           <div key={propertyId}>
-                            <label className="text-[9px] font-black uppercase tracking-wider block mb-1 text-slate-455">
+                            <label className="text-[9px] font-black uppercase tracking-wider block mb-1 text-slate-500">
                               {name} {isRequired && <span className="text-rose-500">*</span>}
                             </label>
                             {valOptions.length > 0 ? (
@@ -1205,40 +1221,41 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="flex-1"
                     onClick={handleSaveDraft}
+                    loading={loading}
                     disabled={loading}
-                    className="flex-1 py-3.5 bg-slate-900 hover:bg-slate-950 text-white rounded-2xl font-black text-xs transition-all shadow-lg flex items-center justify-center gap-1.5"
                   >
                     Save Master Listing
-                  </button>
+                  </Button>
                   {targetPlatform === 'etsy' && (
-                    <button
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="lg"
+                      className="flex-1"
                       onClick={handleSaveAndPublish}
+                      loading={loading}
                       disabled={loading}
-                      className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-black text-xs transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-indigo-100"
+                      icon={<ShoppingBag size={14} />}
                     >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Publishing to Etsy...
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          Save & List on Etsy
-                        </>
-                      )}
-                    </button>
+                      {loading ? 'Publishing to Etsy...' : 'Save & List on Etsy'}
+                    </Button>
                   )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-slate-50/50 border border-slate-100 rounded-3xl p-12 text-center flex flex-col items-center justify-center h-full min-h-[400px]">
-              <Sparkles className="w-10 h-10 text-slate-300 mb-4 animate-pulse" />
-              <h3 className="text-slate-700 font-bold text-sm">Waiting for Scan</h3>
-              <p className="text-slate-400 text-xs mt-2 max-w-sm">
+            <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl p-12 text-center flex flex-col items-center justify-center h-full min-h-[400px]">
+              <div className="w-14 h-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-4">
+                <Sparkles className="w-6 h-6 text-indigo-400 animate-pulse" />
+              </div>
+              <h3 className="text-slate-800 font-black text-sm">Waiting for Scan</h3>
+              <p className="text-slate-400 text-xs font-semibold mt-2 max-w-sm">
                 Upload your product photos, choose a scanning parameter rule on the left, and trigger AI Scan to fill this page.
               </p>
             </div>

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Check, Zap, Rocket, Building2, Package, Plus, Users, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
+import { Badge } from '../components/ui/Badge';
+import Card from '../components/ui/Card';
 
 const Subscription = () => {
   const navigate = useNavigate();
@@ -112,7 +114,7 @@ const Subscription = () => {
               onClick={() => setBillingCycle('yearly')}
               className={`relative z-10 px-8 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${billingCycle === 'yearly' ? 'text-slate-900' : 'text-slate-500'}`}
             >
-              Yearly <span className="text-[10px] text-emerald-600 ml-1 font-black">SAVE 5%</span>
+              Yearly <Badge variant="success" className="ml-1 align-middle">SAVE 5%</Badge>
             </button>
             <div 
               className={`absolute top-1 bottom-1 left-1 bg-white rounded-xl shadow-sm transition-all duration-300 border border-slate-200/50 ${billingCycle === 'monthly' ? 'w-[calc(50%-4px)]' : 'w-[calc(50%-4px)] translate-x-full'}`}
@@ -173,9 +175,12 @@ const Subscription = () => {
               onClick={() => setSelectedProfile(plan.name)}
             >
               {isHighlighted && (
-                <div className="absolute top-0 right-8 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 animate-pulse">
+                <Badge
+                  variant="brand"
+                  className="absolute top-0 right-8 -translate-y-1/2 bg-indigo-600 text-white border-indigo-600 px-4 py-1 text-[10px] shadow-lg shadow-indigo-100 animate-pulse"
+                >
                   {selectedProfile ? "Your Match" : "Recommended"}
-                </div>
+                </Badge>
               )}
 
               <div className="flex justify-between items-start mb-6">
@@ -291,13 +296,13 @@ const Subscription = () => {
 };
 
 const AddOnCard = ({ name, price, icon }) => (
-  <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow text-center">
+  <Card hover className="p-4 text-center">
     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center mx-auto mb-3 text-slate-400 group-hover:text-indigo-500">
       {icon}
     </div>
     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{name}</p>
     <p className="text-lg font-black text-slate-900">{price}<span className="text-[10px] text-slate-400">/mo</span></p>
-  </div>
+  </Card>
 );
 
 const BenefitItem = ({ text }) => (

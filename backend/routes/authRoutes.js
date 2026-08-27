@@ -9,7 +9,8 @@ const {
   updateProfile,
   changePassword,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  resetPasswordWithOtp
 } = require('../controllers/authController');
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.post('/login', login);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/forgot-password', forgotPassword);
+router.post('/reset-password-otp', resetPasswordWithOtp);
 router.post('/reset-password/:token', resetPassword);
 router.get('/me', protect, getMe);
 router.put('/subscription', protect, updateSubscription);

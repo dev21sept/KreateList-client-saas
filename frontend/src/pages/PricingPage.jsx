@@ -11,10 +11,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const reduceMotion = useReducedMotion();
 
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -82,7 +84,12 @@ const PricingPage = () => {
   return (
     <div className="max-w-6xl mx-auto px-6 py-12 space-y-16 antialiased pt-24">
       {/* Header */}
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
+      <motion.div
+        initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5 }}
+        className="text-center space-y-4 max-w-2xl mx-auto"
+      >
         <span className="px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] font-black text-indigo-600 uppercase tracking-widest">
           Pricing Plans
         </span>
@@ -147,7 +154,7 @@ const PricingPage = () => {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Pricing Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch pt-6">
@@ -156,9 +163,10 @@ const PricingPage = () => {
           return (
             <motion.div
               key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
+              initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: reduceMotion ? 0 : 0.5, delay: reduceMotion ? 0 : idx * 0.1 }}
               className={`flex flex-col p-8 rounded-[2rem] border bg-white transition-all duration-500 relative group cursor-pointer ${
                 isHighlighted 
                   ? 'border-indigo-500 shadow-[0_20px_50px_rgba(99,102,241,0.12)] ring-2 ring-indigo-500/20 scale-[1.02]' 

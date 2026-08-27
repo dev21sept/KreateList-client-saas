@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { 
-  Plus, 
-  Trash2, 
+import { AnimatePresence, Reorder } from 'framer-motion';
+import {
+  Plus,
+  Trash2,
   Zap,
   Sparkles,
   RefreshCw,
@@ -26,6 +26,12 @@ import {
 } from 'lucide-react';
 import { ruleService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import Modal from '../components/ui/Modal';
+import EmptyState from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { Badge } from '../components/ui/Badge';
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, icon: Icon }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -376,22 +382,19 @@ const Rules = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Rule Configuration</h1>
-          <p className="text-slate-500">Define how AI should construct your listing details.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Rule Configuration</h1>
+          <p className="text-slate-400 text-xs font-bold mt-1">Define how AI should construct your listing details.</p>
         </div>
-        <button 
-          onClick={() => setShowRuleList(true)}
-          className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm"
-        >
-          <ListIcon size={18} /> Show Rule List
-        </button>
+        <Button variant="outline" icon={<ListIcon size={16} />} onClick={() => setShowRuleList(true)}>
+          Show Rule List
+        </Button>
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Rule Name Bar */}
         <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[200px] relative">
-            <input 
+            <input
               type="text"
               placeholder="Rule Name (e.g. Vintage Nike Sneakers)"
               className="w-full h-10 px-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-bold text-slate-700 text-sm"
@@ -399,22 +402,19 @@ const Rules = () => {
               onChange={(e) => setRuleName(e.target.value)}
             />
           </div>
-          <button 
-            onClick={resetFields}
-            className="h-10 px-4 flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-sm transition-all bg-white border border-slate-200 rounded-xl hover:border-slate-300"
-          >
-            <RefreshCw size={16} /> Reset
-          </button>
+          <Button variant="outline" icon={<RefreshCw size={16} />} onClick={resetFields}>
+            Reset
+          </Button>
         </div>
 
-        <div className="p-8 space-y-10">
+        <div className="p-5 sm:p-8 space-y-10">
           {/* Section 1: Title Construction */}
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                <Zap size={16} className="mr-2 text-amber-500" /> Title Construction Sequence
+                <Zap size={16} className="mr-2 text-amber-500 shrink-0" /> Title Construction Sequence
               </label>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Drag to Reorder</span>
+              <Badge variant="neutral" className="self-start sm:self-auto">Drag to Reorder</Badge>
             </div>
 
             <div className="min-h-[100px] p-6 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100 relative group">
@@ -437,13 +437,13 @@ const Rules = () => {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
-                      className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2 cursor-grab active:cursor-grabbing hover:border-indigo-300 transition-colors"
+                      className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-2 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-md transition-all"
                     >
                       <GripVertical size={14} className="text-slate-300" />
-                      <span className="text-sm font-bold text-slate-700">{field}</span>
-                      <button 
+                      <span className="text-sm font-black text-slate-700">{field}</span>
+                      <button
                         onClick={() => removeFieldFromSequence(field)}
-                        className="ml-1 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                        className="ml-1 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                       >
                         <X size={14} />
                       </button>
@@ -561,14 +561,14 @@ const Rules = () => {
 
           {/* Section 4: eBay Policies */}
           <div className="pt-10 border-t border-slate-50 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                <CheckCircle2 size={16} className="mr-2 text-indigo-600" /> Default eBay Policies
+                <CheckCircle2 size={16} className="mr-2 text-indigo-600 shrink-0" /> Default eBay Policies
               </label>
               {!isEbayConnected && (
-                <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-3 py-1 rounded-full border border-rose-100 flex items-center gap-1.5">
+                <Badge variant="danger" className="self-start sm:self-auto">
                   <X size={12} /> Connect eBay Account to select policies
-                </span>
+                </Badge>
               )}
             </div>
 
@@ -696,86 +696,60 @@ const Rules = () => {
 
           {/* Final Actions */}
           <div className="flex justify-end pt-8 border-t border-slate-50 gap-4">
-            <button 
+            <Button
+              size="lg"
+              icon={<Save size={18} />}
+              loading={isSaving}
+              disabled={!ruleName.trim()}
               onClick={handleSaveRule}
-              disabled={isSaving || !ruleName.trim()}
-              className="h-10 px-8 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50"
             >
-              <Save size={18} /> {isSaving ? 'Saving...' : editingId ? 'Update Rule' : 'Save Rule'}
-            </button>
+              {editingId ? 'Update Rule' : 'Save Rule'}
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Rule List Modal Overlay */}
-      <AnimatePresence>
-        {showRuleList && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowRuleList(false)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
-            >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-xl font-bold text-slate-900">Saved Rules</h3>
-                <button onClick={() => setShowRuleList(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                {isLoading ? (
-                  <div className="text-center py-20">
-                    <RefreshCw size={24} className="animate-spin text-indigo-600 mx-auto" />
-                    <p className="text-slate-500 font-medium mt-4">Loading rules...</p>
-                  </div>
-                ) : rules.length === 0 ? (
-                  <div className="text-center py-20">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <ListIcon size={24} className="text-slate-300" />
-                    </div>
-                    <p className="text-slate-500 font-medium">No rules created yet.</p>
-                  </div>
-                ) : (
-                  rules.map(rule => (
-                    <div key={rule._id || rule.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-indigo-200 transition-all">
-                      <div>
-                        <h4 className="font-bold text-slate-900">{rule.name}</h4>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {rule.title_sequence?.map(f => (
-                            <span key={f} className="text-[10px] font-bold text-indigo-600/70">{f} • </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => handleEditRule(rule)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteRule(rule._id || rule.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
+      {/* Rule List Modal */}
+      <Modal open={showRuleList} onClose={() => setShowRuleList(false)} size="lg" showCloseButton>
+        <div className="flex flex-col max-h-[80vh]">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="text-lg font-black text-slate-900">Saved Rules</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-1">Switch between your saved AI listing templates</p>
           </div>
-        )}
-      </AnimatePresence>
+          <div className="p-6 overflow-y-auto flex-1 space-y-3">
+            {isLoading ? (
+              <LoadingState label="Loading rules..." />
+            ) : rules.length === 0 ? (
+              <EmptyState
+                icon={<ListIcon size={20} />}
+                title="No rules created yet"
+                description="Build your first AI listing rule using the form on the left."
+              />
+            ) : (
+              rules.map(rule => (
+                <div key={rule._id || rule.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-3 group hover:border-indigo-200 transition-all">
+                  <div className="min-w-0">
+                    <h4 className="font-black text-slate-900 text-sm truncate">{rule.name}</h4>
+                    <div className="flex flex-wrap gap-x-1 mt-1.5">
+                      {rule.title_sequence?.map(f => (
+                        <span key={f} className="text-[10px] font-bold text-indigo-600/70">{f} •</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <IconButton aria-label="Edit rule" onClick={() => handleEditRule(rule)}>
+                      <Pencil size={16} />
+                    </IconButton>
+                    <IconButton aria-label="Delete rule" variant="danger" onClick={() => handleDeleteRule(rule._id || rule.id)}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

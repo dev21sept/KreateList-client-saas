@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X, ChevronRight } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -62,18 +64,18 @@ const Navbar = () => {
           </div>
 
           {/* CTA Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-2">
             <Link
               to="/login"
-              className="text-slate-600 hover:text-indigo-600 font-medium px-4 py-2"
+              className="text-slate-600 hover:text-indigo-600 font-semibold text-sm px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
             >
               Log in
             </Link>
             <Link
               to="/signup"
-              className="btn-primary flex items-center"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
             >
-              Get Started <ChevronRight className="ml-1 w-4 h-4" />
+              Get Started <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
 
@@ -81,9 +83,10 @@ const Navbar = () => {
           <div className="md:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-slate-600"
+              className="p-2.5 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+              aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
             >
-              {isMobileMenuOpen ? <X /> : <Menu />}
+              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
@@ -92,16 +95,17 @@ const Navbar = () => {
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="md:hidden bg-white border-b border-slate-100 py-4 px-4 space-y-4"
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          className="md:hidden bg-white border-b border-slate-100 py-5 px-4 sm:px-6 space-y-1 shadow-sm"
         >
           {navLinks.map((link) => (
             link.isHash ? (
               <a
                 key={link.name}
                 href={link.href}
-                className="block text-slate-600 hover:text-indigo-600 font-medium"
+                className="block text-slate-600 hover:text-indigo-600 hover:bg-slate-50 font-semibold text-sm px-3 py-2.5 rounded-xl transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.name}
@@ -110,23 +114,25 @@ const Navbar = () => {
               <Link
                 key={link.name}
                 to={link.href}
-                className="block text-slate-600 hover:text-indigo-600 font-medium"
+                className="block text-slate-600 hover:text-indigo-600 hover:bg-slate-50 font-semibold text-sm px-3 py-2.5 rounded-xl transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.name}
               </Link>
             )
           ))}
-          <div className="pt-4 border-t border-slate-100 flex flex-col space-y-3">
+          <div className="pt-4 mt-3 border-t border-slate-100 flex flex-col space-y-2">
             <Link
               to="/login"
-              className="text-center text-slate-600 font-medium py-2"
+              className="text-center text-slate-600 font-semibold text-sm py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Log in
             </Link>
             <Link
               to="/signup"
-              className="btn-primary text-center"
+              className="text-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Get Started
             </Link>

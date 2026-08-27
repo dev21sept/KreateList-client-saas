@@ -1,44 +1,112 @@
 @import "tailwindcss";
 
 @theme {
+  /* ---- Brand seed colors (existing, unchanged) ---- */
   --color-primary: #6366f1;
   --color-primary-hover: #4f46e5;
   --color-secondary: #0ea5e9;
   --color-dark-bg: #030712;
-  --color-card-bg: #111827;
-  --color-border: #1f2937;
-  --color-text-dim: #9ca3af;
+  --color-card-bg: #ffffff;
+  --color-border: #f1f3f9;
+  --color-text-dim: #94a3b8;
+
+  /* ---- Brand ramp (indigo, derived from #6366f1) ---- */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  /* ---- Accent ramp (sky, derived from #0ea5e9) ---- */
+  --color-accent-50: #f0f9ff;
+  --color-accent-100: #e0f2fe;
+  --color-accent-200: #bae6fd;
+  --color-accent-300: #7dd3fc;
+  --color-accent-400: #38bdf8;
+  --color-accent-500: #0ea5e9;
+  --color-accent-600: #0284c7;
+  --color-accent-700: #0369a1;
+  --color-accent-800: #075985;
+  --color-accent-900: #0c4a6e;
+  --color-accent-950: #082f49;
+
+  /* ---- App surfaces: always white/light ---- */
+  --color-app-bg: #fafbfe;
+  --color-surface: #ffffff;
+  --color-card-bg-hover: #f8fafc;
+  --color-border-strong: #e2e8f0;
+  --color-text-dimmer: #cbd5e1;
+
+  /* ---- Semantic status colors ---- */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #f43f5e;
+  --color-info: #38bdf8;
+
+  /* ---- Radius ---- */
+  --radius-control: 0.75rem;
+  --radius-card: 1.5rem;
+  --radius-card-lg: 1.75rem;
+
+  /* ---- Shadows ---- */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.08);
+  --shadow-card-hover: 0 2px 4px 0 rgb(15 23 42 / 0.05), 0 16px 32px -12px rgb(15 23 42 / 0.12);
+  --shadow-glow-primary: 0 0 0 3px rgb(99 102 241 / 0.15);
+  --shadow-glow-danger: 0 0 0 3px rgb(244 63 94 / 0.15);
+
+  /* ---- Type scale (codifies existing ad-hoc usage) ---- */
+  --text-3xs: 0.5625rem;
+  --text-3xs--line-height: 0.75rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 0.875rem;
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900;
-  }
-
-  .dark body {
-    @apply bg-dark-bg text-slate-100;
+    @apply bg-white text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900;
   }
 }
 
 @layer components {
+  /* ---- Cards ---- */
   .glass-card {
     @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl rounded-2xl;
   }
 
-  .dark .glass-card {
-    @apply bg-slate-900/50 backdrop-blur-md border border-slate-800/50 shadow-2xl rounded-2xl;
+  .app-card {
+    @apply bg-white border border-slate-100 rounded-3xl shadow-sm;
   }
 
+  .app-surface {
+    @apply bg-white border border-slate-100;
+  }
+
+  /* ---- Buttons ---- */
   .btn-primary {
     @apply px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:scale-100;
   }
 
-  .input-field {
-    @apply w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all;
+  .btn-secondary {
+    @apply px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:scale-100;
   }
 
-  .dark .input-field {
-    @apply bg-slate-900 border-slate-800 text-white focus:border-indigo-400;
+  .btn-ghost {
+    @apply px-5 py-2.5 bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-800 font-medium rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:scale-100;
+  }
+
+  .btn-danger {
+    @apply px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl transition-all active:scale-95 shadow-lg shadow-rose-500/20 disabled:opacity-50 disabled:scale-100;
+  }
+
+  /* ---- Inputs ---- */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all;
   }
 }
 
@@ -55,6 +123,12 @@
   @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  @apply bg-slate-800 hover:bg-slate-700;
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

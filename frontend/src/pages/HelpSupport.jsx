@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
   Search, 
   ChevronDown, 
   Mail, 
@@ -78,6 +79,7 @@ const HelpSupport = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/help';
+  const reduceMotion = useReducedMotion();
 
   // State Management
   const [searchQuery, setSearchQuery] = useState('');
@@ -237,7 +239,7 @@ const HelpSupport = () => {
                           initial={{ height: 0 }}
                           animate={{ height: 'auto' }}
                           exit={{ height: 0 }}
-                          transition={{ duration: 0.2 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.2 }}
                           className="overflow-hidden"
                         >
                           <div className="px-5 pb-5 pt-0.5 text-xs text-slate-500 leading-relaxed font-semibold border-t border-[#fafbfc]">

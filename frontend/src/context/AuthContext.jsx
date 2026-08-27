@@ -25,7 +25,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const res = await authService.login({ email, password });
+    let deviceId = localStorage.getItem('elister_device_id');
+    if (!deviceId) {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('elister_device_id', deviceId);
+    }
+    const res = await authService.login({ email, password, deviceId });
     if (res.data.token) {
       localStorage.setItem('token', res.data.token);
       setUser(res.data.user);
@@ -43,7 +48,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const verifyOtp = async (email, otp) => {
-    const res = await authService.verifyOtp({ email, otp });
+    let deviceId = localStorage.getItem('elister_device_id');
+    if (!deviceId) {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('elister_device_id', deviceId);
+    }
+    const res = await authService.verifyOtp({ email, otp, deviceId });
     if (res.data.token) {
       localStorage.setItem('token', res.data.token);
       setUser(res.data.user);

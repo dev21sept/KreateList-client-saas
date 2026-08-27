@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, 
-  Lock, 
-  Bell, 
-  Shield, 
-  Database, 
+import {
+  User,
+  Lock,
+  Bell,
+  Shield,
+  Database,
   ChevronRight,
   AlertCircle,
   CheckCircle,
@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import Button from '../components/ui/Button';
 
 const Settings = () => {
   const { user, loadUser } = useAuth();

@@ -25,6 +25,7 @@ export const authService = {
   updateProfile: (data) => API.put('/auth/profile', data),
   changePassword: (data) => API.put('/auth/password', data),
   forgotPassword: (data) => API.post('/auth/forgot-password', data),
+  resetPasswordWithOtp: (data) => API.post('/auth/reset-password-otp', data),
   resetPassword: (token, data) => API.post(`/auth/reset-password/${token}`, data),
 };
 

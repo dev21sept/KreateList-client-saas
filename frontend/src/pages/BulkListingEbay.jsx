@@ -24,6 +24,9 @@ import { ruleService, aiService, ebayService, bulkListingEbayService, listingSer
 import { useNotification } from '../context/NotificationContext';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 import { compressImage } from '../utils/imageCompressor';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import { Badge } from '../components/ui/Badge';
 
 // Helper Dropdown for Rules & Models
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -1010,12 +1013,11 @@ const BulkListingEbay = () => {
   return (
     <div className="max-w-[98%] mx-auto space-y-8 px-2 relative min-h-screen">
       {/* Header */}
-      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+      <div className="flex justify-between items-start gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 flex items-center">
-            <Sparkles className="mr-2.5 text-indigo-600 animate-pulse" /> Create eBay Bulk Listings
-          </h1>
-          <p className="text-slate-500 text-xs mt-1">
+          <Badge variant="brand" className="mb-2.5">AI Powered</Badge>
+          <h1 className="text-2xl font-black text-slate-900">Create eBay Bulk Listings</h1>
+          <p className="text-slate-400 text-xs font-semibold mt-1.5">
             Setup parameters, upload image queues, scan with AI, and publish to eBay in bulk.
           </p>
         </div>
@@ -1023,10 +1025,13 @@ const BulkListingEbay = () => {
 
       {/* Global AI & Policy Setup Card */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-        <h3 className="text-xs font-black text-indigo-950 uppercase tracking-[0.2em] flex items-center">
-          <Info size={14} className="mr-2 text-indigo-500" /> Global AI & Policy Defaults
-        </h3>
-        
+        <div className="flex items-center gap-3">
+          <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <Info size={14} />
+          </span>
+          <h3 className="text-sm font-black text-slate-900">Global AI &amp; Policy Defaults</h3>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Model</label>
@@ -1059,33 +1064,32 @@ const BulkListingEbay = () => {
 
         <div className="border-t border-slate-100 pt-6 space-y-4">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center">
-                <Upload size={14} className="mr-2 text-indigo-500 animate-bounce" /> Photo Scanning Pool
-              </h4>
-              <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                Upload all product photos here first. The AI will group matching photos of the same item into one listing, and split different items into separate rows automatically.
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <Upload size={14} />
+              </span>
+              <div>
+                <h4 className="text-sm font-black text-slate-900">Photo Scanning Pool</h4>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                  Upload all product photos here first. The AI will group matching photos of the same item into one listing, and split different items into separate rows automatically.
+                </p>
+              </div>
             </div>
-            
+
             <div className="flex items-center gap-3 shrink-0">
               {sourcePhotos.length > 0 && (
-                <button
-                  onClick={clearSourcePhotos}
-                  type="button"
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                >
+                <Button type="button" variant="outline" onClick={clearSourcePhotos}>
                   Clear Pool
-                </button>
+                </Button>
               )}
-              <label className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-500/10">
+              <label className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg shadow-indigo-500/20 select-none">
                 <Upload size={14} /> Upload Photos
-                <input 
-                  type="file" 
-                  multiple 
+                <input
+                  type="file"
+                  multiple
                   accept="image/*"
                   onChange={handleBatchPhotoSelect}
-                  className="hidden" 
+                  className="hidden"
                 />
               </label>
             </div>
@@ -1109,22 +1113,17 @@ const BulkListingEbay = () => {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  disabled={isBatchAnalyzing}
-                  onClick={runBatchGroupingAndScan}
+                <Button
                   type="button"
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-2xl text-xs font-black transition-all cursor-pointer shadow-lg shadow-indigo-500/15 disabled:opacity-50"
+                  variant="primary"
+                  size="lg"
+                  disabled={isBatchAnalyzing}
+                  loading={isBatchAnalyzing}
+                  onClick={runBatchGroupingAndScan}
+                  icon={<Sparkles size={14} />}
                 >
-                  {isBatchAnalyzing ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> Grouping & Scanning with AI...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={14} className="text-indigo-200 animate-pulse" /> Group & Scan with AI
-                    </>
-                  )}
-                </button>
+                  {isBatchAnalyzing ? 'Grouping & Scanning with AI...' : 'Group & Scan with AI'}
+                </Button>
               </div>
             </div>
           )}
@@ -1371,53 +1370,43 @@ const BulkListingEbay = () => {
 
         {/* Footer actions inside table card */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <button 
-            onClick={addSlot}
-            className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 hover:border-indigo-300 bg-white rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-600 transition-all cursor-pointer shadow-sm"
-          >
-            <Plus size={14} /> Add Listing Slot
-          </button>
-          
+          <Button type="button" variant="outline" onClick={addSlot} icon={<Plus size={14} />}>
+            Add Listing Slot
+          </Button>
+
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              className="bg-indigo-50! hover:bg-indigo-100! text-indigo-600! shadow-none!"
               onClick={analyzeSelected}
               disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-600 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              icon={<Sparkles size={14} />}
             >
-              <Sparkles size={14} /> Scan Selected with AI
-            </button>
-            <button
+              Scan Selected with AI
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="bg-blue-600! hover:bg-blue-700! shadow-blue-500/20!"
               onClick={saveSelectedDrafts}
+              loading={isSaving}
               disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              icon={<Save size={14} />}
             >
-              {isSaving ? (
-                <>
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save size={14} /> Save Selected Drafts
-                </>
-              )}
-            </button>
-            <button
+              {isSaving ? 'Saving...' : 'Save Selected Drafts'}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="bg-emerald-600! hover:bg-emerald-700! shadow-emerald-500/20!"
               onClick={publishSelectedListings}
+              loading={isPublishing}
               disabled={isSaving || isPublishing || isBatchAnalyzing || fetchingDetails}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              icon={<Send size={14} />}
             >
-              {isPublishing ? (
-                <>
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                  Publishing...
-                </>
-              ) : (
-                <>
-                  <Send size={14} /> Publish Selected to eBay
-                </>
-              )}
-            </button>
+              {isPublishing ? 'Publishing...' : 'Publish Selected to eBay'}
+            </Button>
           </div>
         </div>
       </div>
@@ -1452,12 +1441,9 @@ const BulkListingEbay = () => {
                     Configure item specifics, policies & description
                   </p>
                 </div>
-                <button 
-                  onClick={() => setActiveEditItemId(null)}
-                  className="p-2 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-700 transition-colors"
-                >
+                <IconButton aria-label="Close" onClick={() => setActiveEditItemId(null)}>
                   <X size={18} />
-                </button>
+                </IconButton>
               </div>
 
               {/* Scrollable Content */}
@@ -1661,12 +1647,9 @@ const BulkListingEbay = () => {
 
               {/* Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-                <button 
-                  onClick={() => setActiveEditItemId(null)}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-500/10 transition-all cursor-pointer"
-                >
-                  Save & Return
-                </button>
+                <Button type="button" variant="primary" onClick={() => setActiveEditItemId(null)}>
+                  Save &amp; Return
+                </Button>
               </div>
             </motion.div>
           </>

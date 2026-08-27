@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  List, 
-  PlusCircle, 
-  Settings, 
-  Database, 
-  CreditCard, 
+import {
+  LayoutDashboard,
+  List,
+  PlusCircle,
+  Settings,
+  Database,
+  CreditCard,
   Link as LinkIcon,
   LogOut,
   Menu,
@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
+import IconButton from '../components/ui/IconButton';
 
 const DashboardLayout = ({ isAdmin = false }) => {
   const { logout, user, loadUser } = useAuth();
@@ -33,7 +34,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
   );
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef(null);
-  
+
   const [openNestedMenus, setOpenNestedMenus] = useState({
     'eBay Listing': location.pathname.startsWith('/create-ebay')
   });
@@ -70,12 +71,12 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const userMenuItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
     { name: 'Listings', icon: <List size={20} />, path: '/listings' },
-    { 
-      name: 'Create Listing', 
-      icon: <PlusCircle size={20} />, 
+    {
+      name: 'Create Listing',
+      icon: <PlusCircle size={20} />,
       subItems: [
-        { 
-          name: 'eBay Listing', 
+        {
+          name: 'eBay Listing',
           logo: '/ebay.png',
           nestedItems: [
             { name: 'Single Listing', path: '/create-ebay-listing' },
@@ -116,29 +117,38 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const aiFetchPct = aiFetchLimit > 0 ? Math.min(100, (listingsCount / aiFetchLimit) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-app-bg flex font-sans antialiased text-slate-900">
       {/* Sidebar */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 transition-all duration-300 ${
+      <aside
+        className={`fixed inset-y-0 left-0 z-45 bg-surface border-r border-border transition-all duration-300 ${
           isSidebarOpen ? 'w-64' : 'w-20'
         } hidden md:block`}
       >
         <div className="h-full flex flex-col">
           {/* Sidebar Header */}
-          <div className={`p-6 flex items-center ${isSidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+          <div className={`h-20 px-6 flex items-center select-none border-b border-border ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
             {isSidebarOpen ? (
               <a href={getLandingUrl('/')} className="flex items-center">
                 <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain" />
               </a>
             ) : (
               <a href={getLandingUrl('/')} className="flex items-center justify-center shrink-0">
-                <img src="/icon.png" alt="Elister.ai" className="h-8 w-8 object-contain" />
+                <img src="/icon.png" alt="Elister.ai" className="h-9 w-9 object-contain" />
               </a>
             )}
           </div>
 
+          {/* Admin badge */}
+          {isAdmin && isSidebarOpen && (
+            <div className="px-6 pt-5 pb-1">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full">
+                <Lock size={10} className="stroke-[3px]" /> Admin Panel
+              </span>
+            </div>
+          )}
+
           {/* Navigation */}
-          <nav className="flex-grow px-3 space-y-1">
+          <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
             {menuItems.map((item) => {
               if (item.subItems) {
                 const isSubActive = item.subItems.some(sub => {
@@ -159,22 +169,22 @@ const DashboardLayout = ({ isAdmin = false }) => {
                           setIsCreateDropdownOpen(!isCreateDropdownOpen);
                         }
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all ${
-                        isSubActive 
-                          ? 'bg-indigo-50/50 text-indigo-600 font-semibold' 
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all group font-bold text-sm cursor-pointer border-0 ${
+                        isSubActive
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <span className={`${isSubActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+                      <div className="flex items-center gap-3.5">
+                        <span className={`transition-colors ${isSubActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-900'}`}>
                           {item.icon}
                         </span>
                         {isSidebarOpen && <span className="truncate">{item.name}</span>}
                       </div>
                       {isSidebarOpen && (
-                        <ChevronDown 
-                          size={16} 
-                          className={`text-slate-400 transition-transform duration-200 ${isCreateDropdownOpen ? 'rotate-180' : ''}`} 
+                        <ChevronDown
+                          size={16}
+                          className={`text-slate-400 transition-transform duration-200 ${isCreateDropdownOpen ? 'rotate-180' : ''}`}
                         />
                       )}
                     </button>
@@ -189,25 +199,25 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                 <button
                                   type="button"
                                   onClick={() => toggleNestedMenu(sub.name)}
-                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer border-0 ${
                                     isNestedActive
-                                      ? 'bg-indigo-50/30 text-indigo-600 font-bold'
-                                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                      ? 'bg-indigo-50/60 text-indigo-600 font-black'
+                                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-bold'
                                   }`}
                                 >
-                                  <div className="flex items-center space-x-3">
+                                  <div className="flex items-center gap-3">
                                     {sub.logo && (
-                                      <img 
-                                        src={sub.logo} 
-                                        alt={sub.name} 
-                                        className="w-4 h-4 object-contain rounded" 
+                                      <img
+                                        src={sub.logo}
+                                        alt={sub.name}
+                                        className="w-4 h-4 object-contain rounded"
                                       />
                                     )}
                                     <span>{sub.name}</span>
                                   </div>
-                                  <ChevronDown 
-                                    size={12} 
-                                    className={`text-slate-400 transition-transform duration-200 ${isNestedOpen ? 'rotate-180' : ''}`} 
+                                  <ChevronDown
+                                    size={12}
+                                    className={`text-slate-400 transition-transform duration-200 ${isNestedOpen ? 'rotate-180' : ''}`}
                                   />
                                 </button>
                                 {isNestedOpen && (
@@ -218,10 +228,10 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                         <Link
                                           key={nested.name}
                                           to={nested.path}
-                                          className={`flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-[10px] transition-all ${
+                                          className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[10px] transition-all ${
                                             isCurrentNestedActive
-                                              ? 'bg-indigo-50 text-indigo-600 font-bold'
-                                              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                              ? 'bg-indigo-50 text-indigo-600 font-black'
+                                              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 font-bold'
                                           }`}
                                         >
                                           <span>{nested.name}</span>
@@ -239,17 +249,17 @@ const DashboardLayout = ({ isAdmin = false }) => {
                             <Link
                               key={sub.name}
                               to={sub.path}
-                              className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-xs transition-all ${
+                              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all ${
                                 isCurrentSubActive
-                                  ? 'bg-indigo-50 text-indigo-600 font-bold'
-                                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                  ? 'bg-indigo-50 text-indigo-600 font-black'
+                                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-bold'
                               }`}
                             >
                               {sub.logo && (
-                                <img 
-                                  src={sub.logo} 
-                                  alt={sub.name} 
-                                  className="w-4 h-4 object-contain rounded" 
+                                <img
+                                  src={sub.logo}
+                                  alt={sub.name}
+                                  className="w-4 h-4 object-contain rounded"
                                 />
                               )}
                               <span>{sub.name}</span>
@@ -266,13 +276,13 @@ const DashboardLayout = ({ isAdmin = false }) => {
                 <Link
                   key={item.name}
                   to={item.path}
-                  className={`flex items-center space-x-3 px-3 py-3 rounded-xl transition-all ${
-                    isActive 
-                      ? 'bg-indigo-50 text-indigo-600 font-semibold' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all group font-bold text-sm ${
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  <span className={`${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  <span className={`transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-900'}`}>
                     {item.icon}
                   </span>
                   {isSidebarOpen && <span className="truncate">{item.name}</span>}
@@ -282,12 +292,14 @@ const DashboardLayout = ({ isAdmin = false }) => {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-slate-100">
-            <button 
+          <div className="p-4 border-t border-border">
+            <button
               onClick={handleLogout}
-              className="w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all"
+              className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
             >
-              <LogOut size={20} />
+              <span className="text-slate-400 group-hover:text-rose-500 transition-colors shrink-0">
+                <LogOut size={18} />
+              </span>
               {isSidebarOpen && <span>Logout</span>}
             </button>
           </div>
@@ -297,30 +309,39 @@ const DashboardLayout = ({ isAdmin = false }) => {
       {/* Main Content */}
       <div className={`flex-grow flex flex-col transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-20'}`}>
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg hidden md:block"
-          >
-            <Menu size={20} />
-          </button>
+        <header className="h-20 bg-surface border-b border-border flex items-center justify-between px-4 sm:px-8 sticky top-0 z-40">
+          <div className="flex items-center gap-4">
+            <IconButton
+              aria-label="Toggle sidebar"
+              className="hidden md:inline-flex"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            >
+              <Menu size={20} />
+            </IconButton>
+
+            {isAdmin && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full">
+                <Lock size={10} className="stroke-[3px]" /> Admin
+              </span>
+            )}
+          </div>
 
           {/* Search Bar */}
-          <div className="hidden sm:flex items-center bg-slate-100 rounded-xl px-3 py-1.5 w-64 md:w-96">
+          <div className="hidden sm:flex items-center bg-slate-100 rounded-2xl px-4 py-2 w-64 md:w-96 border border-transparent focus-within:border-indigo-200 focus-within:bg-white transition-all">
             <Search size={18} className="text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search listings..." 
-              className="bg-transparent border-none outline-none px-2 text-sm w-full"
+            <input
+              type="text"
+              placeholder="Search listings..."
+              className="bg-transparent border-none outline-none px-2.5 text-xs font-bold text-slate-700 w-full placeholder:text-slate-400"
             />
           </div>
 
           {/* Right Header Icons */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center gap-2.5 sm:gap-6">
             {/* eBay Connection Status Box */}
             <div className={`hidden lg:flex items-center gap-3 px-4 py-2 rounded-2xl border transition-all duration-500 ${
-              user?.ebayAccount?.connected 
-                ? 'bg-emerald-50 border-emerald-100 shadow-sm shadow-emerald-100/50' 
+              user?.ebayAccount?.connected
+                ? 'bg-emerald-50 border-emerald-100 shadow-sm shadow-emerald-100/50'
                 : 'bg-rose-50 border-rose-100'
             }`}>
               <div className="relative">
@@ -331,7 +352,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
               </div>
               <div className="flex flex-col">
                 <span className={`text-[10px] font-bold truncate max-w-[120px] ${user?.ebayAccount?.connected ? 'text-slate-900' : 'text-slate-400'}`}>
-                  {user?.ebayAccount?.connected 
+                  {user?.ebayAccount?.connected
                     ? user?.ebayAccount?.username || 'Connected'
                     : 'eBay Disconnected'}
                 </span>
@@ -341,18 +362,18 @@ const DashboardLayout = ({ isAdmin = false }) => {
               </div>
             </div>
 
-            <button className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg relative">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
-            
+            <IconButton aria-label="Notifications" className="relative">
+              <Bell size={18} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+            </IconButton>
+
             {/* Profile Dropdown */}
             <div className="relative" ref={profileDropdownRef}>
-              <button 
+              <button
                 onClick={toggleProfileDropdown}
-                className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center border border-indigo-200 hover:border-indigo-400 focus:outline-none transition-all cursor-pointer overflow-hidden"
+                className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center hover:border-indigo-300 focus:outline-none transition-all cursor-pointer overflow-hidden shrink-0 shadow-sm"
               >
-                <span className="text-indigo-700 text-xs font-bold">
+                <span className="text-indigo-700 text-sm font-bold">
                   {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                 </span>
               </button>
@@ -364,18 +385,18 @@ const DashboardLayout = ({ isAdmin = false }) => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-[2rem] border border-slate-150 shadow-2xl z-[999] overflow-hidden"
+                    className="absolute right-0 mt-3.5 w-80 max-w-[85vw] bg-white rounded-3xl border border-border shadow-2xl z-[999] overflow-hidden"
                   >
-                    <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                    <div className="px-5 py-4 border-b border-border bg-slate-50/60">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
                           {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="font-bold text-slate-800 text-sm truncate">
+                          <h4 className="font-extrabold text-slate-900 text-xs truncate">
                             {user?.firstName} {user?.lastName}
                           </h4>
-                          <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                          <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{user?.email}</p>
                         </div>
                       </div>
                     </div>
@@ -385,15 +406,15 @@ const DashboardLayout = ({ isAdmin = false }) => {
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Plan</span>
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            planName.toLowerCase() === 'pro' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                            planName.toLowerCase() === 'enterprise' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                            planName.toLowerCase() === 'basic' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                            'bg-slate-100 text-slate-650'
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                            planName.toLowerCase() === 'pro' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                            planName.toLowerCase() === 'enterprise' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                            planName.toLowerCase() === 'basic' ? 'bg-sky-50 text-sky-600 border-sky-100' :
+                            'bg-slate-100 text-slate-500 border-border'
                           }`}>
                             {planName}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
                             planStatus.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
                           }`}>
                             {planStatus}
@@ -402,8 +423,8 @@ const DashboardLayout = ({ isAdmin = false }) => {
                       </div>
 
                       {planStatus.toLowerCase() === 'active' && (
-                        <div className="bg-indigo-50/30 border border-indigo-50 p-3 rounded-2xl flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-indigo-900">Days Remaining:</span>
+                        <div className="bg-slate-50 border border-border p-3 rounded-2xl flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500">Days Remaining:</span>
                           <span className="text-[11px] font-black text-indigo-600">
                             {daysLeft > 0 ? `${daysLeft} Days` : 'Expires Today'}
                           </span>
@@ -415,11 +436,11 @@ const DashboardLayout = ({ isAdmin = false }) => {
                         <div className="space-y-1">
                           <div className="flex justify-between text-[10px] font-bold text-slate-500">
                             <span>AI Listings Used</span>
-                            <span>{listingsCount} / {listingLimit}</span>
+                            <span className="font-extrabold text-slate-800">{listingsCount} / {listingLimit}</span>
                           </div>
-                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-600 rounded-full transition-all duration-500"
                               style={{ width: `${listingPct}%` }}
                             />
                           </div>
@@ -428,11 +449,11 @@ const DashboardLayout = ({ isAdmin = false }) => {
                         <div className="space-y-1">
                           <div className="flex justify-between text-[10px] font-bold text-slate-500">
                             <span>AI Fetches Used</span>
-                            <span>{listingsCount} / {aiFetchLimit}</span>
+                            <span className="font-extrabold text-slate-800">{listingsCount} / {aiFetchLimit}</span>
                           </div>
-                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-600 rounded-full transition-all duration-500"
                               style={{ width: `${aiFetchPct}%` }}
                             />
                           </div>
@@ -440,23 +461,23 @@ const DashboardLayout = ({ isAdmin = false }) => {
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 p-2 bg-slate-50/50">
-                      <Link 
+                    <div className="p-2 bg-slate-50/30 flex flex-col gap-1">
+                      <Link
                         to="/settings"
                         onClick={() => setIsProfileDropdownOpen(false)}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-650 hover:bg-white hover:text-indigo-600 transition-all cursor-pointer"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-650 hover:bg-slate-50 transition-all cursor-pointer"
                       >
-                        <User size={16} className="text-slate-400" />
+                        <User size={15} className="text-slate-400" />
                         Profile Settings
                       </Link>
-                      <button 
+                      <button
                         onClick={() => {
                           setIsProfileDropdownOpen(false);
                           handleLogout();
                         }}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer text-left"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer text-left border-0 bg-transparent"
                       >
-                        <LogOut size={16} />
+                        <LogOut size={15} />
                         Logout
                       </button>
                     </div>
@@ -468,7 +489,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
         </header>
 
         {/* Page Content */}
-        <main className="p-6 flex-grow">
+        <main className="p-4 sm:p-8 flex-grow">
           <Outlet />
         </main>
       </div>

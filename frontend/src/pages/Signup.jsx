@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Lock, Mail, User, Phone } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Button from '../components/ui/Button';
 
 const Signup = () => {
   const { signup, verifyOtp, resendOtp } = useAuth();
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -124,8 +127,9 @@ const Signup = () => {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.4 }}
           className="max-w-md w-full"
         >
           <div className="text-center mb-10">
@@ -159,21 +163,24 @@ const Signup = () => {
                 />
               </div>
 
-              <button 
-                type="submit" 
-                disabled={loading || otpCode.length !== 6}
-                className={`btn-primary w-full py-4 text-lg ${(loading || otpCode.length !== 6) ? 'opacity-70 cursor-not-allowed' : ''}`}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                loading={loading}
+                disabled={otpCode.length !== 6}
+                className="w-full py-4 text-base rounded-2xl"
               >
                 {loading ? 'Verifying...' : 'Verify & Continue'}
-              </button>
+              </Button>
             </form>
 
             <div className="mt-8 pt-8 border-t border-slate-100 text-center">
               <p className="text-slate-600 text-sm">
                 Didn't receive the code?{' '}
-                <button 
+                <button
                   onClick={handleResendOtp}
-                  className="text-indigo-600 font-bold hover:underline"
+                  className="text-indigo-600 font-bold hover:underline cursor-pointer"
                 >
                   Resend OTP
                 </button>
@@ -194,8 +201,9 @@ const Signup = () => {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.4 }}
         className="max-w-2xl w-full"
       >
         <div className="text-center mb-10">
@@ -339,13 +347,16 @@ const Signup = () => {
               </label>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={loading}
-              className={`btn-primary w-full py-4 text-lg ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              iconRight={!loading && <ArrowRight className="w-4 h-4" />}
+              className="w-full py-4 text-base rounded-2xl"
             >
               {loading ? 'Creating account...' : 'Create Account'}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">

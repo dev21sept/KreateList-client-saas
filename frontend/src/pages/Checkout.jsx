@@ -6,14 +6,15 @@ import {
   CheckCircle2, 
   ArrowLeft, 
   Building2, 
-  AlertCircle, 
-  ShieldCheck, 
-  Loader2, 
+  AlertCircle,
+  ShieldCheck,
   Plus,
   Coins
 } from 'lucide-react';
 import { authService, subscriptionService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Button from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 
 // Dynamic script loader for Razorpay Checkout
 const loadRazorpayScript = () => {
@@ -175,18 +176,19 @@ const Checkout = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button
+            <Button
               onClick={() => navigate('/dashboard')}
-              className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-all shadow-md w-full sm:w-auto"
+              className="w-full sm:w-auto bg-slate-900! hover:bg-slate-800! shadow-md!"
             >
               Go to Dashboard
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setOverrideActivePlan(true)}
-              className="px-8 py-3.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold text-xs transition-all w-full sm:w-auto"
+              className="w-full sm:w-auto"
             >
               Renew / Checkout Again
-            </button>
+            </Button>
           </div>
         </motion.div>
       </div>
@@ -234,12 +236,13 @@ const Checkout = () => {
             </div>
           </div>
 
-          <button
+          <Button
+            size="lg"
             onClick={() => navigate('/dashboard')}
-            className="px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-100 hover:scale-[1.02]"
+            className="px-10 hover:scale-[1.02]"
           >
             Go to Dashboard
-          </button>
+          </Button>
         </motion.div>
       </div>
     );
@@ -248,12 +251,14 @@ const Checkout = () => {
   return (
     <div className="max-w-6xl mx-auto px-6 py-8 space-y-8 antialiased">
       {/* Back link */}
-      <button 
+      <Button
+        variant="ghost"
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 text-sm font-bold transition-colors"
+        icon={<ArrowLeft size={16} />}
+        className="px-0! hover:bg-transparent! text-slate-500! hover:text-slate-800!"
       >
-        <ArrowLeft size={16} /> Back to Plans
-      </button>
+        Back to Plans
+      </Button>
 
       {hasActiveSub && !isSamePlan && (
         <div className="p-5 bg-amber-50/50 border border-amber-100 text-amber-800 text-xs font-semibold rounded-2xl flex items-center gap-3.5 max-w-4xl">
@@ -300,20 +305,15 @@ const Checkout = () => {
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
+              size="lg"
               disabled={isProcessing}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-80"
+              loading={isProcessing}
+              className="w-full hover:scale-[1.01] disabled:opacity-80"
             >
-              {isProcessing ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Processing Checkout...
-                </>
-              ) : (
-                `Pay $${totalAmount} Now`
-              )}
-            </button>
+              {isProcessing ? 'Processing Checkout...' : `Pay $${totalAmount} Now`}
+            </Button>
           </form>
 
           <div className="border-t border-slate-100/80 pt-4 flex items-center justify-center gap-2 text-xs text-slate-400 font-semibold">
@@ -328,7 +328,7 @@ const Checkout = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
             <div className="flex justify-between items-start">
               <div>
-                <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider">{planParam}</span>
+                <Badge variant="brand">{planParam}</Badge>
                 <h4 className="font-bold text-slate-800 text-sm mt-1">{planNames[planParam] || planParam}</h4>
                 <p className="text-xs text-slate-400 font-medium">Billed {cycleParam}</p>
               </div>

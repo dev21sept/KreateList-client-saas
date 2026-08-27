@@ -25,6 +25,10 @@ import { ruleService, aiService, listingService, externalImportService } from '.
 import { useNotification } from '../context/NotificationContext';
 import { DEPOP_CONDITIONS } from '../constants/depopConditions';
 import { compressImage } from '../utils/imageCompressor';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import { Badge } from '../components/ui/Badge';
+import { LoadingState } from '../components/ui/LoadingState';
 import { DEPOP_COLOURS } from '../constants/depopColours';
 import { DEPOP_STYLES, DEPOP_STYLE_TAGS } from '../constants/depopStyles';
 import { DEPOP_AGES } from '../constants/depopAges';
@@ -1033,23 +1037,20 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
       </div>
 
       {/* Header */}
-      <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+      <div className="flex justify-between items-start gap-4">
         <div>
+          <Badge variant="brand" className="mb-2.5">{editId ? 'Edit Mode' : 'AI Powered'}</Badge>
           <h1 className="text-2xl font-black text-slate-900">
             {editId ? 'Edit Depop Listing' : 'Create New Depop Listing'}
           </h1>
-          <p className="text-slate-500 text-xs font-semibold mt-1">
+          <p className="text-slate-400 text-xs font-semibold mt-1.5">
             Single Page AI-Powered Listing Creation
           </p>
         </div>
         {isModal && onClose && (
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-          >
-            <X size={20} />
-          </button>
+          <IconButton aria-label="Close" onClick={onClose}>
+            <X size={18} />
+          </IconButton>
         )}
       </div>
 
@@ -1058,26 +1059,30 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
         
         {/* SECTION 1: Product Images (Repositioned to the top!) */}
         <div className="space-y-4">
-          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
-            <ImageIcon size={16} className="mr-2 text-indigo-500" /> 1. Product Images
-          </h3>
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">1</span>
+            <div>
+              <h3 className="text-sm font-black text-slate-900">Product Images</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">First photo is used as the cover image</p>
+            </div>
+          </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all group">
+            <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50/40 hover:border-indigo-300 transition-all group">
               <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-              <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Add Photos</span>
+              <span className="text-[10px] font-black text-slate-400 group-hover:text-indigo-600 mt-2 uppercase tracking-wider transition-colors">Add Photos</span>
               <input type="file" multiple className="hidden" onChange={handleImageUpload} />
             </label>
             {formData.images.map((img, i) => (
               <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
                 <img src={img} className="w-full h-full object-cover" alt="Product" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                   <button 
+                   <button
                     type="button"
                     onClick={() => {
                       setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
                       setFiles(files.filter((_, idx) => idx !== i));
                     }}
-                    className="p-1.5 bg-red-655 rounded-lg text-white hover:bg-red-700"
+                    className="p-1.5 bg-rose-600 rounded-lg text-white hover:bg-rose-700 cursor-pointer transition-colors"
                     title="Delete Image"
                    >
                     <Trash2 size={14} />
@@ -1086,7 +1091,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                     type="button"
                     disabled={i === 0}
                     onClick={() => moveImage(i, 'left')}
-                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Left"
                    >
                     <ArrowLeft size={14} />
@@ -1095,14 +1100,14 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                     type="button"
                     disabled={i === formData.images.length - 1}
                     onClick={() => moveImage(i, 'right')}
-                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40"
+                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Right"
                    >
                     <ArrowRight size={14} />
                    </button>
                 </div>
                 {i === 0 && (
-                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded shadow-sm">Cover</span>
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider">Cover</span>
                 )}
               </div>
             ))}
@@ -1112,15 +1117,19 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
         {/* SECTION 2: AI Configuration Setup */}
         <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-5">
           <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center">
-                <Sparkles size={16} className="mr-2 text-indigo-500" /> 2. AI Scanner Settings
-              </h3>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rules.length} Rules Available</span>
+              <div className="flex items-center gap-3">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">2</span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">AI Scanner Settings</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">Choose the model and rule used to generate this listing</p>
+                </div>
+              </div>
+              <Badge variant="neutral">{rules.length} Rules Available</Badge>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 flex items-center">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
                 Select AI Model
               </label>
               <SearchableDropdown 
@@ -1132,7 +1141,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
                 Select AI Listing Rule
               </label>
               <SearchableDropdown 
@@ -1145,7 +1154,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-555 uppercase tracking-widest ml-1 flex items-center">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
                 Product Condition
               </label>
               <SearchableDropdown 
@@ -1161,17 +1170,17 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             type="button"
             onClick={startAIFetch}
             disabled={loading || !formData.selectedRule || !formData.selectedCondition || formData.images.length === 0}
-            className="w-full py-4 bg-[#0f172a] hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+            className="w-full py-4 bg-slate-900 hover:bg-black text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
           >
             {loading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                Scanning & Extracting Image Data...
+                Scanning &amp; Extracting Image Data...
               </>
             ) : (
               <>
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                ✨ Populate Form with AI Scan
+                Populate Form with AI Scan
               </>
             )}
           </button>
@@ -1179,10 +1188,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
         {/* LOADING SHIMMER */}
         {loading && (
-          <div className="flex flex-col items-center justify-center space-y-4 py-20 border border-dashed border-slate-100 rounded-3xl">
-            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-            <h3 className="font-bold text-slate-900">AI is analyzing product images...</h3>
-          </div>
+          <LoadingState label="AI is analyzing product images..." className="py-20 border border-dashed border-slate-100 rounded-3xl" />
         )}
 
         {/* SECTION 3: Generated Form Attributes (Only rendered when hasScanned is true) */}
@@ -1191,14 +1197,15 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             
             {/* Left Side fields */}
             <div className="lg:col-span-6 space-y-6">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                3. Listing Metadata Fields
-              </h3>
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">3</span>
+                <h3 className="text-sm font-black text-slate-900">Listing Metadata Fields</h3>
+              </div>
 
               <div className="space-y-4">
                 {/* Title */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest ml-1">Product Title</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Product Title</label>
                   <input 
                     className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                     value={formData.title}
@@ -1209,7 +1216,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {/* Brand */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
                     <input 
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.brand}
@@ -1219,7 +1226,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Category */}
                   <div className="space-y-1.5 sm:col-span-1">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Depop Category</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Depop Category</label>
                     <CategorySearchDropdown 
                       value={formData.category}
                       onSelect={(opt) => setFormData({
@@ -1232,7 +1239,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* SKU */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU</label>
                     <input 
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 uppercase"
                       value={formData.sku}
@@ -1245,7 +1252,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {/* Listing Price */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Price ($)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Price ($)</label>
                     <div className="relative">
                       <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input 
@@ -1257,7 +1264,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Color */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Color</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
                     <SearchableDropdown 
                       value={formData.color}
                       onSelect={(opt) => setFormData({...formData, color: opt.label})}
@@ -1267,7 +1274,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Condition */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
                     <SearchableDropdown 
                       value={formData.selectedCondition}
                       onSelect={(opt) => setFormData({...formData, selectedCondition: opt.label, conditionId: opt.id})}
@@ -1280,7 +1287,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                 {/* Size Selector */}
                 {kidsSizesOptions.length > 0 && (
                   <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                    <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest ml-1 block">Select Size</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 block">Select Size</label>
                     {activeSizeDataset && !activeSizeDataset.plain && (
                       <div className="flex gap-2 mb-3">
                         {['US', 'UK', 'EUR', 'AU'].map((scale) => {
@@ -1314,7 +1321,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                 {/* Description */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
                     <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                       <button 
                         type="button"
@@ -1335,14 +1342,14 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                   {descriptionMode === 'edit' ? (
                     <textarea 
-                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-750 leading-relaxed min-h-[200px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
+                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[200px] outline-none focus:border-indigo-500 transition-all shadow-inner focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.description}
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
                       placeholder="Enter description..."
                     />
                   ) : (
                     <div 
-                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold text-slate-750 leading-relaxed min-h-[200px] overflow-y-auto max-h-[300px] shadow-inner"
+                      className="w-full p-4 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[200px] overflow-y-auto max-h-[300px] shadow-inner"
                       style={{ whiteSpace: 'pre-wrap' }}
                     >
                       {formData.description}
@@ -1354,15 +1361,16 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
             {/* Right Side: Specific Attributes & custom fields */}
             <div className="lg:col-span-6 space-y-6">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                4. Custom Depop Attributes & Shipping
-              </h3>
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">4</span>
+                <h3 className="text-sm font-black text-slate-900">Custom Depop Attributes &amp; Shipping</h3>
+              </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Age */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Style Age</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Age</label>
                     <SearchableDropdown 
                       value={formData.age}
                       onSelect={(opt) => setFormData({...formData, age: opt.label})}
@@ -1372,7 +1380,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Source */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Source / Origin</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Source / Origin</label>
                     <SearchableDropdown 
                       value={formData.source}
                       onSelect={(opt) => setFormData({...formData, source: opt.label})}
@@ -1382,7 +1390,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Material */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Material</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Material</label>
                     <SearchableDropdown 
                       value={formData.material}
                       onSelect={(opt) => setFormData({...formData, material: opt.label})}
@@ -1392,7 +1400,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                   </div>
                   {/* Style Tag */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Style tags</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style tags</label>
                     <SearchableDropdown 
                       value={formData.styleTag}
                       onSelect={(opt) => setFormData({...formData, styleTag: opt.label})}
@@ -1406,7 +1414,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-50 pt-4">
                   {categoryVisibilities.bodyFit && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Body Fit</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Body Fit</label>
                       <SearchableDropdown 
                         value={formData.bodyFit}
                         onSelect={(opt) => setFormData({...formData, bodyFit: opt.label})}
@@ -1418,7 +1426,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                   {categoryVisibilities.occasion && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Occasion</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Occasion</label>
                       <SearchableDropdown 
                         value={formData.occasion}
                         onSelect={(opt) => setFormData({...formData, occasion: opt.label})}
@@ -1430,7 +1438,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                   {categoryVisibilities.type && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">{typeFieldLabel}</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{typeFieldLabel}</label>
                       <SearchableDropdown 
                         value={formData.depopType}
                         onSelect={(opt) => setFormData({...formData, depopType: opt.label})}
@@ -1442,7 +1450,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                   {categoryVisibilities.fastening && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Fastening</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Fastening</label>
                       <SearchableDropdown 
                         value={formData.fastening}
                         onSelect={(opt) => setFormData({...formData, fastening: opt.label})}
@@ -1454,7 +1462,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                   {categoryVisibilities.fit && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">{fitFieldLabel}</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{fitFieldLabel}</label>
                       <SearchableDropdown 
                         value={formData.fit}
                         onSelect={(opt) => setFormData({...formData, fit: opt.label})}
@@ -1467,7 +1475,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
                 {/* Shipping info */}
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 pt-4">
-                  <h4 className="text-[10px] font-black text-slate-455 uppercase tracking-widest">Shipping Information</h4>
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Shipping Information</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase">National Shipping Cost</label>
@@ -1488,7 +1496,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                         onChange={(e) => setFormData({...formData, worldwideShipping: e.target.checked})}
                         className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
                       />
-                      <label htmlFor="worldwideShipping" className="text-xs font-bold text-slate-650 cursor-pointer">Offer International Shipping</label>
+                      <label htmlFor="worldwideShipping" className="text-xs font-bold text-slate-600 cursor-pointer">Offer International Shipping</label>
                     </div>
                   </div>
                 </div>
@@ -1500,38 +1508,42 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
         {/* Form Bottom Submission Control (Only visible when scanned) */}
         {hasScanned && !loading && (
-          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
-            <button 
+          <div className="mt-8 pt-6 flex flex-wrap justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => navigate('/listings')}
-              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
             >
               Cancel
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => handleSaveListing(null)}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
             >
               Save Draft
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              className="bg-emerald-600! hover:bg-emerald-700! shadow-emerald-500/20!"
               onClick={() => handleSaveListing('direct')}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Working...' : 'Save & Publish (Direct API)'}
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="primary"
               onClick={() => handleSaveListing('extension')}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Working...' : 'Save & Publish (Extension)'}
-            </button>
+            </Button>
           </div>
         )}
 

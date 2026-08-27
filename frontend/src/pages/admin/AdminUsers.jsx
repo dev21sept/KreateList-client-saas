@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  Check, 
+import {
+  Search,
+  Check,
   CheckCircle,
-  X, 
+  X,
   Mail,
   Calendar,
   Filter,
@@ -24,6 +24,12 @@ import {
 } from 'lucide-react';
 import { adminService } from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
+import Button from '../../components/ui/Button';
+import IconButton from '../../components/ui/IconButton';
+import { Badge, StatusBadge } from '../../components/ui/Badge';
+import { LoadingState } from '../../components/ui/LoadingState';
+import EmptyState from '../../components/ui/EmptyState';
+import Modal from '../../components/ui/Modal';
 
 const AdminUsers = () => {
   const { toast } = useNotification();
@@ -31,18 +37,19 @@ const AdminUsers = () => {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Search and Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  
+
   // Collapsible state
   const [expandedUserId, setExpandedUserId] = useState(null);
-  
+
   // Modal Edit state
   const [editingUser, setEditingUser] = useState(null);
   const [editFormData, setEditFormData] = useState({
+    email: '',
     plan: 'free',
     status: 'inactive',
     expiresAt: '',
@@ -76,7 +83,7 @@ const AdminUsers = () => {
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(user => 
+      result = result.filter(user =>
         (user.firstName && user.firstName.toLowerCase().includes(term)) ||
         (user.lastName && user.lastName.toLowerCase().includes(term)) ||
         (user.email && user.email.toLowerCase().includes(term)) ||
@@ -85,13 +92,13 @@ const AdminUsers = () => {
     }
 
     if (planFilter !== 'All') {
-      result = result.filter(user => 
+      result = result.filter(user =>
         user.subscription?.plan?.toLowerCase() === planFilter.toLowerCase()
       );
     }
 
     if (statusFilter !== 'All') {
-      result = result.filter(user => 
+      result = result.filter(user =>
         user.subscription?.status?.toLowerCase() === statusFilter.toLowerCase()
       );
     }
@@ -115,7 +122,7 @@ const AdminUsers = () => {
     if (!sub || sub.plan === 'free') {
       return { text: 'Unlimited', color: 'text-slate-500 bg-slate-50 border-slate-100' };
     }
-    
+
     if (sub.status !== 'active') {
       return { text: sub.status?.toUpperCase() || 'INACTIVE', color: 'text-rose-500 bg-rose-50 border-rose-100' };
     }
@@ -133,10 +140,10 @@ const AdminUsers = () => {
       return { text: 'Expired', color: 'text-rose-500 bg-rose-50 border-rose-100' };
     }
 
-    return { 
-      text: `${diffDays} days left`, 
-      color: diffDays <= 5 
-        ? 'text-amber-600 bg-amber-50 border-amber-100 animate-pulse' 
+    return {
+      text: `${diffDays} days left`,
+      color: diffDays <= 5
+        ? 'text-amber-600 bg-amber-50 border-amber-100 animate-pulse'
         : 'text-emerald-600 bg-emerald-50 border-emerald-100'
     };
   };
@@ -170,6 +177,15 @@ const AdminUsers = () => {
     return { text: 'Unspecified', badgeColor: 'bg-slate-500/10 text-slate-400 border-slate-200/50' };
   };
 
+  // Visual variant for plan tier badges (Badge component drop-in)
+  const getPlanBadgeVariant = (plan) => {
+    const key = String(plan || 'free').toLowerCase();
+    if (key === 'enterprise') return 'success';
+    if (key === 'pro') return 'brand';
+    if (key === 'basic') return 'info';
+    return 'neutral';
+  };
+
   const handleRowClick = (userId) => {
     setExpandedUserId(expandedUserId === userId ? null : userId);
   };
@@ -178,6 +194,7 @@ const AdminUsers = () => {
     e.stopPropagation();
     setEditingUser(user);
     setEditFormData({
+      email: user.email || '',
       plan: user.subscription?.plan || 'free',
       status: user.subscription?.status || 'inactive',
       expiresAt: user.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toISOString().split('T')[0] : '',
@@ -198,6 +215,7 @@ const AdminUsers = () => {
     e.preventDefault();
     try {
       const updateData = {
+        email: editFormData.email,
         subscription: {
           plan: editFormData.plan,
           status: editFormData.status,
@@ -209,123 +227,219 @@ const AdminUsers = () => {
       const res = await adminService.updateUser(editingUser._id, updateData);
       if (res.data?.success) {
         setEditingUser(null);
-        toast.success('Subscription updated successfully!');
+        toast.success('User details updated successfully!');
         fetchUsers();
       }
     } catch (err) {
       console.error('Error saving user edits:', err);
-      toast.error('Failed to update subscription. Please try again.');
+      toast.error(err.response?.data?.message || 'Failed to update user details. Please try again.');
     }
   };
 
-  if (loading && users.length === 0) {
+  // Shared expanded-detail content (used by both the desktop table row and the mobile card)
+  const renderExpandedDetails = (user) => {
+    const paymentInfo = getPaymentMethodDisplay(user);
     return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Contact Details Card */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between">
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">User details</h4>
+            <p className="text-xs text-slate-700 flex items-center font-bold">
+              <Phone size={12} className="mr-2.5 text-slate-400 shrink-0" />
+              {user.phone || 'No phone registered'}
+            </p>
+            <p className="text-xs text-slate-700 flex items-center font-bold">
+              <Calendar size={12} className="mr-2.5 text-slate-400 shrink-0" />
+              Registered: {new Date(user.createdAt).toLocaleDateString()}
+            </p>
+            <p className="text-xs text-slate-700 flex items-center font-bold">
+              <CreditCard size={12} className="mr-2.5 text-slate-400 shrink-0" />
+              Gateway:
+              <span className={`ml-2 px-2 py-0.5 rounded-lg text-[9px] font-extrabold uppercase border ${paymentInfo.badgeColor}`}>
+                {paymentInfo.text}
+              </span>
+            </p>
+            {user.subscription?.plan !== 'free' && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-50">
+                <p className="text-xs text-slate-600 flex justify-between font-bold">
+                  <span>Amount Paid:</span>
+                  <span className="font-extrabold text-slate-900">${user.subscription?.paymentAmount || 0}</span>
+                </p>
+                {user.subscription?.paymentDate && (
+                  <p className="text-[10px] text-slate-400 flex justify-between font-bold">
+                    <span>Paid At:</span>
+                    <span className="text-slate-700">{new Date(user.subscription.paymentDate).toLocaleDateString()}</span>
+                  </p>
+                )}
+                {user.subscription?.stripeSubscriptionId && (
+                  <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
+                    <span>Stripe ID:</span>
+                    <span className="text-slate-800 bg-slate-50 px-1 border border-slate-100 rounded max-w-[120px] truncate">{user.subscription.stripeSubscriptionId}</span>
+                  </p>
+                )}
+                {user.subscription?.razorpayPaymentId && (
+                  <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
+                    <span>Razorpay ID:</span>
+                    <span className="text-slate-800 bg-slate-50 px-1 border border-slate-100 rounded max-w-[120px] truncate">{user.subscription.razorpayPaymentId}</span>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 text-[9px] font-mono text-slate-400 truncate">
+            DB REF: {user._id}
+          </div>
+        </div>
+
+        {/* AI Listing Fetches stats card */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-inner shrink-0">
+            <BarChart2 size={22} />
+          </div>
+          <div>
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Listing Imports</h4>
+            <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.total || 0}</p>
+          </div>
+        </div>
+
+        {/* Live listings counts card */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 shadow-inner shrink-0">
+            <Check size={22} />
+          </div>
+          <div>
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Live Listings</h4>
+            <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.published || 0}</p>
+          </div>
+        </div>
+
+        {/* Listings status summary */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-2">Listing distribution</h4>
+          <div className="space-y-2.5">
+            <div className="flex justify-between items-center text-xs font-bold">
+              <span className="text-slate-500">Draft Listings:</span>
+              <span className="text-slate-800 font-mono">{user.stats?.draft || 0}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs font-bold">
+              <span className="text-slate-500">Scheduled:</span>
+              <span className="text-slate-800 font-mono">{user.stats?.scheduled || 0}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-slate-50">
+              <span className="text-rose-500">Failed / Errors:</span>
+              <span className="text-rose-600 font-mono font-black">{user.stats?.failed || 0}</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
+  };
+
+  if (loading && users.length === 0) {
+    return <LoadingState label="Loading user accounts..." />;
   }
 
   return (
     <div className="space-y-6">
-      
+
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/20 rounded-full -mr-32 -mt-32 blur-2xl" />
         <div className="relative">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Management</h1>
-          <p className="text-slate-500 font-medium text-sm mt-0.5">Control billing status, adjust subscription tiers, and review client details.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">User Management</h1>
+          <p className="text-slate-500 font-medium text-xs mt-1">Control billing status, adjust subscription tiers, and review client details.</p>
         </div>
-        <div className="relative flex gap-3">
-          <button 
-            onClick={fetchUsers} 
+        <div className="relative">
+          <Button
+            onClick={fetchUsers}
             disabled={loading}
-            className="flex items-center gap-2 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl text-xs font-black shadow-md shadow-indigo-100 active:scale-95 transition-all cursor-pointer"
+            loading={loading}
+            icon={!loading && <RefreshCw size={14} />}
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Sync Users
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Aggregate Counts Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
         {/* Total users */}
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
             <Users size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Registered</p>
-            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.total} accounts</p>
+            <p className="text-xl font-black text-slate-900 leading-tight truncate">{quickStats.total} accounts</p>
           </div>
         </div>
 
         {/* Premium Users */}
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
             <Activity size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Active Premium</p>
-            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.premium} active</p>
+            <p className="text-xl font-black text-slate-900 leading-tight truncate">{quickStats.premium} active</p>
           </div>
         </div>
 
         {/* Active Accounts */}
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 shrink-0">
             <CheckCircle size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Total Active</p>
-            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.active} accounts</p>
+            <p className="text-xl font-black text-slate-900 leading-tight truncate">{quickStats.active} accounts</p>
           </div>
         </div>
 
         {/* Canceled Accounts */}
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
             <X size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Canceled</p>
-            <p className="text-xl font-black text-slate-900 leading-tight">{quickStats.canceling} accounts</p>
+            <p className="text-xl font-black text-slate-900 leading-tight truncate">{quickStats.canceling} accounts</p>
           </div>
         </div>
 
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl font-bold flex items-center gap-2">
-          <ShieldAlert size={16} />
+        <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl font-bold flex items-center gap-2 text-sm">
+          <ShieldAlert size={16} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Filters Container */}
-      <div className="bg-white p-4.5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-        
+      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+
         {/* Search */}
-        <div className="relative flex-grow w-full md:w-auto">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 pointer-events-none" />
-          <input 
-            type="text" 
-            placeholder="Search accounts by name, email or database ID..." 
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search accounts by name, email or database ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
 
         {/* Plan Filter */}
-        <div className="flex items-center space-x-2 w-full md:w-auto shrink-0">
-          <Filter size={14} className="text-slate-400" />
-          <select 
+        <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
+          <Filter size={14} className="text-slate-400 shrink-0" />
+          <select
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-100 rounded-xl text-xs font-extrabold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full md:w-auto"
+            className="bg-slate-50 border border-slate-100 rounded-2xl text-xs font-extrabold text-slate-600 px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full lg:w-auto"
           >
             <option value="All">All Tiers</option>
             <option value="free">Free Plan</option>
@@ -336,12 +450,12 @@ const AdminUsers = () => {
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center space-x-2 w-full md:w-auto shrink-0">
-          <Filter size={14} className="text-slate-400" />
-          <select 
+        <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
+          <Filter size={14} className="text-slate-400 shrink-0" />
+          <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-100 rounded-xl text-xs font-extrabold text-slate-600 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full md:w-auto"
+            className="bg-slate-50 border border-slate-100 rounded-2xl text-xs font-extrabold text-slate-600 px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all w-full lg:w-auto"
           >
             <option value="All">All Statuses</option>
             <option value="active">Active</option>
@@ -353,345 +467,305 @@ const AdminUsers = () => {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="w-12 px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider"></th>
-                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">User Account</th>
-                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Tier Level</th>
-                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Billing Status</th>
-                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider">Time Remaining</th>
-                <th className="px-6 py-4 text-xs font-extrabold text-slate-400 uppercase tracking-wider text-right pr-8">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => {
-                  const subInfo = getSubscriptionInfo(user);
-                  const paymentInfo = getPaymentMethodDisplay(user);
-                  const isExpanded = expandedUserId === user._id;
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        {filteredUsers.length === 0 ? (
+          <EmptyState
+            icon={<Users size={20} />}
+            title="No matching user registrations found"
+            description="Try adjusting your search or filters to see more results."
+          />
+        ) : (
+          <>
+            {/* MOBILE CARD VIEW */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredUsers.map((user) => {
+                const subInfo = getSubscriptionInfo(user);
+                const isExpanded = expandedUserId === user._id;
+                return (
+                  <div key={user._id} className="p-4 space-y-3">
+                    <div
+                      className="flex items-start gap-3 cursor-pointer"
+                      onClick={() => handleRowClick(user._id)}
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-800 text-white rounded-full flex items-center justify-center font-black text-xs shadow-sm shrink-0">
+                        {`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'U'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-extrabold text-slate-900 text-sm truncate">{user.firstName} {user.lastName}</p>
+                        <p className="text-[11px] text-slate-400 flex items-center mt-0.5 font-medium truncate">
+                          <Mail size={11} className="mr-1 text-slate-400 shrink-0" />
+                          {user.email}
+                        </p>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp size={16} className="text-indigo-600 shrink-0 mt-1.5" />
+                      ) : (
+                        <ChevronDown size={16} className="text-slate-400 shrink-0 mt-1.5" />
+                      )}
+                    </div>
 
-                  return (
-                    <React.Fragment key={user._id}>
-                      <tr 
-                        onClick={() => handleRowClick(user._id)}
-                        className={`hover:bg-slate-50/50 cursor-pointer transition-all border-l-4 ${
-                          isExpanded ? 'border-l-indigo-600 bg-indigo-50/10' : 'border-l-transparent'
-                        }`}
+                    <div className="flex items-center flex-wrap gap-2">
+                      <Badge variant={getPlanBadgeVariant(user.subscription?.plan)}>
+                        {user.subscription?.plan || 'free'}
+                      </Badge>
+                      <StatusBadge status={user.subscription?.status || 'inactive'} />
+                      <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider ${subInfo.color}`}>
+                        {subInfo.text}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <IconButton
+                        aria-label="Edit Plan"
+                        variant="active"
+                        onClick={(e) => handleEditClick(user, e)}
                       >
-                        <td className="px-4 py-4 text-center">
-                          {isExpanded ? (
-                            <ChevronUp size={16} className="text-indigo-600 transition-transform" />
-                          ) : (
-                            <ChevronDown size={16} className="text-slate-400 transition-transform" />
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3.5">
-                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-800 text-white rounded-full flex items-center justify-center font-black text-xs shadow-sm">
-                              {`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'U'}
-                            </div>
-                            <div>
-                              <p className="font-extrabold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
-                              <p className="text-xs text-slate-400 flex items-center mt-0.5 font-medium">
-                                <Mail size={12} className="mr-1 text-slate-400" /> 
-                                {user.email}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${
-                            user.subscription?.plan === 'enterprise' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 
-                            user.subscription?.plan === 'pro' ? 'bg-violet-50 text-violet-700 border-violet-100' : 
-                            user.subscription?.plan === 'basic' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-100'
-                          }`}>
-                            {user.subscription?.plan || 'free'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5">
-                            {user.subscription?.status === 'active' ? (
-                              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase tracking-wider">
-                                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                Active
-                              </div>
+                        <Edit2 size={14} />
+                      </IconButton>
+                    </div>
+
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden pt-1"
+                        >
+                          {renderExpandedDetails(user)}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP TABLE VIEW */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50">
+                  <tr className="border-b border-slate-100">
+                    <th className="w-12 px-6 py-4"></th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">User Account</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Tier Level</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Billing Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Time Remaining</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right pr-8">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredUsers.map((user) => {
+                    const subInfo = getSubscriptionInfo(user);
+                    const isExpanded = expandedUserId === user._id;
+
+                    return (
+                      <React.Fragment key={user._id}>
+                        <tr
+                          onClick={() => handleRowClick(user._id)}
+                          className={`hover:bg-slate-50/60 cursor-pointer transition-all border-l-4 ${
+                            isExpanded ? 'border-l-indigo-600 bg-indigo-50/10' : 'border-l-transparent'
+                          }`}
+                        >
+                          <td className="px-4 py-4 text-center">
+                            {isExpanded ? (
+                              <ChevronUp size={16} className="text-indigo-600 transition-transform" />
                             ) : (
-                              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-black uppercase tracking-wider">
-                                <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                                {user.subscription?.status || 'Inactive'}
-                              </div>
+                              <ChevronDown size={16} className="text-slate-400 transition-transform" />
                             )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-[10px] font-black px-3 py-1 rounded-xl border uppercase tracking-wider ${subInfo.color}`}>
-                            {subInfo.text}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right pr-8">
-                          <button 
-                            onClick={(e) => handleEditClick(user, e)}
-                            className="inline-flex p-2 bg-indigo-50 hover:bg-indigo-100/80 rounded-xl text-indigo-600 transition-all cursor-pointer shadow-xs border border-indigo-100/50"
-                            title="Edit Plan"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-800 text-white rounded-full flex items-center justify-center font-black text-xs shadow-sm shrink-0">
+                                {`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'U'}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-extrabold text-slate-900 text-xs truncate">{user.firstName} {user.lastName}</p>
+                                <p className="text-[11px] text-slate-400 flex items-center mt-0.5 font-medium truncate">
+                                  <Mail size={12} className="mr-1 text-slate-400 shrink-0" />
+                                  {user.email}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant={getPlanBadgeVariant(user.subscription?.plan)}>
+                              {user.subscription?.plan || 'free'}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={user.subscription?.status || 'inactive'} />
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[10px] font-black px-3 py-1 rounded-xl border uppercase tracking-wider ${subInfo.color}`}>
+                              {subInfo.text}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right pr-8">
+                            <IconButton
+                              aria-label="Edit Plan"
+                              variant="active"
+                              onClick={(e) => handleEditClick(user, e)}
+                            >
+                              <Edit2 size={14} />
+                            </IconButton>
+                          </td>
+                        </tr>
 
-                      {/* Collapsible Details Drawer */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <tr className="bg-slate-50/30">
-                            <td colSpan={6} className="px-8 py-6">
-                              <motion.div 
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="grid grid-cols-1 md:grid-cols-4 gap-6 overflow-hidden"
-                              >
-                                {/* Contact Details Card */}
-                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex flex-col justify-between">
-                                  <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">User details</h4>
-                                    <p className="text-xs text-slate-700 flex items-center font-bold">
-                                      <Phone size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
-                                      {user.phone || 'No phone registered'}
-                                    </p>
-                                    <p className="text-xs text-slate-700 flex items-center font-bold">
-                                      <Calendar size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
-                                      Registered: {new Date(user.createdAt).toLocaleDateString()}
-                                    </p>
-                                    <p className="text-xs text-slate-700 flex items-center font-bold">
-                                      <CreditCard size={12} className="mr-2.5 text-slate-400 shrink-0" /> 
-                                      Gateway: 
-                                      <span className={`ml-2 px-2 py-0.5 rounded-lg text-[9px] font-extrabold uppercase border ${paymentInfo.badgeColor}`}>
-                                        {paymentInfo.text}
-                                      </span>
-                                    </p>
-                                    {user.subscription?.plan !== 'free' && (
-                                      <div className="space-y-1.5 pt-2 border-t border-slate-50">
-                                        <p className="text-xs text-slate-650 flex justify-between font-bold">
-                                          <span>Amount Paid:</span> 
-                                          <span className="font-extrabold text-slate-900">${user.subscription?.paymentAmount || 0}</span>
-                                        </p>
-                                        {user.subscription?.paymentDate && (
-                                          <p className="text-[10px] text-slate-450 flex justify-between font-bold">
-                                            <span>Paid At:</span> 
-                                            <span className="text-slate-700">{new Date(user.subscription.paymentDate).toLocaleDateString()}</span>
-                                          </p>
-                                        )}
-                                        {user.subscription?.stripeSubscriptionId && (
-                                          <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
-                                            <span>Stripe ID:</span> 
-                                            <span className="text-slate-800 bg-slate-50 px-1 border rounded max-w-[120px] truncate">{user.subscription.stripeSubscriptionId}</span>
-                                          </p>
-                                        )}
-                                        {user.subscription?.razorpayPaymentId && (
-                                          <p className="text-[9px] text-slate-400 flex justify-between font-mono font-bold">
-                                            <span>Razorpay ID:</span> 
-                                            <span className="text-slate-800 bg-slate-50 px-1 border rounded max-w-[120px] truncate">{user.subscription.razorpayPaymentId}</span>
-                                          </p>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="mt-4 pt-3 border-t border-slate-100 text-[9px] font-mono text-slate-400 truncate">
-                                    DB REF: {user._id}
-                                  </div>
-                                </div>
-
-                                {/* AI Listing Fetches stats card */}
-                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center space-x-4">
-                                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-inner">
-                                    <BarChart2 size={22} />
-                                  </div>
-                                  <div>
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Listing Imports</h4>
-                                    <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.total || 0}</p>
-                                  </div>
-                                </div>
-
-                                {/* Live listings counts card */}
-                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex items-center space-x-4">
-                                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 shadow-inner">
-                                    <Check size={22} />
-                                  </div>
-                                  <div>
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Live Listings</h4>
-                                    <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{user.stats?.published || 0}</p>
-                                  </div>
-                                </div>
-
-                                {/* Listings status summary */}
-                                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-xs flex flex-col justify-between">
-                                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-2">Listing distribution</h4>
-                                  <div className="space-y-2.5">
-                                    <div className="flex justify-between items-center text-xs font-bold">
-                                      <span className="text-slate-500">Draft Listings:</span>
-                                      <span className="text-slate-800 font-mono">{user.stats?.draft || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs font-bold">
-                                      <span className="text-slate-500">Scheduled:</span>
-                                      <span className="text-slate-800 font-mono">{user.stats?.scheduled || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-slate-50">
-                                      <span className="text-rose-500">Failed / Errors:</span>
-                                      <span className="text-rose-600 font-mono font-black">{user.stats?.failed || 0}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                              </motion.div>
-                            </td>
-                          </tr>
-                        )}
-                      </AnimatePresence>
-                    </React.Fragment>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-bold text-xs">
-                    No matching user registrations found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                        {/* Collapsible Details Drawer */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <tr className="bg-slate-50/30">
+                              <td colSpan={6} className="px-8 py-6">
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  {renderExpandedDetails(user)}
+                                </motion.div>
+                              </td>
+                            </tr>
+                          )}
+                        </AnimatePresence>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Edit Subscription Modal */}
-      <AnimatePresence>
+      <Modal open={!!editingUser} onClose={() => setEditingUser(null)} size="sm">
         {editingUser && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 w-full max-w-md overflow-hidden relative flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 pb-4 border-b border-slate-50 flex justify-between items-center">
-                <div>
-                  <h3 className="font-extrabold text-slate-950 text-lg">Modify Subscription</h3>
-                  <p className="text-xs text-slate-400 font-semibold mt-0.5">{editingUser.firstName} {editingUser.lastName} ({editingUser.email})</p>
-                </div>
-                <button 
-                  onClick={() => setEditingUser(null)}
-                  className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
+          <>
+            {/* Modal Header */}
+            <div className="p-6 pb-4 border-b border-slate-100 flex justify-between items-center">
+              <div className="min-w-0">
+                <h3 className="font-black text-slate-900 text-lg">Modify Subscription</h3>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5 truncate">{editingUser.firstName} {editingUser.lastName} ({editingUser.email})</p>
+              </div>
+              <IconButton aria-label="Close" onClick={() => setEditingUser(null)} className="shrink-0">
+                <X size={18} />
+              </IconButton>
+            </div>
+
+            {/* Form fields */}
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+
+              {/* User Email */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">User Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={editFormData.email || ''}
+                  onChange={handleFormChange}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                />
               </div>
 
-              {/* Form fields */}
-              <form onSubmit={handleSaveEdit} className="p-6 space-y-4 overflow-y-auto">
-                
-                {/* Subscription Tier */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Subscription Tier</label>
-                  <select 
-                    name="plan"
-                    value={editFormData.plan}
-                    onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
-                  >
-                    <option value="free">Free Tier</option>
-                    <option value="basic">Basic Plan</option>
-                    <option value="pro">Pro Plan</option>
-                    <option value="enterprise">Enterprise Plan</option>
-                  </select>
-                </div>
+              {/* Subscription Tier */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subscription Tier</label>
+                <select
+                  name="plan"
+                  value={editFormData.plan}
+                  onChange={handleFormChange}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
+                >
+                  <option value="free">Free Tier</option>
+                  <option value="basic">Basic Plan</option>
+                  <option value="pro">Pro Plan</option>
+                  <option value="enterprise">Enterprise Plan</option>
+                </select>
+              </div>
 
-                {/* Status Selection */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Billing Status</label>
-                  <select 
-                    name="status"
-                    value={editFormData.status}
-                    onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="canceled">Canceled</option>
-                    <option value="past_due">Past Due</option>
-                  </select>
-                </div>
+              {/* Status Selection */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Billing Status</label>
+                <select
+                  name="status"
+                  value={editFormData.status}
+                  onChange={handleFormChange}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer transition-all"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="canceled">Canceled</option>
+                  <option value="past_due">Past Due</option>
+                </select>
+              </div>
 
-                {/* Expiry Date */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest flex items-center">
-                    <Clock size={12} className="mr-1.5 text-slate-400" /> Account Expiration
-                  </label>
-                  <input 
-                    type="date"
-                    name="expiresAt"
-                    value={editFormData.expiresAt}
-                    onChange={handleFormChange}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
-                  />
-                </div>
+              {/* Expiry Date */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+                  <Clock size={12} className="mr-1.5 text-slate-400" /> Account Expiration
+                </label>
+                <input
+                  type="date"
+                  name="expiresAt"
+                  value={editFormData.expiresAt}
+                  onChange={handleFormChange}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                />
+              </div>
 
-                {/* Custom Payment Metrics */}
-                {editFormData.plan !== 'free' && (
-                  <div className="pt-2.5 border-t border-slate-50 space-y-4">
-                    
-                    {/* Amount */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Payment Amount ($ USD)</label>
-                      <input 
-                        type="number"
-                        name="paymentAmount"
-                        value={editFormData.paymentAmount}
-                        onChange={handleFormChange}
-                        placeholder="e.g. 149"
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-450"
-                      />
-                    </div>
+              {/* Custom Payment Metrics */}
+              {editFormData.plan !== 'free' && (
+                <div className="pt-2.5 border-t border-slate-100 space-y-4">
 
-                    {/* Date */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Payment Transaction Date</label>
-                      <input 
-                        type="date"
-                        name="paymentDate"
-                        value={editFormData.paymentDate}
-                        onChange={handleFormChange}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
-                      />
-                    </div>
-
+                  {/* Amount */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Amount ($ USD)</label>
+                    <input
+                      type="number"
+                      name="paymentAmount"
+                      value={editFormData.paymentAmount}
+                      onChange={handleFormChange}
+                      placeholder="e.g. 149"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                    />
                   </div>
-                )}
 
-                {/* Action Buttons */}
-                <div className="pt-4 border-t border-slate-50 flex gap-3 justify-end">
-                  <button 
-                    type="button"
-                    onClick={() => setEditingUser(null)}
-                    className="px-4.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm shadow-indigo-100"
-                  >
-                    Apply Settings
-                  </button>
+                  {/* Date */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Transaction Date</label>
+                    <input
+                      type="date"
+                      name="paymentDate"
+                      value={editFormData.paymentDate}
+                      onChange={handleFormChange}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+
                 </div>
+              )}
 
-              </form>
-            </motion.div>
-          </div>
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-slate-100 flex gap-3 justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditingUser(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Apply Settings
+                </Button>
+              </div>
+
+            </form>
+          </>
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 };

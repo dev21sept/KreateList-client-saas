@@ -1,20 +1,22 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Zap, 
-  Shield, 
-  BarChart3, 
-  Sparkles, 
-  Search, 
-  Layers, 
+import {
+  Zap,
+  Shield,
+  BarChart3,
+  Sparkles,
+  Search,
+  Layers,
   Database,
   ArrowRight,
   CheckCircle2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const Features = () => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
 
   const details = [
     {
@@ -78,7 +80,12 @@ const Features = () => {
   return (
     <div className="max-w-6xl mx-auto px-6 py-12 space-y-16 antialiased pt-24">
       {/* Header */}
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
+      <motion.div
+        initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5 }}
+        className="text-center space-y-4 max-w-2xl mx-auto"
+      >
         <span className="px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] font-black text-indigo-600 uppercase tracking-widest">
           Features
         </span>
@@ -86,16 +93,17 @@ const Features = () => {
         <p className="text-slate-500 text-sm font-medium leading-relaxed">
           Elister.ai is built specifically for growing eBay resellers. Discover how our tools automate manual listing chores.
         </p>
-      </div>
+      </motion.div>
 
       {/* Grid of detailed features */}
       <div className="space-y-12">
         {details.map((feat, idx) => (
           <motion.div
             key={feat.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
+            initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ duration: reduceMotion ? 0 : 0.5, delay: reduceMotion ? 0 : idx * 0.08 }}
             className={`grid grid-cols-1 lg:grid-cols-12 gap-8 p-8 rounded-[2.5rem] bg-gradient-to-r ${feat.color} border border-slate-100 shadow-sm`}
           >
             <div className="lg:col-span-5 space-y-4">
@@ -125,7 +133,13 @@ const Features = () => {
       </div>
 
       {/* Bottom CTA */}
-      <div className="bg-slate-900 p-8 rounded-[2.5rem] text-center space-y-6 text-white max-w-4xl mx-auto shadow-xl relative overflow-hidden">
+      <motion.div
+        initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-80px' }}
+        transition={{ duration: reduceMotion ? 0 : 0.5 }}
+        className="bg-slate-900 p-8 rounded-[2.5rem] text-center space-y-6 text-white max-w-4xl mx-auto shadow-xl relative overflow-hidden"
+      >
         <div className="relative z-10 space-y-2">
           <h3 className="text-xl font-bold">Ready to see it in action?</h3>
           <p className="text-slate-400 text-xs font-medium max-w-md mx-auto">Create an account or select the pricing tier that best fits your listing volumes.</p>
@@ -144,7 +158,7 @@ const Features = () => {
             Start Free Trial
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

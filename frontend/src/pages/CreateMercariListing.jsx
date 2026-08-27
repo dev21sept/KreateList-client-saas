@@ -25,6 +25,10 @@ import { ruleService, aiService, listingService, externalImportService, mercariS
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import { Badge } from '../components/ui/Badge';
+import { LoadingState } from '../components/ui/LoadingState';
 import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
@@ -702,28 +706,35 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
   };
 
   return (
-    <div className="max-w-[1300px] mx-auto py-2 px-1">
+    <div className="max-w-[1300px] mx-auto py-2 px-1 space-y-8">
       {/* Dynamic Header */}
-      <div className="flex items-center gap-3.5 mb-8 border-b border-slate-100 pb-5">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl shadow-xs">
-          <img src="/mercari.png" className="w-9 h-9 object-contain" alt="" />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 shrink-0 bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-center">
+            <img src="/mercari.png" className="w-7 h-7 object-contain" alt="" />
+          </div>
+          <div>
+            <Badge variant="brand" className="mb-1.5">{editId ? 'Edit Mode' : 'AI Powered'}</Badge>
+            <h1 className="text-2xl font-black text-slate-900">
+              {editId ? 'Edit Mercari Listing' : 'Create Mercari Listing'}
+            </h1>
+            <p className="text-slate-400 text-xs font-semibold mt-1">
+              Optimize, prefill, and publish your items via AI Scan
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-black text-slate-800 tracking-tight">
-            {editId ? 'Edit Mercari Listing' : 'Create Mercari Listing'}
-          </h2>
-          <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">
-            Optimize, prefill, and publish your items via AI Scan
-          </p>
-        </div>
+        {isModal && onClose && (
+          <IconButton aria-label="Close" onClick={onClose}>
+            <X size={18} />
+          </IconButton>
+        )}
       </div>
 
-      <div className="bg-white border border-[#f1f3f9] rounded-[2.5rem] shadow-xl p-8 relative min-h-[500px]">
+      <div className="bg-white border border-slate-100 rounded-3xl shadow-sm p-8 relative min-h-[500px]">
         {loading && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-xs z-50 flex flex-col items-center justify-center rounded-[2.5rem]">
-            <Loader2 className="animate-spin text-indigo-600 mb-4" size={42} />
-            <span className="text-sm font-extrabold text-slate-800 animate-pulse">Running AI Scan & Processing...</span>
-            <p className="text-xs font-semibold text-slate-450 mt-1 max-w-xs text-center leading-relaxed">
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center rounded-3xl">
+            <LoadingState label="Running AI Scan & Processing..." />
+            <p className="text-xs font-semibold text-slate-400 mt-1 max-w-xs text-center leading-relaxed">
               We are uploading images, running visual models, and generating search-optimized listing details.
             </p>
           </div>
@@ -732,15 +743,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         {/* Step 1: Upload and initial setups (Always visible) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-6 space-y-6">
-            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-              1. Upload Photos
-            </h3>
-            
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">1</span>
+              <h3 className="text-sm font-black text-slate-900">Upload Photos</h3>
+            </div>
+
             {/* Image upload area */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
               <label className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-3xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:bg-slate-100/50 group select-none">
                 <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                <span className="text-[9px] font-black text-slate-450 uppercase tracking-wider">Add photos</span>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Add photos</span>
                 <input 
                   type="file" 
                   multiple 
@@ -752,7 +764,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               </label>
 
               {formData.images.map((img, idx) => (
-                <div key={idx} className="aspect-square rounded-3xl border border-slate-150 relative overflow-hidden group shadow-inner bg-slate-100">
+                <div key={idx} className="aspect-square rounded-3xl border border-slate-200 relative overflow-hidden group shadow-inner bg-slate-100">
                   <img 
                     src={img} 
                     onLoad={() => setLoadedImages(prev => ({ ...prev, [idx]: true }))}
@@ -779,18 +791,14 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       <button 
                         type="button"
                         disabled={idx === 0}
-                        onClick={() => moveImage(idx, 'left')}
-                        disabledClassName="opacity-40"
-                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
+                        onClick={() => moveImage(idx, 'left')}                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
                       >
                         ←
                       </button>
                       <button 
                         type="button"
                         disabled={idx === formData.images.length - 1}
-                        onClick={() => moveImage(idx, 'right')}
-                        disabledClassName="opacity-40"
-                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
+                        onClick={() => moveImage(idx, 'right')}                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
                       >
                         →
                       </button>
@@ -807,20 +815,21 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
             </div>
             
             {isConvertingImages && (
-              <div className="flex items-center gap-2 text-indigo-650 text-xs font-semibold animate-pulse mt-2 ml-1">
+              <div className="flex items-center gap-2 text-indigo-600 text-xs font-semibold animate-pulse mt-2 ml-1">
                 <Loader2 className="animate-spin" size={14} /> Processing files...
               </div>
             )}
           </div>
 
           <div className="lg:col-span-6 space-y-6">
-            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-              2. Scan Settings
-            </h3>
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">2</span>
+              <h3 className="text-sm font-black text-slate-900">Scan Settings</h3>
+            </div>
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">AI Listing Rule</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Listing Rule</label>
                 <SearchableDropdown 
                   value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name}
                   onSelect={(opt) => setFormData({ ...formData, selectedRule: opt.id })}
@@ -831,7 +840,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Condition</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
                   <SearchableDropdown 
                     value={conditionOptions.find(c => c.id === formData.selectedCondition)?.label}
                     onSelect={(opt) => setFormData({ ...formData, selectedCondition: opt.id })}
@@ -841,7 +850,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">AI Model</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Model</label>
                   <SearchableDropdown 
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
                     onSelect={(opt) => setFormData({ ...formData, selectedModel: opt.id })}
@@ -853,14 +862,18 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
               {!hasScanned && (
                 <div className="pt-4">
-                  <button 
+                  <Button
                     type="button"
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
                     onClick={startAIFetch}
+                    loading={loading}
                     disabled={loading || isConvertingImages || formData.images.length === 0}
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs transition-all active:scale-95 shadow-md shadow-indigo-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                    icon={<Sparkles size={14} />}
                   >
-                    <Sparkles size={14} className="animate-pulse" /> Analyze Product & Prefill Details
-                  </button>
+                    Analyze Product &amp; Prefill Details
+                  </Button>
                 </div>
               )}
             </div>
@@ -872,14 +885,15 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-10 pt-8 border-t border-slate-100 animate-in fade-in duration-300">
             {/* Left Column: Essential details */}
             <div className="lg:col-span-6 space-y-6">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                3. Listing Details
-              </h3>
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">3</span>
+                <h3 className="text-sm font-black text-slate-900">Listing Details</h3>
+              </div>
 
               <div className="space-y-4">
                 {/* Title */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Title</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Title</label>
                   <input 
                     className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                     value={formData.title}
@@ -895,7 +909,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 <div className="grid grid-cols-2 gap-4">
                   {/* Brand */}
                   <div className="space-y-1.5 relative" ref={brandDropdownRef}>
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Brand</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
                     <input 
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.brand}
@@ -924,7 +938,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                   </div>
                   {/* SKU */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">SKU Code</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU Code</label>
                     <input 
                       className="w-full px-4 h-12 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                       value={formData.sku}
@@ -936,7 +950,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
                 {/* Category */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Category</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Category</label>
                   <SearchableDropdown 
                     value={formData.category}
                     onSelect={(opt) => setFormData({ ...formData, category: opt.label, categoryId: opt.id })}
@@ -970,7 +984,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 {/* Size (Only render if category requires sizing) */}
                   {activeSizeOptions.length > 0 && (
                     <div className="space-y-1.5 animate-in fade-in duration-200">
-                      <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Size</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
                       <SearchableDropdown
                         value={formData.size}
                         onSelect={(opt) => setFormData({ ...formData, size: opt.label, sizeId: opt.id })}
@@ -984,15 +998,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
             {/* Right Column: Description preview & Setup details */}
             <div className="lg:col-span-6 space-y-6">
-              <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                4. Description & Details
-              </h3>
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">4</span>
+                <h3 className="text-sm font-black text-slate-900">Description &amp; Details</h3>
+              </div>
 
               <div className="space-y-4">
                 {/* Description input */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-455 uppercase tracking-widest ml-1">Listing Description</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Description</label>
                     <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                       <button 
                         type="button"
@@ -1020,7 +1035,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                     />
                   ) : (
                     <div 
-                      className="w-full p-4 bg-slate-50/50 border border-slate-150 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[250px] overflow-y-auto max-h-[300px] shadow-inner"
+                      className="w-full p-4 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed min-h-[250px] overflow-y-auto max-h-[300px] shadow-inner"
                       style={{ whiteSpace: 'pre-wrap' }}
                     >
                       {formData.description}
@@ -1030,7 +1045,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
                 <div className="p-5 bg-indigo-50/40 border border-indigo-100 rounded-2xl space-y-3">
                   <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">eLister Listing Setup</h4>
-                  <p className="text-[11px] text-indigo-755 leading-relaxed font-semibold">
+                  <p className="text-[11px] text-indigo-700 leading-relaxed font-semibold">
                     Mercari listings are stored as drafts in eLister. You can copy details (Title, Price, Description, Images) to Mercari easily using the <b>Copy Details</b> feature in listings.
                   </p>
                 </div>
@@ -1040,10 +1055,11 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
           </div>
 
           {/* Shipping Method Section (Full Width at Bottom) */}
-          <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150 space-y-6 mt-6 animate-in fade-in duration-300">
-            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-150 pb-3">
-              5. Shipping Method Details
-            </h3>
+          <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-200 space-y-6 mt-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-black flex items-center justify-center shrink-0">5</span>
+              <h3 className="text-sm font-black text-slate-900">Shipping Method Details</h3>
+            </div>
 
             <div className="space-y-4">
               {/* Option 1: Prepaid Label */}
@@ -1070,7 +1086,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 {formData.shippingMethod === 'prepaid' && (
                   <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
                     {/* Offer Free Shipping Dropdown inside Prepaid */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                       <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Offer buyers free shipping?</span>
                       <select 
                         className="px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer w-full sm:w-56"
@@ -1087,7 +1103,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Weight Inputs */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 shadow-inner">
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 shadow-inner">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Package Weight</span>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
@@ -1115,7 +1131,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       </div>
 
                       {/* Fits in Shoebox Question */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 flex flex-col justify-between shadow-inner">
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 flex flex-col justify-between shadow-inner">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Fits in Standard Shoebox?</span>
                         <div className="flex gap-4 pb-1">
                           <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
@@ -1138,7 +1154,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       </div>
 
                       {/* Dimensions Inputs (only if fits shoebox is false) */}
-                      <div className={`bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-2 transition-opacity duration-200 shadow-inner ${formData.shippingFitsShoebox ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                      <div className={`bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 transition-opacity duration-200 shadow-inner ${formData.shippingFitsShoebox ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Dimensions (inches)</span>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1">
@@ -1200,7 +1216,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                               <span className="text-[10px] font-black text-slate-800 leading-tight">{opt.carrier}</span>
                               <div className="flex items-end justify-between mt-2">
                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Up to {opt.weightText}</span>
-                                <span className="text-sm font-black text-indigo-650">${opt.price}</span>
+                                <span className="text-sm font-black text-indigo-600">${opt.price}</span>
                               </div>
                             </div>
                           );
@@ -1241,7 +1257,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                 </label>
 
                 {formData.shippingMethod === 'ship_on_your_own' && (
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-650 leading-relaxed bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-150 animate-in fade-in duration-200">
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-200 animate-in fade-in duration-200">
                     ℹ️ You will manually buy a shipping label outside Mercari. Shipping is free for the buyer. Delivery protection is not included.
                   </div>
                 )}
@@ -1253,38 +1269,42 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
 
         {/* Form Bottom Submission Control (Only visible when scanned) */}
         {hasScanned && !loading && (
-          <div className="mt-8 pt-6 flex justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
-            <button 
+          <div className="mt-8 pt-6 flex flex-wrap justify-end items-center gap-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => navigate('/listings')}
-              className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-extrabold text-slate-655 transition-all cursor-pointer"
             >
               Cancel
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => handleSaveListing(null)}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
             >
               Save Draft
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              className="bg-emerald-600! hover:bg-emerald-700! shadow-emerald-500/20!"
               onClick={() => handleSaveListing('direct')}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Working...' : 'List via Direct API'}
-            </button>
-            <button 
+            </Button>
+            <Button
               type="button"
+              variant="primary"
               onClick={() => handleSaveListing('extension')}
+              loading={loading}
               disabled={loading || isConvertingImages || !allImagesLoaded}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Working...' : 'List via Extension'}
-            </button>
+            </Button>
           </div>
         )}
 
