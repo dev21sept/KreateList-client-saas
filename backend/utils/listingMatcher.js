@@ -65,6 +65,20 @@ function extractSize(text) {
   return null;
 }
 
+const COMMON_COLORS = new Set([
+  'black', 'white', 'blue', 'pink', 'red', 'green', 'yellow', 'purple', 'orange',
+  'grey', 'gray', 'brown', 'beige', 'khaki', 'navy', 'olive', 'teal', 'burgundy',
+  'maroon', 'tan', 'cream', 'gold', 'silver'
+]);
+
+function extractColorPattern(text) {
+  if (!text) return '';
+  const lower = String(text).toLowerCase();
+  const words = lower.replace(/[^\w\s]/g, ' ').split(/\s+/);
+  const found = words.filter(w => COMMON_COLORS.has(w));
+  return found.join('_');
+}
+
 /**
  * Calculate Levenshtein Distance
  */
@@ -246,21 +260,21 @@ function isListingMatch(sourceListing, targetListing, minTitleScore = 0.85) {
     }
   }
 
-  // 3. Size Conflict Check
-  const size1 = extractSize(sourceListing.size || title1);
-  const size2 = extractSize(targetListing.size || title2);
-  if (size1 && size2 && size1 !== size2) {
-    return { isMatch: false, score: 0, reason: `Size conflict: ${size1} vs ${size2}` };
+  // 4. Color Pattern Conflict Check (e.g. 'pink blue' vs 'blue pink' or 'navy' vs 'olive')
+  const color1 = extractColorPattern(sourceListing.color || title1);
+  const color2 = extractColorPattern(targetListing.color || title2);
+  if (color1 && color2 && color1 !== color2) {
+    return { isMatch: false, score: 0, reason: `Color pattern mismatch: ${color1} vs ${color2}` };
   }
 
-  // 4. Exact Unique Image Match
+  // 5. Exact Unique Image Match
   const sourceImages = sourceListing.images || [sourceListing.thumbnail];
   const targetImages = targetListing.images || [targetListing.thumbnail];
   if (checkImageMatch(sourceImages, targetImages)) {
     return { isMatch: true, score: 1.0, reason: 'Image match' };
   }
 
-  // 5. Title Similarity Score
+  // 6. Title Similarity Score
   const titleScore = calculateTitleSimilarity(title1, title2);
   if (titleScore >= minTitleScore) {
     return { isMatch: true, score: titleScore, reason: `Title similarity (${Math.round(titleScore * 100)}%)` };

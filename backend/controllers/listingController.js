@@ -2877,11 +2877,15 @@ exports.getActiveChannelImportPreview = async (req, res) => {
 
         for (const [l] of sortedLocalCandidates) {
           const match = isListingMatch(
-            { title: l.title, images: l.images, sku: l.sku, size: l.size },
-            { title: group.title, images: group.images, sku: group.sku, size: group.size },
-            0.85
+            { title: l.title, images: l.images, sku: l.sku, size: l.size, color: l.color },
+            { title: group.title, images: group.images, sku: group.sku, size: group.size, color: group.color },
+            0.90
           );
-          if (match.isMatch) {
+          // Require confirmed image match or identical title to prevent distinct items with similar titles from falsely marking as already in DB
+          const hasImageMatch = checkImageMatch(l.images, group.images);
+          const isExactTitle = l.title && group.title && l.title.trim().toLowerCase() === group.title.trim().toLowerCase();
+          
+          if (match.isMatch && (hasImageMatch || isExactTitle)) {
             matchedListing = l;
             break;
           }
