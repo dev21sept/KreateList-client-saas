@@ -1048,8 +1048,15 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   console.log('[Poshmark Publisher] Step 3: Synchronizing draft attributes and categories...');
   const size = listing.size || 'OS';
   const brand = listing.brand || 'Original';
-  const price = parseFloat(listing.price || '0');
-  const originalPrice = parseFloat(listing.originalPrice || '0') || 0;
+  // Poshmark strictly requires whole integer dollar amounts (e.g. 25, not 24.99)
+  let rawPrice = parseFloat(listing.price || '0');
+  let price = Math.round(rawPrice);
+  if (price < 3 && rawPrice > 0) price = 3; // Poshmark minimum price is $3
+  if (price === 0 && !rawPrice) price = 10;
+  
+  let rawOrigPrice = parseFloat(listing.originalPrice || '0') || 0;
+  let originalPrice = Math.round(rawOrigPrice);
+  if (originalPrice > 0 && originalPrice < price) originalPrice = price;
 
   // Resolve category features (subcategories) to flat string IDs
   const resolvedSubcats = Array.isArray(listing.subcategoryIds) 
