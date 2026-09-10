@@ -16,6 +16,7 @@ import {
   Calendar,
   Check,
   RotateCcw,
+  SlidersHorizontal,
   X
 } from 'lucide-react';
 import { orderService } from '../services/api';
@@ -28,6 +29,7 @@ import { LoadingState } from '../components/ui/LoadingState';
 import { Badge } from '../components/ui/Badge';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
+// eBay Specific Status Options
 const EBAY_STATUS_OPTIONS = [
   { id: 'all', label: 'All orders' },
   { id: 'awaiting_payment', label: 'Awaiting payment' },
@@ -41,7 +43,19 @@ const EBAY_STATUS_OPTIONS = [
   { id: 'archived', label: 'Archived' },
 ];
 
+// Poshmark Specific Status Options
+const POSHMARK_STATUS_OPTIONS = [
+  { id: 'all', label: 'All orders' },
+  { id: 'awaiting_shipment', label: 'Awaiting shipment' },
+  { id: 'shipped', label: 'Shipped' },
+  { id: 'delivered', label: 'Delivered' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+// Period / Date Filter Options
 const PERIOD_OPTIONS = [
+  { id: 'all_time', label: 'All time' },
   { id: 'last_90_days', label: 'Last 90 days' },
   { id: 'today', label: 'Today' },
   { id: 'yesterday', label: 'Yesterday' },
@@ -54,6 +68,7 @@ const PERIOD_OPTIONS = [
   { id: 'custom', label: 'Custom' },
 ];
 
+// Search By Filter Options
 const SEARCH_BY_OPTIONS = [
   { id: 'buyer_username', label: 'Buyer username' },
   { id: 'buyer_name', label: 'Buyer name' },
@@ -83,10 +98,10 @@ const Orders = () => {
   const [relistingId, setRelistingId] = useState(null);
   const [error, setError] = useState(null);
 
-  // Filter States
+  // Platform & Filter States
   const [activePlatform, setActivePlatform] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [periodFilter, setPeriodFilter] = useState('last_90_days');
+  const [periodFilter, setPeriodFilter] = useState('all_time');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchBy, setSearchBy] = useState('buyer_username');
@@ -206,7 +221,7 @@ const Orders = () => {
     }
   };
 
-  // Update status (simulate shipping or delivery)
+  // Update status
   const handleUpdateStatus = async (id, currentStatus) => {
     const nextStatusMap = {
       'Pending': 'Shipped',
@@ -244,7 +259,8 @@ const Orders = () => {
     const s = String(status || '').toLowerCase();
     switch (s) {
       case 'delivered':
-      case 'completed': return 'success';
+      case 'completed':
+      case 'fulfilled': return 'success';
       case 'shipped':
       case 'paid and shipped': return 'info';
       case 'pending':
@@ -276,6 +292,7 @@ const Orders = () => {
 
   // Period Matcher
   const matchesPeriod = (sale) => {
+    if (periodFilter === 'all_time') return true;
     const rawDate = sale.paidDate || sale.createdDate || sale.createdAt || sale.updated_at;
     if (!rawDate) return true;
     const d = new Date(rawDate);
@@ -350,36 +367,48 @@ const Orders = () => {
     }
   };
 
-  // Status Matcher
+  // Status Matcher (Handles eBay, Poshmark, and General Statuses)
   const matchesStatus = (sale, statusId) => {
     if (statusId === 'all') return true;
     const s = String(sale.status || '').toLowerCase();
+    const payment = String(sale.paymentStatus || '').toLowerCase();
 
+    // eBay & Poshmark Statuses
     switch (statusId) {
       case 'awaiting_payment':
-        return s.includes('pending') || s.includes('awaiting_payment') || s.includes('unpaid');
+        return payment === 'pending' || s.includes('pending') || s.includes('awaiting_payment') || s.includes('unpaid');
       case 'awaiting_shipment':
-        return s === 'paid' || s.includes('awaiting_shipment') || s === 'pending' || s.includes('trading') || s.includes('in_progress');
+        return s === 'paid' || s === 'not_started' || s === 'in_progress' || s === 'pending' || s.includes('trading') || s.includes('awaiting_shipment');
       case 'awaiting_shipment_overdue': {
+        const isAwaiting = s === 'paid' || s === 'not_started' || s === 'in_progress' || s === 'pending' || s.includes('trading');
         const rawDate = sale.paidDate || sale.createdDate || sale.createdAt;
         const orderDate = new Date(rawDate);
         const ageInDays = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
-        return (s === 'paid' || s.includes('awaiting') || s.includes('in_progress')) && ageInDays > 3;
+        return isAwaiting && ageInDays > 3;
       }
       case 'awaiting_shipment_24h': {
+        const isAwaiting = s === 'paid' || s === 'not_started' || s === 'in_progress' || s === 'pending' || s.includes('trading');
         const rawDate = sale.paidDate || sale.createdDate || sale.createdAt;
         const orderDate = new Date(rawDate);
         const ageInHours = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60);
-        return (s === 'paid' || s.includes('awaiting') || s.includes('in_progress')) && ageInHours <= 24;
+        return isAwaiting && ageInHours <= 24;
       }
       case 'awaiting_expedited_shipment':
-        return s.includes('expedited') || (s.includes('awaiting') && sale.shippingStep?.expedited);
+        return (s === 'paid' || s === 'not_started' || s === 'in_progress') && (s.includes('expedited') || sale.shippingStep?.shippingServiceCode?.toLowerCase().includes('expedited'));
       case 'paid_and_shipped':
-        return s.includes('shipped') || s.includes('delivered') || s.includes('completed');
+      case 'shipped':
+        return s === 'fulfilled' || s === 'shipped' || s === 'delivered' || s === 'completed';
       case 'paid_awaiting_feedback':
-        return (s.includes('paid') || s.includes('shipped') || s.includes('delivered') || s.includes('completed')) && !sale.feedbackLeft;
+        return payment === 'paid' || s === 'fulfilled' || s === 'shipped' || s === 'delivered' || s === 'completed' || s === 'paid';
       case 'shipped_awaiting_feedback':
-        return (s.includes('shipped') || s.includes('delivered')) && !sale.feedbackLeft;
+        return s === 'fulfilled' || s === 'shipped' || s === 'delivered' || s === 'completed';
+      case 'delivered':
+        return s === 'delivered' || s === 'completed' || s === 'fulfilled';
+      case 'completed':
+        return s === 'completed' || s === 'delivered' || s === 'fulfilled';
+      case 'pending':
+        return s.includes('pending') || s.includes('in_progress') || s.includes('trading') || s === 'not_started';
+      case 'cancelled':
       case 'archived':
         return s.includes('archive') || s.includes('cancel');
       default:
@@ -392,31 +421,40 @@ const Orders = () => {
     if (!searchTerm.trim()) return true;
     const q = searchTerm.toLowerCase().trim();
 
-    switch (searchBy) {
-      case 'buyer_username':
-        return sale.buyerUsername?.toLowerCase().includes(q);
-      case 'buyer_name':
-        return sale.buyerName?.toLowerCase().includes(q) || sale.buyerUsername?.toLowerCase().includes(q);
-      case 'order_number':
-        return sale.orderId?.toLowerCase().includes(q) || sale.ebayOrderId?.toLowerCase().includes(q);
-      case 'sales_record_number':
-        return sale.orderId?.toLowerCase().includes(q);
-      case 'item_title':
-        return sale.lineItems?.some(li => li.title?.toLowerCase().includes(q));
-      case 'item_id':
-        return sale.lineItems?.some(li => li.lineItemId?.toLowerCase().includes(q));
-      case 'sku':
-        return sale.lineItems?.some(li => li.sku?.toLowerCase().includes(q));
-      default:
-        return (
-          sale.orderId?.toLowerCase().includes(q) ||
-          sale.buyerUsername?.toLowerCase().includes(q) ||
-          sale.lineItems?.some(li => li.title?.toLowerCase().includes(q) || li.sku?.toLowerCase().includes(q))
-        );
+    if (activePlatform === 'ebay' || activePlatform === 'poshmark') {
+      switch (searchBy) {
+        case 'buyer_username':
+          return sale.buyerUsername?.toLowerCase().includes(q);
+        case 'buyer_name':
+          return sale.buyerName?.toLowerCase().includes(q) || sale.buyerUsername?.toLowerCase().includes(q);
+        case 'order_number':
+          return sale.orderId?.toLowerCase().includes(q) || sale.ebayOrderId?.toLowerCase().includes(q);
+        case 'sales_record_number':
+          return sale.orderId?.toLowerCase().includes(q);
+        case 'item_title':
+          return sale.lineItems?.some(li => li.title?.toLowerCase().includes(q));
+        case 'item_id':
+          return sale.lineItems?.some(li => li.lineItemId?.toLowerCase().includes(q));
+        case 'sku':
+          return sale.lineItems?.some(li => li.sku?.toLowerCase().includes(q));
+        default:
+          return (
+            sale.orderId?.toLowerCase().includes(q) ||
+            sale.buyerUsername?.toLowerCase().includes(q) ||
+            sale.lineItems?.some(li => li.title?.toLowerCase().includes(q) || li.sku?.toLowerCase().includes(q))
+          );
+      }
     }
+
+    // Default general search across all fields for standard view
+    return (
+      sale.orderId?.toLowerCase().includes(q) ||
+      sale.buyerUsername?.toLowerCase().includes(q) ||
+      sale.lineItems?.some(li => li.title?.toLowerCase().includes(q) || li.sku?.toLowerCase().includes(q))
+    );
   };
 
-  // Get dynamic count for status
+  // Get dynamic count for status option
   const getStatusCount = (statusId) => {
     return sales.filter(sale => {
       if (activePlatform !== 'all' && sale.platform?.toLowerCase() !== activePlatform.toLowerCase()) {
@@ -441,20 +479,29 @@ const Orders = () => {
   const handleReset = () => {
     setSearchTerm('');
     setStatusFilter('all');
-    setPeriodFilter('last_90_days');
+    setPeriodFilter('all_time');
     setCustomStartDate('');
     setCustomEndDate('');
     setSearchBy('buyer_username');
+  };
+
+  // Switch Platform Handler
+  const handlePlatformChange = (platId) => {
+    setActivePlatform(platId);
+    setStatusFilter('all');
+    setPeriodFilter('all_time');
+    setSearchTerm('');
   };
 
   // Stats calculation
   const totalRevenue = filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
   const pendingShipment = filteredSales.filter(sale => {
     const s = String(sale.status || '').toLowerCase();
-    return s === 'pending' || s === 'in progress' || s === 'in_progress' || s === 'trading' || s.includes('awaiting');
+    return s === 'pending' || s === 'in progress' || s === 'in_progress' || s === 'trading' || s.includes('awaiting') || s === 'not_started';
   }).length;
 
-  const currentStatusOption = EBAY_STATUS_OPTIONS.find(o => o.id === statusFilter) || EBAY_STATUS_OPTIONS[0];
+  const currentEbayStatusOption = EBAY_STATUS_OPTIONS.find(o => o.id === statusFilter) || EBAY_STATUS_OPTIONS[0];
+  const currentPoshmarkStatusOption = POSHMARK_STATUS_OPTIONS.find(o => o.id === statusFilter) || POSHMARK_STATUS_OPTIONS[0];
   const currentPeriodOption = PERIOD_OPTIONS.find(o => o.id === periodFilter) || PERIOD_OPTIONS[0];
   const currentSearchByOption = SEARCH_BY_OPTIONS.find(o => o.id === searchBy) || SEARCH_BY_OPTIONS[0];
 
@@ -471,10 +518,7 @@ const Orders = () => {
             return (
               <button
                 key={plat.id}
-                onClick={() => {
-                  setActivePlatform(plat.id);
-                  setStatusFilter('all');
-                }}
+                onClick={() => handlePlatformChange(plat.id)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 scale-[1.02]'
@@ -538,124 +582,81 @@ const Orders = () => {
         />
       </div>
 
-      {/* 3. DYNAMIC MARKETPLACE FILTER & SEARCH TOOLBAR (Exact eBay Filters & Controls) */}
-      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-xs space-y-3">
-        
-        {/* Main Filter Controls Row */}
-        <div className="flex flex-wrap items-center gap-3">
-          
-          {/* Status Dropdown */}
-          <div className="relative" ref={statusRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setStatusOpen(!statusOpen);
-                setPeriodOpen(false);
-                setSearchByOpen(false);
-              }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
-            >
-              <span>Status: <span className="font-extrabold">{currentStatusOption.label} ({getStatusCount(statusFilter)})</span></span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-            </button>
-
-            {statusOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                {EBAY_STATUS_OPTIONS.map((opt) => {
-                  const count = getStatusCount(opt.id);
-                  const isSelected = statusFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        setStatusFilter(opt.id);
-                        setStatusOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
-                        isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
-                      }`}
-                    >
-                      <span className="truncate pr-2">
-                        {opt.label} {count > 0 || opt.id === 'all' ? `(${count})` : ''}
-                      </span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Period Dropdown */}
-          <div className="relative" ref={periodRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setPeriodOpen(!periodOpen);
-                setStatusOpen(false);
-                setSearchByOpen(false);
-              }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
-            >
-              <span>Period: <span className="font-extrabold">{currentPeriodOption.label}</span></span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-            </button>
-
-            {periodOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                {PERIOD_OPTIONS.map((opt) => {
-                  const isSelected = periodFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        setPeriodFilter(opt.id);
-                        setPeriodOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
-                        isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
-                      }`}
-                    >
-                      <span>{opt.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Combined Search Control: [Search by: Buyer username v] [ Search... ] [ 🔍 ] */}
-          <div className="flex-1 min-w-[280px] flex items-center border border-slate-300/90 rounded-xl bg-white focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-2xs transition-all">
+      {/* 3. DYNAMIC MARKETPLACE FILTER & SEARCH TOOLBAR */}
+      {activePlatform === 'ebay' ? (
+        /* --- EBAY DYNAMIC FILTER BAR --- */
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
             
-            {/* Search By Selector */}
-            <div className="relative border-r border-slate-200" ref={searchByRef}>
+            {/* eBay Status Dropdown */}
+            <div className="relative" ref={statusRef}>
               <button
                 type="button"
                 onClick={() => {
-                  setSearchByOpen(!searchByOpen);
-                  setStatusOpen(false);
+                  setStatusOpen(!statusOpen);
                   setPeriodOpen(false);
+                  setSearchByOpen(false);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-l-xl transition-colors cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
               >
-                <span>Search by: <span className="font-extrabold text-slate-900">{currentSearchByOption.label}</span></span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <span>Status: <span className="font-extrabold">{currentEbayStatusOption.label} ({getStatusCount(statusFilter)})</span></span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
               </button>
 
-              {searchByOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                  {SEARCH_BY_OPTIONS.map((opt) => {
-                    const isSelected = searchBy === opt.id;
+              {statusOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                  {EBAY_STATUS_OPTIONS.map((opt) => {
+                    const count = getStatusCount(opt.id);
+                    const isSelected = statusFilter === opt.id;
                     return (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => {
-                          setSearchBy(opt.id);
-                          setSearchByOpen(false);
+                          setStatusFilter(opt.id);
+                          setStatusOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
+                          isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate pr-2">
+                          {opt.label} {count > 0 || opt.id === 'all' ? `(${count})` : ''}
+                        </span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Period Dropdown */}
+            <div className="relative" ref={periodRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodOpen(!periodOpen);
+                  setStatusOpen(false);
+                  setSearchByOpen(false);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>Period: <span className="font-extrabold">{currentPeriodOption.label}</span></span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+              </button>
+
+              {periodOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                  {PERIOD_OPTIONS.map((opt) => {
+                    const isSelected = periodFilter === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setPeriodFilter(opt.id);
+                          setPeriodOpen(false);
                         }}
                         className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
                           isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
@@ -670,87 +671,313 @@ const Orders = () => {
               )}
             </div>
 
-            {/* Search Input Box */}
-            <input
+            {/* eBay Combined Search Box: [Search by: Buyer username v] [ Search... ] [ 🔍 ] */}
+            <div className="flex-1 min-w-[280px] flex items-center border border-slate-300/90 rounded-xl bg-white focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-2xs transition-all">
+              <div className="relative border-r border-slate-200" ref={searchByRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchByOpen(!searchByOpen);
+                    setStatusOpen(false);
+                    setPeriodOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-l-xl transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <span>Search by: <span className="font-extrabold text-slate-900">{currentSearchByOption.label}</span></span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+
+                {searchByOpen && (
+                  <div className="absolute left-0 top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                    {SEARCH_BY_OPTIONS.map((opt) => {
+                      const isSelected = searchBy === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setSearchBy(opt.id);
+                            setSearchByOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
+                            isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search..."
+                className="flex-1 px-3 py-2 text-xs font-bold text-slate-800 outline-none bg-transparent placeholder:text-slate-400"
+              />
+
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <div className="border-l border-slate-200 p-2 text-slate-500 flex items-center justify-center">
+                <Search className="w-4 h-4" />
+              </div>
+            </div>
+
+            {/* Reset */}
+            <button
+              type="button"
+              onClick={handleReset}
+              className="text-xs font-bold text-slate-600 hover:text-indigo-600 hover:underline px-2 py-1 transition-colors cursor-pointer"
+            >
+              Reset
+            </button>
+          </div>
+
+          {/* Custom Date Range Row */}
+          {periodFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 animate-in fade-in duration-150">
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Date Range:</span>
+              <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-400">to</span>
+              <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                  }}
+                  className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                >
+                  Clear Dates
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : activePlatform === 'poshmark' ? (
+        /* --- POSHMARK DYNAMIC FILTER BAR --- */
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            
+            {/* Poshmark Status Dropdown */}
+            <div className="relative" ref={statusRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusOpen(!statusOpen);
+                  setPeriodOpen(false);
+                  setSearchByOpen(false);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>Status: <span className="font-extrabold">{currentPoshmarkStatusOption.label} ({getStatusCount(statusFilter)})</span></span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+              </button>
+
+              {statusOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                  {POSHMARK_STATUS_OPTIONS.map((opt) => {
+                    const count = getStatusCount(opt.id);
+                    const isSelected = statusFilter === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(opt.id);
+                          setStatusOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
+                          isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate pr-2">
+                          {opt.label} {count > 0 || opt.id === 'all' ? `(${count})` : ''}
+                        </span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Poshmark Period Dropdown */}
+            <div className="relative" ref={periodRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodOpen(!periodOpen);
+                  setStatusOpen(false);
+                  setSearchByOpen(false);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>Period: <span className="font-extrabold">{currentPeriodOption.label}</span></span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+              </button>
+
+              {periodOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                  {PERIOD_OPTIONS.map((opt) => {
+                    const isSelected = periodFilter === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setPeriodFilter(opt.id);
+                          setPeriodOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer ${
+                          isSelected ? 'text-slate-900 font-extrabold bg-slate-50/70' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Poshmark Search Input */}
+            <div className="flex-1 min-w-[240px] flex items-center border border-slate-300/90 rounded-xl bg-white focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/10 shadow-2xs transition-all px-3 py-2">
+              <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by buyer, order ID or item..."
+                className="flex-1 text-xs font-bold text-slate-800 outline-none bg-transparent placeholder:text-slate-400"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Reset */}
+            <button
+              type="button"
+              onClick={handleReset}
+              className="text-xs font-bold text-slate-600 hover:text-indigo-600 hover:underline px-2 py-1 transition-colors cursor-pointer"
+            >
+              Reset
+            </button>
+          </div>
+
+          {/* Custom Date Range Row */}
+          {periodFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 animate-in fade-in duration-150">
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Date Range:</span>
+              <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-400">to</span>
+              <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                  }}
+                  className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                >
+                  Clear Dates
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* --- STANDARD / NORMAL SEARCH BAR (For All, Mercari, Etsy, Amazon) --- */
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-4">
+          {/* Search Box */}
+          <div className="relative flex-grow w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search..."
-              className="flex-1 px-3 py-2 text-xs font-bold text-slate-800 outline-none bg-transparent placeholder:text-slate-400"
+              placeholder="Search orders by ID, buyer or product title..."
+              className="w-full pl-11 pr-10 py-2.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
             />
-
-            {/* Clear icon if search active */}
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-
-            {/* Magnifying Glass Search Button */}
-            <div className="border-l border-slate-200 p-2 text-slate-500 flex items-center justify-center">
-              <Search className="w-4 h-4" />
-            </div>
           </div>
 
-          {/* Reset Action */}
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-xs font-bold text-slate-600 hover:text-indigo-600 hover:underline px-2 py-1 transition-colors cursor-pointer"
-          >
-            Reset
-          </button>
+          {/* Status Filter */}
+          <div className="flex items-center gap-2 w-full md:w-auto relative shrink-0">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 absolute left-4.5" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full md:w-44 pl-11 pr-10 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer"
+            >
+              <option value="all">Status: All</option>
+              <option value="pending">Pending</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
         </div>
-
-        {/* Custom Date Range Row (Revealed when Period = Custom) */}
-        {periodFilter === 'custom' && (
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 animate-in fade-in duration-150">
-            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Date Range:</span>
-            
-            {/* Start Date Input */}
-            <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                placeholder="Start date"
-                className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
-              />
-            </div>
-
-            <span className="text-xs font-bold text-slate-400">to</span>
-
-            {/* End Date Input */}
-            <div className="relative flex items-center border border-slate-300 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                placeholder="End date"
-                className="text-xs font-bold text-slate-800 outline-none cursor-pointer bg-transparent"
-              />
-            </div>
-
-            {(customStartDate || customEndDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomStartDate('');
-                  setCustomEndDate('');
-                }}
-                className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
-              >
-                Clear Dates
-              </button>
-            )}
-          </div>
-        )}
-
-      </div>
+      )}
 
       {/* 4. SALES ORDERS LIST & TABLE */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
