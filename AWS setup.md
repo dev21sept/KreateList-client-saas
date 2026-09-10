@@ -201,6 +201,84 @@ sudo certbot --nginx -d elister.ai -d www.elister.ai -d app.elister.ai -d api.el
 sudo nginx -t
 sudo systemctl restart nginx
 
+# ==============================================================================
+# FINAL PRODUCTION NGINX CONFIGURATION (/etc/nginx/sites-available/express-app):
+# (After Certbot runs, this is the exact complete 4-block configuration)
+# ==============================================================================
+#
+# # 1. FRONTEND SERVER BLOCK (elister.ai, app.elister.ai, www.elister.ai)
+# server {
+#     server_name elister.ai www.elister.ai app.elister.ai;
+#
+#     root /var/www/html;
+#     index index.html index.htm;
+#
+#     location / {
+#         try_files $uri $uri/ /index.html;
+#     }
+#
+#     listen [::]:443 ssl ipv6only=on; # managed by Certbot
+#     listen 443 ssl; # managed by Certbot
+#     ssl_certificate /etc/letsencrypt/live/elister.ai/fullchain.pem; # managed by Certbot
+#     ssl_certificate_key /etc/letsencrypt/live/elister.ai/privkey.pem; # managed by Certbot
+#     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+#     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+# }
+#
+# # 2. BACKEND API PROXY BLOCK (api.elister.ai -> Node.js Port 5000)
+# server {
+#     server_name api.elister.ai;
+#
+#     client_max_body_size 1024M;
+#
+#     location / {
+#         proxy_pass http://localhost:5000;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection 'upgrade';
+#         proxy_set_header Host $host;
+#         proxy_cache_bypass $http_upgrade;
+#     }
+#
+#     listen [::]:443 ssl; # managed by Certbot
+#     listen 443 ssl; # managed by Certbot
+#     ssl_certificate /etc/letsencrypt/live/elister.ai/fullchain.pem; # managed by Certbot
+#     ssl_certificate_key /etc/letsencrypt/live/elister.ai/privkey.pem; # managed by Certbot
+#     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+#     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+# }
+#
+# # 3. HTTP TO HTTPS AUTO-REDIRECT (Frontend)
+# server {
+#     if ($host = app.elister.ai) {
+#         return 301 https://$host$request_uri;
+#     }
+#     if ($host = www.elister.ai) {
+#         return 301 https://$host$request_uri;
+#     }
+#     if ($host = elister.ai) {
+#         return 301 https://$host$request_uri;
+#     }
+#
+#     listen 80;
+#     listen [::]:80;
+#     server_name elister.ai www.elister.ai app.elister.ai;
+#     return 404;
+# }
+#
+# # 4. HTTP TO HTTPS AUTO-REDIRECT (API)
+# server {
+#     if ($host = api.elister.ai) {
+#         return 301 https://$host$request_uri;
+#     }
+#
+#     listen 80;
+#     listen [::]:80;
+#     server_name api.elister.ai;
+#     return 404;
+# }
+# ==============================================================================
+
 
 # ------------------------------------------------------------------------------
 # STEP 8: GITHUB ACTIONS CI/CD AUTO-DEPLOYMENT SETUP

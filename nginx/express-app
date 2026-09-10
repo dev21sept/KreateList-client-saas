@@ -1,4 +1,5 @@
-﻿server {
+# 1. FRONTEND SERVER BLOCK (elister.ai, app.elister.ai, www.elister.ai)
+server {
     server_name elister.ai www.elister.ai app.elister.ai;
 
     root /var/www/html;
@@ -16,6 +17,7 @@
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
+# 2. BACKEND API PROXY BLOCK (api.elister.ai -> Node.js Port 5000)
 server {
     server_name api.elister.ai;
 
@@ -38,6 +40,7 @@ server {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
+# 3. HTTP TO HTTPS AUTO-REDIRECT (Frontend)
 server {
     if ($host = app.elister.ai) {
         return 301 https://$host$request_uri;
@@ -57,6 +60,7 @@ server {
     return 404; # managed by Certbot
 }
 
+# 4. HTTP TO HTTPS AUTO-REDIRECT (API)
 server {
     if ($host = api.elister.ai) {
         return 301 https://$host$request_uri;
