@@ -10,10 +10,11 @@
 # ------------------------------------------------------------------------------
 # STEP 1: CONNECT TO YOUR SERVER
 # ------------------------------------------------------------------------------
-# Run this command in your local command prompt or terminal to log in to the server.
-# "ec2-elistersaas" is the SSH alias configured in your Windows ~/.ssh/config file.
-# It resolves to IP: 54.175.32.246 and uses the key: elistersaas.pem.
-ssh ec2-elistersaas
+# Run this command in your local command prompt or terminal to log in to the server:
+# Server IP: 136.116.80.11
+# User: newelister
+# Key: elister111.pem
+ssh -i "D:\Project\Main FIle For sever\elister111.pem" newelister@136.116.80.11
 
 
 # ------------------------------------------------------------------------------
@@ -134,11 +135,12 @@ sudo cp -r dist/* /var/www/html/
 # 1. Install Nginx web server.
 sudo apt install nginx -y
 
-# 2. Edit the default Nginx configuration file.
-sudo nano /etc/nginx/sites-available/default
+# 2. Create the Nginx configuration file for Elister (express-app).
+sudo nano /etc/nginx/sites-available/express-app
 
 # ==============================================================================
-# COPY AND PASTE THIS ENTIRE CONFIGURATION INTO THE FILE (Replace everything):
+# COPY AND PASTE THIS INITIAL CONFIGURATION INTO /etc/nginx/sites-available/express-app:
+# (Note: Before Certbot SSL, configure port 80 blocks first)
 # ==============================================================================
 # server {
 #     listen 80;
@@ -171,22 +173,44 @@ sudo nano /etc/nginx/sites-available/default
 # }
 # ==============================================================================
 
-# 3. Test Nginx configuration.
+# 3. Enable the new site and disable default site.
+sudo ln -s /etc/nginx/sites-available/express-app /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 4. Ensure correct web directory permissions for www-data.
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 775 /var/www/html
+
+# 5. Test Nginx configuration.
 sudo nginx -t
 
-# 4. Restart Nginx.
+# 6. Restart Nginx.
 sudo systemctl restart nginx
 
 
 # ------------------------------------------------------------------------------
-# STEP 7: INSTALL SSL CERTIFICATE (HTTPS)
+# STEP 7: INSTALL SSL CERTIFICATE (HTTPS via Certbot)
 # ------------------------------------------------------------------------------
 # 1. Install Certbot and the Nginx plugin.
 sudo apt install certbot python3-certbot-nginx -y
 
-# 2. Request and automatically deploy SSL certificates.
+# 2. Request and automatically deploy SSL certificates across all domains & subdomains.
 sudo certbot --nginx -d elister.ai -d www.elister.ai -d app.elister.ai -d api.elister.ai
 
-# 3. Test and restart.
+# 3. Test and restart Nginx.
 sudo nginx -t
 sudo systemctl restart nginx
+
+
+# ------------------------------------------------------------------------------
+# STEP 8: GITHUB ACTIONS CI/CD AUTO-DEPLOYMENT SETUP
+# ------------------------------------------------------------------------------
+# Go to your GitHub Repository -> Settings -> Secrets and variables -> Actions
+# Add the following Repository Secrets:
+#
+# 1. EC2_HOST       -> 136.116.80.11
+# 2. EC2_USERNAME   -> newelister
+# 3. EC2_SSH_KEY    -> (Full contents of your .pem private key file)
+#
+# Now every git push to the "main" branch will automatically build and deploy 
+# both frontend and backend with zero downtime!
