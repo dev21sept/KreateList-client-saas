@@ -3799,319 +3799,317 @@ const NewListings = () => {
       />
 
       {/* Preview Modal */}
-      {previewListing && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-border flex flex-col">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-border flex items-center justify-between">
-              <div className="min-w-0 pr-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview</span>
-                <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
+      {previewListing && (() => {
+        const activePlat = previewPlatform || previewListing.platform || 'ebay';
+        const platData = previewListing.platformData?.[activePlat] || 
+          (previewListing.listingsMap && previewListing.listingsMap[activePlat]) || 
+          (previewListing.platform === activePlat ? previewListing : {});
+
+        const displayTitle = platData.title || (previewListing.platform === activePlat ? previewListing.title : previewListing.title) || 'Untitled Item';
+        const displayDesc = platData.description || (previewListing.platform === activePlat ? previewListing.description : '') || previewListing.description || '';
+        const displayPrice = platData.price !== undefined && platData.price !== null
+          ? (typeof platData.price === 'number' ? platData.price : parseFloat(platData.price) || 0)
+          : (typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0);
+        const displayOrigPrice = platData.originalPrice || (previewListing.platform === activePlat ? previewListing.originalPrice : '');
+        const displayBrand = platData.brand || previewListing.brand || '-';
+        const displaySize = platData.size || previewListing.size || '-';
+        const displayColor = platData.color || previewListing.color || '-';
+        const displayCategory = platData.category || (previewListing.platform === activePlat ? previewListing.category : '-');
+        const displayCondition = platData.condition || platData.selectedCondition || (previewListing.platform === activePlat ? (previewListing.selectedCondition || previewListing.condition) : '');
+        const displaySku = platData.sku || previewListing.sku || '-';
+        const displaySpecifics = activePlat === 'ebay' 
+          ? (platData.itemSpecifics || (previewListing.platform === 'ebay' ? previewListing.itemSpecifics : {})) 
+          : {};
+        const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
+        const displayLiveId = platData.liveId || previewListing[`${activePlat}ListingId`];
+        const displayUrl = platData.url || previewListing[`${activePlat}Url`];
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl max-w-6xl w-full max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 bg-slate-50 border-b border-border flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Listing Preview</span>
+                  <h3 className="text-lg font-bold text-slate-950 mt-0.5 break-words leading-snug">{displayTitle}</h3>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                  <IconButton
+                    aria-label="Edit Listing"
+                    title="Edit Listing"
+                    onClick={() => {
+                      setSelectedListing(previewListing);
+                      setSelectedPlatform(previewListing.platform || selectedChannel || 'ebay');
+                      setIsEditMode(true);
+                      setModalOpen(true);
+                      setPreviewListing(null);
+                    }}
+                  >
+                    <Edit size={16} />
+                  </IconButton>
+                  <IconButton
+                    aria-label="Close"
+                    title="Close"
+                    onClick={() => setPreviewListing(null)}
+                  >
+                    <X size={18} />
+                  </IconButton>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <IconButton
-                  aria-label="Edit Listing"
-                  title="Edit Listing"
-                  onClick={() => {
-                    setSelectedListing(previewListing);
-                    setSelectedPlatform(previewListing.platform || selectedChannel || 'ebay');
-                    setIsEditMode(true);
-                    setModalOpen(true);
-                    setPreviewListing(null);
-                  }}
-                >
-                  <Edit size={16} />
-                </IconButton>
-                <IconButton
-                  aria-label="Close"
-                  title="Close"
-                  onClick={() => setPreviewListing(null)}
-                >
-                  <X size={18} />
-                </IconButton>
-              </div>
-            </div>
 
-            {/* Modal Body */}
-            {(() => {
-              const activePlat = previewPlatform || previewListing.platform || 'ebay';
-              const platData = previewListing.platformData?.[activePlat] || 
-                (previewListing.listingsMap && previewListing.listingsMap[activePlat]) || 
-                (previewListing.platform === activePlat ? previewListing : {});
-
-              const displayTitle = platData.title || (previewListing.platform === activePlat ? previewListing.title : previewListing.title) || 'Untitled Item';
-              const displayDesc = platData.description || (previewListing.platform === activePlat ? previewListing.description : '') || previewListing.description || '';
-              const displayPrice = platData.price !== undefined && platData.price !== null
-                ? (typeof platData.price === 'number' ? platData.price : parseFloat(platData.price) || 0)
-                : (typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0);
-              const displayOrigPrice = platData.originalPrice || (previewListing.platform === activePlat ? previewListing.originalPrice : '');
-              const displayBrand = platData.brand || previewListing.brand || '-';
-              const displaySize = platData.size || previewListing.size || '-';
-              const displayColor = platData.color || previewListing.color || '-';
-              const displayCategory = platData.category || (previewListing.platform === activePlat ? previewListing.category : '-');
-              const displayCondition = platData.condition || platData.selectedCondition || (previewListing.platform === activePlat ? (previewListing.selectedCondition || previewListing.condition) : '');
-              const displaySku = platData.sku || previewListing.sku || '-';
-              const displaySpecifics = activePlat === 'ebay' 
-                ? (platData.itemSpecifics || (previewListing.platform === 'ebay' ? previewListing.itemSpecifics : {})) 
-                : {};
-              const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
-              const displayLiveId = platData.liveId || previewListing[`${activePlat}ListingId`];
-              const displayUrl = platData.url || previewListing[`${activePlat}Url`];
-
-              return (
-                <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
-                  {/* Left Column - Gallery, Platform Switcher & Logistics */}
-                  <div className="md:col-span-5 space-y-5">
-                    {/* Image Gallery */}
-                    {previewListing.images && previewListing.images.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
-                          <img 
-                            src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
-                            alt="Main Preview" 
-                            className="max-w-full max-h-full object-contain"
-                          />
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
+                {/* Left Column - Gallery, Platform Switcher & Logistics */}
+                <div className="md:col-span-5 space-y-5">
+                  {/* Image Gallery */}
+                  {previewListing.images && previewListing.images.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                        <img 
+                          src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
+                          alt="Main Preview" 
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      {previewListing.images.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
+                          {previewListing.images.map((img, i) => (
+                            <button 
+                              key={i}
+                              onClick={() => setActiveImage(img)}
+                              className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                                (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
+                              }`}
+                            >
+                              <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
+                            </button>
+                          ))}
                         </div>
-                        {previewListing.images.length > 1 && (
-                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
-                            {previewListing.images.map((img, i) => (
-                              <button 
-                                key={i}
-                                onClick={() => setActiveImage(img)}
-                                className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
-                                  (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
-                                }`}
-                              >
-                                <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
-                              </button>
-                            ))}
+                      )}
+                    </div>
+                  ) : (
+                    <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
+                      No Images Uploaded
+                    </div>
+                  )}
+
+                  {/* Platform Preview Selector Card */}
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                        Platform Preview Selector
+                      </span>
+                      <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                        Viewing: {activePlat.toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-semibold leading-tight">
+                      Click any platform to view that marketplace's specific data:
+                    </p>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { id: 'ebay', name: 'eBay', logo: '/ebay.png' },
+                        { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png' },
+                        { id: 'mercari', name: 'Mercari', logo: '/mercari.png' },
+                        /* { id: 'depop', name: 'Depop', logo: '/depop.png' }, */
+                        { id: 'etsy', name: 'Etsy', logo: '/etsy.png' },
+                        { id: 'amazon', name: 'Amazon', logo: '/amazon.png' },
+                      ].map((p) => {
+                        const isSelected = activePlat === p.id;
+                        const pData = previewListing.platformData?.[p.id] || (previewListing.listingsMap?.[p.id]);
+                        const isListed = !!(
+                          previewListing[`${p.id}ListingId`] ||
+                          pData?.liveId ||
+                          previewListing[`${p.id}Status`] === 'published' ||
+                          (previewListing.platform === p.id && (previewListing.status === 'published' || previewListing.status === 'active'))
+                        );
+
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setPreviewPlatform(p.id)}
+                            className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                              isSelected
+                                ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20'
+                                : 'bg-white/70 hover:bg-white border-slate-200 hover:border-slate-300 opacity-80 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={p.logo} alt={p.name} className="w-5 h-5 object-contain" />
+                            <span className={`text-[10px] font-bold mt-1 ${isSelected ? 'text-indigo-600 font-black' : 'text-slate-600'}`}>
+                              {p.name}
+                            </span>
+                            <span className={`text-[8px] font-extrabold px-1 rounded mt-0.5 ${
+                              isListed ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-400 bg-slate-100'
+                            }`}>
+                              {isListed ? 'Active' : 'Unlisted'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Logistics */}
+                  {(previewListing.packageWeight || previewListing.packageDimensions) && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        {previewListing.packageWeight && (
+                          <div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
+                            <p className="text-sm font-bold text-slate-800">
+                              {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
+                            </p>
+                          </div>
+                        )}
+                        {previewListing.packageDimensions && (
+                          <div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
+                            <p className="text-sm font-bold text-slate-800">
+                              {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
+                            </p>
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
-                        No Images Uploaded
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column - Platform Details, Specifics, Pricing & HTML Description */}
+                <div className="md:col-span-7 space-y-5 font-sans">
+                  {/* Platform banner */}
+                  <div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={`/${activePlat}.png`} 
+                        alt={activePlat} 
+                        className="w-5 h-5 object-contain" 
+                      />
+                      <span className="text-xs font-black text-slate-800 capitalize">
+                        {activePlat} Listing Data
+                      </span>
+                    </div>
+                    {displayUrl && (
+                      <a
+                        href={displayUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1"
+                      >
+                        View Live Listing
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Meta details */}
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status on {activePlat}</p>
+                      <div className="mt-1">{getStatusBadge(displayStatus)}</div>
+                    </div>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        {activePlat === 'poshmark' ? 'Listing Price' : 'Price'}
+                      </p>
+                      <p className="text-base font-black text-slate-900 mt-1">
+                        ${displayPrice.toFixed(2)}
+                      </p>
+                    </div>
+                    {(activePlat === 'poshmark' || activePlat === 'etsy' || activePlat === 'depop') && (
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
+                        <p className="text-base font-black text-slate-500 mt-1">
+                          ${displayOrigPrice ? parseFloat(displayOrigPrice || 0).toFixed(2) : '0.00'}
+                        </p>
                       </div>
                     )}
-
-                    {/* Platform Preview Selector Card */}
-                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                          Platform Preview Selector
-                        </span>
-                        <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                          Viewing: {activePlat.toUpperCase()}
-                        </span>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayBrand}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayColor}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displaySize}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
+                      <p className="text-sm font-mono font-bold text-slate-800 mt-1 truncate">{displaySku}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
+                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCategory}</p>
+                    </div>
+                    {displayCondition && (
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2 sm:col-span-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCondition}</p>
                       </div>
-                      <p className="text-[10px] text-slate-500 font-semibold leading-tight">
-                        Click any platform to view that marketplace's specific data:
-                      </p>
-                      <div className="grid grid-cols-5 gap-1.5">
-                        {[
-                          { id: 'ebay', name: 'eBay', logo: '/ebay.png' },
-                          { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png' },
-                          { id: 'mercari', name: 'Mercari', logo: '/mercari.png' },
-                          /* { id: 'depop', name: 'Depop', logo: '/depop.png' }, */
-                          { id: 'etsy', name: 'Etsy', logo: '/etsy.png' },
-                          { id: 'amazon', name: 'Amazon', logo: '/amazon.png' },
-                        ].map((p) => {
-                          const isSelected = activePlat === p.id;
-                          const pData = previewListing.platformData?.[p.id] || (previewListing.listingsMap?.[p.id]);
-                          const isListed = !!(
-                            previewListing[`${p.id}ListingId`] ||
-                            pData?.liveId ||
-                            previewListing[`${p.id}Status`] === 'published' ||
-                            (previewListing.platform === p.id && (previewListing.status === 'published' || previewListing.status === 'active'))
-                          );
+                    )}
+                    {displayLiveId && (
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{activePlat} Live ID</p>
+                        <p className="text-xs font-mono font-bold text-slate-700 mt-0.5 truncate">{displayLiveId}</p>
+                      </div>
+                    )}
+                  </div>
 
+                  {/* Item Specifics - ONLY for eBay */}
+                  {activePlat === 'ebay' && displaySpecifics && typeof displaySpecifics === 'object' && Object.keys(displaySpecifics).length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
+                        eBay Item Specifics
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {Object.entries(displaySpecifics).map(([key, val]) => {
+                          const displayVal = Array.isArray(val) ? val.join(', ') : val;
                           return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => setPreviewPlatform(p.id)}
-                              className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer select-none ${
-                                isSelected
-                                  ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20'
-                                  : 'bg-white/70 hover:bg-white border-slate-200 hover:border-slate-300 opacity-80 hover:opacity-100'
-                              }`}
-                            >
-                              <img src={p.logo} alt={p.name} className="w-5 h-5 object-contain" />
-                              <span className={`text-[10px] font-bold mt-1 ${isSelected ? 'text-indigo-600 font-black' : 'text-slate-600'}`}>
-                                {p.name}
-                              </span>
-                              <span className={`text-[8px] font-extrabold px-1 rounded mt-0.5 ${
-                                isListed ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-400 bg-slate-100'
-                              }`}>
-                                {isListed ? 'Active' : 'Unlisted'}
-                              </span>
-                            </button>
+                            <div key={key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-500">{key}</span>
+                              <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[140px]">{displayVal || '-'}</span>
+                            </div>
                           );
                         })}
                       </div>
                     </div>
+                  )}
 
-                    {/* Logistics */}
-                    {(previewListing.packageWeight || previewListing.packageDimensions) && (
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          {previewListing.packageWeight && (
-                            <div>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
-                              <p className="text-sm font-bold text-slate-800">
-                                {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
-                              </p>
-                            </div>
-                          )}
-                          {previewListing.packageDimensions && (
-                            <div>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
-                              <p className="text-sm font-bold text-slate-800">
-                                {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Column - Platform Details, Specifics, Pricing & HTML Description */}
-                  <div className="md:col-span-7 space-y-5 font-sans">
-                    {/* Platform banner */}
-                    <div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={`/${activePlat}.png`} 
-                          alt={activePlat} 
-                          className="w-5 h-5 object-contain" 
-                        />
-                        <span className="text-xs font-black text-slate-800 capitalize">
-                          {activePlat} Listing Data
-                        </span>
-                      </div>
-                      {displayUrl && (
-                        <a
-                          href={displayUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1"
-                        >
-                          View Live Listing
-                        </a>
-                      )}
-                    </div>
-
-                    {/* Meta details */}
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status on {activePlat}</p>
-                        <div className="mt-1">{getStatusBadge(displayStatus)}</div>
-                      </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                          {activePlat === 'poshmark' ? 'Listing Price' : 'Price'}
-                        </p>
-                        <p className="text-base font-black text-slate-900 mt-1">
-                          ${displayPrice.toFixed(2)}
-                        </p>
-                      </div>
-                      {(activePlat === 'poshmark' || activePlat === 'etsy' || activePlat === 'depop') && (
-                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
-                          <p className="text-base font-black text-slate-500 mt-1">
-                            ${displayOrigPrice ? parseFloat(displayOrigPrice || 0).toFixed(2) : '0.00'}
-                          </p>
-                        </div>
-                      )}
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayBrand}</p>
-                      </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayColor}</p>
-                      </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displaySize}</p>
-                      </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
-                        <p className="text-sm font-mono font-bold text-slate-800 mt-1 truncate">{displaySku}</p>
-                      </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCategory}</p>
-                      </div>
-                      {displayCondition && (
-                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2 sm:col-span-1">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
-                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCondition}</p>
-                        </div>
-                      )}
-                      {displayLiveId && (
-                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{activePlat} Live ID</p>
-                          <p className="text-xs font-mono font-bold text-slate-700 mt-0.5 truncate">{displayLiveId}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Item Specifics - ONLY for eBay */}
-                    {activePlat === 'ebay' && displaySpecifics && typeof displaySpecifics === 'object' && Object.keys(displaySpecifics).length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
-                          eBay Item Specifics
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {Object.entries(displaySpecifics).map(([key, val]) => {
-                            const displayVal = Array.isArray(val) ? val.join(', ') : val;
-                            return (
-                              <div key={key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-500">{key}</span>
-                                <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[140px]">{displayVal || '-'}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Description Template */}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
-                        {activePlat} Description
-                      </h4>
-                      <div 
-                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[260px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
-                        style={{ whiteSpace: 'pre-wrap' }}
-                        dangerouslySetInnerHTML={{ __html: displayDesc }}
-                      />
-                    </div>
+                  {/* Description Template */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
+                      {activePlat} Description
+                    </h4>
+                    <div 
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[260px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
+                      style={{ whiteSpace: 'pre-wrap' }}
+                      dangerouslySetInnerHTML={{ __html: displayDesc }}
+                    />
                   </div>
                 </div>
-              );
-            })()}
+              </div>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-border flex items-center justify-between font-sans">
-              <Button
-                variant="outline"
-                onClick={() => setPreviewListing(null)}
-              >
-                Close
-              </Button>
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-border flex items-center justify-between font-sans">
+                <Button
+                  variant="outline"
+                  onClick={() => setPreviewListing(null)}
+                >
+                  Close
+                </Button>
 
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline-block">Marketplaces:</span>
-                {renderModalFooter()}
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline-block">Marketplaces:</span>
+                  {renderModalFooter()}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Smart Import to Local Modal */}
       {importModalOpen && (

@@ -1320,17 +1320,17 @@ const Listings = () => {
 
       {/* Preview Modal */}
       {previewListing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-6xl w-full max-h-[92vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview</span>
-                <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Listing Preview</span>
+                <h3 className="text-lg font-bold text-slate-950 mt-0.5 break-words leading-snug">{previewListing.title}</h3>
               </div>
               <button 
                 onClick={() => setPreviewListing(null)}
-                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all"
+                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all shrink-0 pt-0.5"
               >
                 <X size={20} />
               </button>
