@@ -808,7 +808,7 @@ const NewListings = () => {
       if (listing.platform === 'mercari') {
         res = await mercariService.verifyStatus(listing._id || listing.mercariListingId);
       } else {
-        res = await listingService.verifyLive(listing._id);
+        res = await listingService.verifyLive(listing._id, listing.platform || 'ebay');
       }
       if (res.data?.success) {
         if (res.data.isLive) {
@@ -2161,7 +2161,7 @@ const NewListings = () => {
       if (platform === 'mercari') {
         response = await mercariService.verifyStatus(item._id || item.mercariListingId);
       } else {
-        response = await listingService.verifyLive(item._id);
+        response = await listingService.verifyLive(item._id, platform);
       }
       
       if (response.data?.success) {

@@ -1549,48 +1549,131 @@ exports.verifyListingLive = async (req, res) => {
     }
 
     let isLive = false;
-    const platform = listing.platform || 'ebay';
+    const platform = (req.query.platform || req.body?.platform || listing.platform || 'ebay').toLowerCase();
 
+    // -------------------------------------------------------------
+    // 1. EBAY VERIFICATION
+    // -------------------------------------------------------------
     if (platform === 'ebay') {
-      if (listing.sku) {
+      const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId;
+      const ebaySku = listing.platformData?.ebay?.sku || (listing.sku?.startsWith('P-') || listing.sku?.startsWith('M-') ? null : listing.sku);
+
+      // Layer 1: Check Channel Inventory (Product collection synced from eBay)
+      const matchingEbayProduct = await Product.findOne({
+        user: req.user.id,
+        source: 'ebay',
+        $or: [
+          ...(ebayId ? [{ ebayListingId: ebayId }, { liveListingId: ebayId }, { itemId: ebayId }] : []),
+          ...(ebaySku ? [{ sku: ebaySku }] : []),
+          ...(listing.title ? [{ title: listing.title }] : [])
+        ],
+        status: { $in: ['active', 'live', 'published'] }
+      });
+
+      if (matchingEbayProduct) {
+        console.log(`[Verify Live] Found matching active eBay product in Channel Inventory: ${matchingEbayProduct._id}`);
+        isLive = true;
+        if (matchingEbayProduct.ebayListingId) {
+          listing.ebayListingId = matchingEbayProduct.ebayListingId;
+          listing.ebayUrl = `https://www.ebay.com/itm/${matchingEbayProduct.ebayListingId}`;
+        }
+      }
+
+      // Layer 2: Direct eBay API Verification (Trading API or Inventory API)
+      if (!isLive) {
         try {
           const token = await getValidToken(req.user.id);
           if (token) {
-            const { getOffers } = require('../services/ebayService');
-            const offers = await getOffers(token, listing.sku);
+            const { getOffers, getTradingItemDetails } = require('../services/ebayService');
 
-            const isOfferActive = (o) => o.listing?.listingStatus
-              ? o.listing.listingStatus === 'ACTIVE'
-              : o.status === 'PUBLISHED';
-
-            let activeOffer = null;
-            if (listing.ebayListingId) {
-              activeOffer = offers && offers.find(o => o.listing?.listingId === listing.ebayListingId && isOfferActive(o));
-            }
-
-            if (!activeOffer && offers && offers.length > 0) {
-              activeOffer = offers.find(isOfferActive);
-              if (activeOffer && activeOffer.listing?.listingId) {
-                const listingId = activeOffer.listing.listingId;
-                listing.ebayListingId = listingId;
-                listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
-                listing.ebayStatus = 'published';
-                listing.status = 'published';
-                await listing.save();
+            // 2a. Check with Trading API GetItem if ebayListingId is known
+            if (ebayId) {
+              try {
+                const itemDetails = await getTradingItemDetails(token, ebayId);
+                if (itemDetails && itemDetails.title) {
+                  isLive = true;
+                  listing.ebayListingId = ebayId;
+                  listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
+                  console.log(`[Verify Live] Verified active on eBay Trading API for item: ${ebayId}`);
+                }
+              } catch (tErr) {
+                console.warn(`[Verify Live] Trading GetItem failed for ${ebayId}:`, tErr.message);
               }
             }
 
-            if (activeOffer) {
-              isLive = true;
-              listing.ebayStatus = 'published';
+            // 2b. Check with Inventory API GetOffers for available SKUs
+            if (!isLive) {
+              const skusToCheck = [ebaySku, listing.platformData?.ebay?.sku, listing.sku].filter(Boolean);
+              for (const sku of skusToCheck) {
+                try {
+                  const offers = await getOffers(token, sku);
+                  const isOfferActive = (o) => o.listing?.listingStatus
+                    ? o.listing.listingStatus === 'ACTIVE'
+                    : o.status === 'PUBLISHED';
+
+                  let activeOffer = offers && offers.find(isOfferActive);
+                  if (activeOffer) {
+                    isLive = true;
+                    if (activeOffer.listing?.listingId) {
+                      const listingId = activeOffer.listing.listingId;
+                      listing.ebayListingId = listingId;
+                      listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
+                    }
+                    console.log(`[Verify Live] Verified active on eBay Inventory API for SKU ${sku}`);
+                    break;
+                  }
+                } catch (skuErr) {
+                  // SKU not on inventory API
+                }
+              }
             }
           }
-        } catch (err) {
-          console.warn(`[Verify Live] eBay API check failed:`, err.message);
+        } catch (apiErr) {
+          console.warn(`[Verify Live] eBay API verification error:`, apiErr.message);
         }
       }
-    } else if (platform === 'poshmark') {
-      if (listing.poshmarkListingId && user.poshmarkAccount && user.poshmarkAccount.connected) {
+
+      // Layer 3: URL check fallback if ebayUrl exists
+      if (!isLive && listing.ebayUrl) {
+        isLive = await checkUrlActive(listing.ebayUrl);
+      }
+
+      if (isLive) {
+        listing.ebayStatus = 'published';
+        if (!listing.platformData) listing.platformData = {};
+        if (!listing.platformData.ebay) listing.platformData.ebay = {};
+        listing.platformData.ebay.status = 'published';
+        if (listing.ebayListingId) listing.platformData.ebay.liveId = listing.ebayListingId;
+      }
+    } 
+    // -------------------------------------------------------------
+    // 2. POSHMARK VERIFICATION
+    // -------------------------------------------------------------
+    else if (platform === 'poshmark') {
+      const pmId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId;
+
+      // Layer 1: Check Channel Inventory
+      const matchingPmProduct = await Product.findOne({
+        user: req.user.id,
+        source: 'poshmark',
+        $or: [
+          ...(pmId ? [{ poshmarkListingId: pmId }] : []),
+          ...(listing.sku ? [{ sku: listing.sku }] : []),
+          ...(listing.title ? [{ title: listing.title }] : [])
+        ],
+        status: { $in: ['live', 'active', 'published'] }
+      });
+
+      if (matchingPmProduct) {
+        isLive = true;
+        if (matchingPmProduct.poshmarkListingId) {
+          listing.poshmarkListingId = matchingPmProduct.poshmarkListingId;
+          listing.poshmarkUrl = matchingPmProduct.poshmarkUrl || `https://poshmark.com/listing/${matchingPmProduct.poshmarkListingId}`;
+        }
+      }
+
+      // Layer 2: Direct Poshmark API
+      if (!isLive && pmId && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie) {
         try {
           const { getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
           const domain = user.poshmarkAccount.domain || 'poshmark.com';
@@ -1600,25 +1683,60 @@ exports.verifyListingLive = async (req, res) => {
           
           const config = getAxiosConfig({
             method: 'GET',
-            url: `https://${domain}/vm-rest/posts/${listing.poshmarkListingId}?pm_version=2026.26.01`,
+            url: `https://${domain}/vm-rest/posts/${pmId}?pm_version=2026.26.01`,
             headers
           });
           const pmRes = await axios(config);
-          const postStatus = pmRes.data?.status || pmRes.data?.post?.status;
-          if (postStatus === 'available') {
+          const postStatus = pmRes.data?.status || pmRes.data?.post?.status || pmRes.data?.post?.inventory?.status;
+          if (postStatus === 'available' || postStatus === 'published') {
             isLive = true;
-            listing.poshmarkStatus = 'published';
           }
         } catch (err) {
           console.warn(`[Verify Live] Poshmark API check failed:`, err.message);
         }
       }
-    } else if (platform === 'etsy') {
-      if (listing.etsyListingId && user.etsyAccount && user.etsyAccount.connected) {
+
+      // Layer 3: URL check fallback
+      if (!isLive && listing.poshmarkUrl) {
+        isLive = await checkUrlActive(listing.poshmarkUrl);
+      }
+
+      if (isLive) {
+        listing.poshmarkStatus = 'published';
+        if (!listing.platformData) listing.platformData = {};
+        if (!listing.platformData.poshmark) listing.platformData.poshmark = {};
+        listing.platformData.poshmark.status = 'published';
+        if (pmId) listing.platformData.poshmark.liveId = pmId;
+      }
+    } 
+    // -------------------------------------------------------------
+    // 3. ETSY VERIFICATION
+    // -------------------------------------------------------------
+    else if (platform === 'etsy') {
+      const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId;
+
+      // Layer 1: Check Channel Inventory
+      const matchingEtsyProduct = await Product.findOne({
+        user: req.user.id,
+        source: 'etsy',
+        $or: [
+          ...(etsyId ? [{ etsyListingId: etsyId }] : []),
+          ...(listing.sku ? [{ sku: listing.sku }] : []),
+          ...(listing.title ? [{ title: listing.title }] : [])
+        ],
+        status: { $in: ['active', 'live', 'published'] }
+      });
+
+      if (matchingEtsyProduct) {
+        isLive = true;
+      }
+
+      // Layer 2: Etsy API
+      if (!isLive && etsyId && user.etsyAccount && user.etsyAccount.connected) {
         try {
           const { getValidToken: getEtsyToken, ETSY_CLIENT_ID, ETSY_CLIENT_SECRET } = require('../services/etsyService');
           const accessToken = await getEtsyToken(req.user.id);
-          const numericListingId = parseInt(listing.etsyListingId);
+          const numericListingId = parseInt(etsyId);
           if (!isNaN(numericListingId)) {
             const response = await axios.get(`https://api.etsy.com/v3/application/listings/${numericListingId}`, {
               headers: {
@@ -1628,7 +1746,6 @@ exports.verifyListingLive = async (req, res) => {
             });
             if (response.data && response.data.state === 'active') {
               isLive = true;
-              listing.etsyStatus = 'published';
             }
           }
         } catch (err) {
@@ -1638,8 +1755,26 @@ exports.verifyListingLive = async (req, res) => {
           }
         }
       }
-    } else if (platform === 'depop') {
-      if (listing.depopListingId) {
+
+      // Layer 3: URL check fallback
+      if (!isLive && listing.etsyUrl) {
+        isLive = await checkUrlActive(listing.etsyUrl);
+      }
+
+      if (isLive) {
+        listing.etsyStatus = 'published';
+        if (!listing.platformData) listing.platformData = {};
+        if (!listing.platformData.etsy) listing.platformData.etsy = {};
+        listing.platformData.etsy.status = 'published';
+        if (etsyId) listing.platformData.etsy.liveId = etsyId;
+      }
+    } 
+    // -------------------------------------------------------------
+    // 4. DEPOP VERIFICATION
+    // -------------------------------------------------------------
+    else if (platform === 'depop') {
+      const depopId = listing.depopListingId || listing.platformData?.depop?.liveId;
+      if (depopId) {
         const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
         const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
         if (isPartner && apiKey && listing.sku) {
@@ -1651,26 +1786,56 @@ exports.verifyListingLive = async (req, res) => {
             });
             if (response.data && response.data.status === 'active') {
               isLive = true;
-              listing.depopStatus = 'published';
             }
           } catch (err) {
             console.warn(`[Verify Live] Depop Partner API check failed:`, err.message);
           }
-        } else {
-          if (listing.depopUrl) {
-            isLive = await checkUrlActive(listing.depopUrl);
-          }
         }
       }
-    } else if (platform === 'mercari') {
-      const activeId = listing.mercariListingId;
-      if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+      if (!isLive && listing.depopUrl) {
+        isLive = await checkUrlActive(listing.depopUrl);
+      }
+
+      if (isLive) {
+        listing.depopStatus = 'published';
+        if (!listing.platformData) listing.platformData = {};
+        if (!listing.platformData.depop) listing.platformData.depop = {};
+        listing.platformData.depop.status = 'published';
+      }
+    } 
+    // -------------------------------------------------------------
+    // 5. MERCARI VERIFICATION
+    // -------------------------------------------------------------
+    else if (platform === 'mercari') {
+      const activeId = listing.mercariListingId || listing.platformData?.mercari?.liveId;
+
+      // Layer 1: Check Channel Inventory
+      const matchingMercariProduct = await Product.findOne({
+        user: req.user.id,
+        source: 'mercari',
+        $or: [
+          ...(activeId ? [{ mercariListingId: activeId }] : []),
+          ...(listing.sku ? [{ sku: listing.sku }] : []),
+          ...(listing.title ? [{ title: listing.title }] : [])
+        ],
+        status: { $in: ['active', 'live', 'published'] }
+      });
+
+      if (matchingMercariProduct) {
+        isLive = true;
+        if (matchingMercariProduct.mercariListingId) {
+          listing.mercariListingId = matchingMercariProduct.mercariListingId;
+          listing.mercariUrl = matchingMercariProduct.mercariUrl || `https://www.mercari.com/item/${matchingMercariProduct.mercariListingId}/`;
+        }
+      }
+
+      // Layer 2: Mercari API check
+      if (!isLive && activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
         try {
           const { verifyMercariListingStatus } = require('../services/mercariService');
           const verifyResult = await verifyMercariListingStatus(activeId, user.mercariAccount);
           if (verifyResult.isLive) {
             isLive = true;
-            listing.mercariStatus = 'published';
           } else if (verifyResult.status === 'deleted' || verifyResult.mercariStatus === 'deleted') {
             listing.mercariStatus = 'none';
             listing.mercariListingId = undefined;
@@ -1683,44 +1848,80 @@ exports.verifyListingLive = async (req, res) => {
           console.warn(`[Verify Live] Mercari API check failed:`, err.message);
         }
       }
+
+      // Layer 3: URL check fallback
+      if (!isLive && listing.mercariUrl) {
+        isLive = await checkUrlActive(listing.mercariUrl);
+      }
+
+      if (isLive) {
+        listing.mercariStatus = 'published';
+        if (!listing.platformData) listing.platformData = {};
+        if (!listing.platformData.mercari) listing.platformData.mercari = {};
+        listing.platformData.mercari.status = 'published';
+        if (activeId) listing.platformData.mercari.liveId = activeId;
+      }
     }
 
     if (!isLive) {
-      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Delisted/Draft.`);
+      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting platform status to Delisted.`);
       
       if (platform === 'poshmark') {
         listing.poshmarkStatus = 'delisted';
+        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
       } else if (platform === 'ebay') {
         listing.ebayStatus = 'delisted';
+        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
       } else if (platform === 'etsy') {
         listing.etsyStatus = 'delisted';
+        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
       } else if (platform === 'depop') {
         listing.depopStatus = 'delisted';
+        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
       } else if (platform === 'mercari') {
         if (listing.mercariStatus !== 'none') {
           listing.mercariStatus = 'delisted';
+          if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
         }
       }
-      
-      const hasActive = (listing.ebayStatus === 'published' || 
-                         listing.poshmarkStatus === 'published' || 
-                         listing.etsyStatus === 'published' || 
-                         listing.depopStatus === 'published' ||
-                         listing.mercariStatus === 'published');
-      const hasDelisted = (listing.ebayStatus === 'delisted' || 
-                           listing.poshmarkStatus === 'delisted' || 
-                           listing.etsyStatus === 'delisted' || 
-                           listing.depopStatus === 'delisted' ||
-                           listing.mercariStatus === 'delisted');
-      if (hasActive) {
-        listing.status = 'published';
-      } else if (hasDelisted) {
-        listing.status = 'delisted';
-      } else {
-        listing.status = 'draft';
-      }
-      
-      await listing.save();
+    }
+
+    // Update overall listing status based on cross-platform status
+    const hasActive = (
+      listing.ebayStatus === 'published' || 
+      listing.poshmarkStatus === 'published' || 
+      listing.etsyStatus === 'published' || 
+      listing.depopStatus === 'published' ||
+      listing.mercariStatus === 'published'
+    );
+
+    const hasDelisted = (
+      listing.ebayStatus === 'delisted' || 
+      listing.poshmarkStatus === 'delisted' || 
+      listing.etsyStatus === 'delisted' || 
+      listing.depopStatus === 'delisted' ||
+      listing.mercariStatus === 'delisted'
+    );
+
+    if (hasActive) {
+      listing.status = 'published';
+    } else if (hasDelisted) {
+      listing.status = 'delisted';
+    } else {
+      listing.status = 'draft';
+    }
+
+    await listing.save();
+
+    if (isLive) {
+      return res.status(200).json({
+        success: true,
+        isLive: true,
+        status: listing.status,
+        data: listing,
+        message: `Listing is live and active on ${platform.toUpperCase()}!`
+      });
+    } else {
       return res.status(200).json({
         success: true,
         isLive: false,
@@ -1729,24 +1930,6 @@ exports.verifyListingLive = async (req, res) => {
         message: `Listing is ${listing[`${platform}Status`] === 'none' ? 'not listed' : 'delisted'} on ${platform.toUpperCase()}`
       });
     }
-
-    const hasActive = (listing.ebayStatus === 'published' || 
-                       listing.poshmarkStatus === 'published' || 
-                       listing.etsyStatus === 'published' || 
-                       listing.depopStatus === 'published' ||
-                       listing.mercariStatus === 'published');
-    if (hasActive) {
-      listing.status = 'published';
-      await listing.save();
-    }
-
-    res.status(200).json({
-      success: true,
-      isLive: true,
-      status: listing.status,
-      data: listing,
-      message: `Listing is live and active on ${platform.toUpperCase()}!`
-    });
   } catch (err) {
     console.error(`[Verify Live] Error:`, err.message);
     res.status(500).json({ success: false, message: `Verify live failed: ${err.message}` });

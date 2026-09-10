@@ -63,7 +63,7 @@ export const listingService = {
   publish: (id) => API.post(`/listings/${id}/publish`),
   getStats: () => API.get('/listings/stats'),
   checkDuplicate: (data) => API.post('/listings/check-duplicate', data),
-  verifyLive: (id) => API.post(`/listings/${id}/verify-live`),
+  verifyLive: (id, platform) => API.post(`/listings/${id}/verify-live${platform ? `?platform=${platform}` : ''}`, { platform }),
   delist: (id, platform) => API.post(`/listings/${id}/delist`, { platform }),
   deletePlatform: (id, platform, disconnectOnly = false) => API.post(`/listings/${id}/delete-platform`, { platform, disconnectOnly }),
   moveToNewItem: (id, platform) => API.post(`/listings/${id}/move-to-new-item`, { platform }),
