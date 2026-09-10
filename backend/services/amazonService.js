@@ -1,8 +1,8 @@
 const axios = require('axios');
 const User = require('../models/User');
 
-const AMAZON_CLIENT_ID = process.env.AMAZON_CLIENT_ID || '';
-const AMAZON_CLIENT_SECRET = process.env.AMAZON_CLIENT_SECRET || '';
+const AMAZON_CLIENT_ID = process.env.AMAZON_CLIENT_ID 
+const AMAZON_CLIENT_SECRET = process.env.AMAZON_CLIENT_SECRET 
 const DEFAULT_MARKETPLACE_ID = 'ATVPDKIKX0DER'; // Amazon US
 const SP_API_ENDPOINT_NA = 'https://sellingpartnerapi-na.amazon.com';
 

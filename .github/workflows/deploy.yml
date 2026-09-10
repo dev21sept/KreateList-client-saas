@@ -1,0 +1,95 @@
+﻿name: Deploy Elister to Cloud Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    name: Build & Deploy Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Create Frontend .env File
+        run: |
+          echo "VITE_API_URL=https://api.elister.ai" > frontend/.env
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm install --legacy-peer-deps
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Deploy Frontend to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Compress dist files
+          tar -czf frontend.tar.gz -C frontend/dist .
+          
+          # Upload to server's temp directory
+          scp -i private_key.pem -o StrictHostKeyChecking=no frontend.tar.gz ${EC2_USERNAME}@${EC2_HOST}:/tmp/
+          
+          # SSH into EC2, clear web root, extract new build and set proper permissions
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
+            sudo rm -rf /var/www/html/*
+            sudo tar -xzf /tmp/frontend.tar.gz -C /var/www/html/
+            sudo chown -R www-data:www-data /var/www/html/
+            sudo chmod -R 775 /var/www/html/
+            rm -f /tmp/frontend.tar.gz
+          EOF
+          rm -f private_key.pem
+
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: deploy-frontend
+    steps:
+      - name: Deploy Backend to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # SSH into Server, pull latest changes, install dependencies, and reload PM2
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_HOST} << 'EOF'
+            cd ~/elister
+            
+            # Update git repository cleanly
+            git fetch origin
+            git reset --hard origin/main
+            
+            # Install production dependencies
+            cd backend
+            npm install --production --legacy-peer-deps
+            
+            # Load NVM and reload PM2 with updated environment variables
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            pm2 reload elister-backend --update-env || pm2 restart elister-backend --update-env || pm2 start ecosystem.config.js --env production --update-env
+            pm2 save
+          EOF
+          rm -f private_key.pem
