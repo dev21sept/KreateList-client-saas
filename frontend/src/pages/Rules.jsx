@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, Reorder } from 'framer-motion';
 import {
   Plus,
@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   X,
   List as ListIcon,
-  Edit2,
   Pencil,
   ChevronDown,
   Check,
@@ -22,7 +21,14 @@ import {
   RotateCcw,
   MapPin,
   Box,
-  Weight
+  Weight,
+  Eye,
+  Copy,
+  Sliders,
+  Tag,
+  AlertTriangle,
+  CheckCheck,
+  Wand2
 } from 'lucide-react';
 import { ruleService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -32,6 +38,180 @@ import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Badge } from '../components/ui/Badge';
+
+// Sample datasets for real-time live preview simulation
+const SAMPLE_PRODUCTS = [
+  {
+    id: 'pants',
+    name: "Women's Corduroy Pants",
+    badge: "Pants / Bottoms",
+    data: {
+      'Brand': 'Talbots',
+      'Gender / Department': 'Womens',
+      'Gender': 'Womens',
+      'Color': 'Brown',
+      'SEO Keywords': 'Comfort Casual',
+      'Key Features': 'Comfort Stretch Waist',
+      'Product Style': 'High Rise Comfort Corduroy',
+      'Product Type': 'Straight Leg Pants',
+      'Item Type': 'Straight Leg Pants',
+      'Model / Series': 'Heritage Fit',
+      'Material': 'Corduroy Cotton Blend',
+      'Pattern': 'Solid',
+      'Condition': 'Pre-Owned Excellent',
+      'Size word with Size': 'Size 12P',
+      'Size': '12P'
+    }
+  },
+  {
+    id: 'shirt',
+    name: "Men's Button Down Shirt",
+    badge: "Shirt / Tops",
+    data: {
+      'Brand': 'Vineyard Vines',
+      'Gender / Department': 'Mens',
+      'Gender': 'Mens',
+      'Color': 'Pink Blue',
+      'SEO Keywords': 'Summer Performance',
+      'Key Features': 'Moisture Wicking Quick Dry',
+      'Product Style': 'Gingham On-The-Go',
+      'Product Type': 'Button Down Shirt',
+      'Item Type': 'Button Down Shirt',
+      'Model / Series': 'Classic Fit',
+      'Material': 'Cotton Spandex Blend',
+      'Pattern': 'Gingham Check',
+      'Condition': 'Pre-Owned Like New',
+      'Size word with Size': 'Size M',
+      'Size': 'M'
+    }
+  },
+  {
+    id: 'sneakers',
+    name: "Men's Athletic Running Shoes",
+    badge: "Shoes / Athletic",
+    data: {
+      'Brand': 'Nike',
+      'Gender / Department': 'Mens',
+      'Gender': 'Mens',
+      'Color': 'Black White',
+      'SEO Keywords': 'Athletic Running',
+      'Key Features': 'Air High Performance',
+      'Product Style': 'Air Max Retro',
+      'Product Type': 'Sneakers',
+      'Item Type': 'Running Shoes',
+      'Model / Series': 'Air Max 90',
+      'Material': 'Mesh Leather Upper',
+      'Pattern': 'Colorblock',
+      'Condition': 'New With Box',
+      'Size word with Size': 'Size 10.5',
+      'Size': '10.5'
+    }
+  },
+  {
+    id: 'jacket',
+    name: "Women's Fleece Jacket",
+    badge: "Outerwear / Jacket",
+    data: {
+      'Brand': 'The North Face',
+      'Gender / Department': 'Womens',
+      'Gender': 'Womens',
+      'Color': 'Heather Gray',
+      'SEO Keywords': 'Warm Outdoor Hiking',
+      'Key Features': 'Full Zip Insulated Pockets',
+      'Product Style': 'Osito Plush Fleece',
+      'Product Type': 'Fleece Jacket',
+      'Item Type': 'Zip Up Jacket',
+      'Model / Series': 'Osito 2',
+      'Material': 'High-Pile Silken Fleece',
+      'Pattern': 'Solid',
+      'Condition': 'Pre-Owned Excellent',
+      'Size word with Size': 'Size L',
+      'Size': 'L'
+    }
+  }
+];
+
+const ATTRIBUTE_CATEGORIES = [
+  {
+    category: 'Core Identity',
+    fields: [
+      { name: 'Brand', example: 'Talbots, Nike, Vineyard Vines' },
+      { name: 'Gender / Department', example: 'Womens, Mens, Unisex' },
+      { name: 'Product Type', example: 'Straight Leg Pants, Shirt, Sneakers' },
+      { name: 'Model / Series', example: 'Heritage Fit, Air Max 90' }
+    ]
+  },
+  {
+    category: 'Style & Appearance',
+    fields: [
+      { name: 'Color', example: 'Brown, Pink Blue, Black White' },
+      { name: 'Product Style', example: 'High Rise Comfort Corduroy, Gingham' },
+      { name: 'Pattern', example: 'Gingham Check, Solid, Striped' },
+      { name: 'Material', example: 'Corduroy Cotton, Mesh Leather' }
+    ]
+  },
+  {
+    category: 'Sizing & Condition',
+    fields: [
+      { name: 'Size word with Size', example: 'Size 12P, Size M, Size 10.5' },
+      { name: 'Size', example: '12P, M, 10.5 (numeric/letter only)' },
+      { name: 'Condition', example: 'Pre-Owned Excellent, NWT' }
+    ]
+  },
+  {
+    category: 'SEO & Highlights',
+    fields: [
+      { name: 'SEO Keywords', example: 'Comfort Casual, Performance, Warm' },
+      { name: 'Key Features', example: 'Comfort Stretch, Moisture Wicking' }
+    ]
+  }
+];
+
+const PRESET_TEMPLATES = [
+  {
+    name: 'Best Practice Standard',
+    description: 'Brand + Gender + Color + Style + Product Type + Size',
+    sequence: ['Brand', 'Gender / Department', 'Color', 'Product Style', 'Product Type', 'Size word with Size']
+  },
+  {
+    name: 'SEO & Keyword Rich',
+    description: 'Brand + Gender + Color + SEO Keywords + Style + Type + Size',
+    sequence: ['Brand', 'Gender / Department', 'Color', 'SEO Keywords', 'Product Style', 'Product Type', 'Size word with Size']
+  },
+  {
+    name: 'Athletic / Model Series',
+    description: 'Brand + Model + Product Type + Gender + Color + Size',
+    sequence: ['Brand', 'Model / Series', 'Product Type', 'Gender / Department', 'Color', 'Size word with Size']
+  },
+  {
+    name: 'Compact Minimal',
+    description: 'Brand + Product Type + Color + Size',
+    sequence: ['Brand', 'Product Type', 'Color', 'Size']
+  }
+];
+
+const resolveFieldValue = (field, sampleData) => {
+  if (!field) return '';
+  if (sampleData[field] !== undefined) return sampleData[field];
+
+  const lower = field.toLowerCase().trim();
+  if (lower === 'brand' || lower.includes('brand')) return sampleData['Brand'] || 'Nike';
+  if (lower.includes('gender') || lower.includes('department')) return sampleData['Gender / Department'] || 'Mens';
+  if (lower.includes('color')) return sampleData['Color'] || 'Black';
+  if (lower.includes('seo') || lower.includes('keyword')) return sampleData['SEO Keywords'] || 'Performance';
+  if (lower.includes('feature')) return sampleData['Key Features'] || 'Comfort';
+  if (lower.includes('style') || lower.includes('use case')) return sampleData['Product Style'] || 'Classic Fit';
+  if (lower.includes('type') || lower.includes('item')) return sampleData['Product Type'] || 'Apparel';
+  if (lower.includes('model') || lower.includes('series')) return sampleData['Model / Series'] || 'Pro';
+  if (lower.includes('material') || lower.includes('fabric')) return sampleData['Material'] || 'Cotton';
+  if (lower.includes('pattern')) return sampleData['Pattern'] || 'Solid';
+  if (lower.includes('condition')) return sampleData['Condition'] || 'Pre-Owned';
+  if (lower.includes('size word') || lower === 'size word with size') return sampleData['Size word with Size'] || 'Size M';
+  if (lower === 'size') return sampleData['Size'] || 'M';
+
+  // Custom static text
+  return field;
+};
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, icon: Icon }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -129,12 +309,21 @@ const Rules = () => {
   const [rules, setRules] = useState([]);
   const [showRuleList, setShowRuleList] = useState(false);
   const [ruleName, setRuleName] = useState('');
-  const [titleSequence, setTitleSequence] = useState([]);
+  const [titleSequence, setTitleSequence] = useState([
+    'Brand',
+    'Gender / Department',
+    'Color',
+    'Product Style',
+    'Product Type',
+    'Size word with Size'
+  ]);
   const [customFieldText, setCustomFieldText] = useState('');
   const [descriptionPrompt, setDescriptionPrompt] = useState('');
   const [descriptionTemplate, setDescriptionTemplate] = useState('');
   const [templateType, setTemplateType] = useState('default');
   const [conditionNote, setConditionNote] = useState('');
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(0);
+  const [copiedTitle, setCopiedTitle] = useState(false);
   
   // eBay Policy State
   const [fulfillmentPolicyId, setFulfillmentPolicyId] = useState('');
@@ -157,18 +346,6 @@ const Rules = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [isEbayConnected, setIsEbayConnected] = useState(false);
-
-  const quickFields = [
-    'Brand',
-    'Product Type',
-    'Model / Series',
-    'Size',
-    'Size word with Size',
-    'Color',
-    'Material',
-    'Style / Use Case',
-    'Gender / Department'
-  ];
 
   useEffect(() => {
     fetchRules();
@@ -227,11 +404,42 @@ const Rules = () => {
     setTitleSequence(titleSequence.filter(f => f !== field));
   };
 
+  const applyPreset = (preset) => {
+    setTitleSequence([...preset.sequence]);
+    toast.success(`Applied "${preset.name}" preset`);
+  };
+
   const handleAddCustomField = () => {
     if (customFieldText.trim()) {
       addFieldToSequence(customFieldText.trim());
       setCustomFieldText('');
     }
+  };
+
+  const currentSample = SAMPLE_PRODUCTS[selectedSampleIndex] || SAMPLE_PRODUCTS[0];
+
+  // Calculate live preview title and tokens
+  const { previewTokens, simulatedTitle } = useMemo(() => {
+    const tokens = titleSequence.map((field) => {
+      const value = resolveFieldValue(field, currentSample.data);
+      return { field, value };
+    });
+
+    const titleParts = tokens.map(t => t.value).filter(Boolean);
+    const combined = titleParts.join(' ').replace(/\s+/g, ' ').trim();
+
+    return {
+      previewTokens: tokens,
+      simulatedTitle: combined
+    };
+  }, [titleSequence, currentSample]);
+
+  const handleCopyTitle = () => {
+    if (!simulatedTitle) return;
+    navigator.clipboard.writeText(simulatedTitle);
+    setCopiedTitle(true);
+    toast.success('Simulated title copied to clipboard');
+    setTimeout(() => setCopiedTitle(false), 2000);
   };
 
   const loadDefaultTemplate = () => {
@@ -288,7 +496,14 @@ const Rules = () => {
 
   const resetFields = () => {
     setRuleName('');
-    setTitleSequence([]);
+    setTitleSequence([
+      'Brand',
+      'Gender / Department',
+      'Color',
+      'Product Style',
+      'Product Type',
+      'Size word with Size'
+    ]);
     setDescriptionPrompt('');
     setDescriptionTemplate('');
     setTemplateType('default');
@@ -304,7 +519,14 @@ const Rules = () => {
 
   const handleEditRule = (rule) => {
     setRuleName(rule.name);
-    setTitleSequence(rule.title_sequence || []);
+    setTitleSequence(rule.title_sequence || [
+      'Brand',
+      'Gender / Department',
+      'Color',
+      'Product Style',
+      'Product Type',
+      'Size word with Size'
+    ]);
     setDescriptionPrompt(rule.description_prompt || '');
     setDescriptionTemplate(rule.description_template || '');
     setTemplateType(rule.description_template ? 'custom' : 'default');
@@ -377,129 +599,333 @@ const Rules = () => {
     }
   };
 
+  const charLength = simulatedTitle.length;
+  const isOverLimit = charLength > 80;
+  const isNearLimit = charLength >= 70 && charLength <= 80;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Rule Configuration</h1>
-          <p className="text-slate-400 text-xs font-bold mt-1">Define how AI should construct your listing details.</p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+              <Sliders size={20} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Rule Engine & Title Builder</h1>
+              <p className="text-slate-400 text-xs font-bold mt-0.5">Customize AI title sequence, templates, and marketplace policies with live previews.</p>
+            </div>
+          </div>
         </div>
-        <Button variant="outline" icon={<ListIcon size={16} />} onClick={() => setShowRuleList(true)}>
-          Show Rule List
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" icon={<ListIcon size={16} />} onClick={() => setShowRuleList(true)}>
+            Saved Rules ({rules.length})
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Rule Name Bar */}
-        <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[200px] relative">
+        <div className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex-1 min-w-[240px] relative">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Rule Configuration Name</label>
             <input
               type="text"
-              placeholder="Rule Name (e.g. Vintage Nike Sneakers)"
-              className="w-full h-10 px-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-bold text-slate-700 text-sm"
+              placeholder="e.g. Vintage Apparel & Sneakers Rule"
+              className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-bold text-slate-700 text-sm shadow-sm"
               value={ruleName}
               onChange={(e) => setRuleName(e.target.value)}
             />
           </div>
-          <Button variant="outline" icon={<RefreshCw size={16} />} onClick={resetFields}>
-            Reset
-          </Button>
+          <div className="flex items-center gap-2.5 pt-5 sm:pt-0">
+            <Button variant="outline" icon={<RefreshCw size={15} />} onClick={resetFields}>
+              Reset
+            </Button>
+            <Button
+              icon={<Save size={16} />}
+              loading={isSaving}
+              disabled={!ruleName.trim()}
+              onClick={handleSaveRule}
+            >
+              {editingId ? 'Update Rule' : 'Save Rule'}
+            </Button>
+          </div>
         </div>
 
         <div className="p-5 sm:p-8 space-y-10">
-          {/* Section 1: Title Construction */}
+          {/* Section 1: Title Construction & Live Dynamic Preview */}
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                <Zap size={16} className="mr-2 text-amber-500 shrink-0" /> Title Construction Sequence
-              </label>
-              <Badge variant="neutral" className="self-start sm:self-auto">Drag to Reorder</Badge>
+              <div>
+                <label className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Zap size={18} className="text-amber-500" /> Title Construction & Live Preview
+                </label>
+                <p className="text-slate-400 text-xs font-medium mt-0.5">
+                  Drag and drop tokens to order your listing titles. See how your titles format with real product samples.
+                </p>
+              </div>
+              <Badge variant="indigo" className="self-start sm:self-auto">Drag & Drop Enabled</Badge>
             </div>
 
-            <div className="min-h-[100px] p-6 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100 relative group">
-              <Reorder.Group 
-                axis="x" 
-                values={titleSequence} 
-                onReorder={setTitleSequence}
-                className="flex flex-wrap gap-3"
-              >
-                {titleSequence.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm font-medium italic">
-                    Select fields below to start building your title...
+            {/* LIVE DYNAMIC EXAMPLE PREVIEW WIDGET */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 rounded-3xl p-6 sm:p-7 text-white shadow-xl shadow-slate-900/10 border border-slate-800 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Eye size={14} className="text-indigo-400" /> Live Simulated Title Output
+                  </span>
+                </div>
+
+                {/* Sample Product Switcher */}
+                <div className="flex items-center flex-wrap gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 px-2 uppercase">Sample:</span>
+                  {SAMPLE_PRODUCTS.map((prod, idx) => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => setSelectedSampleIndex(idx)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        selectedSampleIndex === idx
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {prod.badge}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Main Simulated Title Output */}
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 relative group">
+                {titleSequence.length === 0 ? (
+                  <div className="py-4 text-center text-slate-500 text-sm font-medium italic">
+                    Select attributes below to generate the live example title...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-base sm:text-lg font-bold text-slate-100 tracking-tight leading-relaxed select-all">
+                      {simulatedTitle}
+                    </div>
+                    
+                    {/* Token Breakdown Pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-800/60">
+                      {previewTokens.map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700/60 text-[11px] font-semibold text-slate-300"
+                        >
+                          <span className="text-slate-400 text-[10px] uppercase font-bold">{t.field}:</span>
+                          <span className="text-indigo-300 font-bold">{t.value}</span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
-                <AnimatePresence>
-                  {titleSequence.map((field) => (
-                    <Reorder.Item
-                      key={field}
-                      value={field}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-2 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-md transition-all"
-                    >
-                      <GripVertical size={14} className="text-slate-300" />
-                      <span className="text-sm font-black text-slate-700">{field}</span>
-                      <button
-                        onClick={() => removeFieldFromSequence(field)}
-                        className="ml-1 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                      >
-                        <X size={14} />
-                      </button>
-                    </Reorder.Item>
-                  ))}
-                </AnimatePresence>
-              </Reorder.Group>
+
+                {simulatedTitle && (
+                  <button
+                    type="button"
+                    onClick={handleCopyTitle}
+                    className="absolute top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all opacity-80 group-hover:opacity-100"
+                    title="Copy simulated title"
+                  >
+                    {copiedTitle ? <CheckCheck size={15} className="text-emerald-400" /> : <Copy size={15} />}
+                  </button>
+                )}
+              </div>
+
+              {/* Title Character Count & Marketplace Indicator */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-medium">Character Length:</span>
+                  <span className={`font-black px-2 py-0.5 rounded-md ${
+                    isOverLimit
+                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      : isNearLimit
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}>
+                    {charLength} / 80 Chars
+                  </span>
+                  {isOverLimit && (
+                    <span className="text-rose-400 text-[11px] font-bold flex items-center gap-1">
+                      <AlertTriangle size={13} /> Exceeds 80 char eBay / Poshmark limit
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-slate-400 font-medium">
+                  Testing with: <strong className="text-slate-200">{currentSample.name}</strong> ({currentSample.data.Brand})
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quick-Add Fields</p>
-              <div className="flex flex-wrap gap-2">
-                {quickFields.map((field) => (
+            {/* Drag and Drop Active Sequence Area */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                  Active Sequence (Drag to Reorder)
+                </p>
+                <span className="text-[11px] text-slate-400 font-semibold">
+                  {titleSequence.length} attributes active
+                </span>
+              </div>
+
+              <div className="min-h-[90px] p-5 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
+                <Reorder.Group 
+                  axis="x" 
+                  values={titleSequence} 
+                  onReorder={setTitleSequence}
+                  className="flex flex-wrap gap-2.5"
+                >
+                  {titleSequence.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs font-semibold italic">
+                      Click any attribute button below to start assembling your title sequence...
+                    </div>
+                  )}
+                  <AnimatePresence>
+                    {titleSequence.map((field, idx) => (
+                      <Reorder.Item
+                        key={field}
+                        value={field}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-all group"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <GripVertical size={14} className="text-slate-300 group-hover:text-slate-500" />
+                        <span className="text-xs font-black text-slate-700">{field}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeFieldFromSequence(field)}
+                          className="ml-1 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                          title="Remove from sequence"
+                        >
+                          <X size={13} />
+                        </button>
+                      </Reorder.Item>
+                    ))}
+                  </AnimatePresence>
+                </Reorder.Group>
+              </div>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="space-y-2.5 pt-2">
+              <div className="flex items-center gap-2">
+                <Wand2 size={15} className="text-indigo-600" />
+                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                  One-Click Title Presets
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {PRESET_TEMPLATES.map((preset) => (
                   <button
-                    key={field}
-                    onClick={() => addFieldToSequence(field)}
-                    disabled={titleSequence.includes(field)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      titleSequence.includes(field)
-                        ? 'bg-slate-100 text-slate-300 cursor-not-allowed grayscale'
-                        : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30'
-                    }`}
+                    key={preset.name}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className="p-3 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 rounded-xl text-left transition-all group"
                   >
-                    <Plus size={14} /> {field}
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-indigo-600">
+                      {preset.name}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">
+                      {preset.description}
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-100/50">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Add Custom Text / Static Field</p>
-              <div className="flex items-center gap-3 max-w-md">
+            {/* Categorized Attribute Library */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <p className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <Tag size={15} className="text-indigo-600" />
+                Add Attributes to Sequence
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {ATTRIBUTE_CATEGORIES.map((cat) => (
+                  <div key={cat.category} className="bg-slate-50/60 rounded-2xl p-4 border border-slate-100 space-y-2.5">
+                    <div className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                      {cat.category}
+                    </div>
+                    <div className="space-y-1.5">
+                      {cat.fields.map((f) => {
+                        const isSelected = titleSequence.includes(f.name);
+                        return (
+                          <button
+                            key={f.name}
+                            type="button"
+                            onClick={() => addFieldToSequence(f.name)}
+                            disabled={isSelected}
+                            className={`w-full text-left p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-between gap-2 ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 opacity-60 cursor-not-allowed'
+                                : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:text-indigo-600 hover:shadow-sm'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate">{f.name}</div>
+                              <div className="text-[9px] font-normal text-slate-400 truncate">{f.example}</div>
+                            </div>
+                            <span className="shrink-0">
+                              {isSelected ? <Check size={14} className="text-indigo-600" /> : <Plus size={14} />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Static Text / Custom Attribute */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <p className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                Add Custom Static Text / Special Tag
+              </p>
+              <div className="flex items-center gap-3 max-w-lg">
                 <input 
                   type="text"
-                  placeholder="e.g. Free Shipping, Vintage, Custom attribute name..."
+                  placeholder="e.g. Free Shipping, Vintage, Retro, Custom keyword..."
                   value={customFieldText}
                   onChange={(e) => setCustomFieldText(e.target.value)}
-                  className="flex-1 h-10 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomField();
+                    }
+                  }}
+                  className="flex-1 h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                 />
                 <button 
                   type="button"
                   onClick={handleAddCustomField}
-                  className="h-10 px-6 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-md"
+                  className="h-11 px-6 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-md shrink-0"
                 >
-                  <Plus size={14} /> Add
+                  <Plus size={14} /> Add Tag
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-slate-100">
             {/* Section 2: AI Description */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                  <Sparkles size={16} className="mr-2 text-indigo-500" /> AI Description Prompt
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                  <Sparkles size={16} className="mr-2 text-indigo-600" /> AI Description Prompt
                 </label>
                 <select
                   value={templateType}
@@ -511,8 +937,8 @@ const Rules = () => {
                 </select>
               </div>
               <textarea 
-                className="w-full h-40 p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none leading-relaxed text-slate-600 text-sm"
-                placeholder="Instruct the AI on the tone and content of the description..."
+                className="w-full h-40 p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none leading-relaxed text-slate-600 text-sm font-medium"
+                placeholder="Instruct the AI on the tone, formatting, and key points for listing descriptions..."
                 value={descriptionPrompt}
                 onChange={(e) => setDescriptionPrompt(e.target.value)}
               />
@@ -520,12 +946,12 @@ const Rules = () => {
 
             {/* Section 3: Condition Note */}
             <div className="space-y-4">
-              <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                <RefreshCw size={16} className="mr-2 text-emerald-500" /> Default Condition Note
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                <RefreshCw size={16} className="mr-2 text-emerald-600" /> Default Condition Note
               </label>
               <textarea 
-                className="w-full h-40 p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none leading-relaxed text-slate-600 text-sm"
-                placeholder="Standard condition information to be applied to all listings..."
+                className="w-full h-40 p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none leading-relaxed text-slate-600 text-sm font-medium"
+                placeholder="Standard condition information to be applied across listings (e.g. Excellent pre-owned condition with no stains or tears)..."
                 value={conditionNote}
                 onChange={(e) => setConditionNote(e.target.value)}
               />
@@ -534,10 +960,10 @@ const Rules = () => {
 
           {/* HTML Description Template */}
           {templateType === 'custom' && (
-            <div className="pt-6 border-t border-slate-50 space-y-4 animate-in fade-in duration-200">
+            <div className="pt-6 border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                  <Box size={16} className="mr-2 text-indigo-500" /> HTML Description Template
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                  <Box size={16} className="mr-2 text-indigo-600" /> Custom HTML Description Template
                 </label>
                 <button
                   type="button"
@@ -554,16 +980,16 @@ const Rules = () => {
                 onChange={(e) => setDescriptionTemplate(e.target.value)}
               />
               <p className="text-[11px] text-slate-400 font-medium">
-                Placeholders like <code>&#123;hook&#125;</code>, <code>&#123;brandInfo&#125;</code>, <code>&#123;features&#125;</code>, <code>&#123;stylingTips&#125;</code>, <code>&#123;conditionReport&#125;</code> or attributes like <code>&#123;Brand&#125;</code>, <code>&#123;Size&#125;</code> will be populated by AI analysis. Supports HTML formatting like <code>&lt;b&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;ul&gt;</code>, etc.
+                Placeholders like <code>&#123;hook&#125;</code>, <code>&#123;brandInfo&#125;</code>, <code>&#123;features&#125;</code>, <code>&#123;stylingTips&#125;</code>, <code>&#123;conditionReport&#125;</code> or attributes like <code>&#123;Brand&#125;</code>, <code>&#123;Size&#125;</code> will be populated by AI analysis.
               </p>
             </div>
           )}
 
           {/* Section 4: eBay Policies */}
-          <div className="pt-10 border-t border-slate-50 space-y-6">
+          <div className="pt-8 border-t border-slate-100 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-                <CheckCircle2 size={16} className="mr-2 text-indigo-600 shrink-0" /> Default eBay Policies
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                <CheckCircle2 size={16} className="mr-2 text-indigo-600 shrink-0" /> Default eBay Business Policies
               </label>
               {!isEbayConnected && (
                 <Badge variant="danger" className="self-start sm:self-auto">
@@ -574,7 +1000,7 @@ const Rules = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Shipping Policy</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Shipping Policy</label>
                 <SearchableDropdown 
                   value={fulfillmentPolicyId}
                   onSelect={setFulfillmentPolicyId}
@@ -585,7 +1011,7 @@ const Rules = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Policy</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Payment Policy</label>
                 <SearchableDropdown 
                   value={paymentPolicyId}
                   onSelect={setPaymentPolicyId}
@@ -596,7 +1022,7 @@ const Rules = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Return Policy</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Return Policy</label>
                 <SearchableDropdown 
                   value={returnPolicyId}
                   onSelect={setReturnPolicyId}
@@ -607,7 +1033,7 @@ const Rules = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Location</label>
                 <SearchableDropdown 
                   value={locationKey}
                   onSelect={setLocationKey}
@@ -621,16 +1047,16 @@ const Rules = () => {
           </div>
 
           {/* Section 5: Weight & Dimensions */}
-          <div className="pt-10 border-t border-slate-50 space-y-6">
-            <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center">
-              <Box size={16} className="mr-2 text-blue-500" /> Package Weight & Dimensions
+          <div className="pt-8 border-t border-slate-100 space-y-6">
+            <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+              <Box size={16} className="mr-2 text-blue-500" /> Package Weight & Dimensions Defaults
             </label>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Package Weight */}
-              <div className="space-y-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                   <Weight size={14} className="text-slate-300" /> Package weight (lbs / oz)
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-2">
+                   <Weight size={14} className="text-slate-300" /> Package Weight (lbs / oz)
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
@@ -655,9 +1081,9 @@ const Rules = () => {
               </div>
 
               {/* Package Dimensions */}
-              <div className="space-y-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                   <Box size={14} className="text-slate-300" /> Package dimensions (L x W x H)
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-2">
+                   <Box size={14} className="text-slate-300" /> Package Dimensions (L x W x H)
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
@@ -695,7 +1121,7 @@ const Rules = () => {
           </div>
 
           {/* Final Actions */}
-          <div className="flex justify-end pt-8 border-t border-slate-50 gap-4">
+          <div className="flex justify-end pt-6 border-t border-slate-100 gap-3">
             <Button
               size="lg"
               icon={<Save size={18} />}
@@ -714,7 +1140,7 @@ const Rules = () => {
         <div className="flex flex-col max-h-[80vh]">
           <div className="p-6 border-b border-slate-100">
             <h3 className="text-lg font-black text-slate-900">Saved Rules</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1">Switch between your saved AI listing templates</p>
+            <p className="text-[11px] font-bold text-slate-400 mt-0.5">Switch between your saved AI listing templates</p>
           </div>
           <div className="p-6 overflow-y-auto flex-1 space-y-3">
             {isLoading ? (
@@ -730,9 +1156,11 @@ const Rules = () => {
                 <div key={rule._id || rule.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-3 group hover:border-indigo-200 transition-all">
                   <div className="min-w-0">
                     <h4 className="font-black text-slate-900 text-sm truncate">{rule.name}</h4>
-                    <div className="flex flex-wrap gap-x-1 mt-1.5">
+                    <div className="flex flex-wrap gap-1 mt-1.5">
                       {rule.title_sequence?.map(f => (
-                        <span key={f} className="text-[10px] font-bold text-indigo-600/70">{f} •</span>
+                        <span key={f} className="text-[10px] font-bold text-indigo-600 bg-indigo-50/80 px-2 py-0.5 rounded-md">
+                          {f}
+                        </span>
                       ))}
                     </div>
                   </div>
