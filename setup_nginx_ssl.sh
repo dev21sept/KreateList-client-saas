@@ -1,12 +1,21 @@
 ﻿#!/bin/bash
 # ==============================================================================
-#                      DOMAINS & HTTPS SSL SETUP SCRIPT
+#                 ELISTER.AI - NGINX & SSL PRODUCTION SETUP SCRIPT
+# ==============================================================================
+# This script configures Nginx for Elister.ai, creates the express-app virtual
+# host config, sets up correct web permissions, installs Certbot, and deploys
+# SSL certificates for elister.ai, www.elister.ai, app.elister.ai, and api.elister.ai.
 # ==============================================================================
 
 set -e
 
-echo "=== 1. Configuring Nginx Domain Virtual Hosts (/etc/nginx/sites-available/express-app) ==="
+echo "=== STEP 1: Installing Nginx, Certbot & Utilities ==="
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+echo "=== STEP 2: Writing /etc/nginx/sites-available/express-app ==="
 sudo tee /etc/nginx/sites-available/express-app > /dev/null <<'EOF'
+# 1. FRONTEND CONFIGURATION (elister.ai, www.elister.ai, app.elister.ai)
 server {
     listen 80;
     listen [::]:80;
@@ -20,6 +29,7 @@ server {
     }
 }
 
+# 2. BACKEND API REVERSE PROXY (api.elister.ai -> Port 5000)
 server {
     listen 80;
     listen [::]:80;
@@ -38,30 +48,37 @@ server {
 }
 EOF
 
-echo "=== 2. Enabling express-app & disabling default site ==="
+echo "=== STEP 3: Enabling express-app & Disabling default site ==="
 sudo ln -sf /etc/nginx/sites-available/express-app /etc/nginx/sites-enabled/express-app
 sudo rm -f /etc/nginx/sites-enabled/default
 
-echo "=== 3. Setting web permissions ==="
+echo "=== STEP 4: Setting correct web permissions for /var/www/html ==="
 sudo mkdir -p /var/www/html
 sudo chown -R www-data:www-data /var/www/html
 sudo chmod -R 775 /var/www/html
 
-echo "=== 4. Restarting Nginx to apply changes ==="
+echo "=== STEP 5: Testing & Starting Nginx ==="
 sudo nginx -t
 sudo systemctl restart nginx
+sudo systemctl enable nginx
 
-echo "=== 5. Installing Certbot and Requesting SSL Certificates (HTTPS) ==="
-sudo apt install -y certbot python3-certbot-nginx
+echo "=== STEP 6: Requesting & Deploying Let's Encrypt SSL Certificates ==="
+sudo certbot --nginx \
+  -d elister.ai \
+  -d www.elister.ai \
+  -d app.elister.ai \
+  -d api.elister.ai \
+  --non-interactive \
+  --agree-tos \
+  --email support@elister.ai \
+  --redirect
 
-# Request SSL and auto-configure Nginx with HTTP-to-HTTPS redirect
-sudo certbot --nginx -d elister.ai -d www.elister.ai -d app.elister.ai -d api.elister.ai --non-interactive --agree-tos --email support@elister.ai --redirect
-
-echo "=== 6. Restarting Nginx Web Server ==="
-sudo systemctl restart nginx
+echo "=== STEP 7: Reloading Nginx with HTTPS ==="
+sudo nginx -t
+sudo systemctl reload nginx
 
 echo "============================================================"
-echo " DOMAINS & HTTPS SETUP COMPLETE! "
+echo " NGINX & HTTPS SSL SETUP COMPLETED SUCCESSFULLY! "
 echo "============================================================"
 echo "Frontend:   https://app.elister.ai"
 echo "API Server: https://api.elister.ai"
