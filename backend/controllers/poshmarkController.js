@@ -404,6 +404,36 @@ exports.poshmarkGetLive = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Poshmark account is not connected.' });
     }
     
+    // 1. First return existing synced products from database if available
+    const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark' }).sort({ updated_at: -1, createdAt: -1 });
+    if (dbProducts.length > 0) {
+      console.log(`[Poshmark Controller] Returning ${dbProducts.length} synced Poshmark products from database for user ${req.user.id}`);
+      const mappedListings = dbProducts.map(p => ({
+        _id: p._id,
+        title: p.title,
+        description: p.description,
+        price: p.selling_price || 0,
+        sku: p.sku || '',
+        brand: p.brand || '',
+        size: p.size || '',
+        category: p.category || '',
+        images: p.images || [],
+        thumbnail: p.thumbnail || (p.images && p.images[0]) || '',
+        platform: 'poshmark',
+        poshmarkListingId: p.poshmarkListingId,
+        poshmarkUrl: p.poshmarkUrl,
+        quantity: p.quantity || 1,
+        status: (p.status === 'live' || p.status === 'active') ? 'active' : 'inactive',
+        updated_at: p.updated_at || p.updatedAt,
+        created_at: p.created_at || p.createdAt
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: mappedListings
+      });
+    }
+
     const poshAccount = user.poshmarkAccount || {};
     const username = poshAccount.username;
     console.log(`[Poshmark Controller] Fetching live inventory for Poshmark (${username})`);

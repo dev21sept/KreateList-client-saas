@@ -1558,73 +1558,50 @@ exports.verifyListingLive = async (req, res) => {
       const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId;
       const ebaySku = listing.platformData?.ebay?.sku || (listing.sku?.startsWith('P-') || listing.sku?.startsWith('M-') ? null : listing.sku);
 
-      // Layer 1: Check Channel Inventory (Product collection synced from eBay)
-      const matchingEbayProduct = await Product.findOne({
-        user: req.user.id,
-        source: 'ebay',
-        $or: [
-          ...(ebayId ? [{ ebayListingId: ebayId }, { liveListingId: ebayId }, { itemId: ebayId }] : []),
-          ...(ebaySku ? [{ sku: ebaySku }] : []),
-          ...(listing.title ? [{ title: listing.title }] : [])
-        ],
-        status: { $in: ['active', 'live', 'published'] }
-      });
-
-      if (matchingEbayProduct) {
-        console.log(`[Verify Live] Found matching active eBay product in Channel Inventory: ${matchingEbayProduct._id}`);
-        isLive = true;
-        if (matchingEbayProduct.ebayListingId) {
-          listing.ebayListingId = matchingEbayProduct.ebayListingId;
-          listing.ebayUrl = `https://www.ebay.com/itm/${matchingEbayProduct.ebayListingId}`;
+      // Check 1: Direct Trading API if token and ebayId exist
+      if (ebayId) {
+        try {
+          const token = await getValidToken(req.user.id);
+          if (token) {
+            const { getTradingItemDetails } = require('../services/ebayService');
+            const itemDetails = await getTradingItemDetails(token, ebayId);
+            if (itemDetails && itemDetails.title) {
+              isLive = true;
+              listing.ebayListingId = ebayId;
+              listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
+            }
+          }
+        } catch (tErr) {
+          console.warn(`[Verify Live] Trading GetItem check failed for ${ebayId}:`, tErr.message);
         }
       }
 
-      // Layer 2: Direct eBay API Verification (Trading API or Inventory API)
+      // Check 2: Direct Inventory API Offers check
       if (!isLive) {
         try {
           const token = await getValidToken(req.user.id);
           if (token) {
-            const { getOffers, getTradingItemDetails } = require('../services/ebayService');
-
-            // 2a. Check with Trading API GetItem if ebayListingId is known
-            if (ebayId) {
+            const { getOffers } = require('../services/ebayService');
+            const skusToCheck = [ebaySku, listing.platformData?.ebay?.sku, listing.sku].filter(Boolean);
+            for (const sku of skusToCheck) {
               try {
-                const itemDetails = await getTradingItemDetails(token, ebayId);
-                if (itemDetails && itemDetails.title) {
+                const offers = await getOffers(token, sku);
+                const isOfferActive = (o) => o.listing?.listingStatus
+                  ? o.listing.listingStatus === 'ACTIVE'
+                  : o.status === 'PUBLISHED';
+
+                let activeOffer = offers && offers.find(isOfferActive);
+                if (activeOffer) {
                   isLive = true;
-                  listing.ebayListingId = ebayId;
-                  listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
-                  console.log(`[Verify Live] Verified active on eBay Trading API for item: ${ebayId}`);
-                }
-              } catch (tErr) {
-                console.warn(`[Verify Live] Trading GetItem failed for ${ebayId}:`, tErr.message);
-              }
-            }
-
-            // 2b. Check with Inventory API GetOffers for available SKUs
-            if (!isLive) {
-              const skusToCheck = [ebaySku, listing.platformData?.ebay?.sku, listing.sku].filter(Boolean);
-              for (const sku of skusToCheck) {
-                try {
-                  const offers = await getOffers(token, sku);
-                  const isOfferActive = (o) => o.listing?.listingStatus
-                    ? o.listing.listingStatus === 'ACTIVE'
-                    : o.status === 'PUBLISHED';
-
-                  let activeOffer = offers && offers.find(isOfferActive);
-                  if (activeOffer) {
-                    isLive = true;
-                    if (activeOffer.listing?.listingId) {
-                      const listingId = activeOffer.listing.listingId;
-                      listing.ebayListingId = listingId;
-                      listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
-                    }
-                    console.log(`[Verify Live] Verified active on eBay Inventory API for SKU ${sku}`);
-                    break;
+                  if (activeOffer.listing?.listingId) {
+                    const listingId = activeOffer.listing.listingId;
+                    listing.ebayListingId = listingId;
+                    listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
                   }
-                } catch (skuErr) {
-                  // SKU not on inventory API
+                  break;
                 }
+              } catch (skuErr) {
+                // Not in inventory API
               }
             }
           }
@@ -1633,9 +1610,41 @@ exports.verifyListingLive = async (req, res) => {
         }
       }
 
-      // Layer 3: URL check fallback if ebayUrl exists
-      if (!isLive && listing.ebayUrl) {
-        isLive = await checkUrlActive(listing.ebayUrl);
+      // Check 3: Real-time Live URL check if URL or item ID is known
+      const ebayUrlToCheck = listing.ebayUrl || (ebayId ? `https://www.ebay.com/itm/${ebayId}` : null);
+      if (!isLive && ebayUrlToCheck) {
+        const urlIsActive = await checkUrlActive(ebayUrlToCheck);
+        if (urlIsActive) {
+          isLive = true;
+          listing.ebayUrl = ebayUrlToCheck;
+          if (ebayId) listing.ebayListingId = ebayId;
+        }
+      }
+
+      // Check 4: Channel Inventory fallback match
+      if (!isLive) {
+        const matchingEbayProduct = await Product.findOne({
+          user: req.user.id,
+          source: 'ebay',
+          $or: [
+            ...(ebayId ? [{ ebayListingId: ebayId }, { liveListingId: ebayId }, { itemId: ebayId }] : []),
+            ...(ebaySku ? [{ sku: ebaySku }] : [])
+          ],
+          status: { $in: ['active', 'live', 'published'] }
+        });
+
+        if (matchingEbayProduct) {
+          const prodUrl = `https://www.ebay.com/itm/${matchingEbayProduct.ebayListingId || matchingEbayProduct.itemId}`;
+          const isReallyLive = await checkUrlActive(prodUrl);
+          if (isReallyLive) {
+            isLive = true;
+            listing.ebayListingId = matchingEbayProduct.ebayListingId || matchingEbayProduct.itemId;
+            listing.ebayUrl = prodUrl;
+          } else {
+            matchingEbayProduct.status = 'inactive';
+            await matchingEbayProduct.save();
+          }
+        }
       }
 
       if (isLive) {
@@ -1651,28 +1660,26 @@ exports.verifyListingLive = async (req, res) => {
     // -------------------------------------------------------------
     else if (platform === 'poshmark') {
       const pmId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId;
+      const pmUrlToCheck = listing.poshmarkUrl || (pmId ? `https://poshmark.com/listing/${pmId}` : null);
 
-      // Layer 1: Check Channel Inventory
-      const matchingPmProduct = await Product.findOne({
-        user: req.user.id,
-        source: 'poshmark',
-        $or: [
-          ...(pmId ? [{ poshmarkListingId: pmId }] : []),
-          ...(listing.sku ? [{ sku: listing.sku }] : []),
-          ...(listing.title ? [{ title: listing.title }] : [])
-        ],
-        status: { $in: ['live', 'active', 'published'] }
-      });
-
-      if (matchingPmProduct) {
-        isLive = true;
-        if (matchingPmProduct.poshmarkListingId) {
-          listing.poshmarkListingId = matchingPmProduct.poshmarkListingId;
-          listing.poshmarkUrl = matchingPmProduct.poshmarkUrl || `https://poshmark.com/listing/${matchingPmProduct.poshmarkListingId}`;
+      // Check 1: Real-time Live URL check (404 = Deleted/Delisted)
+      if (pmUrlToCheck) {
+        const urlIsActive = await checkUrlActive(pmUrlToCheck);
+        if (urlIsActive) {
+          isLive = true;
+          listing.poshmarkUrl = pmUrlToCheck;
+          if (pmId) listing.poshmarkListingId = pmId;
+        } else {
+          console.log(`[Verify Live] Poshmark URL is 404/dead: ${pmUrlToCheck}`);
+          isLive = false;
+          // Mark product in DB as inactive so local cache reflects reality
+          if (pmId) {
+            await Product.updateMany({ user: req.user.id, poshmarkListingId: pmId }, { status: 'inactive' });
+          }
         }
       }
 
-      // Layer 2: Direct Poshmark API
+      // Check 2: Direct Poshmark API if not resolved and connected
       if (!isLive && pmId && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie) {
         try {
           const { getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
@@ -1696,11 +1703,6 @@ exports.verifyListingLive = async (req, res) => {
         }
       }
 
-      // Layer 3: URL check fallback
-      if (!isLive && listing.poshmarkUrl) {
-        isLive = await checkUrlActive(listing.poshmarkUrl);
-      }
-
       if (isLive) {
         listing.poshmarkStatus = 'published';
         if (!listing.platformData) listing.platformData = {};
@@ -1715,24 +1717,7 @@ exports.verifyListingLive = async (req, res) => {
     else if (platform === 'etsy') {
       const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId;
 
-      // Layer 1: Check Channel Inventory
-      const matchingEtsyProduct = await Product.findOne({
-        user: req.user.id,
-        source: 'etsy',
-        $or: [
-          ...(etsyId ? [{ etsyListingId: etsyId }] : []),
-          ...(listing.sku ? [{ sku: listing.sku }] : []),
-          ...(listing.title ? [{ title: listing.title }] : [])
-        ],
-        status: { $in: ['active', 'live', 'published'] }
-      });
-
-      if (matchingEtsyProduct) {
-        isLive = true;
-      }
-
-      // Layer 2: Etsy API
-      if (!isLive && etsyId && user.etsyAccount && user.etsyAccount.connected) {
+      if (etsyId && user.etsyAccount && user.etsyAccount.connected) {
         try {
           const { getValidToken: getEtsyToken, ETSY_CLIENT_ID, ETSY_CLIENT_SECRET } = require('../services/etsyService');
           const accessToken = await getEtsyToken(req.user.id);
@@ -1756,7 +1741,6 @@ exports.verifyListingLive = async (req, res) => {
         }
       }
 
-      // Layer 3: URL check fallback
       if (!isLive && listing.etsyUrl) {
         isLive = await checkUrlActive(listing.etsyUrl);
       }
@@ -1774,25 +1758,7 @@ exports.verifyListingLive = async (req, res) => {
     // -------------------------------------------------------------
     else if (platform === 'depop') {
       const depopId = listing.depopListingId || listing.platformData?.depop?.liveId;
-      if (depopId) {
-        const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
-        const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
-        if (isPartner && apiKey && listing.sku) {
-          try {
-            const response = await axios.get(`https://webapi.depop.com/api/v1/products/by-sku/${listing.sku}/`, {
-              headers: {
-                'Authorization': `Bearer ${apiKey}`
-              }
-            });
-            if (response.data && response.data.status === 'active') {
-              isLive = true;
-            }
-          } catch (err) {
-            console.warn(`[Verify Live] Depop Partner API check failed:`, err.message);
-          }
-        }
-      }
-      if (!isLive && listing.depopUrl) {
+      if (listing.depopUrl) {
         isLive = await checkUrlActive(listing.depopUrl);
       }
 
@@ -1809,28 +1775,7 @@ exports.verifyListingLive = async (req, res) => {
     else if (platform === 'mercari') {
       const activeId = listing.mercariListingId || listing.platformData?.mercari?.liveId;
 
-      // Layer 1: Check Channel Inventory
-      const matchingMercariProduct = await Product.findOne({
-        user: req.user.id,
-        source: 'mercari',
-        $or: [
-          ...(activeId ? [{ mercariListingId: activeId }] : []),
-          ...(listing.sku ? [{ sku: listing.sku }] : []),
-          ...(listing.title ? [{ title: listing.title }] : [])
-        ],
-        status: { $in: ['active', 'live', 'published'] }
-      });
-
-      if (matchingMercariProduct) {
-        isLive = true;
-        if (matchingMercariProduct.mercariListingId) {
-          listing.mercariListingId = matchingMercariProduct.mercariListingId;
-          listing.mercariUrl = matchingMercariProduct.mercariUrl || `https://www.mercari.com/item/${matchingMercariProduct.mercariListingId}/`;
-        }
-      }
-
-      // Layer 2: Mercari API check
-      if (!isLive && activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+      if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
         try {
           const { verifyMercariListingStatus } = require('../services/mercariService');
           const verifyResult = await verifyMercariListingStatus(activeId, user.mercariAccount);
@@ -1841,15 +1786,12 @@ exports.verifyListingLive = async (req, res) => {
             listing.mercariListingId = undefined;
             listing.mercariUrl = undefined;
             await Product.findOneAndDelete({ user: req.user.id, mercariListingId: activeId });
-          } else {
-            listing.mercariStatus = verifyResult.mercariStatus || 'delisted';
           }
         } catch (err) {
           console.warn(`[Verify Live] Mercari API check failed:`, err.message);
         }
       }
 
-      // Layer 3: URL check fallback
       if (!isLive && listing.mercariUrl) {
         isLive = await checkUrlActive(listing.mercariUrl);
       }
