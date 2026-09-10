@@ -28,10 +28,11 @@ import Drawer from '../components/ui/Drawer';
 import CreateEbayListing from '../pages/CreateEbayListing';
 import BulkListingEbay from '../pages/BulkListingEbay';
 import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
-import CreateDepopListing from '../pages/CreateDepopListing';
+// import CreateDepopListing from '../pages/CreateDepopListing';
 import CreateMasterListing from '../pages/CreateMasterListing';
 import CreateEtsyListing from '../pages/CreateEtsyListing';
 import CreateMercariListing from '../pages/CreateMercariListing';
+import CreateAmazonListing from '../pages/CreateAmazonListing';
 
 // Sidebar Menu Items based on screenshot:
 // Dashboard, Listings, Crosslisting, Orders, Analytics, Settings, Integrations, Help & Support
@@ -127,7 +128,7 @@ const NewDashboardLayout = () => {
     { title: 'Rules Engine', subtitle: 'Manage listing templates and AI rules', path: '/rules', type: 'page', badge: 'AI Rules' },
     { title: 'Subscription', subtitle: 'Manage active plans and billing', path: '/subscription', type: 'page', badge: 'Billing' },
     { title: 'Settings', subtitle: 'Change profile info or credentials', path: '/settings', type: 'page', badge: 'Account' },
-    { title: 'Integrations', subtitle: 'Connect to eBay, Poshmark, Depop', path: '/integrations', type: 'page', badge: 'Channels' }
+    { title: 'Integrations', subtitle: 'Connect to eBay, Poshmark, Mercari, Etsy, Amazon', path: '/integrations', type: 'page', badge: 'Channels' }
   ];
 
   const handleSearchChange = (query) => {
@@ -306,9 +307,10 @@ const NewDashboardLayout = () => {
     { id: 'ebay', label: 'eBay Single', icon: '/ebay.png' },
     { id: 'ebay-bulk', label: 'eBay Bulk', icon: '/ebay.png' },
     { id: 'poshmark', label: 'Poshmark', icon: '/poshmark.png' },
-    { id: 'depop', label: 'Depop', icon: '/depop.png' },
+    // { id: 'depop', label: 'Depop', icon: '/depop.png' },
     { id: 'etsy', label: 'Etsy', icon: '/etsy.png' },
     { id: 'mercari', label: 'Mercari', icon: '/mercari.png' },
+    { id: 'amazon', label: 'Amazon', icon: '/amazon.png' },
   ];
 
   return (
@@ -748,9 +750,10 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'ebay' && <CreateEbayListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
-                {selectedPlatform === 'depop' && <CreateDepopListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                {/* {selectedPlatform === 'depop' && <CreateDepopListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />} */}
                 {selectedPlatform === 'etsy' && <CreateEtsyListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'mercari' && <CreateMercariListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                {selectedPlatform === 'amazon' && <CreateAmazonListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
               </div>
             </div>
           )}

@@ -906,6 +906,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   let draftId;
   const existingListingId = listing.poshmarkListingId;
   let existingPostData = null;
+  let isUpdatingExisting = false;
   
   if (existingListingId) {
     console.log(`[Poshmark Publisher] Fetching current listing data for ID: ${existingListingId} to resolve revision info...`);
@@ -923,7 +924,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       existingPostData = getPostRes.data;
       console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision}`);
     } catch (getErr) {
-      console.warn(`[Poshmark Publisher] Failed to fetch existing listing data:`, getErr.response?.data || getErr.message);
+      console.warn(`[Poshmark Publisher] Failed to fetch existing listing data (item may be delisted/ended):`, getErr.response?.data || getErr.message);
     }
 
     console.log(`[Poshmark Publisher] Generating draft from existing listing ID: ${existingListingId}...`);
@@ -938,16 +939,21 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       const draftRes = await axios(draftConfig);
       const draftData = draftRes.data;
       draftId = draftData.post?.id || draftData.id;
-      if (!draftId) {
-        throw new Error(`Failed to generate draft from existing post. Response: ${JSON.stringify(draftData)}`);
+      if (draftId) {
+        isUpdatingExisting = true;
+        console.log(`[Poshmark Publisher] Draft generated successfully from existing listing. Draft ID: ${draftId}`);
       }
-      console.log(`[Poshmark Publisher] Draft generated successfully. Draft ID: ${draftId}`);
     } catch (draftErr) {
-      console.error('[Poshmark Publisher] Failed to generate draft from existing listing:', draftErr.response?.data || draftErr.message);
-      throw new Error(`Failed to initialize update session: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
+      console.warn('[Poshmark Publisher] Existing listing cannot be cloned into a draft (404/deleted/delisted):', draftErr.response?.data || draftErr.message);
+      console.log('[Poshmark Publisher] Automatically falling back to creating a brand new listing on Poshmark...');
+      draftId = null;
+      existingPostData = null;
+      isUpdatingExisting = false;
     }
-  } else {
-    console.log('[Poshmark Publisher] Step 1: Generating draft session on Poshmark...');
+  }
+
+  if (!draftId) {
+    console.log('[Poshmark Publisher] Step 1: Generating fresh draft session on Poshmark...');
     try {
       const userId = getUserIdFromSessionCookie(sessionCookie);
       if (!userId) {
@@ -968,7 +974,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       if (!draftId) {
         throw new Error(`Failed to generate draft. Response: ${JSON.stringify(draftData)}`);
       }
-      console.log(`[Poshmark Publisher] Draft session created. Draft ID: ${draftId}`);
+      console.log(`[Poshmark Publisher] Fresh draft session created. Draft ID: ${draftId}`);
     } catch (draftErr) {
       console.error('[Poshmark Publisher] Draft session failed:', draftErr.response?.data || draftErr.message);
       throw new Error(`Draft Creation Failed: ${draftErr.response?.data?.error?.errorMessage || draftErr.message}`);
@@ -981,8 +987,22 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     throw new Error('At least one image is required to publish to Poshmark.');
   }
 
+  let existingPictures = [];
+  if (isUpdatingExisting) {
+    const rawPics = existingPostData?.post?.pictures || existingPostData?.pictures || [];
+    existingPictures = rawPics.map(p => ({ id: p.id || p }));
+  }
+
+  let existingCoverShot = null;
+  if (isUpdatingExisting) {
+    const rawCover = existingPostData?.post?.cover_shot || existingPostData?.cover_shot;
+    if (rawCover) {
+      existingCoverShot = { id: rawCover.id || rawCover };
+    }
+  }
+
   const mediaIds = [];
-  if (!existingListingId) {
+  if (!isUpdatingExisting || existingPictures.length === 0) {
     for (let i = 0; i < images.length; i++) {
       try {
         const imgBuffer = await downloadImageBuffer(images[i]);
@@ -1062,7 +1082,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     return 'uln';
   };
 
-  let sizeQuantities = existingPostData?.inventory?.size_quantities || [];
+  let sizeQuantities = (isUpdatingExisting && existingPostData?.inventory?.size_quantities) || [];
   if (sizeQuantities.length > 0) {
     if (!existingPostData?.inventory?.multi_item) {
       sizeQuantities[0].size_id = size;
@@ -1101,20 +1121,6 @@ async function publishToPoshmark(listing, poshmarkAccount) {
     ];
   }
 
-  let existingPictures = [];
-  if (existingListingId) {
-    const rawPics = existingPostData?.post?.pictures || existingPostData?.pictures || [];
-    existingPictures = rawPics.map(p => ({ id: p.id || p }));
-  }
-
-  let existingCoverShot = null;
-  if (existingListingId) {
-    const rawCover = existingPostData?.post?.cover_shot || existingPostData?.cover_shot;
-    if (rawCover) {
-      existingCoverShot = { id: rawCover.id || rawCover };
-    }
-  }
-
   const savePayload = {
     post: {
       title: listing.title,
@@ -1130,13 +1136,13 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       },
       colors: postColors,
       style_tags: postStyleTags,
-      pictures: existingListingId ? existingPictures : mediaIds.slice(1).map(id => ({ id })),
-      cover_shot: existingListingId ? existingCoverShot : (mediaIds.length > 0 ? { id: mediaIds[0] } : null),
+      pictures: (isUpdatingExisting && existingPictures.length > 0) ? existingPictures : mediaIds.slice(1).map(id => ({ id })),
+      cover_shot: (isUpdatingExisting && existingCoverShot) ? existingCoverShot : (mediaIds.length > 0 ? { id: mediaIds[0] } : null),
       inventory: {
-        status: existingPostData?.inventory?.status || existingPostData?.post?.inventory?.status || "available",
-        status_changed_at: existingPostData?.inventory?.status_changed_at || existingPostData?.post?.inventory?.status_changed_at || undefined,
-        multi_item: existingPostData?.inventory?.multi_item || existingPostData?.post?.inventory?.multi_item || false,
-        size_quantity_revision: existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision || 0,
+        status: (isUpdatingExisting && (existingPostData?.inventory?.status || existingPostData?.post?.inventory?.status)) || "available",
+        status_changed_at: (isUpdatingExisting && (existingPostData?.inventory?.status_changed_at || existingPostData?.post?.inventory?.status_changed_at)) || undefined,
+        multi_item: (isUpdatingExisting && (existingPostData?.inventory?.multi_item || existingPostData?.post?.inventory?.multi_item)) || false,
+        size_quantity_revision: (isUpdatingExisting && (existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision)) || 0,
         size_quantities: sizeQuantities
       },
       offer_auto_actions_v2_enabled: false,

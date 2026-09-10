@@ -301,7 +301,39 @@ exports.getSyncedInventory = async (req, res) => {
 exports.etsyPublish = async (req, res) => {
   try {
     const listingId = req.params.id;
-    const listing = await Listing.findById(listingId);
+    let listing = await Listing.findById(listingId);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(listingId);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku || `KL${Date.now()}`,
+            brand: prod.brand || '',
+            size: prod.size || '',
+            color: prod.color || '',
+            category: 'Clothing',
+            categoryId: prod.categoryId || '',
+            itemSpecifics: prod.itemSpecifics || {},
+            price: String(prod.selling_price || 0),
+            images: prod.images || [],
+            thumbnail: prod.images?.[0] || '',
+            status: 'draft',
+            platform: 'etsy'
+          });
+          if (prod.etsyListingId) {
+            listing.etsyListingId = prod.etsyListingId;
+            listing.etsyUrl = prod.etsyUrl;
+          }
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }

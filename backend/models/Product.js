@@ -38,10 +38,14 @@ const productSchema = new mongoose.Schema({
   etsyUrl: String,
   mercariListingId: String,
   mercariUrl: String,
+  created_at: {
+    type: Date,
+    default: Date.now
+  },
   updated_at: {
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
-module.exports = mongoose.model('Product', productSchema);
+module.exports = mongoose.models.Product || mongoose.model('Product', productSchema);

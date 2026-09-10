@@ -3,15 +3,33 @@ node_modules/
 backend/node_modules/
 frontend/node_modules/
 
-# Environment variables
+# Environment variables & secrets
 .env
+.env.*
+*.env
+*.env.*
 backend/.env
+backend/.env.*
 frontend/.env
+frontend/.env.*
+*.csv
+.tmp/
 
-# Build outputs
+# Build outputs & archives
 dist/
 frontend/dist/
 build/
+*.tar.gz
+*.zip
+!frontend/public/extensions/*.zip
+!depop-extension.zip
+!mercari-extension.zip
+!poshmark-extension.zip
+!vinted-extension.zip
+
+# Temporary scripts & scratch
+backend/scratch/
+scratch/
 
 # IDE files
 .vscode/

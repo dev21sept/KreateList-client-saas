@@ -616,26 +616,49 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
   // 1. Try using the API with credentials first if available
   if (credentials && credentials.sessionCookie) {
     const { sessionCookie, csrfToken } = credentials;
-    const apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
-    console.log(`[Import Scraper] Fetching Poshmark closet via REST API for ${cleanUsername} at ${apiUrl}`);
+    console.log(`[Import Scraper] Fetching full Poshmark closet via REST API for ${cleanUsername}...`);
     
     try {
-      const apiResponse = await axios.get(apiUrl, {
-        headers: {
-          'cookie': sessionCookie,
-          'x-csrf-token': csrfToken || '',
-          'accept': 'application/json',
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        timeout: 15000
-      });
+      const allPosts = [];
+      let maxId = null;
+      let hasMore = true;
+      let page = 1;
 
-      const posts = apiResponse.data?.data || [];
-      console.log(`[Import Scraper] API call successful. Found ${posts.length} posts.`);
+      while (hasMore) {
+        let apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
+        if (maxId) {
+          apiUrl += `&max_id=${maxId}`;
+        }
+
+        const apiResponse = await axios.get(apiUrl, {
+          headers: {
+            'cookie': sessionCookie,
+            'x-csrf-token': csrfToken || '',
+            'accept': 'application/json',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          },
+          timeout: 15000
+        });
+
+        const posts = apiResponse.data?.data || [];
+        if (posts.length > 0) {
+          allPosts.push(...posts);
+        }
+
+        const more = apiResponse.data?.more;
+        if (more && more.next_max_id && posts.length > 0) {
+          maxId = more.next_max_id;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`[Import Scraper] API call successful. Found ${allPosts.length} total posts across ${page} pages.`);
       
-      if (posts.length > 0) {
+      if (allPosts.length > 0) {
         const listings = [];
-        for (const post of posts) {
+        for (const post of allPosts) {
           const title = post.title || '';
           const description = post.description || title;
           const priceVal = String(post.price || '0.00');
@@ -668,7 +691,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             description: description.trim(),
             price: parseFloat(priceVal).toFixed(2),
             sku: generatedSku,
-            category: 'Tops',
+            category: post.category || 'Tops',
+            categoryId: post.category_features ? Object.keys(post.category_features)[0] : '',
             images: imgUrls,
             thumbnail: imgUrl || '',
             platform: 'poshmark',

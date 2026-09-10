@@ -22,10 +22,14 @@ import {
   Lock,
   ChevronRight,
   Settings,
-  X
+  X,
+  Smartphone,
+  PhoneCall,
+  Download,
+  Puzzle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ebayService, externalImportService, etsyService } from '../services/api';
+import { ebayService, externalImportService, etsyService, amazonService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
@@ -39,6 +43,44 @@ const EbayAccounts = () => {
   const depop = user?.depopAccount;
   const etsy = user?.etsyAccount;
   const mercari = user?.mercariAccount;
+  const amazon = user?.amazonAccount;
+
+  const handleAmazonConnect = async () => {
+    try {
+      setLoading(true);
+      toast.success("Redirecting you to Amazon authorization page...");
+      const res = await amazonService.connect();
+      if (res.data?.success && res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Failed to generate Amazon connection link.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to initiate Amazon connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAmazonDisconnect = async () => {
+    const ok = await confirm("Are you sure you want to disconnect your Amazon account?");
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      const res = await amazonService.disconnect();
+      if (res.data?.success) {
+        toast.success("Amazon account disconnected successfully!");
+        loadUser();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to disconnect Amazon account.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEtsyConnect = async () => {
     try {
@@ -108,10 +150,25 @@ const EbayAccounts = () => {
   const [showMercari2fa, setShowMercari2fa] = useState(false);
   const [mercari2faCode, setMercari2faCode] = useState('');
   const [mercari2faSessionId, setMercari2faSessionId] = useState('');
+  const [verificationOptions, setVerificationOptions] = useState(null);
+  const [triggeringMethod, setTriggeringMethod] = useState(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const [sessionScreenshot, setSessionScreenshot] = useState(null);
   const [sessionStatusMessage, setSessionStatusMessage] = useState('');
   const mercariPollInterval = useRef(null);
+
+  useEffect(() => {
+    let timer = null;
+    if (cooldownSeconds > 0) {
+      timer = setInterval(() => {
+        setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cooldownSeconds]);
 
   const startMercariPolling = (sessionId) => {
     if (mercariPollInterval.current) {
@@ -121,10 +178,13 @@ const EbayAccounts = () => {
       try {
         const res = await externalImportService.getSessionStatus(sessionId);
         if (res.data?.success) {
-          const { status, message, latestScreenshot, '2faRequired': twoFaRequired } = res.data;
+          const { status, message, latestScreenshot, '2faRequired': twoFaRequired, verificationOptions: opt } = res.data;
           setSessionStatusMessage(message || '');
           if (latestScreenshot) {
             setSessionScreenshot(latestScreenshot);
+          }
+          if (opt) {
+            setVerificationOptions(opt);
           }
           if (status === 'completed') {
             clearInterval(mercariPollInterval.current);
@@ -135,12 +195,8 @@ const EbayAccounts = () => {
             setSessionStatusMessage('');
             setIsMercariModalOpen(false);
           } else if (status === '2fa_required' || twoFaRequired) {
-            clearInterval(mercariPollInterval.current);
             setShowMercari2fa(true);
             setMercariLoading(false);
-            if (message && message !== 'Verification code required.') {
-              toast.error(message);
-            }
           } else if (status === 'failed') {
             clearInterval(mercariPollInterval.current);
             toast.error(message || 'Login failed.');
@@ -152,7 +208,7 @@ const EbayAccounts = () => {
       } catch (err) {
         console.error('[Mercari Poll Error]:', err);
       }
-    }, 800);
+    }, 1000);
   };
 
   useEffect(() => {
@@ -547,6 +603,29 @@ const EbayAccounts = () => {
     }
   };
 
+  const handleTriggerMethod = async (method) => {
+    if (!mercari2faSessionId) return;
+    setTriggeringMethod(method);
+    try {
+      toast.info(method === 'call' ? 'Requesting voice call from Mercari...' : 'Requesting SMS code from Mercari...');
+      const res = await externalImportService.triggerVerificationMethod({
+        sessionId: mercari2faSessionId,
+        method
+      });
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Action completed on browser!');
+        setCooldownSeconds(30);
+      } else {
+        toast.error(res.data?.message || 'Failed to trigger verification method.');
+      }
+    } catch (err) {
+      console.error('[Trigger Method Error]:', err);
+      toast.error(err.response?.data?.message || 'Failed to trigger verification method.');
+    } finally {
+      setTriggeringMethod(null);
+    }
+  };
+
   const handleMercari2faSubmit = async (e) => {
     e.preventDefault();
     if (!mercari2faCode) {
@@ -770,10 +849,9 @@ const EbayAccounts = () => {
               </div>
             </div>
 
-            {/* 3. Depop Integration Card */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+            {/* {/* 3. Depop Integration Card */}
+            {/* <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
-                {/* Logo */}
                 <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
                   <img src="/depop.png" className="w-12 h-12 object-contain" alt="Depop" />
                 </div>
@@ -781,11 +859,8 @@ const EbayAccounts = () => {
                 <h3 className="text-lg font-black text-slate-800 mb-1">Depop</h3>
                 <p className="text-slate-400 text-xs font-semibold mb-3">Fashion Marketplace & Shop</p>
 
-                {/* Connection Badge */}
                 <StatusBadge status={depop?.connected ? 'connected' : 'disconnected'} className="mb-4" />
 
-
-                {/* Info Area */}
                 {depop?.connected ? (
                   <div className="space-y-1 mt-2">
                     <p className="text-sm font-bold text-slate-700 tracking-tight">{depop.username}</p>
@@ -803,7 +878,6 @@ const EbayAccounts = () => {
                 )}
               </div>
 
-              {/* Button Area */}
               <div className="mt-6 pt-4 border-t border-slate-50 w-full">
                 {depop?.connected ? (
                   <div className="space-y-2">
@@ -840,7 +914,7 @@ const EbayAccounts = () => {
                   </Button>
                 )}
               </div>
-            </div>
+            </div> */}
 
             {/* 4. Etsy Integration Card */}
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
@@ -953,6 +1027,55 @@ const EbayAccounts = () => {
                     }}
                   >
                     Connect Mercari
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Amazon Integration Card */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
+              <div className="flex flex-col items-center flex-1">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300 p-3.5">
+                  <img src="/amazon.png" className="w-12 h-12 object-contain" alt="Amazon" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 mb-1">Amazon</h3>
+                <p className="text-slate-400 text-xs font-semibold mb-3">Global Marketplace & SP-API</p>
+
+                {/* Connection Badge */}
+                <StatusBadge status={amazon?.connected ? 'connected' : 'disconnected'} className="mb-4" />
+
+                {/* Info Area */}
+                {amazon?.connected ? (
+                  <div className="space-y-1 mt-2">
+                    <p className="text-sm font-bold text-slate-700 tracking-tight">{amazon.storeName || 'Amazon US Store'}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Seller ID: {amazon.sellerId}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Connected at {amazon.connectedAt ? new Date(amazon.connectedAt).toLocaleDateString() : 'Active'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium px-4 mt-2">
+                    Authorize eLister via Login with Amazon (LWA) & SP-API to publish and sync Amazon listings.
+                  </p>
+                )}
+              </div>
+
+              {/* Button Area */}
+              <div className="mt-6 pt-4 border-t border-slate-50 w-full">
+                {amazon?.connected ? (
+                  <Button
+                    variant="danger"
+                    size="md"
+                    className="w-full bg-rose-50! text-rose-600! shadow-none! hover:bg-rose-100!"
+                    onClick={handleAmazonDisconnect}
+                  >
+                    Disconnect Channel
+                  </Button>
+                ) : (
+                  <Button size="md" className="w-full bg-amber-500! hover:bg-amber-600!" iconRight={<ChevronRight size={14} />} onClick={handleAmazonConnect}>
+                    Connect Amazon
                   </Button>
                 )}
               </div>
@@ -1184,12 +1307,35 @@ const EbayAccounts = () => {
                   {poshConnectMethod === 'extension' && (
                     <div className="space-y-4 py-2">
                       <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
-                        <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Manifest V3</span>
+                        </div>
                         <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
                           <li>Requires eLister Chrome Extension.</li>
                           <li>Make sure you are logged in to Poshmark on your Chrome browser.</li>
                           <li>The extension will automatically pull your session.</li>
                         </ul>
+                        <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/60 mt-2">
+                          <a
+                            href="/extensions/poshmark-extension.zip"
+                            download="poshmark-extension.zip"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/80 px-3 py-1.5 rounded-xl transition-all"
+                          >
+                            <Download size={13} />
+                            Download Extension (.ZIP)
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsPoshModalOpen(false);
+                              navigate('/settings?tab=extensions');
+                            }}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
+                          >
+                            Installation Guide
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex gap-3 pt-2">
@@ -1289,12 +1435,35 @@ const EbayAccounts = () => {
               {depopConnectMethod === 'extension' && (
                 <div className="space-y-4 py-2">
                   <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
-                    <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Manifest V3</span>
+                    </div>
                     <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
                       <li>Requires eLister Chrome Extension.</li>
                       <li>Make sure you are logged in to Depop on your Chrome browser.</li>
                       <li>The extension will automatically pull your session.</li>
                     </ul>
+                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/60 mt-2">
+                      <a
+                        href="/extensions/depop-extension.zip"
+                        download="depop-extension.zip"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/80 px-3 py-1.5 rounded-xl transition-all"
+                      >
+                        <Download size={13} />
+                        Download Extension (.ZIP)
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDepopModalOpen(false);
+                          navigate('/settings?tab=extensions');
+                        }}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
+                      >
+                        Installation Guide
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-2">
@@ -1337,6 +1506,12 @@ const EbayAccounts = () => {
                 onClick={() => {
                   setIsMercariModalOpen(false);
                   setShowMercari2fa(false);
+                  setMercari2faCode('');
+                  setSessionScreenshot(null);
+                  setSessionStatusMessage('');
+                  if (mercariPollInterval.current) {
+                    clearInterval(mercariPollInterval.current);
+                  }
                 }}
               >
                 <X size={18} />
@@ -1369,19 +1544,135 @@ const EbayAccounts = () => {
               ) : showMercari2fa ? (
                 <form onSubmit={handleMercari2faSubmit} className="space-y-4">
                   <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center">
-                    <h4 className="text-xs font-bold text-indigo-900 mb-1">Verification Code Required</h4>
-                    <p className="text-[11px] text-indigo-700">Please enter the security verification code sent by Mercari.</p>
+                    <h4 className="text-xs font-bold text-indigo-900 mb-1">
+                      {verificationOptions?.destination 
+                        ? `Verification Code Sent to ${verificationOptions.destination}`
+                        : 'Verification Code Required'}
+                    </h4>
+                    <p className="text-[11px] text-indigo-700">
+                      {verificationOptions?.isEmailMode || verificationOptions?.destination?.includes('@')
+                        ? 'Check your email inbox/spam folder for the security code, or choose an option below:'
+                        : 'Choose how you want to receive the code, then enter the code below:'}
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Verification Code</label>
+
+                  {/* Verification Delivery Channel Selection */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {verificationOptions?.isEmailMode || verificationOptions?.destination?.includes('@') ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={triggeringMethod !== null || cooldownSeconds > 0}
+                          onClick={() => handleTriggerMethod('email')}
+                          className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                            triggeringMethod !== null || cooldownSeconds > 0
+                              ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-100'
+                              : 'cursor-pointer border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                            {triggeringMethod === 'email' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Resend Code</p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : 'To Email'}
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={triggeringMethod !== null || cooldownSeconds > 0}
+                          onClick={() => handleTriggerMethod('sms')}
+                          className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                            triggeringMethod !== null || cooldownSeconds > 0
+                              ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-100'
+                              : 'cursor-pointer border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                            {triggeringMethod === 'sms' ? <Loader2 size={16} className="animate-spin" /> : <Smartphone size={16} />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Send via SMS</p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : 'To Phone'}
+                            </p>
+                          </div>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          disabled={triggeringMethod !== null || cooldownSeconds > 0}
+                          onClick={() => handleTriggerMethod('sms')}
+                          className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                            triggeringMethod !== null || cooldownSeconds > 0
+                              ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-100'
+                              : 'cursor-pointer border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                            {triggeringMethod === 'sms' ? <Loader2 size={16} className="animate-spin" /> : <Smartphone size={16} />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Send Code (SMS)</p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : 'Text to Phone'}
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={triggeringMethod !== null || cooldownSeconds > 0}
+                          onClick={() => handleTriggerMethod('call')}
+                          className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                            triggeringMethod !== null || cooldownSeconds > 0
+                              ? 'opacity-60 cursor-not-allowed border-slate-200 bg-slate-100'
+                              : 'cursor-pointer border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                            {triggeringMethod === 'call' ? <Loader2 size={16} className="animate-spin" /> : <PhoneCall size={16} />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Call Me Instead</p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              {cooldownSeconds > 0 ? `Wait ${cooldownSeconds}s` : 'Voice Call'}
+                            </p>
+                          </div>
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
+                      Verification Code
+                    </label>
                     <input 
                       type="text" 
-                      placeholder="Enter OTP / verification code" 
+                      placeholder="Enter 4-6 digit code" 
                       value={mercari2faCode}
                       onChange={(e) => setMercari2faCode(e.target.value)}
                       className="w-full h-11 px-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none font-bold tracking-widest text-center focus:ring-2 focus:ring-indigo-500/10 transition-all text-slate-700"
                     />
                   </div>
+
+                  {sessionScreenshot && (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-slate-50">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider py-1 text-center bg-slate-100 border-b border-slate-200">Live Browser Screen</p>
+                      <img 
+                        src={`data:image/jpeg;base64,${sessionScreenshot}`} 
+                        className="w-full h-auto object-contain max-h-48" 
+                        alt="Live Browser" 
+                      />
+                    </div>
+                  )}
+
                   <div className="flex gap-3 pt-2">
                     <Button
                       type="button"
@@ -1390,6 +1681,7 @@ const EbayAccounts = () => {
                       onClick={() => {
                         setShowMercari2fa(false);
                         setMercari2faCode('');
+                        setVerificationOptions(null);
                       }}
                     >
                       Back to Login
@@ -1459,12 +1751,35 @@ const EbayAccounts = () => {
                   {mercariConnectMethod === 'extension' && (
                     <div className="space-y-4 py-2">
                       <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-2">
-                        <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-800">Extension Requirements</h4>
+                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Manifest V3</span>
+                        </div>
                         <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
                           <li>Requires eLister Chrome Extension.</li>
                           <li>Make sure you are logged in to Mercari on your Chrome browser.</li>
                           <li>The extension will automatically pull your session.</li>
                         </ul>
+                        <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/60 mt-2">
+                          <a
+                            href="/extensions/mercari-extension.zip"
+                            download="mercari-extension.zip"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/80 px-3 py-1.5 rounded-xl transition-all"
+                          >
+                            <Download size={13} />
+                            Download Extension (.ZIP)
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMercariModalOpen(false);
+                              navigate('/settings?tab=extensions');
+                            }}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
+                          >
+                            Installation Guide
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex gap-3 pt-2">

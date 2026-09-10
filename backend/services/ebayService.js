@@ -2,6 +2,7 @@ const axios = require('axios');
 const qs = require('qs');
 const sharp = require('sharp');
 const FormData = require('form-data');
+const cheerio = require('cheerio');
 
 const EBAY_APP_ID = process.env.EBAY_APP_ID;
 const EBAY_CERT_ID = process.env.EBAY_CERT_ID;
@@ -813,6 +814,181 @@ async function getCategoryConditions(token, categoryId) {
         return [];
     }
 }
+/**
+ * Gets Listings from eBay Trading API (GetMyeBaySelling)
+ * Supports ActiveList and UnsoldList (ended / inactive) with pagination
+ */
+async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1, entriesPerPage = 100) {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${token}</eBayAuthToken>
+  </RequesterCredentials>
+  <${listType}>
+    <Include>true</Include>
+    <Pagination>
+      <EntriesPerPage>${entriesPerPage}</EntriesPerPage>
+      <PageNumber>${pageNumber}</PageNumber>
+    </Pagination>
+  </${listType}>
+  <DetailLevel>ReturnAll</DetailLevel>
+</GetMyeBaySellingRequest>`;
+
+    try {
+        const response = await axios.post(TRADING_API_URL, xml, {
+            headers: {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'GetMyeBaySelling',
+                'X-EBAY-API-IAF-TOKEN': token,
+                'Content-Type': 'text/xml'
+            }
+        });
+
+        const $ = cheerio.load(response.data, { xmlMode: true });
+        const totalEntries = parseInt($(`${listType} > PaginationResult > TotalNumberOfEntries`).first().text() || $('PaginationResult > TotalNumberOfEntries').first().text() || '0', 10);
+        const totalPages = parseInt($(`${listType} > PaginationResult > TotalNumberOfPages`).first().text() || $('PaginationResult > TotalNumberOfPages').first().text() || '1', 10);
+        
+        const items = [];
+        $(`${listType} > ItemArray > Item`).each((_, el) => {
+            const $item = $(el);
+            const itemId = $item.find('ItemID').text();
+            if (!itemId) return;
+
+            const title = $item.find('Title').text();
+            const priceText = $item.find('BuyItNowPrice, CurrentPrice, ConvertedBuyItNowPrice, ConvertedCurrentPrice').first().text();
+            const price = parseFloat(priceText || '0');
+            const rawSku = $item.find('SKU').text();
+            const sku = rawSku && rawSku.trim() ? rawSku.trim() : `EBAY-${itemId}`;
+            const quantity = parseInt($item.find('Quantity').text() || '1', 10);
+            const viewUrl = $item.find('ViewItemURL').text() || `https://www.ebay.com/itm/${itemId}`;
+            
+            const pictureUrls = [];
+            $item.find('PictureDetails > PictureURL').each((_, p) => {
+                const pUrl = $(p).text();
+                if (pUrl && !pictureUrls.includes(pUrl)) {
+                    pictureUrls.push(pUrl);
+                }
+            });
+            if (pictureUrls.length === 0) {
+                const galleryUrl = $item.find('PictureDetails > GalleryURL').text();
+                if (galleryUrl) pictureUrls.push(galleryUrl);
+            }
+
+            const categoryId = $item.find('PrimaryCategory > CategoryID').text();
+            const categoryName = $item.find('PrimaryCategory > CategoryName').text();
+
+            items.push({
+                itemId,
+                title,
+                price,
+                sku,
+                quantity,
+                viewUrl,
+                images: pictureUrls,
+                categoryId,
+                categoryName
+            });
+        });
+
+        return {
+            items,
+            totalEntries,
+            totalPages,
+            pageNumber
+        };
+    } catch (error) {
+        console.error(`Error fetching Trading API ${listType} listings (Page ${pageNumber}):`, error.response?.data || error.message);
+        throw error;
+    }
+}
+
+async function getTradingActiveListings(token, pageNumber = 1, entriesPerPage = 100) {
+    return getTradingListings(token, 'ActiveList', pageNumber, entriesPerPage);
+}
+
+/**
+ * Gets Single Item Full Details from eBay Trading API (GetItem)
+ * Fetches all photos, item specifics (aspects), condition, category, and description
+ */
+async function getTradingItemDetails(token, itemId) {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${token}</eBayAuthToken>
+  </RequesterCredentials>
+  <ItemID>${itemId}</ItemID>
+  <DetailLevel>ReturnAll</DetailLevel>
+  <IncludeItemSpecifics>true</IncludeItemSpecifics>
+</GetItemRequest>`;
+
+    try {
+        const response = await axios.post(TRADING_API_URL, xml, {
+            headers: {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'GetItem',
+                'X-EBAY-API-IAF-TOKEN': token,
+                'Content-Type': 'text/xml'
+            }
+        });
+
+        const $ = cheerio.load(response.data, { xmlMode: true });
+
+        const title = $('Item > Title').text();
+        const description = $('Item > Description').text();
+        const conditionId = $('Item > ConditionID').text();
+        const conditionDisplayName = $('Item > ConditionDisplayName').text();
+        const conditionDescription = $('Item > ConditionDescription').text();
+        const categoryId = $('Item > PrimaryCategory > CategoryID').text();
+        const categoryName = $('Item > PrimaryCategory > CategoryName').text();
+
+        const pictures = [];
+        $('Item > PictureDetails > PictureURL').each((_, p) => {
+            const url = $(p).text();
+            if (url && !pictures.includes(url)) pictures.push(url);
+        });
+
+        const specifics = {};
+        $('Item > ItemSpecifics > NameValueList').each((_, nv) => {
+            const name = $(nv).find('Name').text();
+            const values = [];
+            $(nv).find('Value').each((_, v) => {
+                const val = $(v).text();
+                if (val) values.push(val);
+            });
+            if (name && values.length > 0) {
+                specifics[name] = values;
+            }
+        });
+
+        let brand = '';
+        let size = '';
+        let color = '';
+        if (specifics['Brand'] && specifics['Brand'].length > 0) brand = specifics['Brand'][0];
+        if (specifics['Size'] && specifics['Size'].length > 0) size = specifics['Size'][0];
+        if (specifics['Color'] && specifics['Color'].length > 0) color = specifics['Color'][0];
+
+        return {
+            itemId,
+            title,
+            description,
+            conditionId,
+            conditionDisplayName,
+            conditionDescription,
+            categoryId,
+            categoryName,
+            images: pictures,
+            itemSpecifics: specifics,
+            brand,
+            size,
+            color
+        };
+    } catch (error) {
+        console.error(`Error fetching GetItem details for ${itemId}:`, error.response?.data || error.message);
+        return null;
+    }
+}
 
 module.exports = {
     getAppToken,
@@ -842,6 +1018,9 @@ module.exports = {
     getOffers,
     getOrders,
     getInventoryItems,
+    getTradingListings,
+    getTradingActiveListings,
+    getTradingItemDetails,
     getCategoryConditions,
     updateShippingFulfillment,
     getUserProfile,

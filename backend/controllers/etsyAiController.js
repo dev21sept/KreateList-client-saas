@@ -272,7 +272,8 @@ exports.etsyFetchListing = async (req, res) => {
             description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
-            model = 'gpt-4o-mini'
+            model = 'gpt-4o-mini',
+            existing_title = ''
         } = req.body;
 
         if (!url) {
@@ -551,7 +552,12 @@ Response ONLY as JSON: {
             .join(' ')
             .trim();
 
-        const finalTitle = (finalData.title || titleString || 'New Etsy Fetched Listing').substring(0, 140);
+        let finalTitle = '';
+        if (existing_title && existing_title.trim() !== '') {
+            finalTitle = existing_title.trim().substring(0, 140);
+        } else {
+            finalTitle = (finalData.title || titleString || 'New Etsy Fetched Listing').substring(0, 140);
+        }
         
         let formattedDescription = finalData.description || '';
         if (platform === 'poshmark' || platform === 'depop' || platform === 'etsy') {
@@ -695,7 +701,8 @@ exports.etsyAnalyzeListing = async (req, res) => {
             description_template = '',
             condition_name = 'Pre-owned',
             gender = 'Unisex',
-            model = 'gpt-4o-mini'
+            model = 'gpt-4o-mini',
+            existing_title = ''
         } = req.body;
 
         if (!images || images.length === 0) {
@@ -820,9 +827,9 @@ exports.etsyAnalyzeListing = async (req, res) => {
                             text: `Analyze the attached listing images:
 
 1. Visual Research & Title Construction:
-   - Identify the product and extract the exact brand and retail model name.
+   ${existing_title && existing_title.trim() !== '' ? `- CRITICAL TITLE RULE: The product title is ALREADY ESTABLISHED as: "${existing_title.trim()}". You MUST preserve this title in 'title' and extract matching attributes inside 'title_parts' for the Title Sequence: [${effectiveStructure.join(', ')}]. Do NOT invent a different product title.` : `- Identify the product and extract the exact brand and retail model name.
    - Generate a long, descriptive, keyword-rich title for Etsy (up to 140 characters). It should be detailed and include keywords like Brand, Material, Type, Style, etc. (e.g., 'Nike Sportswear Nylon Vintage Green Windbreaker Jacket Size Large').
-   - Output the long title in the "title" property. Also extract individual parts for the title sequence: [${effectiveStructure.join(', ')}] inside 'title_parts'.
+   - Output the long title in the "title" property. Also extract individual parts for the title sequence: [${effectiveStructure.join(', ')}] inside 'title_parts'.`}
 
 ${descriptionInstruction}
 
@@ -917,20 +924,25 @@ Response ONLY as JSON: {
             standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
         });
 
-        const titleString = effectiveStructure
-            .map(key => {
-                let val = standardizedParts[key] || '';
-                val = String(val).replace(/,/g, '');
-                if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
-                    return `Size ${val}`;
-                }
-                return val;
-            })
-            .filter(val => val && val.toString().trim() !== '')
-            .join(' ')
-            .trim();
+        let finalTitle = '';
+        if (existing_title && existing_title.trim() !== '') {
+            finalTitle = existing_title.trim().substring(0, 140);
+        } else {
+            const titleString = effectiveStructure
+                .map(key => {
+                    let val = standardizedParts[key] || '';
+                    val = String(val).replace(/,/g, '');
+                    if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
+                        return `Size ${val}`;
+                    }
+                    return val;
+                })
+                .filter(val => val && val.toString().trim() !== '')
+                .join(' ')
+                .trim();
 
-        const finalTitle = (finalData.title || titleString || 'New Etsy Scanned Listing').substring(0, 140);
+            finalTitle = (finalData.title || titleString || 'New Etsy Scanned Listing').substring(0, 140);
+        }
         
         let formattedDescription = finalData.description || '';
         formattedDescription = formattedDescription

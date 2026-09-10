@@ -19,7 +19,7 @@ puppeteer.use(StealthPlugin());
  * @param {string} domain Poshmark domain (e.g., poshmark.com, poshmark.ca, etc.)
  * @returns {Promise<Object>} Connection details or error object
  */
-async function loginToPoshmark(username, password, domain = 'poshmark.com') {
+async function loginToPoshmark(username, password, domain = 'poshmark.com', userId = null) {
   const cleanDomain = domain.trim().toLowerCase().replace(/^www\./i, '') || 'poshmark.com';
   console.log(`[Poshmark Login] Launching Stealth Browser for: ${username} on domain: ${cleanDomain}`);
 
@@ -74,8 +74,20 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com') {
       }
     }
 
+    // Dedicated persistent browser profile directory per user
+    if (userId) {
+      const baseDir = path.join(__dirname, '../data/browser_profiles');
+      const userProfileDir = path.join(baseDir, `user_${userId}`);
+      if (!fs.existsSync(userProfileDir)) {
+        fs.mkdirSync(userProfileDir, { recursive: true });
+      }
+      launchOptions.userDataDir = userProfileDir;
+      console.log(`[Poshmark Login] Using persistent browser profile: ${userProfileDir}`);
+    }
+
     browser = await puppeteer.launch(launchOptions);
-    page = await browser.newPage();
+    const pages = await browser.pages();
+    page = pages.length > 0 ? pages[0] : await browser.newPage();
     if (proxyAuth) {
       await page.authenticate(proxyAuth);
     }

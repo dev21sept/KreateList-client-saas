@@ -9,22 +9,46 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle,
+  CheckCircle2,
   Loader2,
   Settings as SettingsIcon,
   ToggleLeft,
   ToggleRight,
   Download,
-  Trash2
+  Trash2,
+  Puzzle,
+  Sparkles,
+  ExternalLink,
+  Zap,
+  HelpCircle,
+  ArrowRight,
+  Check,
+  Copy
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 
 const Settings = () => {
   const { user, loadUser } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || 'profile');
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // Sync tab with search params
+  useEffect(() => {
+    if (tabParam && ['profile', 'extensions', 'password', 'notifications', 'privacy', 'defaults'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+  };
   
   // Profile Form State
   const [profileData, setProfileData] = useState({
@@ -186,6 +210,7 @@ const Settings = () => {
 
   const menuItems = [
     { id: 'profile', name: 'Profile Information', icon: <User size={18} /> },
+    { id: 'extensions', name: 'Browser Extensions', icon: <Puzzle size={18} />, badge: 'Official' },
     { id: 'password', name: 'Password & Security', icon: <Lock size={18} /> },
     { id: 'notifications', name: 'Notifications', icon: <Bell size={18} /> },
     { id: 'privacy', name: 'Privacy & Data', icon: <Shield size={18} /> },
@@ -197,7 +222,7 @@ const Settings = () => {
     <div className="max-w-6xl mx-auto space-y-8 px-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500">Manage your account preferences, profile details, and security.</p>
+        <p className="text-slate-500">Manage your account preferences, browser extensions, profile details, and security.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
@@ -210,7 +235,7 @@ const Settings = () => {
                 if (item.path) {
                   navigate(item.path);
                 } else {
-                  setActiveTab(item.id);
+                  handleTabChange(item.id);
                 }
               }}
               className={`w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all ${
@@ -224,6 +249,15 @@ const Settings = () => {
                   {item.icon}
                 </span>
                 <span className="text-sm">{item.name}</span>
+                {item.badge && (
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    activeTab === item.id
+                      ? 'bg-white/20 text-white'
+                      : 'bg-indigo-50 text-indigo-600'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
               </div>
               <ChevronRight size={16} className={activeTab === item.id ? 'text-white' : 'text-slate-400'} />
             </button>
@@ -341,6 +375,329 @@ const Settings = () => {
                   </button>
                 </div>
               </motion.form>
+            )}
+
+            {activeTab === 'extensions' && (
+              <motion.div
+                key="extensions-tab"
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="space-y-8 flex-1 flex flex-col"
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Puzzle size={18} />
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900">Official Browser Extensions</h3>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200/60 rounded-full">
+                      Manifest V3 Ready
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Download and load our high-speed automator extensions in Chrome to enable 1-click marketplace authentication, direct API listing creation, and automated closet sync.
+                  </p>
+                </div>
+
+                {/* Extensions Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 1. Mercari Extension */}
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img src="/mercari.png" alt="Mercari" className="w-10 h-10 object-contain rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                              Mercari Fast Automator
+                            </h4>
+                            <p className="text-[11px] font-semibold text-indigo-600">v1.0.0 • Manifest V3</p>
+                          </div>
+                        </div>
+                        {typeof document !== 'undefined' && (document.body.dataset.elisterMercariExtensionInstalled === 'true' || document.body.dataset.elisterExtensionInstalled === 'true') ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            Download Ready
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        1-Click cookie & session authorization, direct Mercari API item publishing, live category taxonomy, and brand search engine.
+                      </p>
+
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 font-medium">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>1-Click session cookie capture (No manual paste)</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Direct API listing creation & fast photo upload</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Instant Mercari brand suggest lookup</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-2">
+                      <a
+                        href="/extensions/mercari-extension.zip"
+                        download="mercari-extension.zip"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm shadow-indigo-100"
+                      >
+                        <Download size={14} />
+                        Download Mercari Extension (.ZIP)
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* {/* 2. Depop Extension */}
+                  {/* <div className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img src="/depop.png" alt="Depop" className="w-10 h-10 object-contain rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                              Depop Fast Automator
+                            </h4>
+                            <p className="text-[11px] font-semibold text-indigo-600">v1.0.0 • Manifest V3</p>
+                          </div>
+                        </div>
+                        {typeof document !== 'undefined' && document.body.dataset.elisterDepopExtensionInstalled === 'true' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            Download Ready
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Automated Bearer token & user ID capture from Depop, high-speed product catalog extraction, and direct photo upload to Depop CDN.
+                      </p>
+
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 font-medium">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Automatic Bearer token & user ID capture</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Direct API image upload & listing creator</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>1-Click complete product catalog sync</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-2">
+                      <a
+                        href="/extensions/depop-extension.zip"
+                        download="depop-extension.zip"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm shadow-indigo-100"
+                      >
+                        <Download size={14} />
+                        Download Depop Extension (.ZIP)
+                      </a>
+                    </div>
+                  </div> */}
+
+                  {/* 3. Poshmark Extension */}
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img src="/poshmark.png" alt="Poshmark" className="w-10 h-10 object-contain rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                              Poshmark Fast Automator
+                            </h4>
+                            <p className="text-[11px] font-semibold text-indigo-600">v1.0.0 • Manifest V3</p>
+                          </div>
+                        </div>
+                        {typeof document !== 'undefined' && document.body.dataset.elisterExtensionInstalled === 'true' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            Download Ready
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        High-speed automated Poshmark tool for instant closet inventory imports, auto-sharing, multi-closet management, and direct API relisting.
+                      </p>
+
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 font-medium">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>1-Click session & CSRF token sync</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Instant closet importer & fast relister</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Supports US, CA, UK & AU Poshmark domains</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-2">
+                      <a
+                        href="/extensions/poshmark-extension.zip"
+                        download="poshmark-extension.zip"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm shadow-indigo-100"
+                      >
+                        <Download size={14} />
+                        Download Poshmark Extension (.ZIP)
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* 4. Vinted Extension */}
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img src="/vinted.jpg" alt="Vinted" className="w-10 h-10 object-cover rounded-xl p-1 bg-slate-50 border border-slate-100" />
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                              Vinted Fast Automator
+                            </h4>
+                            <p className="text-[11px] font-semibold text-indigo-600">v1.0.0 • Manifest V3</p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                          Download Ready
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Connect and sync your Vinted closet across UK, France, Germany, Spain, Italy, and all supported European marketplaces.
+                      </p>
+
+                      <ul className="text-[11px] text-slate-500 space-y-1.5 font-medium">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Multi-domain European catalogue sync</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Direct item sync & publishing pipeline</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                          <span>Automated session cookie capture</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="pt-2">
+                      <a
+                        href="/extensions/vinted-extension.zip"
+                        download="vinted-extension.zip"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm shadow-indigo-100"
+                      >
+                        <Download size={14} />
+                        Download Vinted Extension (.ZIP)
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Installation Guide */}
+                <div className="p-6 bg-slate-50 border border-slate-200/80 rounded-3xl space-y-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm shadow-indigo-200">
+                        <HelpCircle size={18} />
+                      </span>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">How to Install in Google Chrome (1-Minute Setup)</h4>
+                        <p className="text-[11px] text-slate-500">Follow these 4 simple steps to load the unpacked extension in Chrome, Brave, or Edge.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm space-y-1.5">
+                      <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center">
+                        1
+                      </div>
+                      <h5 className="text-xs font-bold text-slate-800">Download & Unzip</h5>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Download the <span className="font-semibold text-indigo-600">.ZIP</span> file above and extract / unzip it to a folder on your PC.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm space-y-1.5">
+                      <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center">
+                        2
+                      </div>
+                      <h5 className="text-xs font-bold text-slate-800">Open Extensions Page</h5>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        In Chrome, go to <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">chrome://extensions</code>
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm space-y-1.5">
+                      <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-black flex items-center justify-center">
+                        3
+                      </div>
+                      <h5 className="text-xs font-bold text-slate-800">Turn On Developer Mode</h5>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Toggle <span className="font-semibold text-slate-700">"Developer mode"</span> ON at the top-right corner of the Extensions page.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm space-y-1.5">
+                      <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 text-xs font-black flex items-center justify-center">
+                        4
+                      </div>
+                      <h5 className="text-xs font-bold text-slate-800">Click Load Unpacked</h5>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Click <span className="font-semibold text-slate-700">"Load unpacked"</span> (top-left) and select your unzipped folder. Done!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles size={16} className="text-indigo-600 shrink-0" />
+                      <p className="text-xs text-indigo-950 font-medium">
+                        <span className="font-bold">Next Step:</span> After loading the extension, open your marketplace tab (e.g. Mercari or Depop) and login. Then go to <span className="font-bold">Channel Inventory / Accounts</span> to connect instantly!
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/ebay-accounts')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm transition-all"
+                    >
+                      <span>Connect Accounts</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
             )}
 
             {activeTab === 'password' && (

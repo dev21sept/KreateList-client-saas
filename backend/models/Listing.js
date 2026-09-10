@@ -64,7 +64,7 @@ const listingSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['ebay', 'poshmark', 'etsy', 'depop', 'mercari'],
+    enum: ['ebay', 'poshmark', 'etsy', 'depop', 'mercari', 'amazon'],
     default: 'ebay'
   },
   poshmarkListingId: String,
@@ -75,6 +75,17 @@ const listingSchema = new mongoose.Schema({
   depopUrl: String,
   mercariListingId: String,
   mercariUrl: String,
+  amazonListingId: String,
+  amazonAsin: String,
+  amazonUrl: String,
+  amazonProductType: String,
+  amazonBulletPoints: [String],
+  amazonGenericKeywords: [String],
+  amazonCondition: String,
+  amazonStandardProductId: {
+    idType: String,
+    value: String
+  },
   brand: String,
   brandId: String,
   shippingPayer: String,
@@ -167,10 +178,19 @@ const listingSchema = new mongoose.Schema({
     enum: ['draft', 'published', 'failed', 'none', 'delisted'],
     default: 'none'
   },
+  amazonStatus: {
+    type: String,
+    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    default: 'none'
+  },
+  platformData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   createdAt: {
     type: Date,
     default: Date.now
   }
 });
 
-module.exports = mongoose.model('Listing', listingSchema);
+module.exports = mongoose.models.Listing || mongoose.model('Listing', listingSchema);

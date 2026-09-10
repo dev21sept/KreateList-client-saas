@@ -46,7 +46,7 @@ const Checkout = () => {
 
   // Plans reference in USD
   const planPrices = {
-    BASIC: { monthly: 1, yearly: 10 },
+    BASIC: { monthly: 79, yearly: 900 },
     PRO: { monthly: 149, yearly: 1692 },
     ENTERPRISE: { monthly: 299, yearly: 3408 }
   };

@@ -205,14 +205,14 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
   );
 };
 
-const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
+const CreateMercariListing = ({ isModal = false, editId: propEditId = null, initialListing = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const editId = propEditId || searchParams.get('edit');
   const platform = 'mercari';
-  const [hasScanned, setHasScanned] = useState(editId ? true : false);
+  const [hasScanned, setHasScanned] = useState((editId || initialListing) ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -220,6 +220,9 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
   const [brandSuggestions, setBrandSuggestions] = useState([]);
   const [isBrandOpen, setIsBrandOpen] = useState(false);
   const brandDropdownRef = React.useRef(null);
+
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
 
   const [formData, setFormData] = useState({
     images: [],
@@ -384,57 +387,147 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
   }, []);
 
   useEffect(() => {
-    if (editId) {
-      const fetchListing = async () => {
-        setLoading(true);
-        try {
-          const res = await listingService.getById(editId);
-          if (res.data?.success && res.data?.data) {
-            const l = res.data.data;
-            setFormData({
-              images: l.images || [],
-              selectedRule: l.selectedRule || '',
-              selectedCondition: l.selectedCondition || '',
-              title: l.title || '',
-              brand: l.brand || '',
-              brandId: l.brandId || '',
-              originalPrice: l.originalPrice || '',
-              shippingPayer: l.shippingPayer || 'buyer',
-              shippingMethod: l.shippingMethod || 'prepaid',
-              shippingWeightLbs: l.shippingWeightLbs || 0,
-              shippingWeightOz: l.shippingWeightOz || 0,
-              shippingFitsShoebox: l.shippingFitsShoebox !== undefined ? l.shippingFitsShoebox : true,
-              shippingLength: l.shippingLength || 0,
-              shippingWidth: l.shippingWidth || 0,
-              shippingHeight: l.shippingHeight || 0,
-              shippingCarrier: l.shippingCarrier || '',
-              shippingPrice: l.shippingPrice || '',
-              styleTag: l.styleTag || '',
-              quantity: l.quantity || 1,
-              size: l.size || '',
-              sizeId: l.sizeId || '',
-              category: l.category || '',
-              categoryId: l.categoryId || '',
-              price: l.price || '',
-              description: l.description || '',
-              conditionNote: l.conditionNote || '',
-            });
+    const enrichFromDetails = async (targetMercariId) => {
+      if (!targetMercariId || !String(targetMercariId).startsWith('m')) return;
+      try {
+        const res = await mercariService.getItemDetails(targetMercariId);
+        if (res.data?.success && res.data?.data) {
+          const d = res.data.data;
+          setFormData(prev => ({
+            ...prev,
+            title: d.title || prev.title,
+            description: d.description || prev.description,
+            price: d.price || prev.price,
+            images: (d.images && d.images.length > 0) ? d.images : prev.images,
+            brand: d.brand || prev.brand,
+            brandId: d.brandId || prev.brandId,
+            size: d.size || prev.size,
+            sizeId: d.sizeId || prev.sizeId,
+            category: d.category || prev.category,
+            categoryId: d.categoryId || prev.categoryId,
+            selectedCondition: mapMercariCondition(d.selectedCondition || d.condition || prev.selectedCondition),
+            conditionNote: d.conditionNote || prev.conditionNote,
+            shippingPayer: d.shippingPayer || prev.shippingPayer
+          }));
+          if (d.images && d.images.length > 0) {
             const imageMap = {};
-            (l.images || []).forEach((_, idx) => {
-              imageMap[idx] = true;
-            });
+            d.images.forEach((_, idx) => { imageMap[idx] = true; });
             setLoadedImages(imageMap);
           }
+        }
+      } catch (err) {
+        console.warn("Mercari details enrichment in form failed:", err);
+      }
+    };
+
+    const loadData = async () => {
+      // 1. Initial fast populate if initialListing provided
+      if (initialListing) {
+        setFormData(prev => ({
+          ...prev,
+          images: initialListing.images || prev.images,
+          selectedRule: initialListing.selectedRule || prev.selectedRule,
+          selectedCondition: mapMercariCondition(initialListing.selectedCondition || initialListing.condition || prev.selectedCondition),
+          title: initialListing.title || prev.title,
+          brand: initialListing.brand || prev.brand,
+          brandId: initialListing.brandId || prev.brandId,
+          originalPrice: initialListing.originalPrice || prev.originalPrice,
+          shippingPayer: initialListing.shippingPayer || prev.shippingPayer || 'buyer',
+          shippingMethod: initialListing.shippingMethod || prev.shippingMethod || 'prepaid',
+          shippingWeightLbs: initialListing.shippingWeightLbs || 0,
+          shippingWeightOz: initialListing.shippingWeightOz || 0,
+          shippingFitsShoebox: initialListing.shippingFitsShoebox !== undefined ? initialListing.shippingFitsShoebox : true,
+          shippingLength: initialListing.shippingLength || 0,
+          shippingWidth: initialListing.shippingWidth || 0,
+          shippingHeight: initialListing.shippingHeight || 0,
+          shippingCarrier: initialListing.shippingCarrier || prev.shippingCarrier || '',
+          shippingPrice: initialListing.shippingPrice || prev.shippingPrice || '',
+          styleTag: initialListing.styleTag || prev.styleTag || '',
+          quantity: initialListing.quantity || 1,
+          size: initialListing.size || prev.size || '',
+          sizeId: initialListing.sizeId || prev.sizeId || '',
+          category: initialListing.category || prev.category || '',
+          categoryId: initialListing.categoryId || prev.categoryId || '',
+          price: initialListing.price !== undefined ? initialListing.price : (initialListing.selling_price || prev.price || ''),
+          description: cleanMercariText(initialListing.description || prev.description || ''),
+          conditionNote: initialListing.conditionNote || prev.conditionNote || '',
+        }));
+        if (initialListing.images && initialListing.images.length > 0) {
+          const imageMap = {};
+          initialListing.images.forEach((_, idx) => { imageMap[idx] = true; });
+          setLoadedImages(imageMap);
+        }
+      }
+
+      // 2. Fetch full DB listing if editId (or initialListing._id) exists
+      const targetDbId = editId || initialListing?._id || initialListing?.id;
+      if (targetDbId && !String(targetDbId).startsWith('mock-')) {
+        setLoading(true);
+        try {
+          const res = await listingService.getOne(targetDbId);
+          if (res.data?.success && res.data?.data) {
+            const rawListing = res.data.data;
+            const mData = rawListing.platformData?.mercari || (rawListing.platform === 'mercari' ? rawListing : {});
+            
+            const allImages = (rawListing.images && rawListing.images.length >= (mData.images?.length || 0))
+              ? rawListing.images
+              : (mData.images && mData.images.length > 0 ? mData.images : (rawListing.images || []));
+
+            const resolvedBrand = mData.brand || rawListing.brand || rawListing.itemSpecifics?.Brand?.[0] || '';
+            const resolvedSize = mData.size || rawListing.size || rawListing.itemSpecifics?.Size?.[0] || '';
+            const resolvedColor = mData.color || rawListing.color || rawListing.itemSpecifics?.Color?.[0] || '';
+
+            setFormData(prev => ({
+              ...prev,
+              images: allImages.length > 0 ? allImages : prev.images,
+              selectedRule: mData.selectedRule || rawListing.selectedRule || prev.selectedRule,
+              selectedCondition: mapMercariCondition(mData.selectedCondition || mData.condition || rawListing.selectedCondition || rawListing.condition || prev.selectedCondition),
+              title: mData.title || rawListing.title || prev.title,
+              brand: resolvedBrand,
+              brandId: mData.brandId || rawListing.brandId || prev.brandId,
+              originalPrice: mData.originalPrice || rawListing.originalPrice || prev.originalPrice,
+              shippingPayer: mData.shippingPayer || rawListing.shippingPayer || prev.shippingPayer || 'buyer',
+              shippingMethod: mData.shippingMethod || rawListing.shippingMethod || prev.shippingMethod || 'prepaid',
+              shippingWeightLbs: mData.shippingWeightLbs !== undefined ? mData.shippingWeightLbs : (rawListing.shippingWeightLbs || 0),
+              shippingWeightOz: mData.shippingWeightOz !== undefined ? mData.shippingWeightOz : (rawListing.shippingWeightOz || 0),
+              shippingFitsShoebox: mData.shippingFitsShoebox !== undefined ? mData.shippingFitsShoebox : (rawListing.shippingFitsShoebox !== undefined ? rawListing.shippingFitsShoebox : true),
+              shippingLength: mData.shippingLength || rawListing.shippingLength || 0,
+              shippingWidth: mData.shippingWidth || rawListing.shippingWidth || 0,
+              shippingHeight: mData.shippingHeight || rawListing.shippingHeight || 0,
+              shippingCarrier: mData.shippingCarrier || rawListing.shippingCarrier || prev.shippingCarrier || '',
+              shippingPrice: mData.shippingPrice || rawListing.shippingPrice || prev.shippingPrice || '',
+              styleTag: mData.styleTag || rawListing.styleTag || prev.styleTag || '',
+              quantity: mData.quantity || rawListing.quantity || 1,
+              size: resolvedSize,
+              sizeId: mData.sizeId || rawListing.sizeId || prev.sizeId || '',
+              category: mData.category || (rawListing.platform === 'mercari' ? rawListing.category : '') || prev.category || '',
+              categoryId: mData.categoryId || (rawListing.platform === 'mercari' ? rawListing.categoryId : '') || prev.categoryId || '',
+              price: mData.price !== undefined && mData.price !== '' ? mData.price : (rawListing.price !== undefined ? rawListing.price : prev.price),
+              description: cleanMercariText(mData.description || rawListing.description || prev.description || ''),
+              conditionNote: mData.conditionNote || rawListing.conditionNote || prev.conditionNote,
+            }));
+            if (allImages.length > 0) {
+              const imageMap = {};
+              allImages.forEach((_, idx) => { imageMap[idx] = true; });
+              setLoadedImages(imageMap);
+            }
+
+            // If it has a live Mercari ID, optionally enrich from live details
+            const mId = l.mercariListingId || (l.sku && l.sku.startsWith('M-m') ? l.sku.replace('M-', '') : '');
+            if (mId && mId.startsWith('m')) {
+              enrichFromDetails(mId);
+            }
+          }
         } catch (error) {
-          console.error("Error fetching listing for edit:", error);
-          toast.error("Failed to load listing for editing.");
+          console.error("Error fetching full listing for edit:", error);
         } finally {
           setLoading(false);
         }
-      };
-      fetchListing();
-    }
-  }, [editId]);
+      }
+    };
+
+    loadData();
+  }, [editId, initialListing]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -550,18 +643,19 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
-        model: formData.selectedModel || 'gpt-4o-mini'
+        model: formData.selectedModel || 'gpt-4o-mini',
+        existing_title: formData.title || initialListing?.title || ''
       });
 
       if (response.data.success) {
         const result = response.data.data;
         setFormData(prev => ({
           ...prev,
-          title: result.title,
+          title: prev.title || initialListing?.title || result.title,
           brand: result.brand || '',
           brandId: result.brandId || '',
           originalPrice: result.originalPrice || '',
-                    styleTag: result.styleTag || '',
+          styleTag: result.styleTag || '',
           quantity: 1,
           size: result.size || '',
           price: result.price,
@@ -598,6 +692,24 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
     label: c.label,
     description: c.description
   })), []);
+
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+
+    if (Array.isArray(files) && files.length === formData.images.length) {
+      const newFiles = [...files];
+      const [movedFile] = newFiles.splice(sourceIndex, 1);
+      newFiles.splice(targetIndex, 0, movedFile);
+      setFiles(newFiles);
+    }
+
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
 
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
@@ -764,11 +876,44 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
               </label>
 
               {formData.images.map((img, idx) => (
-                <div key={idx} className="aspect-square rounded-3xl border border-slate-200 relative overflow-hidden group shadow-inner bg-slate-100">
+                <div 
+                  key={idx} 
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', String(idx));
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedImgIdx(idx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverImgIdx !== idx) setDragOverImgIdx(idx);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverImgIdx === idx) setDragOverImgIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const sourceIdx = draggedImgIdx !== null ? draggedImgIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(sourceIdx)) {
+                      handleReorderImages(sourceIdx, idx);
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDraggedImgIdx(null);
+                    setDragOverImgIdx(null);
+                  }}
+                  className={`aspect-square rounded-3xl border relative overflow-hidden group shadow-inner bg-slate-100 cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                    draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                  } ${
+                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-200'
+                  }`}
+                  title="Drag and drop to reorder photos"
+                >
                   <img 
                     src={img} 
                     onLoad={() => setLoadedImages(prev => ({ ...prev, [idx]: true }))}
-                    className={`w-full h-full object-cover transition-opacity duration-300 ${loadedImages[idx] ? 'opacity-100' : 'opacity-0'}`} 
+                    className={`w-full h-full object-cover transition-opacity duration-300 pointer-events-none ${loadedImages[idx] ? 'opacity-100' : 'opacity-0'}`} 
                     alt="" 
                   />
                   {!loadedImages[idx] && (
@@ -781,8 +926,12 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                   <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-between p-2.5">
                     <button 
                       type="button"
-                      onClick={() => deleteImage(idx)}
-                      className="self-end p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteImage(idx);
+                      }}
+                      className="self-end p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg transition-all cursor-pointer"
+                      title="Delete Photo"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -791,14 +940,24 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                       <button 
                         type="button"
                         disabled={idx === 0}
-                        onClick={() => moveImage(idx, 'left')}                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveImage(idx, 'left');
+                        }}
+                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40 cursor-pointer"
+                        title="Move Left"
                       >
                         ←
                       </button>
                       <button 
                         type="button"
                         disabled={idx === formData.images.length - 1}
-                        onClick={() => moveImage(idx, 'right')}                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveImage(idx, 'right');
+                        }}
+                        className="flex-1 p-1 bg-white/20 hover:bg-white/40 text-white rounded-lg text-[9px] font-bold disabled:opacity-40 cursor-pointer"
+                        title="Move Right"
                       >
                         →
                       </button>
@@ -806,7 +965,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
                   </div>
 
                   {idx === 0 && (
-                    <span className="absolute top-2 left-2 bg-indigo-600 text-white font-black text-[8px] uppercase px-2 py-0.5 rounded-lg shadow-sm">
+                    <span className="absolute top-2 left-2 bg-indigo-600 text-white font-black text-[8px] uppercase px-2 py-0.5 rounded-lg shadow-sm pointer-events-none">
                       Cover
                     </span>
                   )}
@@ -1273,7 +1432,13 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, onCl
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate('/listings')}
+              onClick={() => {
+                if (isModal && onClose) {
+                  onClose();
+                } else {
+                  navigate('/listings');
+                }
+              }}
             >
               Cancel
             </Button>

@@ -252,13 +252,13 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search Depop c
   );
 };
 
-const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
+const CreateDepopListing = ({ isModal = false, editId: propEditId = null, initialListing = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const [searchParams] = useSearchParams();
   const editId = propEditId || searchParams.get('edit');
   const platform = 'depop';
-  const [hasScanned, setHasScanned] = useState(editId ? true : false);
+  const [hasScanned, setHasScanned] = useState((editId || initialListing) ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -419,6 +419,8 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
   }, [formData.size, activeSizeDataset, kidsSizeScale]);
 
   const [isConvertingImages, setIsConvertingImages] = useState(false);
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
   const [loadedImages, setLoadedImages] = useState({});
 
   const allImagesLoaded = useMemo(() => {
@@ -437,6 +439,24 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
       return next;
     });
   }, [formData.images]);
+
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+
+    if (Array.isArray(files) && files.length === formData.images.length) {
+      const newFiles = [...files];
+      const [movedFile] = newFiles.splice(sourceIndex, 1);
+      newFiles.splice(targetIndex, 0, movedFile);
+      setFiles(newFiles);
+    }
+
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
 
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
@@ -484,44 +504,94 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
   }, [editId]);
 
   useEffect(() => {
+    if (initialListing) {
+      const cond = initialListing.selectedCondition || initialListing.condition || '';
+      const mappedCond = mapDepopCondition(cond);
+
+      setFormData(prev => ({
+        ...prev,
+        images: (initialListing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
+        selectedRule: initialListing.selectedRule || prev.selectedRule,
+        selectedCondition: mappedCond,
+        conditionId: initialListing.conditionId || prev.conditionId,
+        title: initialListing.title || prev.title,
+        brand: initialListing.brand || prev.brand,
+        originalPrice: initialListing.originalPrice || prev.originalPrice,
+        color: initialListing.color || prev.color,
+        styleTag: initialListing.styleTag || prev.styleTag,
+        age: initialListing.age || prev.age,
+        source: initialListing.source || prev.source,
+        material: initialListing.material || prev.material,
+        bodyFit: initialListing.bodyFit || prev.bodyFit,
+        occasion: initialListing.occasion || prev.occasion,
+        depopType: initialListing.depopType || prev.depopType,
+        fastening: initialListing.fastening || prev.fastening,
+        fit: initialListing.fit || prev.fit,
+        quantity: initialListing.quantity || 1,
+        size: initialListing.size || prev.size,
+        category: initialListing.category || prev.category,
+        categoryId: initialListing.categoryId || prev.categoryId,
+        price: initialListing.price !== undefined ? initialListing.price : (initialListing.selling_price || prev.price),
+        description: cleanDepopText(initialListing.description || prev.description || ''),
+        conditionNote: initialListing.conditionNote || prev.conditionNote,
+        sku: initialListing.sku || prev.sku,
+      }));
+      setHasScanned(true);
+    }
+  }, [initialListing]);
+
+  useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
         try {
           setLoading(true);
           const response = await listingService.getOne(editId);
           if (response.data.success) {
-            const listing = response.data.data;
-            setFormData({
-              images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
-              selectedRule: listing.selectedRule || '',
-              selectedCondition: listing.selectedCondition || '',
-              conditionId: listing.conditionId || '',
-              title: listing.title || '',
-              brand: listing.brand || '',
-              originalPrice: listing.originalPrice || '',
-              color: listing.color || '',
-              styleTag: listing.styleTag || '',
-              age: listing.age || '',
-              source: listing.source || '',
-              material: listing.material || '',
-              bodyFit: listing.bodyFit || '',
-              occasion: listing.occasion || '',
-              depopType: listing.depopType || '',
-              fastening: listing.fastening || '',
-              fit: listing.fit || '',
-              country: listing.country || 'India',
-              shippingPrice: listing.shippingPrice || '0.00',
-              worldwideShipping: listing.worldwideShipping !== undefined ? listing.worldwideShipping : false,
-              quantity: listing.quantity || 1,
-              size: listing.size || '',
-              category: listing.category || '',
-              categoryId: listing.categoryId || '',
-              price: listing.price || '',
-              description: listing.description || '',
-              conditionNote: listing.conditionNote || '',
-              sku: listing.sku || '',
-              selectedModel: listing.selectedModel || 'gpt-4o-mini',
-            });
+            const rawListing = response.data.data;
+            const dData = rawListing.platformData?.depop || (rawListing.platform === 'depop' ? rawListing : {});
+            
+            const allImages = (rawListing.images && rawListing.images.length >= (dData.images?.length || 0))
+              ? rawListing.images
+              : (dData.images && dData.images.length > 0 ? dData.images : (rawListing.images || []));
+
+            const resolvedBrand = dData.brand || rawListing.brand || rawListing.itemSpecifics?.Brand?.[0] || '';
+            const resolvedSize = dData.size || rawListing.size || rawListing.itemSpecifics?.Size?.[0] || '';
+            const resolvedColor = dData.color || rawListing.color || rawListing.itemSpecifics?.Color?.[0] || '';
+            const resolvedMaterial = dData.material || rawListing.material || rawListing.itemSpecifics?.Material?.[0] || '';
+            const cond = dData.selectedCondition || dData.condition || rawListing.selectedCondition || rawListing.condition || '';
+            const mappedCond = mapDepopCondition(cond);
+
+            setFormData(prev => ({
+              images: (allImages || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
+              selectedRule: dData.selectedRule || rawListing.selectedRule || '',
+              selectedCondition: mappedCond,
+              conditionId: dData.conditionId || rawListing.conditionId || '',
+              title: dData.title || rawListing.title || prev.title || '',
+              brand: resolvedBrand,
+              originalPrice: dData.originalPrice || rawListing.originalPrice || '',
+              color: resolvedColor,
+              styleTag: dData.styleTag || rawListing.styleTag || '',
+              age: dData.age || rawListing.age || '',
+              source: dData.source || rawListing.source || '',
+              material: resolvedMaterial,
+              bodyFit: dData.bodyFit || rawListing.bodyFit || '',
+              occasion: dData.occasion || rawListing.occasion || '',
+              depopType: dData.depopType || rawListing.depopType || '',
+              fastening: dData.fastening || rawListing.fastening || '',
+              fit: dData.fit || rawListing.fit || '',
+              country: dData.country || rawListing.country || 'India',
+              shippingPrice: dData.shippingPrice || rawListing.shippingPrice || '0.00',
+              worldwideShipping: dData.worldwideShipping !== undefined ? dData.worldwideShipping : (rawListing.worldwideShipping !== undefined ? rawListing.worldwideShipping : false),
+              quantity: dData.quantity || rawListing.quantity || 1,
+              size: resolvedSize,
+              category: dData.category || (rawListing.platform === 'depop' ? rawListing.category : '') || '',
+              categoryId: dData.categoryId || (rawListing.platform === 'depop' ? rawListing.categoryId : '') || '',
+              price: dData.price !== undefined && dData.price !== '' ? dData.price : (rawListing.price !== undefined ? rawListing.price : ''),
+              description: cleanDepopText(dData.description || rawListing.description || ''),
+              conditionNote: dData.conditionNote || rawListing.conditionNote || '',
+              sku: dData.sku || rawListing.sku || '',
+              selectedModel: dData.selectedModel || rawListing.selectedModel || 'gpt-4o-mini',
+            }));
             setHasScanned(true);
           }
         } catch (error) {
@@ -608,7 +678,8 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
-        model: formData.selectedModel || 'gpt-4o-mini'
+        model: formData.selectedModel || 'gpt-4o-mini',
+        existing_title: formData.title || initialListing?.title || ''
       });
 
       if (response.data.success) {
@@ -651,7 +722,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
 
         setFormData(prev => ({
           ...prev,
-          title: result.title,
+          title: prev.title || initialListing?.title || result.title,
           brand: resolvedBrand,
           originalPrice: result.originalPrice || '',
           color: resolvedColor,
@@ -1073,12 +1144,46 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
               <input type="file" multiple className="hidden" onChange={handleImageUpload} />
             </label>
             {formData.images.map((img, i) => (
-              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
-                <img src={img} className="w-full h-full object-cover" alt="Product" />
+              <div 
+                key={i} 
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', String(i));
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedImgIdx(i);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverImgIdx !== i) setDragOverImgIdx(i);
+                }}
+                onDragLeave={() => {
+                  if (dragOverImgIdx === i) setDragOverImgIdx(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceIdx = draggedImgIdx !== null ? draggedImgIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                  if (!isNaN(sourceIdx)) {
+                    handleReorderImages(sourceIdx, i);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedImgIdx(null);
+                  setDragOverImgIdx(null);
+                }}
+                className={`aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border shadow-sm cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                  draggedImgIdx === i ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                } ${
+                  dragOverImgIdx === i ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100'
+                }`}
+                title="Drag and drop to reorder photos"
+              >
+                <img src={img} className="w-full h-full object-cover pointer-events-none" alt="Product" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                    <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
                       setFiles(files.filter((_, idx) => idx !== i));
                     }}
@@ -1090,7 +1195,10 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                    <button
                     type="button"
                     disabled={i === 0}
-                    onClick={() => moveImage(i, 'left')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'left');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Left"
                    >
@@ -1099,7 +1207,10 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                    <button
                     type="button"
                     disabled={i === formData.images.length - 1}
-                    onClick={() => moveImage(i, 'right')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'right');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Right"
                    >
@@ -1107,7 +1218,7 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
                    </button>
                 </div>
                 {i === 0 && (
-                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider">Cover</span>
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider pointer-events-none">Cover</span>
                 )}
               </div>
             ))}
@@ -1512,7 +1623,13 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, onClos
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate('/listings')}
+              onClick={() => {
+                if (isModal && onClose) {
+                  onClose();
+                } else {
+                  navigate('/listings');
+                }
+              }}
             >
               Cancel
             </Button>

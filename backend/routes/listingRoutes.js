@@ -10,7 +10,13 @@ const {
   checkDuplicateListing,
   verifyListingLive,
   delistListing,
-  deletePlatformListing
+  deletePlatformListing,
+  moveToNewItem,
+  mergeChannel,
+  getActiveChannelImportPreview,
+  importActiveChannelsToLocal,
+  getLocalMergePreview,
+  bulkMergeListings
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -21,6 +27,11 @@ router.use(protect);
 
 router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
+router.post('/merge-channel', requireActiveSubscription, mergeChannel);
+router.get('/active-channel-preview', getActiveChannelImportPreview);
+router.post('/import-active-channels', requireActiveSubscription, importActiveChannelsToLocal);
+router.get('/local-merge-preview', getLocalMergePreview);
+router.post('/bulk-merge', requireActiveSubscription, bulkMergeListings);
 
 router.route('/')
   .get(getListings)
@@ -34,6 +45,7 @@ router.route('/:id')
 router.post('/:id/publish', requireActiveSubscription, publishListing);
 router.post('/:id/delist', requireActiveSubscription, delistListing);
 router.post('/:id/delete-platform', requireActiveSubscription, deletePlatformListing);
+router.post('/:id/move-to-new-item', requireActiveSubscription, moveToNewItem);
 router.post('/:id/verify-live', verifyListingLive);
 router.get('/:id/cross-list-prep', require('../controllers/crossListController').prepareCrossList);
 

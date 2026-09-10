@@ -5,6 +5,7 @@ const { poshmarkAnalyzeListing, searchPoshmarkCategories } = require('../control
 const { mercariAnalyzeListing, searchMercariCategories } = require('../controllers/mercariAiController');
 const { depopAnalyzeListing, searchDepopCategories, getDepopCategoryDetails } = require('../controllers/depopAiController');
 const { etsyFetchListing, etsyAnalyzeListing, searchEtsyCategories } = require('../controllers/etsyAiController');
+const { amazonAnalyzeListing, searchAmazonCategories } = require('../controllers/amazonAiController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
@@ -14,6 +15,7 @@ router.post('/mercari-analyze', protect, requireActiveSubscription, mercariAnaly
 router.post('/depop-analyze', protect, requireActiveSubscription, depopAnalyzeListing);
 router.post('/etsy-fetch', protect, requireActiveSubscription, etsyFetchListing);
 router.post('/etsy-analyze', protect, requireActiveSubscription, etsyAnalyzeListing);
+router.post('/amazon-analyze', protect, requireActiveSubscription, amazonAnalyzeListing);
 router.post('/save', protect, requireActiveSubscription, saveAiListing);
 router.get('/categories', protect, searchCategories);
 router.get('/poshmark-categories', protect, searchPoshmarkCategories);
@@ -21,5 +23,6 @@ router.get('/mercari-categories', protect, searchMercariCategories);
 router.get('/depop-categories', protect, searchDepopCategories);
 router.get('/depop-category-details', protect, getDepopCategoryDetails);
 router.get('/etsy-categories', protect, searchEtsyCategories);
+router.get('/amazon-categories', protect, searchAmazonCategories);
 
 module.exports = router;

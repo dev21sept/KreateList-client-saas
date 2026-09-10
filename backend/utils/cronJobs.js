@@ -57,13 +57,17 @@ const runRenewalChecks = async () => {
   }
 };
 
+const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../services/backgroundSyncService');
+
 const initCronJobs = () => {
-  // Run every day at 8:00 AM
+  // Run subscription renewals every day at 8:00 AM
   cron.schedule('0 8 * * *', () => {
     runRenewalChecks();
   });
-  
-  console.log('[Cron System] Scheduler initialized (running daily at 8:00 AM).');
+  console.log('[Cron System] Subscription renewal scheduler initialized (running daily at 8:00 AM).');
+
+  // Run automated multi-channel background sales & auto-delist sync
+  startBackgroundSyncWorker();
 };
 
-module.exports = { initCronJobs, runRenewalChecks };
+module.exports = { initCronJobs, runRenewalChecks, runBackgroundSyncCycle };

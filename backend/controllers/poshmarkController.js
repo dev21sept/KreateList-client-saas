@@ -80,7 +80,7 @@ exports.poshmarkConnectPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const loginResult = await loginToPoshmark(username, password, domain || 'poshmark.com');
+    const loginResult = await loginToPoshmark(username, password, domain || 'poshmark.com', req.user.id);
     
     if (loginResult['2faRequired']) {
       return res.status(200).json({
@@ -212,16 +212,22 @@ exports.poshmarkImportCloset = async (req, res) => {
         existingProduct = await Product.findOne(duplicateQuery);
       }
 
+      const resolvedStatus = item.status === 'active' ? 'live' : 'inactive';
+
       if (existingProduct) {
-        // If it exists, merge the Poshmark details
-        if (!existingProduct.poshmarkListingId || !existingProduct.poshmarkUrl) {
-          existingProduct.poshmarkListingId = item.poshmarkListingId;
-          existingProduct.poshmarkUrl = item.poshmarkUrl;
-          if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
-          if (item.size && !existingProduct.size) existingProduct.size = item.size;
-          existingProduct.updated_at = Date.now();
-          await existingProduct.save();
+        // If it exists, merge the Poshmark details and update status
+        existingProduct.poshmarkListingId = item.poshmarkListingId;
+        existingProduct.poshmarkUrl = item.poshmarkUrl;
+        if (existingProduct.status !== resolvedStatus) {
+          existingProduct.status = resolvedStatus;
         }
+        if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
+        if (item.size && !existingProduct.size) existingProduct.size = item.size;
+        if (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) {
+          existingProduct.images = item.images;
+        }
+        existingProduct.updated_at = Date.now();
+        await existingProduct.save();
         duplicateCount++;
         continue;
       }
@@ -237,7 +243,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         size: item.size || '',
         images: item.images,
         source: 'poshmark',
-        status: 'live',
+        status: resolvedStatus,
         poshmarkListingId: item.poshmarkListingId,
         poshmarkUrl: item.poshmarkUrl,
         updated_at: Date.now()

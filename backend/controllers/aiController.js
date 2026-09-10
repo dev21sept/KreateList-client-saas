@@ -103,7 +103,8 @@ exports.analyzeListing = async (req, res) => {
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
-            model = 'gpt-4o-mini'
+            model = 'gpt-4o-mini',
+            existing_title = ''
         } = req.body;
 
         // Instantiate the appropriate AI client based on model
@@ -403,14 +404,14 @@ exports.analyzeListing = async (req, res) => {
                             text: `Analyze images for a professional ebay listing.
                             
 1. Visual Research & Title Construction:
-   - Identify the EXACT retail name of this product.
+   ${existing_title && existing_title.trim() !== '' ? `- CRITICAL TITLE RULE: The product title is ALREADY ESTABLISHED as: "${existing_title.trim()}". You MUST preserve this title in 'title' and extract matching attributes inside 'title_parts' for the Title Sequence: [${effectiveStructure.join(', ')}]. Do NOT invent a different product title.` : `- Identify the EXACT retail name of this product.
    - Look for keywords like "Vintage", "Rare", "Authentic".
    - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
    
    CRITICAL RULES:
    - GOAL: A professional, keyword-rich title between 70-80 characters.
    - NO BLANKS: Fill every requested attribute.
-   - Output as a JSON object inside 'title_parts'.
+   - Output as a JSON object inside 'title_parts'.`}
    
 ${descriptionInstruction}
    
@@ -487,21 +488,26 @@ Response ONLY as JSON: {
             standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
         });
 
-        const titleString = effectiveStructure
-            .map(key => {
-                let val = standardizedParts[key] || '';
-                val = String(val).replace(/,/g, '');
-                if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
-                    return `Size ${val}`;
-                }
-                return val;
-            })
-            .filter(val => val && val.toString().trim() !== '')
-            .join(' ')
-            .substring(0, 80)
-            .trim();
+        let finalTitle = '';
+        if (existing_title && existing_title.trim() !== '') {
+            finalTitle = existing_title.trim().substring(0, 80);
+        } else {
+            const titleString = effectiveStructure
+                .map(key => {
+                    let val = standardizedParts[key] || '';
+                    val = String(val).replace(/,/g, '');
+                    if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
+                        return `Size ${val}`;
+                    }
+                    return val;
+                })
+                .filter(val => val && val.toString().trim() !== '')
+                .join(' ')
+                .substring(0, 80)
+                .trim();
 
-        const finalTitle = titleString || finalData.title || 'New Listing';
+            finalTitle = titleString || finalData.title || 'New Listing';
+        }
         const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
 
         if (req.user) {

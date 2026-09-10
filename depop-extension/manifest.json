@@ -15,6 +15,7 @@
   "host_permissions": [
     "*://*.depop.com/*",
     "*://*.elister.ai/*",
+    "*://elister.ai/*",
     "*://*.amazonaws.com/*",
     "*://app.elister.ai/*",
     "*://localhost/*",
@@ -30,6 +31,8 @@
     {
       "matches": [
         "*://*.depop.com/*",
+        "*://*.elister.ai/*",
+        "*://elister.ai/*",
         "*://app.elister.ai/*",
         "*://localhost/*",
         "*://127.0.0.1/*"

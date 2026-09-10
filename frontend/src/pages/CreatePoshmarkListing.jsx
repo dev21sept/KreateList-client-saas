@@ -384,14 +384,14 @@ const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select color
   );
 };
 
-const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
+const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, initialListing = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const editId = propEditId || searchParams.get('edit');
   const platform = 'poshmark';
-  const [hasScanned, setHasScanned] = useState(editId ? true : false);
+  const [hasScanned, setHasScanned] = useState((editId || initialListing) ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -416,6 +416,8 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
     description: '',
     conditionNote: '',
   });
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
 
@@ -467,6 +469,166 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
     fetchRules();
   }, [editId]);
 
+  const mapPoshmarkCondition = (raw) => {
+    if (!raw) return 'Good';
+    const match = POSHMARK_CONDITIONS.find(
+      c => c.id.toLowerCase() === String(raw).toLowerCase() || c.label.toLowerCase() === String(raw).toLowerCase()
+    );
+    if (match) return match.label;
+    const str = String(raw).toLowerCase();
+    if (str.includes('nwt') || str.includes('new with tag') || str.includes('brand new') || str === 'new' || str === '1000') {
+      return 'NWT (New With Tags)';
+    }
+    if (str.includes('like new') || str.includes('excellent') || str.includes('mint') || str === '2750' || str === '3000') {
+      return 'Like New';
+    }
+    if (str.includes('fair') || str.includes('poor') || str.includes('flaw') || str === '6000' || str === '7000') {
+      return 'Fair';
+    }
+    return 'Good';
+  };
+
+  const cleanPoshmarkText = (text) => {
+    if (!text) return '';
+    if (!/<[a-z][\s\S]*>/i.test(text)) return text;
+    let clean = text
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/h[1-6]>/gi, '\n\n')
+      .replace(/<li[^>]*>/gi, '• ')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    return clean.replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
+  };
+
+  const resolvePoshmarkAttributes = (rawListing, pData) => {
+    const allImgs = (rawListing.images && rawListing.images.length >= (pData.images?.length || 0))
+      ? rawListing.images
+      : (pData.images && pData.images.length > 0 ? pData.images : (rawListing.images || []));
+
+    let resolvedColor = pData.color || rawListing.color || '';
+    if (!resolvedColor && rawListing.itemSpecifics) {
+      const cVal = rawListing.itemSpecifics.Color || rawListing.itemSpecifics.color || rawListing.itemSpecifics['Colour'];
+      if (cVal) resolvedColor = Array.isArray(cVal) ? cVal.join(', ') : String(cVal);
+    }
+    if (resolvedColor) {
+      const colorTokens = resolvedColor.split(/[\s,+/]+/).filter(Boolean);
+      const matchedPoshColors = [];
+      for (const token of colorTokens) {
+        const found = POSHMARK_COLORS.find(c => c.toLowerCase() === token.toLowerCase());
+        if (found && !matchedPoshColors.includes(found)) {
+          matchedPoshColors.push(found);
+        }
+      }
+      if (matchedPoshColors.length > 0) {
+        resolvedColor = matchedPoshColors.slice(0, 2).join(', ');
+      }
+    }
+
+    let resolvedCategory = pData.category || '';
+    let resolvedCategoryId = pData.categoryId || '';
+    let resolvedDepartmentId = pData.departmentId || '';
+    let resolvedSubcategoryIds = pData.subcategoryIds || [];
+
+    if (!resolvedCategory && rawListing.category && rawListing.category.includes(' > ')) {
+      resolvedCategory = rawListing.category;
+      resolvedCategoryId = rawListing.categoryId || '';
+      resolvedDepartmentId = rawListing.departmentId || '';
+    }
+
+    if (!resolvedCategory) {
+      const textToMatch = `${rawListing.title || ''} ${rawListing.category || ''}`;
+      if (/pullover|hoodie|sweatshirt/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Sweaters > Crew & Scoop Necks" : "Men > Shirts > Sweatshirts & Hoodies";
+      } else if (/t-shirt|tee|graphic tee/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Tops > Tees - Short Sleeve" : "Men > Shirts > Tees - Short Sleeve";
+      } else if (/button down|button-down/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Tops > Button Down Shirts" : "Men > Shirts > Casual Button Down Shirts";
+      } else if (/polo/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Tops > Polos" : "Men > Shirts > Polos";
+      } else if (/jeans|denim/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Jeans > Bootcut" : "Men > Jeans > Bootcut";
+      } else if (/jacket|coat|outerwear/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Jackets & Coats > Other" : "Men > Jackets & Coats > Other";
+      } else if (/shoes|sneakers|boots/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Shoes > Sneakers" : "Men > Shoes > Sneakers";
+      } else if (/sunglasses|glasses/i.test(textToMatch)) {
+        resolvedCategory = /women/i.test(textToMatch) ? "Women > Accessories > Sunglasses" : "Men > Accessories > Sunglasses";
+      }
+    }
+
+    let resolvedStyleTag = pData.styleTag || pData.styleTags || rawListing.styleTag || rawListing.styleTags || '';
+    if (!resolvedStyleTag && rawListing.itemSpecifics) {
+      const sVal = rawListing.itemSpecifics.Style || rawListing.itemSpecifics.Theme || rawListing.itemSpecifics.Occasion || rawListing.itemSpecifics.Features;
+      if (sVal) {
+        const tags = Array.isArray(sVal) ? sVal : [String(sVal)];
+        const matchedTags = [];
+        for (const t of tags) {
+          const found = POSHMARK_STYLE_TAGS.find(st => st.toLowerCase() === t.toLowerCase());
+          if (found && !matchedTags.includes(found)) matchedTags.push(found);
+        }
+        if (matchedTags.length > 0) resolvedStyleTag = matchedTags.slice(0, 3).join(', ');
+      }
+    }
+
+    const resolvedBrand = pData.brand || rawListing.brand || rawListing.itemSpecifics?.Brand?.[0] || '';
+    const resolvedSize = pData.size || rawListing.size || rawListing.itemSpecifics?.Size?.[0] || '';
+    const resolvedOrigPrice = pData.originalPrice || rawListing.originalPrice || '';
+    const cond = pData.selectedCondition || pData.condition || rawListing.selectedCondition || rawListing.condition || '';
+    const mappedCond = mapPoshmarkCondition(cond);
+    const desc = cleanPoshmarkText(pData.description || rawListing.description || '');
+
+    return {
+      images: (allImgs || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
+      selectedRule: pData.selectedRule || rawListing.selectedRule || '',
+      selectedCondition: mappedCond,
+      conditionId: pData.conditionId || rawListing.conditionId || (POSHMARK_CONDITIONS.find(c => c.label === mappedCond)?.id || 'good'),
+      title: pData.title || rawListing.title || '',
+      brand: resolvedBrand,
+      originalPrice: resolvedOrigPrice,
+      color: resolvedColor,
+      styleTag: resolvedStyleTag,
+      quantity: pData.quantity || rawListing.quantity || 1,
+      size: resolvedSize,
+      category: resolvedCategory,
+      categoryId: resolvedCategoryId,
+      departmentId: resolvedDepartmentId,
+      subcategoryIds: resolvedSubcategoryIds,
+      price: pData.price !== undefined && pData.price !== '' ? pData.price : (rawListing.price !== undefined ? rawListing.price : (rawListing.selling_price || '')),
+      description: desc,
+      conditionNote: pData.conditionNote || rawListing.conditionNote || '',
+      selectedAspects: {},
+      sku: pData.sku || rawListing.sku || '',
+      selectedModel: pData.selectedModel || rawListing.selectedModel || 'gpt-4o-mini',
+    };
+  };
+
+  useEffect(() => {
+    if (initialListing) {
+      const pData = initialListing.platformData?.poshmark || (initialListing.platform === 'poshmark' ? initialListing : {});
+      const resolved = resolvePoshmarkAttributes(initialListing, pData);
+      setFormData(prev => ({
+        ...prev,
+        ...resolved,
+        title: resolved.title || prev.title,
+        brand: resolved.brand || prev.brand,
+        color: resolved.color || prev.color,
+        styleTag: resolved.styleTag || prev.styleTag,
+        size: resolved.size || prev.size,
+        category: resolved.category || prev.category,
+        sku: resolved.sku || prev.sku
+      }));
+      setHasScanned(true);
+    }
+  }, [initialListing]);
+
   useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
@@ -474,30 +636,20 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
           setLoading(true);
           const response = await listingService.getOne(editId);
           if (response.data.success) {
-            const listing = response.data.data;
-            setFormData({
-              images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
-              selectedRule: listing.selectedRule || '',
-              selectedCondition: listing.selectedCondition || '',
-              conditionId: listing.conditionId || '',
-              title: listing.title || '',
-              brand: listing.brand || '',
-              originalPrice: listing.originalPrice || '',
-              color: listing.color || '',
-              styleTag: listing.styleTag || '',
-              quantity: listing.quantity || 1,
-              size: listing.size || '',
-              category: listing.category || '',
-              categoryId: listing.categoryId || '',
-              departmentId: listing.departmentId || '',
-              subcategoryIds: listing.subcategoryIds || [],
-              price: listing.price || '',
-              description: listing.description || '',
-              conditionNote: listing.conditionNote || '',
-              selectedAspects: listing.itemSpecifics || {},
-              sku: listing.sku || '',
-              selectedModel: listing.selectedModel || 'gpt-4o-mini',
-            });
+            const rawListing = response.data.data;
+            const pData = rawListing.platformData?.poshmark || (rawListing.platform === 'poshmark' ? rawListing : {});
+            const resolved = resolvePoshmarkAttributes(rawListing, pData);
+            setFormData(prev => ({
+              ...prev,
+              ...resolved,
+              title: resolved.title || prev.title || '',
+              brand: resolved.brand || prev.brand || '',
+              color: resolved.color || prev.color || '',
+              styleTag: resolved.styleTag || prev.styleTag || '',
+              size: resolved.size || prev.size || '',
+              category: resolved.category || prev.category || '',
+              sku: resolved.sku || prev.sku || ''
+            }));
             setHasScanned(true);
           }
         } catch (error) {
@@ -584,14 +736,15 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
-        model: formData.selectedModel || 'gpt-4o-mini'
+        model: formData.selectedModel || 'gpt-4o-mini',
+        existing_title: formData.title || initialListing?.title || ''
       });
 
       if (response.data.success) {
         const result = response.data.data;
         setFormData(prev => ({
           ...prev,
-          title: result.title,
+          title: prev.title || initialListing?.title || result.title,
           brand: result.brand || '',
           originalPrice: result.originalPrice || '',
           color: result.color || '',
@@ -634,6 +787,24 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
     label: c.label,
     description: c.description
   })), []);
+
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+
+    if (Array.isArray(files) && files.length === formData.images.length) {
+      const newFiles = [...files];
+      const [movedFile] = newFiles.splice(sourceIndex, 1);
+      newFiles.splice(targetIndex, 0, movedFile);
+      setFiles(newFiles);
+    }
+
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
 
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
@@ -829,12 +1000,46 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
               <input type="file" multiple className="hidden" onChange={handleImageUpload} />
             </label>
             {formData.images.map((img, i) => (
-              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
-                <img src={img} className="w-full h-full object-cover" alt="Product" />
+              <div 
+                key={i} 
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', String(i));
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedImgIdx(i);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverImgIdx !== i) setDragOverImgIdx(i);
+                }}
+                onDragLeave={() => {
+                  if (dragOverImgIdx === i) setDragOverImgIdx(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceIdx = draggedImgIdx !== null ? draggedImgIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                  if (!isNaN(sourceIdx)) {
+                    handleReorderImages(sourceIdx, i);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedImgIdx(null);
+                  setDragOverImgIdx(null);
+                }}
+                className={`aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border shadow-sm cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                  draggedImgIdx === i ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                } ${
+                  dragOverImgIdx === i ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100'
+                }`}
+                title="Drag and drop to reorder photos"
+              >
+                <img src={img} className="w-full h-full object-cover pointer-events-none" alt="Product" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                    <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
                       setFiles(files.filter((_, idx) => idx !== i));
                     }}
@@ -846,7 +1051,10 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
                    <button
                     type="button"
                     disabled={i === 0}
-                    onClick={() => moveImage(i, 'left')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'left');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Left"
                    >
@@ -855,7 +1063,10 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
                    <button
                     type="button"
                     disabled={i === formData.images.length - 1}
-                    onClick={() => moveImage(i, 'right')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'right');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Right"
                    >
@@ -863,7 +1074,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
                    </button>
                 </div>
                 {i === 0 && (
-                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider">Cover</span>
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider pointer-events-none">Cover</span>
                 )}
               </div>
             ))}
@@ -1160,7 +1371,13 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, onC
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate('/listings')}
+              onClick={() => {
+                if (isModal && onClose) {
+                  onClose();
+                } else {
+                  navigate('/listings');
+                }
+              }}
             >
               Cancel
             </Button>

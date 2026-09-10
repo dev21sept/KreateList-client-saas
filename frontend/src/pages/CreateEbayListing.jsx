@@ -224,13 +224,13 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search categor
   );
 };
 
-const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose = null }) => {
+const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initialListing = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const [searchParams] = useSearchParams();
   const editId = propEditId || searchParams.get('edit');
   const platform = 'ebay';
-  const [hasScanned, setHasScanned] = useState(editId ? true : false);
+  const [hasScanned, setHasScanned] = useState((editId || initialListing) ? true : false);
   const [loading, setLoading] = useState(false);
   const [descriptionMode, setDescriptionMode] = useState('preview'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
@@ -255,6 +255,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
     returnPolicyId: '',
     locationKey: ''
   });
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
 
@@ -330,6 +332,100 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
     fetchEbayPolicies();
   }, []);
 
+  const mapEbayCondition = (raw) => {
+    if (!raw) return 'Pre-owned - Good';
+    const str = String(raw).toLowerCase();
+    if (str.includes('new with tag') || str.includes('nwt') || str.includes('brand new') || str === 'new' || str === '1000' || str === '1') {
+      return 'New with tags';
+    }
+    if (str.includes('new without tag') || str.includes('nwot') || str === '1500') {
+      return 'New without tags';
+    }
+    if (str.includes('like new') || str.includes('mint') || str === '2750' || str === '2') {
+      return 'Pre-owned - Excellent';
+    }
+    if (str.includes('fair') || str === '6000' || str === '4') {
+      return 'Pre-owned - Fair';
+    }
+    return 'Pre-owned - Good';
+  };
+
+  useEffect(() => {
+    if (initialListing) {
+      const ebData = initialListing.platformData?.ebay || (initialListing.platform === 'ebay' ? initialListing : {});
+      
+      const allImgs = (initialListing.images && initialListing.images.length >= (ebData.images?.length || 0))
+        ? initialListing.images
+        : (ebData.images && ebData.images.length > 0 ? ebData.images : (initialListing.images || []));
+
+      const catId = ebData.categoryId || initialListing.categoryId || (initialListing.platform === 'ebay' ? initialListing.categoryId : '');
+      const catName = (ebData.category && ebData.category !== 'Clothing')
+        ? ebData.category
+        : (initialListing.category || ebData.category || '');
+
+      const rawSpecs = (ebData.itemSpecifics && Object.keys(ebData.itemSpecifics).length > 0)
+        ? ebData.itemSpecifics
+        : (initialListing.itemSpecifics || initialListing.selectedAspects || {});
+
+      const mergedAspects = { ...rawSpecs };
+      if ((ebData.brand || initialListing.brand) && !mergedAspects['Brand']) {
+        mergedAspects['Brand'] = [ebData.brand || initialListing.brand];
+      }
+      if ((ebData.color || initialListing.color) && !mergedAspects['Color']) {
+        mergedAspects['Color'] = [ebData.color || initialListing.color];
+      }
+      if ((ebData.size || initialListing.size) && !mergedAspects['Size']) {
+        mergedAspects['Size'] = [ebData.size || initialListing.size];
+      }
+
+      const cond = ebData.selectedCondition || ebData.condition || initialListing.selectedCondition || initialListing.condition || '';
+      const mappedCond = mapEbayCondition(cond);
+
+      setFormData(prev => ({
+        ...prev,
+        images: (allImgs || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
+        selectedRule: ebData.selectedRule || initialListing.selectedRule || prev.selectedRule,
+        selectedCondition: mappedCond,
+        title: ebData.title || initialListing.title || prev.title,
+        category: catName || prev.category,
+        categoryId: catId || prev.categoryId,
+        price: ebData.price !== undefined && ebData.price !== '' ? ebData.price : (initialListing.price !== undefined ? initialListing.price : (initialListing.selling_price || prev.price)),
+        description: ebData.description || initialListing.description || prev.description,
+        conditionNote: ebData.conditionNote || initialListing.conditionNote || prev.conditionNote,
+        selectedAspects: mergedAspects,
+        sku: ebData.sku || initialListing.sku || prev.sku,
+      }));
+
+      if (catId) {
+        ebayService.getCategoryAspects(catId).then(aspectsRes => {
+          if (aspectsRes.data.success && Array.isArray(aspectsRes.data.data)) {
+            const fetchedAspects = aspectsRes.data.data;
+            const existingKeys = new Set(fetchedAspects.map(a => a.localizedAspectName?.toLowerCase()));
+            const customAspects = [];
+            for (const [key, val] of Object.entries(mergedAspects)) {
+              if (!existingKeys.has(key.toLowerCase())) {
+                customAspects.push({
+                  localizedAspectName: key,
+                  aspectConstraint: { aspectRequired: false, aspectUsage: 'OPTIONAL' },
+                  aspectValues: Array.isArray(val) ? val.map(v => ({ localizedValue: String(v) })) : [{ localizedValue: String(val) }]
+                });
+              }
+            }
+            setAspects([...fetchedAspects, ...customAspects]);
+          }
+        }).catch(err => console.error("Error fetching aspects:", err));
+      } else if (Object.keys(mergedAspects).length > 0) {
+        const syntheticAspects = Object.entries(mergedAspects).map(([key, val]) => ({
+          localizedAspectName: key,
+          aspectConstraint: { aspectRequired: false, aspectUsage: 'OPTIONAL' },
+          aspectValues: Array.isArray(val) ? val.map(v => ({ localizedValue: String(v) })) : [{ localizedValue: String(val) }]
+        }));
+        setAspects(syntheticAspects);
+      }
+      setHasScanned(true);
+    }
+  }, [initialListing]);
+
   useEffect(() => {
     if (editId) {
       const fetchListing = async () => {
@@ -337,38 +433,86 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
           setLoading(true);
           const response = await listingService.getOne(editId);
           if (response.data.success) {
-            const listing = response.data.data;
-            setFormData({
-              images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
-              selectedRule: listing.selectedRule || '',
-              selectedCondition: listing.selectedCondition || '',
-              conditionId: listing.conditionId || '',
-              title: listing.title || '',
-              category: listing.category || '',
-              categoryId: listing.categoryId || '',
-              price: listing.price || '',
-              description: listing.description || '',
-              conditionNote: listing.conditionNote || '',
-              selectedAspects: listing.itemSpecifics || {},
-              sku: listing.sku || '',
-              selectedModel: listing.selectedModel || 'gpt-4o-mini',
-              packageWeight: listing.packageWeight || { lbs: '', oz: '' },
-              packageDimensions: listing.packageDimensions || { length: '', width: '', height: '' },
-              fulfillmentPolicyId: listing.fulfillmentPolicyId || '',
-              paymentPolicyId: listing.paymentPolicyId || '',
-              returnPolicyId: listing.returnPolicyId || '',
-              locationKey: listing.locationKey || ''
-            });
+            const rawListing = response.data.data;
+            const ebData = rawListing.platformData?.ebay || (rawListing.platform === 'ebay' ? rawListing : {});
+            
+            const allImgs = (rawListing.images && rawListing.images.length >= (ebData.images?.length || 0))
+              ? rawListing.images
+              : (ebData.images && ebData.images.length > 0 ? ebData.images : (rawListing.images || []));
 
-            if (listing.categoryId) {
+            const catId = ebData.categoryId || rawListing.categoryId || (rawListing.platform === 'ebay' ? rawListing.categoryId : '');
+            const catName = (ebData.category && ebData.category !== 'Clothing')
+              ? ebData.category
+              : (rawListing.category || ebData.category || '');
+
+            const rawSpecs = (ebData.itemSpecifics && Object.keys(ebData.itemSpecifics).length > 0)
+              ? ebData.itemSpecifics
+              : (rawListing.itemSpecifics || rawListing.selectedAspects || {});
+
+            const mergedAspects = { ...rawSpecs };
+            if ((ebData.brand || rawListing.brand) && !mergedAspects['Brand']) {
+              mergedAspects['Brand'] = [ebData.brand || rawListing.brand];
+            }
+            if ((ebData.color || rawListing.color) && !mergedAspects['Color']) {
+              mergedAspects['Color'] = [ebData.color || rawListing.color];
+            }
+            if ((ebData.size || rawListing.size) && !mergedAspects['Size']) {
+              mergedAspects['Size'] = [ebData.size || rawListing.size];
+            }
+
+            const cond = ebData.selectedCondition || ebData.condition || rawListing.selectedCondition || rawListing.condition || '';
+            const mappedCond = mapEbayCondition(cond);
+
+            setFormData(prev => ({
+              images: (allImgs || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
+              selectedRule: ebData.selectedRule || rawListing.selectedRule || '',
+              selectedCondition: mappedCond,
+              conditionId: ebData.conditionId || rawListing.conditionId || '',
+              title: ebData.title || rawListing.title || prev.title || '',
+              category: catName,
+              categoryId: catId,
+              price: ebData.price !== undefined && ebData.price !== '' ? ebData.price : (rawListing.price || ''),
+              description: ebData.description || rawListing.description || '',
+              conditionNote: ebData.conditionNote || rawListing.conditionNote || '',
+              selectedAspects: mergedAspects,
+              sku: ebData.sku || rawListing.sku || '',
+              selectedModel: ebData.selectedModel || rawListing.selectedModel || 'gpt-4o-mini',
+              packageWeight: ebData.packageWeight || rawListing.packageWeight || { lbs: '', oz: '' },
+              packageDimensions: ebData.packageDimensions || rawListing.packageDimensions || { length: '', width: '', height: '' },
+              fulfillmentPolicyId: ebData.fulfillmentPolicyId || rawListing.fulfillmentPolicyId || '',
+              paymentPolicyId: ebData.paymentPolicyId || rawListing.paymentPolicyId || '',
+              returnPolicyId: ebData.returnPolicyId || rawListing.returnPolicyId || '',
+              locationKey: ebData.locationKey || rawListing.locationKey || ''
+            }));
+
+            if (catId) {
               try {
-                const aspectsRes = await ebayService.getCategoryAspects(listing.categoryId);
-                if (aspectsRes.data.success) {
-                  setAspects(aspectsRes.data.data);
+                const aspectsRes = await ebayService.getCategoryAspects(catId);
+                if (aspectsRes.data.success && Array.isArray(aspectsRes.data.data)) {
+                  const fetchedAspects = aspectsRes.data.data;
+                  const existingKeys = new Set(fetchedAspects.map(a => a.localizedAspectName?.toLowerCase()));
+                  const customAspects = [];
+                  for (const [key, val] of Object.entries(mergedAspects)) {
+                    if (!existingKeys.has(key.toLowerCase())) {
+                      customAspects.push({
+                        localizedAspectName: key,
+                        aspectConstraint: { aspectRequired: false, aspectUsage: 'OPTIONAL' },
+                        aspectValues: Array.isArray(val) ? val.map(v => ({ localizedValue: String(v) })) : [{ localizedValue: String(val) }]
+                      });
+                    }
+                  }
+                  setAspects([...fetchedAspects, ...customAspects]);
                 }
               } catch (err) {
                 console.error("Error fetching aspects in edit mode:", err);
               }
+            } else if (Object.keys(mergedAspects).length > 0) {
+              const syntheticAspects = Object.entries(mergedAspects).map(([key, val]) => ({
+                localizedAspectName: key,
+                aspectConstraint: { aspectRequired: false, aspectUsage: 'OPTIONAL' },
+                aspectValues: Array.isArray(val) ? val.map(v => ({ localizedValue: String(v) })) : [{ localizedValue: String(val) }]
+              }));
+              setAspects(syntheticAspects);
             }
             setHasScanned(true);
           }
@@ -457,7 +601,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
-        model: formData.selectedModel || 'gpt-4o-mini'
+        model: formData.selectedModel || 'gpt-4o-mini',
+        existing_title: formData.title || initialListing?.title || ''
       });
 
       if (response.data.success) {
@@ -479,7 +624,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
 
         setFormData(prev => ({
           ...prev,
-          title: result.title,
+          title: prev.title || initialListing?.title || result.title,
           price: result.price,
           description: result.description,
           conditionNote: selectedRuleObj?.condition_note || '',
@@ -541,6 +686,24 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
     const locId = formData.locationKey || selectedRuleObj?.locationKey || '';
     return ebayPolicies.locations.find(l => l.id === locId)?.label || locId || 'None';
   }, [formData.locationKey, formData.selectedRule, rules, ebayPolicies.locations]);
+
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+
+    if (Array.isArray(files) && files.length === formData.images.length) {
+      const newFiles = [...files];
+      const [movedFile] = newFiles.splice(sourceIndex, 1);
+      newFiles.splice(targetIndex, 0, movedFile);
+      setFiles(newFiles);
+    }
+
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
 
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
@@ -791,11 +954,46 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
               <input type="file" multiple className="hidden" onChange={handleImageUpload} />
             </label>
             {formData.images.map((img, i) => (
-              <div key={i} className="aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border border-slate-100 shadow-sm">
-                <img src={img} className="w-full h-full object-cover" alt="Product" />
+              <div 
+                key={i} 
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', String(i));
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedImgIdx(i);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverImgIdx !== i) setDragOverImgIdx(i);
+                }}
+                onDragLeave={() => {
+                  if (dragOverImgIdx === i) setDragOverImgIdx(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceIdx = draggedImgIdx !== null ? draggedImgIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                  if (!isNaN(sourceIdx)) {
+                    handleReorderImages(sourceIdx, i);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedImgIdx(null);
+                  setDragOverImgIdx(null);
+                }}
+                className={`aspect-square bg-slate-100 rounded-2xl relative group overflow-hidden border shadow-sm cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                  draggedImgIdx === i ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                } ${
+                  dragOverImgIdx === i ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100'
+                }`}
+                title="Drag and drop to reorder photos"
+              >
+                <img src={img} className="w-full h-full object-cover pointer-events-none" alt="Product" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                    <button
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setFormData({...formData, images: formData.images.filter((_, idx) => idx !== i)});
                       setFiles(files.filter((_, idx) => idx !== i));
                     }}
@@ -805,16 +1003,24 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
                     <Trash2 size={14} />
                    </button>
                    <button
+                    type="button"
                     disabled={i === 0}
-                    onClick={() => moveImage(i, 'left')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'left');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Left"
                    >
                     <ArrowLeft size={14} />
                    </button>
                    <button
+                    type="button"
                     disabled={i === formData.images.length - 1}
-                    onClick={() => moveImage(i, 'right')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveImage(i, 'right');
+                    }}
                     className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg disabled:opacity-40 cursor-pointer transition-colors"
                     title="Move Right"
                    >
@@ -822,7 +1028,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
                    </button>
                 </div>
                 {i === 0 && (
-                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider">Cover</span>
+                  <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider pointer-events-none">Cover</span>
                 )}
               </div>
             ))}
@@ -1240,7 +1446,13 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, onClose
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate('/listings')}
+              onClick={() => {
+                if (isModal && onClose) {
+                  onClose();
+                } else {
+                  navigate('/listings');
+                }
+              }}
             >
               Cancel
             </Button>

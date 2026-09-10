@@ -272,7 +272,8 @@ exports.depopAnalyzeListing = async (req, res) => {
             condition_name = 'Pre-owned',
             gender = 'Unisex',
             condition_note = '',
-            model = 'gpt-4o-mini'
+            model = 'gpt-4o-mini',
+            existing_title = ''
         } = req.body;
 
         let aiClient = openai;
@@ -370,12 +371,12 @@ exports.depopAnalyzeListing = async (req, res) => {
                             text: `Analyze images for a professional Depop listing.
                             
 1. Visual Research & Title Construction:
-   - Identify the exact retail name of the product.
+   ${existing_title && existing_title.trim() !== '' ? `- CRITICAL TITLE RULE: The product title is ALREADY ESTABLISHED as: "${existing_title.trim()}". You MUST preserve this title in 'title' and extract matching attributes inside 'title_parts' for the Title Sequence: [${effectiveStructure.join(', ')}]. Do NOT invent a different product title.` : `- Identify the exact retail name of the product.
    - Create a title following this structure sequence: [${effectiveStructure.join(', ')}]
    
    CRITICAL RULES:
    - GOAL: A descriptive title up to 80 characters.
-   - Output as a JSON object inside 'title_parts'.
+   - Output as a JSON object inside 'title_parts'.`}
 
 ${descriptionInstruction}
 
@@ -460,21 +461,26 @@ Response ONLY as JSON: {
             standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
         });
 
-        const titleString = effectiveStructure
-            .map(key => {
-                let val = standardizedParts[key] || '';
-                val = String(val).replace(/,/g, '');
-                if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
-                    return `Size ${val}`;
-                }
-                return val;
-            })
-            .filter(val => val && val.toString().trim() !== '')
-            .join(' ')
-            .substring(0, 80)
-            .trim();
+        let rawTitle = '';
+        if (existing_title && existing_title.trim() !== '') {
+            rawTitle = existing_title.trim().substring(0, 128);
+        } else {
+            const titleString = effectiveStructure
+                .map(key => {
+                    let val = standardizedParts[key] || '';
+                    val = String(val).replace(/,/g, '');
+                    if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
+                        return `Size ${val}`;
+                    }
+                    return val;
+                })
+                .filter(val => val && val.toString().trim() !== '')
+                .join(' ')
+                .substring(0, 80)
+                .trim();
 
-        const rawTitle = titleString || finalData.title || 'New Depop Listing';
+            rawTitle = titleString || finalData.title || 'New Depop Listing';
+        }
         const finalTitle = sanitizeTitle(rawTitle);
         const rawDescription = finalData.description || '';
         const templatedDescription = sanitizeDescription(rawDescription);

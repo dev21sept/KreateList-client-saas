@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const { normalizeProductImages, generateThumbnail } = require('../utils/imageProcessor');
+const { isListingMatch, cleanAndTokenize, extractUniqueImageKey } = require('../utils/listingMatcher');
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
 const { sanitizeEbayDescription } = require('../services/descriptionService');
@@ -23,7 +25,7 @@ const isAspectValueInvalid = (val) => {
 exports.getListings = async (req, res) => {
   try {
     const listings = await Listing.find({ user: req.user.id })
-      .select('-description -itemSpecifics -images')
+      .select('-description -itemSpecifics')
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: listings.length, data: listings });
   } catch (err) {
@@ -245,13 +247,13 @@ exports.createListing = async (req, res) => {
 
     const existing = await Listing.findOne({ user: req.user.id, sku: req.body.sku });
     if (existing) {
-      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
+      const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'];
       platforms.forEach(p => {
         if (existing[`${p}Status`] && existing[`${p}Status`] !== 'none' && !req.body[`${p}Status`]) {
           req.body[`${p}Status`] = existing[`${p}Status`];
         }
       });
-      const idFields = ['ebayListingId', 'ebayUrl', 'poshmarkListingId', 'poshmarkUrl', 'depopListingId', 'depopUrl', 'etsyListingId', 'etsyUrl'];
+      const idFields = ['ebayListingId', 'ebayUrl', 'poshmarkListingId', 'poshmarkUrl', 'depopListingId', 'depopUrl', 'etsyListingId', 'etsyUrl', 'mercariListingId', 'mercariUrl'];
       idFields.forEach(f => {
         if (existing[f] && !req.body[f]) {
           req.body[f] = existing[f];
@@ -275,6 +277,7 @@ exports.createListing = async (req, res) => {
 exports.getListing = async (req, res) => {
   try {
     let listing = await Listing.findById(req.params.id);
+    let isFromProduct = false;
     if (!listing) {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
@@ -287,7 +290,8 @@ exports.getListing = async (req, res) => {
         }
         listing = await Listing.findOne(query);
         if (!listing) {
-          listing = new Listing({
+          isFromProduct = true;
+          listing = {
             _id: prod._id,
             user: req.user.id,
             title: prod.title,
@@ -302,7 +306,7 @@ exports.getListing = async (req, res) => {
             price: prod.selling_price || 0,
             images: prod.images || [],
             status: 'draft'
-          });
+          };
           if (prod.ebayListingId) {
             listing.ebayListingId = prod.ebayListingId;
             listing.ebayUrl = prod.ebayUrl;
@@ -323,7 +327,11 @@ exports.getListing = async (req, res) => {
             listing.depopUrl = prod.depopUrl;
             listing.depopStatus = prod.status === 'active' ? 'published' : 'delisted';
           }
-          await listing.save();
+          if (prod.mercariListingId) {
+            listing.mercariListingId = prod.mercariListingId;
+            listing.mercariUrl = prod.mercariUrl;
+            listing.mercariStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
         }
       }
     }
@@ -334,6 +342,154 @@ exports.getListing = async (req, res) => {
     if (listing.user.toString() !== req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
+
+    // Auto-enrich eBay listings with full details (all photos, aspects, condition, category, description) if missing/minimal
+    if (listing.ebayListingId && (!listing.itemSpecifics || Object.keys(listing.itemSpecifics).length === 0 || !listing.images || listing.images.length <= 1 || !listing.categoryId || listing.category === 'Clothing')) {
+      try {
+        const token = await getValidToken(req.user.id);
+        if (token) {
+          console.log(`[GET LISTING] Auto-enriching eBay details for ItemID: ${listing.ebayListingId}`);
+          const ebayDetails = await ebayService.getTradingItemDetails(token, listing.ebayListingId);
+          if (ebayDetails) {
+            let changed = false;
+            if (ebayDetails.images && ebayDetails.images.length > (listing.images?.length || 0)) {
+              listing.images = ebayDetails.images;
+              changed = true;
+            }
+            if (ebayDetails.itemSpecifics && Object.keys(ebayDetails.itemSpecifics).length > 0) {
+              listing.itemSpecifics = ebayDetails.itemSpecifics;
+              changed = true;
+            }
+            if (ebayDetails.categoryId && (!listing.categoryId || listing.categoryId !== ebayDetails.categoryId)) {
+              listing.categoryId = ebayDetails.categoryId;
+              changed = true;
+            }
+            if (ebayDetails.categoryName && (!listing.category || listing.category === 'Clothing')) {
+              listing.category = ebayDetails.categoryName;
+              changed = true;
+            }
+            if (ebayDetails.conditionId && (!listing.conditionId || listing.conditionId === '')) {
+              listing.conditionId = ebayDetails.conditionId;
+              listing.selectedCondition = ebayDetails.conditionDisplayName || ebayDetails.conditionId;
+              changed = true;
+            }
+            if (ebayDetails.conditionDescription && !listing.conditionNote) {
+              listing.conditionNote = ebayDetails.conditionDescription;
+              changed = true;
+            }
+            if (ebayDetails.description && (!listing.description || listing.description === listing.title)) {
+              listing.description = ebayDetails.description;
+              changed = true;
+            }
+            if (ebayDetails.brand && !listing.brand) {
+              listing.brand = ebayDetails.brand;
+              changed = true;
+            }
+            if (ebayDetails.size && !listing.size) {
+              listing.size = ebayDetails.size;
+              changed = true;
+            }
+            if (ebayDetails.color && !listing.color) {
+              listing.color = ebayDetails.color;
+              changed = true;
+            }
+
+            if (changed) {
+              if (!isFromProduct && typeof listing.save === 'function') {
+                await listing.save();
+              }
+              const Product = require('../models/Product');
+              await Product.updateOne(
+                { _id: listing._id },
+                {
+                  $set: {
+                    images: listing.images,
+                    itemSpecifics: listing.itemSpecifics,
+                    categoryId: listing.categoryId,
+                    brand: listing.brand,
+                    size: listing.size,
+                    color: listing.color,
+                    description: listing.description
+                  }
+                }
+              );
+              console.log(`[GET LISTING] Successfully enriched eBay item ${listing.ebayListingId} with ${listing.images?.length} images, ${Object.keys(listing.itemSpecifics || {}).length} aspects`);
+            }
+          }
+        }
+      } catch (enrichErr) {
+        console.warn(`[GET LISTING] Failed to auto-enrich eBay item ${listing.ebayListingId}:`, enrichErr.message);
+      }
+    }
+
+    // Auto-enrich Mercari listings with full details (all photos, description, category, size, brand) if missing/minimal
+    const mercariId = listing.mercariListingId || (listing.sku && listing.sku.startsWith('M-m') ? listing.sku.replace('M-', '') : null);
+    if (mercariId && (!listing.images || listing.images.length <= 1 || !listing.description || listing.description === listing.title)) {
+      try {
+        const User = require('../models/User');
+        const user = await User.findById(req.user.id);
+        if (user?.mercariAccount?.connected) {
+          const { fetchMercariItemDetails } = require('../services/mercariService');
+          console.log(`[GET LISTING] Auto-enriching Mercari details for ItemID: ${mercariId}`);
+          const mercDetails = await fetchMercariItemDetails(mercariId, user.mercariAccount);
+          if (mercDetails) {
+            let changed = false;
+            if (mercDetails.images && mercDetails.images.length > (listing.images?.length || 0)) {
+              listing.images = mercDetails.images;
+              changed = true;
+            }
+            if (mercDetails.description && (!listing.description || listing.description === listing.title)) {
+              listing.description = mercDetails.description;
+              changed = true;
+            }
+            if (mercDetails.brand && !listing.brand) {
+              listing.brand = mercDetails.brand;
+              changed = true;
+            }
+            if (mercDetails.size && !listing.size) {
+              listing.size = mercDetails.size;
+              changed = true;
+            }
+            if (mercDetails.category && (!listing.category || listing.category === 'Clothing')) {
+              listing.category = mercDetails.category;
+              changed = true;
+            }
+            if (mercDetails.categoryId && !listing.categoryId) {
+              listing.categoryId = mercDetails.categoryId;
+              changed = true;
+            }
+            if (mercDetails.condition && !listing.selectedCondition) {
+              listing.selectedCondition = mercDetails.selectedCondition || mercDetails.condition;
+              changed = true;
+            }
+
+            if (changed) {
+              if (!isFromProduct && typeof listing.save === 'function') {
+                await listing.save();
+              }
+              const Product = require('../models/Product');
+              await Product.updateOne(
+                { _id: listing._id },
+                {
+                  $set: {
+                    images: listing.images,
+                    categoryId: listing.categoryId,
+                    brand: listing.brand,
+                    size: listing.size,
+                    description: listing.description,
+                    category: listing.category
+                  }
+                }
+              );
+              console.log(`[GET LISTING] Successfully enriched Mercari item ${mercariId} with ${listing.images?.length} images, category: ${listing.category}`);
+            }
+          }
+        }
+      } catch (mercEnrichErr) {
+        console.warn(`[GET LISTING] Failed to auto-enrich Mercari item ${mercariId}:`, mercEnrichErr.message);
+      }
+    }
+
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -393,6 +549,11 @@ exports.updateListing = async (req, res) => {
             listing.depopListingId = prod.depopListingId;
             listing.depopUrl = prod.depopUrl;
             listing.depopStatus = prod.status === 'active' ? 'published' : 'delisted';
+          }
+          if (prod.mercariListingId) {
+            listing.mercariListingId = prod.mercariListingId;
+            listing.mercariUrl = prod.mercariUrl;
+            listing.mercariStatus = prod.status === 'active' ? 'published' : 'delisted';
           }
           await listing.save();
         }
@@ -831,7 +992,39 @@ function resolveConditionForCategory(conditionId, validIds) {
 // @access  Private
 exports.publishListing = async (req, res) => {
   try {
-    const listing = await Listing.findById(req.params.id);
+    let listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        if (!listing) {
+          listing = new Listing({
+            user: req.user.id,
+            title: prod.title,
+            description: prod.description || prod.title,
+            sku: prod.sku || `KL${Date.now()}`,
+            brand: prod.brand || '',
+            size: prod.size || '',
+            color: prod.color || '',
+            category: 'Clothing',
+            categoryId: prod.categoryId || '',
+            itemSpecifics: prod.itemSpecifics || {},
+            price: String(prod.selling_price || 0),
+            images: prod.images || [],
+            thumbnail: prod.images?.[0] || '',
+            status: 'draft',
+            platform: 'ebay'
+          });
+          if (prod.ebayListingId) {
+            listing.ebayListingId = prod.ebayListingId;
+            listing.ebayUrl = prod.ebayUrl;
+          }
+          await listing.save();
+        }
+      }
+    }
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
@@ -1286,18 +1479,73 @@ async function checkUrlActive(url) {
 // @access  Private
 exports.verifyListingLive = async (req, res) => {
   try {
-    const listing = await Listing.findById(req.params.id);
-    if (!listing) {
-      return res.status(404).json({ success: false, message: 'Listing not found' });
-    }
-    if (listing.user.toString() !== req.user.id) {
-      return res.status(401).json({ success: false, message: 'Not authorized' });
-    }
-
+    const itemId = req.params.id;
     const User = require('../models/User');
+    const Product = require('../models/Product');
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    let listing = null;
+    let product = null;
+
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(itemId);
+    if (isValidObjectId) {
+      listing = await Listing.findById(itemId);
+      if (!listing) {
+        product = await Product.findById(itemId);
+        if (product && product.user.toString() === req.user.id) {
+          listing = await Listing.findOne({ user: req.user.id, $or: [{ sku: product.sku }, { mercariListingId: product.mercariListingId }] });
+        }
+      }
+    } else {
+      listing = await Listing.findOne({
+        user: req.user.id,
+        $or: [
+          { sku: itemId },
+          { ebayListingId: itemId },
+          { poshmarkListingId: itemId },
+          { mercariListingId: itemId },
+          { etsyListingId: itemId },
+          { depopListingId: itemId }
+        ]
+      });
+      if (!listing) {
+        product = await Product.findOne({
+          user: req.user.id,
+          $or: [
+            { sku: itemId },
+            { mercariListingId: itemId }
+          ]
+        });
+      }
+    }
+
+    if (!listing && !product) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    // If only Product exists (Channel Inventory)
+    if (!listing && product) {
+      const platform = product.source || 'mercari';
+      if (platform === 'mercari' && product.mercariListingId) {
+        const { verifyMercariListingStatus } = require('../services/mercariService');
+        const verifyResult = await verifyMercariListingStatus(product.mercariListingId, user.mercariAccount);
+        if (verifyResult.status === 'deleted' || verifyResult.mercariStatus === 'deleted') {
+          await Product.findByIdAndDelete(product._id);
+          return res.status(200).json({ success: true, isLive: false, status: 'deleted', message: 'Item was deleted on Mercari.' });
+        } else {
+          product.status = verifyResult.status;
+          await product.save();
+          return res.status(200).json({ success: true, isLive: verifyResult.isLive, status: product.status, data: product, message: `Verified status on Mercari: ${product.status}` });
+        }
+      }
+      return res.status(200).json({ success: true, isLive: product.status === 'active' || product.status === 'live', data: product, message: `Status on ${platform}: ${product.status}` });
+    }
+
+    if (listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
     }
 
     let isLive = false;
@@ -1311,35 +1559,30 @@ exports.verifyListingLive = async (req, res) => {
             const { getOffers } = require('../services/ebayService');
             const offers = await getOffers(token, listing.sku);
 
-            // The real eBay listing ID/status live under offer.listing, not a
-            // top-level offer.listingId field (which doesn't exist).
             const isOfferActive = (o) => o.listing?.listingStatus
               ? o.listing.listingStatus === 'ACTIVE'
               : o.status === 'PUBLISHED';
 
-            // Check if there is any active published offer for this SKU
             let activeOffer = null;
             if (listing.ebayListingId) {
               activeOffer = offers && offers.find(o => o.listing?.listingId === listing.ebayListingId && isOfferActive(o));
             }
 
-            // Fallback: If not matched by ID, check if there's any active published offer on this SKU at all
             if (!activeOffer && offers && offers.length > 0) {
               activeOffer = offers.find(isOfferActive);
               if (activeOffer && activeOffer.listing?.listingId) {
-                // Sync the listing ID back if it was missing or different
                 const listingId = activeOffer.listing.listingId;
                 listing.ebayListingId = listingId;
                 listing.ebayUrl = `https://www.ebay.com/itm/${listingId}`;
                 listing.ebayStatus = 'published';
                 listing.status = 'published';
                 await listing.save();
-                console.log(`[Verify Live] eBay Listing ID synchronized for SKU ${listing.sku}: ${listingId}`);
               }
             }
 
             if (activeOffer) {
               isLive = true;
+              listing.ebayStatus = 'published';
             }
           }
         } catch (err) {
@@ -1364,6 +1607,7 @@ exports.verifyListingLive = async (req, res) => {
           const postStatus = pmRes.data?.status || pmRes.data?.post?.status;
           if (postStatus === 'available') {
             isLive = true;
+            listing.poshmarkStatus = 'published';
           }
         } catch (err) {
           console.warn(`[Verify Live] Poshmark API check failed:`, err.message);
@@ -1384,16 +1628,12 @@ exports.verifyListingLive = async (req, res) => {
             });
             if (response.data && response.data.state === 'active') {
               isLive = true;
-            } else {
-              console.log(`[Verify Live] Etsy listing state is: ${response.data?.state}`);
+              listing.etsyStatus = 'published';
             }
           }
         } catch (err) {
           console.warn(`[Verify Live] Etsy API check failed:`, err.response?.data || err.message);
-          // If it's a temporary API error (rate limit, 5xx, or token issue) other than a definitive 404, 
-          // do NOT mark it as dead to prevent false negatives.
           if (err.response && err.response.status !== 404) {
-            console.log(`[Verify Live] Etsy API returned error ${err.response.status}. Assuming still active.`);
             isLive = true; 
           }
         }
@@ -1411,6 +1651,7 @@ exports.verifyListingLive = async (req, res) => {
             });
             if (response.data && response.data.status === 'active') {
               isLive = true;
+              listing.depopStatus = 'published';
             }
           } catch (err) {
             console.warn(`[Verify Live] Depop Partner API check failed:`, err.message);
@@ -1421,10 +1662,31 @@ exports.verifyListingLive = async (req, res) => {
           }
         }
       }
+    } else if (platform === 'mercari') {
+      const activeId = listing.mercariListingId;
+      if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+        try {
+          const { verifyMercariListingStatus } = require('../services/mercariService');
+          const verifyResult = await verifyMercariListingStatus(activeId, user.mercariAccount);
+          if (verifyResult.isLive) {
+            isLive = true;
+            listing.mercariStatus = 'published';
+          } else if (verifyResult.status === 'deleted' || verifyResult.mercariStatus === 'deleted') {
+            listing.mercariStatus = 'none';
+            listing.mercariListingId = undefined;
+            listing.mercariUrl = undefined;
+            await Product.findOneAndDelete({ user: req.user.id, mercariListingId: activeId });
+          } else {
+            listing.mercariStatus = verifyResult.mercariStatus || 'delisted';
+          }
+        } catch (err) {
+          console.warn(`[Verify Live] Mercari API check failed:`, err.message);
+        }
+      }
     }
 
     if (!isLive) {
-      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Delisted.`);
+      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting to Delisted/Draft.`);
       
       if (platform === 'poshmark') {
         listing.poshmarkStatus = 'delisted';
@@ -1434,24 +1696,60 @@ exports.verifyListingLive = async (req, res) => {
         listing.etsyStatus = 'delisted';
       } else if (platform === 'depop') {
         listing.depopStatus = 'delisted';
+      } else if (platform === 'mercari') {
+        if (listing.mercariStatus !== 'none') {
+          listing.mercariStatus = 'delisted';
+        }
       }
       
-      // Check if there are no remaining active published platform listings
       const hasActive = (listing.ebayStatus === 'published' || 
                          listing.poshmarkStatus === 'published' || 
                          listing.etsyStatus === 'published' || 
-                         listing.depopStatus === 'published');
-      if (!hasActive) {
+                         listing.depopStatus === 'published' ||
+                         listing.mercariStatus === 'published');
+      const hasDelisted = (listing.ebayStatus === 'delisted' || 
+                           listing.poshmarkStatus === 'delisted' || 
+                           listing.etsyStatus === 'delisted' || 
+                           listing.depopStatus === 'delisted' ||
+                           listing.mercariStatus === 'delisted');
+      if (hasActive) {
+        listing.status = 'published';
+      } else if (hasDelisted) {
         listing.status = 'delisted';
+      } else {
+        listing.status = 'draft';
       }
       
       await listing.save();
-      return res.status(200).json({ success: true, isLive: false, status: 'delisted', data: listing });
+      return res.status(200).json({
+        success: true,
+        isLive: false,
+        status: listing.status,
+        data: listing,
+        message: `Listing is ${listing[`${platform}Status`] === 'none' ? 'not listed' : 'delisted'} on ${platform.toUpperCase()}`
+      });
     }
 
-    res.status(200).json({ success: true, isLive: true });
+    const hasActive = (listing.ebayStatus === 'published' || 
+                       listing.poshmarkStatus === 'published' || 
+                       listing.etsyStatus === 'published' || 
+                       listing.depopStatus === 'published' ||
+                       listing.mercariStatus === 'published');
+    if (hasActive) {
+      listing.status = 'published';
+      await listing.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      isLive: true,
+      status: listing.status,
+      data: listing,
+      message: `Listing is live and active on ${platform.toUpperCase()}!`
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error(`[Verify Live] Error:`, err.message);
+    res.status(500).json({ success: false, message: `Verify live failed: ${err.message}` });
   }
 };
 
@@ -1597,6 +1895,17 @@ exports.delistListing = async (req, res) => {
       }
       
       listing.depopStatus = 'delisted';
+    } else if (platformLower === 'mercari') {
+      const activeId = listing.mercariListingId || (prod && prod.mercariListingId);
+      if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+        try {
+          const { deactivateMercariListing } = require('../services/mercariService');
+          await deactivateMercariListing(activeId, user.mercariAccount);
+        } catch (mErr) {
+          console.warn(`[Delist Listing] Mercari remote deactivation failed:`, mErr.message);
+        }
+      }
+      listing.mercariStatus = 'delisted';
     } else {
       return res.status(400).json({ success: false, message: `Unsupported platform: ${platform}` });
     }
@@ -1605,7 +1914,8 @@ exports.delistListing = async (req, res) => {
     const hasActive = (listing.ebayStatus === 'published' || 
                        listing.poshmarkStatus === 'published' || 
                        listing.etsyStatus === 'published' || 
-                       listing.depopStatus === 'published');
+                       listing.depopStatus === 'published' ||
+                       listing.mercariStatus === 'published');
     if (!hasActive) {
       listing.status = 'delisted';
     }
@@ -1706,6 +2016,9 @@ exports.deletePlatformListing = async (req, res) => {
               const { deleteDepopListing } = require('../services/backendPublishService');
               await deleteDepopListing(prod[idField], user.depopAccount);
             }
+          } else if (platformLower === 'mercari' && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+            const { deleteFromMercari } = require('../services/mercariService');
+            await deleteFromMercari(prod[idField], user.mercariAccount);
           }
         } catch (delistErr) {
           console.warn(`[Delete Platform Listing] Sync product delist attempt failed:`, delistErr.message);
@@ -1772,6 +2085,9 @@ exports.deletePlatformListing = async (req, res) => {
             const { deleteDepopListing } = require('../services/backendPublishService');
             await deleteDepopListing(activeId, user.depopAccount);
           }
+        } else if (platformLower === 'mercari' && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+          const { deleteFromMercari } = require('../services/mercariService');
+          await deleteFromMercari(activeId, user.mercariAccount);
         }
       } catch (delistErr) {
         console.warn(`[Delete Platform Listing] Delist attempt failed during platform delete:`, delistErr.message);
@@ -1783,16 +2099,37 @@ exports.deletePlatformListing = async (req, res) => {
     listing[urlField] = undefined;
     listing[statusField] = 'none';
 
-    // Update global status if needed
-    const hasActive = (listing.ebayStatus === 'published' || 
-                       listing.poshmarkStatus === 'published' || 
-                       listing.etsyStatus === 'published' || 
-                       listing.depopStatus === 'published');
-    if (!hasActive) {
-      listing.status = 'draft';
+    if (listing.platforms && listing.platforms[platformLower]) {
+      delete listing.platforms[platformLower];
+      listing.markModified('platforms');
+    }
+    if (listing.crosslistingDetails && listing.crosslistingDetails[platformLower]) {
+      delete listing.crosslistingDetails[platformLower];
+      listing.markModified('crosslistingDetails');
     }
 
-    await listing.save();
+    // Check if any platform has remaining active / draft / delisted status
+    const remainingPlatforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'].filter(p => {
+      const st = listing[`${p}Status`];
+      return st && st !== 'none' && st !== 'unlisted';
+    });
+
+    let itemDeleted = false;
+    if (remainingPlatforms.length === 0) {
+      // All platforms removed / disconnected -> Delete the entire listing document from DB!
+      await Listing.findByIdAndDelete(listing._id);
+      itemDeleted = true;
+      console.log(`[Delete Platform Listing] Listing ${listing._id} (${listing.title}) deleted completely because no platforms remain.`);
+    } else {
+      if (listing.platform === platformLower) {
+        listing.platform = remainingPlatforms[0];
+      }
+      const hasActive = remainingPlatforms.some(p => listing[`${p}Status`] === 'published');
+      if (!hasActive && listing.status === 'published') {
+        listing.status = 'draft';
+      }
+      await listing.save();
+    }
 
     // Sync synced cache Product status / delete it
     try {
@@ -1815,11 +2152,1261 @@ exports.deletePlatformListing = async (req, res) => {
     }
 
     console.log(`[Delete Platform Listing] Successfully deleted item ${listing.title} platform details for ${platformLower}`);
-    res.status(200).json({ success: true, message: `Successfully deleted listing from ${platform}`, data: listing });
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted listing from ${platform}`,
+      data: itemDeleted ? null : listing,
+      itemDeleted
+    });
   } catch (err) {
     console.error(`[Delete Platform Listing] Failed to delete from ${req.body.platform}:`, err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// @desc    Move a channel listing out of current item and create a new independent item row
+// @route   POST /api/listings/:id/move-to-new-item
+// @access  Private
+exports.moveToNewItem = async (req, res) => {
+  try {
+    const { platform } = req.body;
+    if (!platform) {
+      return res.status(400).json({ success: false, message: 'Platform is required' });
+    }
+
+    const platformLower = platform.toLowerCase();
+
+    let listing = await Listing.findById(req.params.id);
+    let prod = null;
+    if (!listing) {
+      const Product = require('../models/Product');
+      prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+      }
+    }
+
+    if (!listing && !prod) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing && listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    console.log(`[Move To New Item] Splitting ${platformLower} out of listing ID: ${req.params.id}`);
+
+    // Extract platform-specific information
+    const platformDetails = (listing && listing.platforms?.[platformLower]) || (listing && listing.crosslistingDetails?.[platformLower]) || {};
+    const platformStatus = (listing && listing[`${platformLower}Status`]) || (prod && prod.status) || 'draft';
+    const platformListingId = (listing && listing[`${platformLower}ListingId`]) || (prod && prod[`${platformLower}ListingId`]);
+    const platformUrl = (listing && listing[`${platformLower}Url`]) || (prod && prod[`${platformLower}Url`]);
+
+    const baseTitle = platformDetails.title || (listing && listing.title) || (prod && prod.title) || 'Untitled Item';
+    const baseDesc = platformDetails.description || (listing && listing.description) || (prod && prod.description) || '';
+    const basePrice = String(platformDetails.price || (listing && listing.price) || (prod && prod.selling_price) || '0');
+    const baseImages = platformDetails.images?.length > 0 ? platformDetails.images : ((listing && listing.images) || (prod && prod.images) || []);
+    const baseThumbnail = baseImages[0] || (listing && listing.thumbnail) || '';
+    const baseCategory = platformDetails.category || (listing && listing.category) || 'General';
+    const baseBrand = platformDetails.brand || (listing && listing.brand) || (prod && prod.brand) || '';
+    const baseSize = platformDetails.size || (listing && listing.size) || (prod && prod.size) || '';
+    const baseColor = platformDetails.color || (listing && listing.color) || (prod && prod.color) || '';
+
+    // Generate a unique SKU for the new item
+    const timestamp = Date.now().toString().slice(-4);
+    const origSku = (listing && listing.sku) || (prod && prod.sku) || 'ITEM';
+    const newSku = `${origSku}-${platformLower.toUpperCase()}-${timestamp}`;
+
+    // Create the new independent Listing document
+    const newListing = new Listing({
+      user: req.user.id,
+      title: baseTitle,
+      description: baseDesc,
+      price: basePrice,
+      sku: newSku,
+      category: baseCategory,
+      categoryId: platformDetails.categoryId || (listing && listing.categoryId) || (prod && prod.categoryId),
+      departmentId: platformDetails.departmentId || (listing && listing.departmentId),
+      subcategoryIds: platformDetails.subcategoryIds || (listing && listing.subcategoryIds) || [],
+      images: baseImages,
+      thumbnail: baseThumbnail,
+      brand: baseBrand,
+      size: baseSize,
+      color: baseColor,
+      quantity: (listing && listing.quantity) || 1,
+      status: platformStatus === 'published' ? 'published' : 'draft',
+      platform: platformLower,
+      [`${platformLower}Status`]: platformStatus,
+      [`${platformLower}ListingId`]: platformListingId,
+      [`${platformLower}Url`]: platformUrl,
+      // Ensure all other platforms are 'none' (empty/not listed)
+      ebayStatus: platformLower === 'ebay' ? platformStatus : 'none',
+      poshmarkStatus: platformLower === 'poshmark' ? platformStatus : 'none',
+      depopStatus: platformLower === 'depop' ? platformStatus : 'none',
+      etsyStatus: platformLower === 'etsy' ? platformStatus : 'none',
+      mercariStatus: platformLower === 'mercari' ? platformStatus : 'none',
+      platforms: {
+        [platformLower]: {
+          ...platformDetails,
+          status: platformStatus,
+          listingId: platformListingId,
+          url: platformUrl
+        }
+      }
+    });
+
+    await newListing.save();
+
+    // Now remove / unlink the platform from the original listing
+    if (listing) {
+      listing[`${platformLower}ListingId`] = undefined;
+      listing[`${platformLower}Url`] = undefined;
+      listing[`${platformLower}Status`] = 'none';
+
+      if (listing.platforms && listing.platforms[platformLower]) {
+        delete listing.platforms[platformLower];
+        listing.markModified('platforms');
+      }
+      if (listing.crosslistingDetails && listing.crosslistingDetails[platformLower]) {
+        delete listing.crosslistingDetails[platformLower];
+        listing.markModified('crosslistingDetails');
+      }
+
+      // If the original listing's primary platform was this platform, switch it to another active or draft platform
+      if (listing.platform === platformLower) {
+        const otherPlatform = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'].find(p => 
+          p !== platformLower && (listing[`${p}Status`] === 'published' || listing[`${p}Status`] === 'draft')
+        );
+        if (otherPlatform) {
+          listing.platform = otherPlatform;
+        }
+      }
+
+      // Update global status
+      const hasOtherActive = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'].some(p => 
+        p !== platformLower && listing[`${p}Status`] === 'published'
+      );
+      if (!hasOtherActive && listing.status === 'published') {
+        listing.status = 'draft';
+      }
+
+      await listing.save();
+    }
+
+    // Sync any product cache if exists
+    try {
+      const Product = require('../models/Product');
+      const existingProd = await Product.findOne({ user: req.user.id, source: platformLower, sku: origSku });
+      if (existingProd) {
+        existingProd.sku = newSku;
+        await existingProd.save();
+      }
+    } catch (prodErr) {
+      console.warn('[Move To New Item] Product cache sync note:', prodErr.message);
+    }
+
+    console.log(`[Move To New Item] Successfully moved ${platformLower} to new item SKU: ${newSku}`);
+    res.status(200).json({
+      success: true,
+      message: `Successfully moved ${platformLower} to a new item!`,
+      newListing,
+      originalListing: listing
+    });
+  } catch (err) {
+    console.error(`[Move To New Item] Error:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Merge a channel listing from a source item into a target item (Drag & Drop Pick & Drop)
+// @route   POST /api/listings/merge-channel
+// @access  Private
+exports.mergeChannel = async (req, res) => {
+  try {
+    const { sourceListingId, targetListingId, platform } = req.body;
+    if (!sourceListingId || !targetListingId || !platform) {
+      return res.status(400).json({ success: false, message: 'Source listing, target listing, and platform are required.' });
+    }
+
+    if (sourceListingId === targetListingId) {
+      return res.status(400).json({ success: false, message: 'Source and target listings must be different.' });
+    }
+
+    const platformLower = platform.toLowerCase();
+
+    const sourceListing = await Listing.findById(sourceListingId);
+    const targetListing = await Listing.findById(targetListingId);
+
+    if (!sourceListing || !targetListing) {
+      return res.status(404).json({ success: false, message: 'Source or target listing not found.' });
+    }
+
+    if (sourceListing.user.toString() !== req.user.id || targetListing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized.' });
+    }
+
+    // STRICT MATCHING VALIDATION: Ensure Title (80%+) or Image or SKU matches!
+    const matchResult = isListingMatch(sourceListing, targetListing, 0.75);
+    if (!matchResult.isMatch) {
+      console.warn(`[Merge Channel Rejected] ${matchResult.reason} | Source: "${sourceListing.title}" vs Target: "${targetListing.title}"`);
+      return res.status(400).json({
+        success: false,
+        message: `Cannot merge: Products do not match! Items must be the same physical product (80%+ title similarity or matching images). Source: "${sourceListing.title || 'Untitled'}" vs Target: "${targetListing.title || 'Untitled'}"`
+      });
+    }
+
+    console.log(`[Merge Channel Approved] Match Reason: ${matchResult.reason} (${Math.round(matchResult.score * 100)}%). Merging ${platformLower} from Source ${sourceListingId} into Target ${targetListingId}`);
+
+    // Extract platform details from source
+    const platformDetails = (sourceListing.platforms?.[platformLower]) || (sourceListing.crosslistingDetails?.[platformLower]) || {};
+    const platformStatus = sourceListing[`${platformLower}Status`] || (sourceListing.platform === platformLower ? sourceListing.status : 'draft');
+    const platformListingId = sourceListing[`${platformLower}ListingId`];
+    const platformUrl = sourceListing[`${platformLower}Url`];
+
+    // Transfer platform details into target listing
+    targetListing[`${platformLower}Status`] = platformStatus;
+    targetListing[`${platformLower}ListingId`] = platformListingId;
+    targetListing[`${platformLower}Url`] = platformUrl;
+
+    if (!targetListing.platforms) targetListing.platforms = {};
+    targetListing.platforms[platformLower] = {
+      ...platformDetails,
+      status: platformStatus,
+      listingId: platformListingId,
+      url: platformUrl
+    };
+    targetListing.markModified('platforms');
+
+    if (!targetListing.crosslistingDetails) targetListing.crosslistingDetails = {};
+    targetListing.crosslistingDetails[platformLower] = {
+      ...platformDetails,
+      status: platformStatus,
+      listingId: platformListingId,
+      url: platformUrl
+    };
+    targetListing.markModified('crosslistingDetails');
+
+    // Merge source images into target if target is missing any
+    if (Array.isArray(sourceListing.images) && sourceListing.images.length > 0) {
+      const existingImgs = new Set(targetListing.images || []);
+      const newImgs = sourceListing.images.filter(img => img && !existingImgs.has(img));
+      if (newImgs.length > 0) {
+        targetListing.images = [...(targetListing.images || []), ...newImgs];
+      }
+    }
+
+    // If target is draft and source had published status, update target status
+    if (targetListing.status === 'draft' && platformStatus === 'published') {
+      targetListing.status = 'published';
+    }
+
+    await targetListing.save();
+
+    // Now remove platform from source listing
+    sourceListing[`${platformLower}ListingId`] = undefined;
+    sourceListing[`${platformLower}Url`] = undefined;
+    sourceListing[`${platformLower}Status`] = 'none';
+
+    if (sourceListing.platforms && sourceListing.platforms[platformLower]) {
+      delete sourceListing.platforms[platformLower];
+      sourceListing.markModified('platforms');
+    }
+    if (sourceListing.crosslistingDetails && sourceListing.crosslistingDetails[platformLower]) {
+      delete sourceListing.crosslistingDetails[platformLower];
+      sourceListing.markModified('crosslistingDetails');
+    }
+
+    // Check if source listing has any remaining active / draft / delisted platforms
+    const remainingPlatforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'].filter(p => {
+      const st = sourceListing[`${p}Status`];
+      return st && st !== 'none' && st !== 'unlisted';
+    });
+
+    let sourceDeleted = false;
+    if (remainingPlatforms.length === 0) {
+      // Source item has no channels left and was fully merged into matching target -> Delete it safely
+      await Listing.findByIdAndDelete(sourceListing._id);
+      sourceDeleted = true;
+      console.log(`[Merge Channel] Source listing ${sourceListing._id} deleted because all channels were successfully merged into matching target.`);
+    } else {
+      // If primary platform was the one merged out, switch primary platform to another remaining platform
+      if (sourceListing.platform === platformLower) {
+        sourceListing.platform = remainingPlatforms[0];
+      }
+      // Update global status
+      const hasOtherActive = remainingPlatforms.some(p => sourceListing[`${p}Status`] === 'published');
+      if (!hasOtherActive && sourceListing.status === 'published') {
+        sourceListing.status = 'draft';
+      }
+      await sourceListing.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully merged ${platform} into item!`,
+      targetListing,
+      sourceDeleted
+    });
+  } catch (err) {
+    console.error(`[Merge Channel] Error:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get preview of all active channel listings grouped & matched across platforms
+// @route   GET /api/listings/active-channel-preview
+// @access  Private
+exports.getActiveChannelImportPreview = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Fetch all active items across channels for this user
+    const activeProducts = await Product.find({
+      user: userId,
+      status: { $in: ['active', 'live', 'published'] }
+    }).sort({ updated_at: -1, createdAt: -1 });
+
+    // 2. Fetch existing listings to detect items already present in local database
+    const existingListings = await Listing.find({ user: userId });
+
+        const groups = [];
+    const skuToGroup = new Map();
+    const imageToGroup = new Map();
+    const tokenToGroups = new Map();
+
+    const addGroupToIndexes = (group) => {
+      if (group.sku && group.sku.trim()) {
+        const cleanSku = group.sku.trim().toLowerCase();
+        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
+          skuToGroup.set(cleanSku, group);
+        }
+      }
+      if (Array.isArray(group.images)) {
+        for (const img of group.images) {
+          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+          if (k) imageToGroup.set(k, group);
+        }
+      }
+      if (group.title) {
+        const tokens = cleanAndTokenize(group.title);
+        for (const t of tokens) {
+          if (!tokenToGroups.has(t)) {
+            tokenToGroups.set(t, new Set());
+          }
+          tokenToGroups.get(t).add(group);
+        }
+      }
+    };
+
+    // 2. Iterate through products and group by matches
+    for (const prod of activeProducts) {
+      const src = (prod.source || 'ebay').toLowerCase();
+      const prodImages = Array.isArray(prod.images) && prod.images.length > 0
+        ? prod.images
+        : (prod.thumbnail ? [prod.thumbnail] : []);
+
+      let liveId = '';
+      let url = '';
+      if (src === 'ebay') {
+        liveId = String(prod.ebayListingId || prod.itemId || prod.original_id || '');
+        url = prod.ebayUrl || prod.url || '';
+      } else if (src === 'poshmark') {
+        liveId = String(prod.poshmarkListingId || prod.sku || '');
+        url = prod.poshmarkUrl || prod.url || '';
+      } else if (src === 'mercari') {
+        liveId = String(prod.mercariListingId || prod.sku || '');
+        url = prod.mercariUrl || prod.url || '';
+      } else if (src === 'depop') {
+        liveId = String(prod.depopListingId || prod.sku || '');
+        url = prod.depopUrl || prod.url || '';
+      } else if (src === 'etsy') {
+        liveId = String(prod.etsyListingId || prod.sku || '');
+        url = prod.etsyUrl || prod.url || '';
+      } else {
+        liveId = String(prod.sku || prod._id);
+        url = prod.url || '';
+      }
+
+      const channelItem = {
+        productId: prod._id,
+        liveId: liveId || String(prod._id),
+        title: prod.title || 'Untitled Item',
+        price: Number(prod.selling_price) || 0,
+        originalPrice: prod.originalPrice || '',
+        url: url,
+        sku: prod.sku || '',
+        thumbnail: prod.thumbnail || prodImages[0] || '',
+        images: prodImages,
+        source: src,
+        brand: prod.brand || '',
+        size: prod.size || '',
+        color: prod.color || '',
+        category: prod.category || prod.category_name || '',
+        categoryId: prod.categoryId || '',
+        departmentId: prod.departmentId || '',
+        subcategoryIds: prod.subcategoryIds || [],
+        condition: prod.condition || prod.condition_name || prod.selectedCondition || '',
+        description: prod.description || prod.title || '',
+        itemSpecifics: src === 'ebay' ? (prod.itemSpecifics || {}) : {}
+      };
+
+      let matchedGroup = null;
+
+      // 1. Try SKU match (validated)
+      if (channelItem.sku && channelItem.sku.trim()) {
+        const cleanSku = channelItem.sku.trim().toLowerCase();
+        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
+          const candidate = skuToGroup.get(cleanSku);
+          if (candidate && !candidate.channels[src]) {
+            const match = isListingMatch(
+              { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
+              { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
+              0.80
+            );
+            if (match.isMatch) {
+              matchedGroup = candidate;
+            }
+          }
+        }
+      }
+
+      // 2. Try Image match (validated)
+      if (!matchedGroup && prodImages.length > 0) {
+        for (const img of prodImages) {
+          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+          if (k && imageToGroup.has(k)) {
+            const candidate = imageToGroup.get(k);
+            if (candidate && !candidate.channels[src]) {
+              const match = isListingMatch(
+                { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
+                { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
+                0.80
+              );
+              if (match.isMatch) {
+                matchedGroup = candidate;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Try Candidate Title Token overlap
+      if (!matchedGroup && channelItem.title) {
+        const tokens = cleanAndTokenize(channelItem.title);
+        const candidateCounts = new Map();
+        for (const t of tokens) {
+          if (tokenToGroups.has(t)) {
+            for (const candidate of tokenToGroups.get(t)) {
+              if (!candidate.channels[src]) {
+                candidateCounts.set(candidate, (candidateCounts.get(candidate) || 0) + 1);
+              }
+            }
+          }
+        }
+
+        const minCommon = tokens.length <= 2 ? 1 : 2;
+        let highestScore = 0;
+
+        const sortedCandidates = Array.from(candidateCounts.entries())
+          .filter(([_, count]) => count >= minCommon)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8);
+
+        for (const [candidate] of sortedCandidates) {
+          const match = isListingMatch(
+            { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
+            { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
+            0.85
+          );
+          if (match.isMatch && match.score > highestScore) {
+            matchedGroup = candidate;
+            highestScore = match.score;
+            if (match.score >= 0.90) break;
+          }
+        }
+      }
+
+      if (matchedGroup) {
+        // Add to existing group
+        matchedGroup.channels[src] = {
+          ...channelItem,
+          selected: true
+        };
+        matchedGroup.channelCount += 1;
+
+        // Merge images
+        const existingImgs = new Set(matchedGroup.images);
+        for (const img of prodImages) {
+          if (img && !existingImgs.has(img)) {
+            matchedGroup.images.push(img);
+            existingImgs.add(img);
+            const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+            if (k) imageToGroup.set(k, matchedGroup);
+          }
+        }
+        if (!matchedGroup.thumbnail && matchedGroup.images.length > 0) {
+          matchedGroup.thumbnail = matchedGroup.images[0];
+        }
+        if (!matchedGroup.sku && channelItem.sku) {
+          matchedGroup.sku = channelItem.sku;
+          const cleanSku = channelItem.sku.trim().toLowerCase();
+          if (cleanSku && cleanSku !== '-' && cleanSku !== 'none') skuToGroup.set(cleanSku, matchedGroup);
+        }
+        if (!matchedGroup.brand && channelItem.brand) matchedGroup.brand = channelItem.brand;
+        if (!matchedGroup.size && channelItem.size) matchedGroup.size = channelItem.size;
+        if (!matchedGroup.color && channelItem.color) matchedGroup.color = channelItem.color;
+        if (!matchedGroup.price && channelItem.price) matchedGroup.price = channelItem.price;
+        if (!matchedGroup.description && channelItem.description) matchedGroup.description = channelItem.description;
+      } else {
+        // Create new group
+        const newGroup = {
+          groupId: `grp_${groups.length + 1}_${prod._id}`,
+          title: channelItem.title,
+          sku: channelItem.sku || '',
+          price: channelItem.price || 0,
+          brand: channelItem.brand || '',
+          size: channelItem.size || '',
+          color: channelItem.color || '',
+          category: channelItem.category || 'Clothing',
+          categoryId: channelItem.categoryId || '',
+          description: channelItem.description || channelItem.title || '',
+          images: prodImages,
+          thumbnail: prodImages[0] || prod.thumbnail || '',
+          itemSpecifics: channelItem.itemSpecifics || {},
+          channels: {
+            ebay: null,
+            poshmark: null,
+            mercari: null,
+            depop: null,
+            etsy: null
+          },
+          channelCount: 1,
+          alreadyInLocal: false,
+          localListingId: null,
+          localStatus: null
+        };
+        newGroup.channels[src] = {
+          ...channelItem,
+          selected: true
+        };
+        groups.push(newGroup);
+        addGroupToIndexes(newGroup);
+      }
+    }
+
+    // 3. Mark groups already in local database using fast index
+    const localSkuMap = new Map();
+    const localPlatformMap = new Map();
+    const localTokenMap = new Map();
+
+    for (const listing of existingListings) {
+      if (listing.sku && listing.sku.trim()) {
+        const s = listing.sku.trim().toLowerCase();
+        if (s && s !== '-' && s !== 'none') localSkuMap.set(s, listing);
+      }
+      if (listing.ebayListingId) localPlatformMap.set(`ebay_${listing.ebayListingId}`, listing);
+      if (listing.poshmarkListingId) localPlatformMap.set(`poshmark_${listing.poshmarkListingId}`, listing);
+      if (listing.mercariListingId) localPlatformMap.set(`mercari_${listing.mercariListingId}`, listing);
+      if (listing.depopListingId) localPlatformMap.set(`depop_${listing.depopListingId}`, listing);
+      if (listing.etsyListingId) localPlatformMap.set(`etsy_${listing.etsyListingId}`, listing);
+
+      const tokens = cleanAndTokenize(listing.title);
+      for (const t of tokens) {
+        if (!localTokenMap.has(t)) localTokenMap.set(t, new Set());
+        localTokenMap.get(t).add(listing);
+      }
+    }
+
+    for (const group of groups) {
+      let matchedListing = null;
+
+      if (group.sku && group.sku.trim()) {
+        const s = group.sku.trim().toLowerCase();
+        if (localSkuMap.has(s)) matchedListing = localSkuMap.get(s);
+      }
+
+      if (!matchedListing) {
+        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+          const liveId = group.channels[p]?.liveId;
+          if (liveId && localPlatformMap.has(`${p}_${liveId}`)) {
+            matchedListing = localPlatformMap.get(`${p}_${liveId}`);
+            break;
+          }
+        }
+      }
+
+      if (!matchedListing && group.title) {
+        const tokens = cleanAndTokenize(group.title);
+        const localCandidateCounts = new Map();
+        for (const t of tokens) {
+          if (localTokenMap.has(t)) {
+            for (const l of localTokenMap.get(t)) {
+              localCandidateCounts.set(l, (localCandidateCounts.get(l) || 0) + 1);
+            }
+          }
+        }
+
+        const sortedLocalCandidates = Array.from(localCandidateCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8);
+
+        for (const [l] of sortedLocalCandidates) {
+          const match = isListingMatch(
+            { title: l.title, images: l.images, sku: l.sku, size: l.size },
+            { title: group.title, images: group.images, sku: group.sku, size: group.size },
+            0.85
+          );
+          if (match.isMatch) {
+            matchedListing = l;
+            break;
+          }
+        }
+      }
+
+      if (matchedListing) {
+        group.localListingId = matchedListing._id;
+        group.localStatus = matchedListing.status;
+
+        let allChannelsInLocal = true;
+        let someChannelsInLocal = false;
+        let unlinkedCount = 0;
+
+        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+          if (group.channels[p]) {
+            const liveId = group.channels[p].liveId;
+            const hasLiveId = !!(matchedListing[`${p}ListingId`] || (liveId && String(matchedListing[`${p}ListingId`]) === String(liveId)));
+            const isPlatformPublished = matchedListing[`${p}Status`] === 'published' || (matchedListing.platform === p && matchedListing.status === 'published');
+            const hasPlatformData = !!(matchedListing.platformData && matchedListing.platformData[p]);
+
+            const isLinked = hasLiveId || hasPlatformData || (isPlatformPublished && matchedListing.platform === p);
+            group.channels[p].alreadyInLocal = isLinked;
+
+            if (isLinked) {
+              someChannelsInLocal = true;
+              group.channels[p].selected = false;
+            } else {
+              allChannelsInLocal = false;
+              unlinkedCount++;
+              group.channels[p].selected = true;
+            }
+          }
+        }
+
+        group.alreadyInLocal = allChannelsInLocal;
+        group.partiallyInLocal = someChannelsInLocal && !allChannelsInLocal;
+        group.unlinkedChannelCount = unlinkedCount;
+      } else {
+        group.alreadyInLocal = false;
+        group.partiallyInLocal = false;
+        group.unlinkedChannelCount = group.channelCount;
+        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+          if (group.channels[p]) {
+            group.channels[p].alreadyInLocal = false;
+            group.channels[p].selected = true;
+          }
+        }
+      }
+    }
+
+    // Sort groups: items with unlinked channels first at top, fully imported items in local DB at bottom
+    groups.sort((a, b) => {
+      if (!a.alreadyInLocal && b.alreadyInLocal) return -1;
+      if (a.alreadyInLocal && !b.alreadyInLocal) return 1;
+      if ((b.unlinkedChannelCount || 0) !== (a.unlinkedChannelCount || 0)) {
+        return (b.unlinkedChannelCount || 0) - (a.unlinkedChannelCount || 0);
+      }
+      return b.channelCount - a.channelCount;
+    });
+
+    res.status(200).json({
+      success: true,
+      totalActiveProducts: activeProducts.length,
+      groupedCount: groups.length,
+      groups: groups
+    });
+  } catch (err) {
+    console.error('[Get Active Channel Preview] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Import selected active channel groups into Local Database
+// @route   POST /api/listings/import-active-channels
+// @access  Private
+exports.importActiveChannelsToLocal = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'No items selected for import.' });
+    }
+
+    let importedCount = 0;
+    let updatedCount = 0;
+    const importedListingIds = [];
+
+    for (const item of items) {
+      // Determine which platforms are selected for this item
+      const channels = item.channels || {};
+      const activeSelectedPlatforms = Object.keys(channels).filter(plat => {
+        const ch = channels[plat];
+        return ch && (ch.selected !== false);
+      });
+
+      if (activeSelectedPlatforms.length === 0) {
+        continue;
+      }
+
+      // Check if listing already exists
+      let listing = null;
+      if (item.localListingId) {
+        listing = await Listing.findOne({ _id: item.localListingId, user: userId });
+      }
+
+      if (!listing && item.sku && item.sku.trim()) {
+        listing = await Listing.findOne({ user: userId, sku: item.sku.trim() });
+      }
+
+      if (!listing) {
+        // Try matching by platform live IDs
+        for (const plat of activeSelectedPlatforms) {
+          const liveId = channels[plat]?.liveId;
+          if (liveId) {
+            const query = { user: userId };
+            query[`${plat}ListingId`] = liveId;
+            listing = await Listing.findOne(query);
+            if (listing) break;
+          }
+        }
+      }
+
+      const images = Array.isArray(item.images) && item.images.length > 0
+        ? item.images
+        : (item.thumbnail ? [item.thumbnail] : []);
+
+      if (listing) {
+        // Update existing listing
+        listing.platformData = listing.platformData || {};
+
+        for (const plat of ['ebay', 'poshmark', 'mercari', 'depop', 'etsy']) {
+          if (activeSelectedPlatforms.includes(plat)) {
+            const ch = channels[plat];
+            listing[`${plat}ListingId`] = ch.liveId || listing[`${plat}ListingId`];
+            listing[`${plat}Url`] = ch.url || listing[`${plat}Url`];
+            listing[`${plat}Status`] = 'published';
+
+            // Store distinct platform data with complete image sets and preserved attributes
+            listing.platformData[plat] = {
+              title: ch.title || listing.title,
+              description: ch.description || (plat === listing.platform ? listing.description : ''),
+              price: ch.price !== undefined && ch.price !== null ? String(ch.price) : String(listing.price),
+              originalPrice: ch.originalPrice ? String(ch.originalPrice) : (listing.originalPrice || ''),
+              sku: ch.sku || listing.sku,
+              brand: ch.brand || listing.brand || item.brand || '',
+              size: ch.size || listing.size || item.size || '',
+              color: ch.color || listing.color || item.color || '',
+              category: ch.category || (plat === listing.platform ? listing.category : (item.category || '')),
+              categoryId: ch.categoryId || (plat === listing.platform ? listing.categoryId : (item.categoryId || '')),
+              departmentId: ch.departmentId || item.departmentId || '',
+              subcategoryIds: ch.subcategoryIds || item.subcategoryIds || [],
+              condition: ch.condition || (plat === listing.platform ? (listing.selectedCondition || listing.condition) : (item.condition || '')),
+              itemSpecifics: plat === 'ebay' ? (ch.itemSpecifics && Object.keys(ch.itemSpecifics).length > 0 ? ch.itemSpecifics : (item.itemSpecifics || listing.itemSpecifics || {})) : {},
+              url: ch.url || listing[`${plat}Url`] || '',
+              liveId: ch.liveId || listing[`${plat}ListingId`],
+              status: 'published',
+              images: (images && images.length > 0) ? images : (ch.images || listing.images || []),
+              thumbnail: ch.thumbnail || listing.thumbnail || (images && images[0]) || ''
+            };
+          }
+        }
+
+        // Merge missing images
+        if (images.length > 0) {
+          const existingImgs = new Set(listing.images || []);
+          for (const img of images) {
+            if (img && !existingImgs.has(img)) {
+              listing.images = listing.images || [];
+              listing.images.push(img);
+              existingImgs.add(img);
+            }
+          }
+        }
+
+        // Ensure all platformData entries also have access to the merged full images
+        if (listing.images && listing.images.length > 0) {
+          for (const plat of Object.keys(listing.platformData || {})) {
+            if (!listing.platformData[plat].images || listing.platformData[plat].images.length < listing.images.length) {
+              listing.platformData[plat].images = listing.images;
+            }
+          }
+        }
+
+        if (!listing.thumbnail && images[0]) {
+          listing.thumbnail = images[0];
+        }
+        if (!listing.brand && item.brand) listing.brand = item.brand;
+        if (!listing.size && item.size) listing.size = item.size;
+        if (!listing.color && item.color) listing.color = item.color;
+        if ((!listing.price || listing.price === '0') && item.price) listing.price = String(item.price);
+        
+        listing.status = 'published';
+        listing.markModified('platformData');
+        await listing.save();
+        updatedCount++;
+        importedListingIds.push(listing._id);
+      } else {
+        // Create new master Listing in local database
+        const primaryPlatform = activeSelectedPlatforms[0] || 'ebay';
+        const primaryChannel = channels[primaryPlatform] || item;
+        const finalSku = item.sku && item.sku.trim() 
+          ? item.sku.trim() 
+          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+
+        const newListing = new Listing({
+          user: userId,
+          title: primaryChannel.title || item.title || 'Untitled Imported Item',
+          description: primaryChannel.description || item.description || item.title || 'Imported item',
+          price: String(primaryChannel.price !== undefined ? primaryChannel.price : (item.price || 0)),
+          sku: finalSku,
+          category: primaryChannel.category || item.category || 'Clothing',
+          categoryId: primaryChannel.categoryId || item.categoryId || '',
+          brand: primaryChannel.brand || item.brand || '',
+          size: primaryChannel.size || item.size || '',
+          color: primaryChannel.color || item.color || '',
+          images: images,
+          thumbnail: item.thumbnail || images[0] || '',
+          itemSpecifics: primaryPlatform === 'ebay' ? (primaryChannel.itemSpecifics || item.itemSpecifics || {}) : (item.itemSpecifics || {}),
+          status: 'published',
+          platform: primaryPlatform,
+          ebayStatus: 'none',
+          poshmarkStatus: 'none',
+          mercariStatus: 'none',
+          depopStatus: 'none',
+          etsyStatus: 'none',
+          platformData: {}
+        });
+
+        for (const plat of ['ebay', 'poshmark', 'mercari', 'depop', 'etsy']) {
+          if (activeSelectedPlatforms.includes(plat)) {
+            const ch = channels[plat];
+            newListing[`${plat}ListingId`] = ch.liveId;
+            newListing[`${plat}Url`] = ch.url || '';
+            newListing[`${plat}Status`] = 'published';
+
+            newListing.platformData[plat] = {
+              title: ch.title || newListing.title,
+              description: ch.description || (plat === primaryPlatform ? newListing.description : ''),
+              price: ch.price !== undefined && ch.price !== null ? String(ch.price) : String(newListing.price),
+              originalPrice: ch.originalPrice ? String(ch.originalPrice) : (item.originalPrice || ''),
+              sku: ch.sku || newListing.sku,
+              brand: ch.brand || newListing.brand || item.brand || '',
+              size: ch.size || newListing.size || item.size || '',
+              color: ch.color || newListing.color || item.color || '',
+              category: ch.category || (plat === primaryPlatform ? newListing.category : (item.category || '')),
+              categoryId: ch.categoryId || (plat === primaryPlatform ? newListing.categoryId : (item.categoryId || '')),
+              departmentId: ch.departmentId || item.departmentId || '',
+              subcategoryIds: ch.subcategoryIds || item.subcategoryIds || [],
+              condition: ch.condition || (plat === primaryPlatform ? (newListing.selectedCondition || newListing.condition) : (item.condition || '')),
+              itemSpecifics: plat === 'ebay' ? (ch.itemSpecifics && Object.keys(ch.itemSpecifics).length > 0 ? ch.itemSpecifics : (newListing.itemSpecifics || item.itemSpecifics || {})) : {},
+              url: ch.url || '',
+              liveId: ch.liveId,
+              status: 'published',
+              images: (images && images.length > 0) ? images : (ch.images || newListing.images || []),
+              thumbnail: ch.thumbnail || newListing.thumbnail || (images && images[0]) || ''
+            };
+          }
+        }
+
+        newListing.markModified('platformData');
+        await newListing.save();
+        importedCount++;
+        importedListingIds.push(newListing._id);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      importedCount,
+      updatedCount,
+      totalProcessed: importedCount + updatedCount,
+      message: `Successfully imported ${importedCount} new and updated ${updatedCount} listings in Local Database!`
+    });
+  } catch (err) {
+    console.error('[Import Active Channels] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get preview of local listings that can be merged (duplicates across channels)
+// @route   GET /api/listings/local-merge-preview
+// @access  Private
+exports.getLocalMergePreview = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Fetch all local listings for this user
+    const listings = await Listing.find({ user: userId }).sort({ createdAt: -1 });
+
+    const groups = [];
+    const skuToGroup = new Map();
+    const imageToGroup = new Map();
+    const tokenToGroups = new Map();
+
+    const addGroupToIndexes = (group) => {
+      if (group.sku && group.sku.trim()) {
+        const cleanSku = group.sku.trim().toLowerCase();
+        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
+          skuToGroup.set(cleanSku, group);
+        }
+      }
+      if (Array.isArray(group.images)) {
+        for (const img of group.images) {
+          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+          if (k) imageToGroup.set(k, group);
+        }
+      }
+      const tokens = cleanAndTokenize(group.title);
+      for (const t of tokens) {
+        if (!tokenToGroups.has(t)) {
+          tokenToGroups.set(t, new Set());
+        }
+        tokenToGroups.get(t).add(group);
+      }
+    };
+
+    for (const listing of listings) {
+      const listingImgs = Array.isArray(listing.images) ? listing.images.filter(Boolean) : (listing.thumbnail ? [listing.thumbnail] : []);
+      
+      // Determine what platforms this listing is already active on
+      const platformsPresent = {};
+      for (const plat of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+        const liveId = listing[`${plat}ListingId`];
+        const status = listing[`${plat}Status`];
+        if ((liveId && liveId !== 'undefined' && liveId !== 'null') || (status && status === 'published') || (listing.platform === plat && listing.status === 'published')) {
+          platformsPresent[plat] = {
+            listingId: listing._id,
+            liveId: liveId || listing._id.toString(),
+            url: listing[`${plat}Url`] || '',
+            status: status || (listing.platform === plat ? listing.status : 'published'),
+            selected: true
+          };
+        }
+      }
+
+      // If listing has primary platform with no explicit platformStatus, record it
+      if (Object.keys(platformsPresent).length === 0 && listing.platform) {
+        platformsPresent[listing.platform] = {
+          listingId: listing._id,
+          liveId: listing._id.toString(),
+          url: '',
+          status: listing.status || 'draft',
+          selected: true
+        };
+      }
+
+      let matchedGroup = null;
+
+      // 1. Check SKU match (validated)
+      if (listing.sku && listing.sku.trim()) {
+        const cleanSku = listing.sku.trim().toLowerCase();
+        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
+          const candidate = skuToGroup.get(cleanSku);
+          if (candidate && candidate.masterListing._id.toString() !== listing._id.toString()) {
+            const match = isListingMatch(
+              { title: listing.title, images: listingImgs, sku: listing.sku, size: listing.size },
+              { title: candidate.masterListing.title, images: candidate.masterListing.images, sku: candidate.masterListing.sku, size: candidate.masterListing.size },
+              0.80
+            );
+            if (match.isMatch) {
+              matchedGroup = candidate;
+            }
+          }
+        }
+      }
+
+      // 2. Check Image match (validated)
+      if (!matchedGroup && listingImgs.length > 0) {
+        for (const img of listingImgs) {
+          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+          if (k && imageToGroup.has(k)) {
+            const candidate = imageToGroup.get(k);
+            if (candidate && candidate.masterListing._id.toString() !== listing._id.toString()) {
+              const match = isListingMatch(
+                { title: listing.title, images: listingImgs, sku: listing.sku, size: listing.size },
+                { title: candidate.masterListing.title, images: candidate.masterListing.images, sku: candidate.masterListing.sku, size: candidate.masterListing.size },
+                0.80
+              );
+              if (match.isMatch) {
+                matchedGroup = candidate;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Check Title Token overlap
+      if (!matchedGroup && listing.title) {
+        const tokens = cleanAndTokenize(listing.title);
+        const candidateCounts = new Map();
+        for (const t of tokens) {
+          if (tokenToGroups.has(t)) {
+            for (const candidate of tokenToGroups.get(t)) {
+              candidateCounts.set(candidate, (candidateCounts.get(candidate) || 0) + 1);
+            }
+          }
+        }
+
+        const minCommon = tokens.length <= 2 ? 1 : 2;
+        let highestScore = 0;
+
+        const sortedCandidates = Array.from(candidateCounts.entries())
+          .filter(([_, count]) => count >= minCommon)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8);
+
+        for (const [candidate] of sortedCandidates) {
+          const match = isListingMatch(
+            { title: listing.title, images: listingImgs, sku: listing.sku, size: listing.size },
+            { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
+            0.85
+          );
+          if (match.isMatch && match.score > highestScore) {
+            matchedGroup = candidate;
+            highestScore = match.score;
+            if (match.score >= 0.90) break;
+          }
+        }
+      }
+
+      if (matchedGroup) {
+        matchedGroup.items.push(listing);
+        // Merge platforms
+        for (const [plat, data] of Object.entries(platformsPresent)) {
+          if (!matchedGroup.channels[plat]) {
+            matchedGroup.channels[plat] = data;
+          }
+        }
+        // Merge images
+        const existingImgs = new Set(matchedGroup.images);
+        for (const img of listingImgs) {
+          if (img && !existingImgs.has(img)) {
+            matchedGroup.images.push(img);
+            existingImgs.add(img);
+            const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
+            if (k) imageToGroup.set(k, matchedGroup);
+          }
+        }
+      } else {
+        const newGroup = {
+          groupId: `local_grp_${groups.length + 1}_${listing._id}`,
+          masterListing: listing,
+          title: listing.title,
+          sku: listing.sku || '',
+          price: listing.price || 0,
+          images: listingImgs,
+          thumbnail: listingImgs[0] || listing.thumbnail || '',
+          brand: listing.brand || '',
+          size: listing.size || '',
+          channels: { ...platformsPresent },
+          items: [listing]
+        };
+        groups.push(newGroup);
+        addGroupToIndexes(newGroup);
+      }
+    }
+
+    // Filter only groups that have 2 or MORE listings (actual merge candidates!)
+    const mergeCandidates = groups
+      .filter(g => g.items.length >= 2)
+      .map(g => {
+        // Elect best master listing
+        const sortedItems = [...g.items].sort((a, b) => {
+          if (a.status === 'published' && b.status !== 'published') return -1;
+          if (b.status === 'published' && a.status !== 'published') return 1;
+          return (b.images?.length || 0) - (a.images?.length || 0);
+        });
+
+        const master = sortedItems[0];
+        const duplicates = sortedItems.slice(1);
+
+        return {
+          groupId: g.groupId,
+          masterListingId: master._id,
+          masterListing: {
+            _id: master._id,
+            title: master.title,
+            sku: master.sku,
+            price: master.price,
+            images: master.images,
+            thumbnail: master.thumbnail || (master.images && master.images[0]) || '',
+            status: master.status,
+            platform: master.platform
+          },
+          duplicateListings: duplicates.map(d => ({
+            _id: d._id,
+            title: d.title,
+            sku: d.sku,
+            price: d.price,
+            thumbnail: d.thumbnail || (d.images && d.images[0]) || '',
+            status: d.status,
+            platform: d.platform
+          })),
+          duplicateCount: duplicates.length,
+          totalListingsInGroup: g.items.length,
+          channels: g.channels,
+          channelCount: Object.keys(g.channels).length,
+          selected: true
+        };
+      });
+
+    res.status(200).json({
+      success: true,
+      totalMergeableGroups: mergeCandidates.length,
+      groups: mergeCandidates
+    });
+  } catch (err) {
+    console.error('[Get Local Merge Preview] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Execute bulk merge of local listings
+// @route   POST /api/listings/bulk-merge
+// @access  Private
+exports.bulkMergeListings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { groups } = req.body;
+
+    if (!groups || !Array.isArray(groups) || groups.length === 0) {
+      return res.status(400).json({ success: false, message: 'No merge groups provided.' });
+    }
+
+    let mergedGroupsCount = 0;
+    let deletedDuplicatesCount = 0;
+
+    for (const grp of groups) {
+      const masterListingId = grp.masterListingId;
+      const duplicateIds = Array.isArray(grp.duplicateListings) 
+        ? grp.duplicateListings.map(d => (typeof d === 'string' ? d : d._id))
+        : [];
+
+      if (!masterListingId || duplicateIds.length === 0) continue;
+
+      const master = await Listing.findOne({ _id: masterListingId, user: userId });
+      if (!master) continue;
+
+      for (const dupId of duplicateIds) {
+        const dup = await Listing.findOne({ _id: dupId, user: userId });
+        if (!dup) continue;
+
+        // Merge platforms from duplicate into master
+        for (const plat of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+          const liveId = dup[`${plat}ListingId`];
+          const url = dup[`${plat}Url`];
+          const status = dup[`${plat}Status`];
+
+          if (liveId && liveId !== 'undefined' && liveId !== 'null') {
+            master[`${plat}ListingId`] = liveId;
+          }
+          if (url) {
+            master[`${plat}Url`] = url;
+          }
+          if (status && status !== 'none' && status !== 'unlisted') {
+            master[`${plat}Status`] = status;
+          } else if (dup.platform === plat && dup.status === 'published') {
+            master[`${plat}Status`] = 'published';
+          }
+        }
+
+        // Merge platformData & platforms map & crosslistingDetails
+        master.platformData = master.platformData || {};
+        if (dup.platformData) {
+          master.platformData = { ...master.platformData, ...dup.platformData };
+        }
+        if (dup.platform && !master.platformData[dup.platform]) {
+          master.platformData[dup.platform] = {
+            title: dup.title,
+            description: dup.description,
+            price: dup.price,
+            brand: dup.brand,
+            size: dup.size,
+            color: dup.color,
+            category: dup.category,
+            categoryId: dup.categoryId,
+            departmentId: dup.departmentId || '',
+            subcategoryIds: dup.subcategoryIds || [],
+            condition: dup.condition || dup.selectedCondition || '',
+            itemSpecifics: dup.platform === 'ebay' ? (dup.itemSpecifics || {}) : {},
+            url: dup[`${dup.platform}Url`] || dup.url || '',
+            liveId: dup[`${dup.platform}ListingId`] || dup.liveId || dup._id,
+            status: dup[`${dup.platform}Status`] || dup.status || 'published',
+            images: dup.images,
+            thumbnail: dup.thumbnail
+          };
+        }
+        master.markModified('platformData');
+
+        if (dup.platforms) {
+          master.platforms = { ...(master.platforms || {}), ...dup.platforms };
+          master.markModified('platforms');
+        }
+        if (dup.crosslistingDetails) {
+          master.crosslistingDetails = { ...(master.crosslistingDetails || {}), ...dup.crosslistingDetails };
+          master.markModified('crosslistingDetails');
+        }
+
+        // Merge images
+        if (Array.isArray(dup.images) && dup.images.length > 0) {
+          const existing = new Set(master.images || []);
+          for (const img of dup.images) {
+            if (img && !existing.has(img)) {
+              master.images = master.images || [];
+              master.images.push(img);
+              existing.add(img);
+            }
+          }
+        }
+
+        // Ensure all platformData objects have the complete set of merged images
+        if (master.images && master.images.length > 0 && master.platformData) {
+          for (const plat of Object.keys(master.platformData)) {
+            if (!master.platformData[plat].images || master.platformData[plat].images.length < master.images.length) {
+              master.platformData[plat].images = master.images;
+            }
+          }
+        }
+
+        // If master is draft and dup was published, promote master status
+        if (master.status === 'draft' && dup.status === 'published') {
+          master.status = 'published';
+        }
+
+        // Safely delete duplicate listing document
+        await Listing.findByIdAndDelete(dup._id);
+        deletedDuplicatesCount++;
+      }
+
+      await master.save();
+      mergedGroupsCount++;
+    }
+
+    res.status(200).json({
+      success: true,
+      mergedGroupsCount,
+      deletedDuplicatesCount,
+      message: `Successfully merged ${mergedGroupsCount} item clusters and cleaned up ${deletedDuplicatesCount} duplicate listings!`
+    });
+  } catch (err) {
+    console.error('[Bulk Merge Listings] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+
+
 
 

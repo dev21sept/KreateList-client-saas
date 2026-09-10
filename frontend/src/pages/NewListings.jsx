@@ -23,9 +23,12 @@ import {
   Boxes,
   CheckCircle2,
   FileText,
-  EyeOff
+  Eye,
+  EyeOff,
+  Download,
+  GitMerge
 } from 'lucide-react';
-import { listingService, ebayService, externalImportService, etsyService } from '../services/api';
+import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import CrosslistingModal from '../components/CrosslistingModal';
@@ -324,6 +327,7 @@ const NewListings = () => {
 
   // Preview & Edit system states
   const [previewListing, setPreviewListing] = useState(null);
+  const [previewPlatform, setPreviewPlatform] = useState('ebay');
   const [activeImage, setActiveImage] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -334,10 +338,16 @@ const NewListings = () => {
   const [etsyPublishingId, setEtsyPublishingId] = useState(null);
   const [depopPublishingId, setDepopPublishingId] = useState(null);
   const [depopDirectPublishingId, setDepopDirectPublishingId] = useState(null);
+  const [mercariPublishingId, setMercariPublishingId] = useState(null);
+  const [amazonPublishingId, setAmazonPublishingId] = useState(null);
   const [verifyingListingId, setVerifyingListingId] = useState(null);
 
+  // Drag & Drop / Pick & Drop channel merge states
+  const [draggedChannel, setDraggedChannel] = useState(null);
+  const [dragOverTarget, setDragOverTarget] = useState(null);
+
   const handleDelete = async (item) => {
-    const idsToDelete = item.allIds || (item.listingsMap ? Object.keys(item.listingsMap).map(k => item.listingsMap[k]._id) : [item._id]);
+    const idsToDelete = item.allIds || (item.listingsMap && typeof item.listingsMap === 'object' ? Object.keys(item.listingsMap).map(k => item.listingsMap[k]?._id).filter(Boolean) : [item._id]);
     const hasMultiple = idsToDelete.length > 1;
     const confirmMsg = hasMultiple
       ? `Are you sure you want to delete this listing and all its drafts?`
@@ -360,7 +370,10 @@ const NewListings = () => {
   // Filter & Sort States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [channelStatusFilter, setChannelStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [channelStatusFilter, setChannelStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive' | 'draft'
+  const [channelSortOption, setChannelSortOption] = useState(() => {
+    return localStorage.getItem('elister_channel_sort_option') || 'newest';
+  });
   const [sortOption, setSortOption] = useState('newest');
   
   // Filter Modal States
@@ -372,6 +385,13 @@ const NewListings = () => {
   const [tempListedOn, setTempListedOn] = useState([]);
   const [tempNoListedOn, setTempNoListedOn] = useState([]);
   const [tempSortOption, setTempSortOption] = useState('newest');
+
+  const hasActiveLocalFilters = Boolean(
+    searchTerm ||
+    statusFilter !== 'all' ||
+    (filterListedOn && filterListedOn.length > 0) ||
+    (filterNoListedOn && filterNoListedOn.length > 0)
+  );
 
   // Helpers to toggle platforms inside modal
   const toggleTempListedOn = (platform) => {
@@ -410,6 +430,25 @@ const NewListings = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
+
+  // Smart Import Modal States
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importGroups, setImportGroups] = useState([]);
+  const [importSearchTerm, setImportSearchTerm] = useState('');
+  const [importFilterTab, setImportFilterTab] = useState('all'); // 'all' | 'multi' | 'single'
+  const [selectedGroupIds, setSelectedGroupIds] = useState({});
+  const [selectedPlatforms, setSelectedPlatforms] = useState({});
+
+  // Smart Local Merge Modal States
+  const [localMergeModalOpen, setLocalMergeModalOpen] = useState(false);
+  const [localMergeLoading, setLocalMergeLoading] = useState(false);
+  const [localMergeSubmitting, setLocalMergeSubmitting] = useState(false);
+  const [localMergeGroups, setLocalMergeGroups] = useState([]);
+  const [localMergeSearchTerm, setLocalMergeSearchTerm] = useState('');
+  const [localMergeFilterTab, setLocalMergeFilterTab] = useState('all'); // 'all' | 'multi' | '2plus'
+  const [selectedMergeGroupIds, setSelectedMergeGroupIds] = useState({});
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -471,6 +510,7 @@ const NewListings = () => {
     if (selectedChannel === 'poshmark') return !!user?.poshmarkAccount?.connected;
     if (selectedChannel === 'depop') return !!user?.depopAccount?.connected;
     if (selectedChannel === 'mercari') return !!user?.mercariAccount?.connected;
+    if (selectedChannel === 'amazon') return !!user?.amazonAccount?.connected;
     return false;
   };
 
@@ -490,6 +530,11 @@ const NewListings = () => {
         const res = await etsyService.getInventory();
         if (res.data.success) {
           setChannelProducts(res.data.data);
+        }
+      } else if (selectedChannel === 'amazon') {
+        const res = await amazonService.getInventory();
+        if (res.data.success) {
+          setChannelProducts(res.data.listings || []);
         }
       } else {
         const res = await externalImportService.getLive(selectedChannel);
@@ -517,6 +562,12 @@ const NewListings = () => {
         const res = await etsyService.sync();
         if (res.data.success) {
           toast.success(`Successfully synced ${res.data.count} items from Etsy!`);
+          fetchChannelInventory();
+        }
+      } else if (selectedChannel === 'amazon') {
+        const res = await amazonService.sync();
+        if (res.data.success) {
+          toast.success(`Successfully synced ${res.data.count || 0} items from Amazon!`);
           fetchChannelInventory();
         }
       } else {
@@ -661,15 +712,77 @@ const NewListings = () => {
     return <StatusBadge status={status} className="text-[10px] px-3 py-1" />;
   };
 
-  const handleOpenPreview = async (listing, platform) => {
+  const handleOpenPreview = async (item, platformName) => {
+    setActiveListedDropdown(null);
     try {
-      setPreviewListing({ ...listing, platform });
-      const res = await listingService.getOne(listing._id);
-      if (res.data?.success) {
-        setPreviewListing({ ...res.data.data, platform });
+      const platform = platformName || item.platform || selectedChannel || 'ebay';
+      const targetItem = item.listingsMap && item.listingsMap[platform] 
+        ? item.listingsMap[platform] 
+        : item;
+
+      let fallbackUrl = targetItem[`${platform}Url`] || targetItem.url || '';
+      if (!fallbackUrl) {
+        const checkId = targetItem[`${platform}ListingId`] || targetItem.listingId;
+        if (checkId) {
+          if (platform === 'mercari') fallbackUrl = `https://www.mercari.com/item/${checkId}/`;
+          else if (platform === 'ebay') fallbackUrl = `https://www.ebay.com/itm/${checkId}`;
+          else if (platform === 'poshmark') fallbackUrl = `https://poshmark.com/listing/${checkId}`;
+          else if (platform === 'etsy') fallbackUrl = `https://www.etsy.com/listing/${checkId}`;
+          else if (platform === 'depop') fallbackUrl = `https://www.depop.com/products/${checkId}`;
+        }
+      }
+
+      const initialPreview = {
+        ...targetItem,
+        platform,
+        status: targetItem[`${platform}Status`] || targetItem.status || 'draft',
+        url: fallbackUrl
+      };
+      setPreviewListing(initialPreview);
+      setPreviewPlatform(platform);
+      if (initialPreview.images && initialPreview.images.length > 0) {
+        setActiveImage(initialPreview.images[0]);
+      }
+
+      if (targetItem._id && !String(targetItem._id).startsWith('mock-')) {
+        const res = await listingService.getOne(targetItem._id);
+        if (res.data?.success && res.data.data) {
+          const fullData = res.data.data;
+          setPreviewListing(prev => ({
+            ...prev,
+            ...fullData,
+            platform,
+            status: targetItem[`${platform}Status`] || fullData[`${platform}Status`] || fullData.status || prev.status,
+            url: targetItem[`${platform}Url`] || fullData[`${platform}Url`] || fullData.url || prev.url
+          }));
+          if (fullData.images && fullData.images.length > 0) {
+            setActiveImage(fullData.images[0]);
+          }
+        }
+      }
+
+      if (platform === 'mercari' || targetItem.platform === 'mercari' || targetItem.source === 'mercari' || targetItem.mercariListingId) {
+        const mercId = targetItem.mercariListingId || (targetItem.sku && targetItem.sku.startsWith('M-m') ? targetItem.sku.replace('M-', '') : targetItem._id);
+        if (mercId && (!targetItem.images || targetItem.images.length <= 1 || !targetItem.description || targetItem.description === targetItem.title)) {
+          mercariService.getItemDetails(mercId).then(res => {
+            if (res.data?.success && res.data?.data) {
+              const fullData = res.data.data;
+              setPreviewListing(prev => ({
+                ...prev,
+                ...fullData,
+                platform: 'mercari',
+                status: fullData.status === 'active' ? 'published' : 'delisted',
+                url: fullData.mercariUrl || prev?.url
+              }));
+              if (fullData.images && fullData.images.length > 0) {
+                setActiveImage(fullData.images[0]);
+              }
+            }
+          }).catch(e => console.warn("Mercari details preview auto-enrich failed:", e));
+        }
       }
     } catch (error) {
-      console.error("Error fetching full listing details:", error);
+      console.error("Error fetching full listing details for preview:", error);
     }
   };
 
@@ -691,7 +804,12 @@ const NewListings = () => {
   const handleVerifyAndOpen = async (listing) => {
     setVerifyingListingId(listing._id);
     try {
-      const res = await listingService.verifyLive(listing._id);
+      let res;
+      if (listing.platform === 'mercari') {
+        res = await mercariService.verifyStatus(listing._id || listing.mercariListingId);
+      } else {
+        res = await listingService.verifyLive(listing._id);
+      }
       if (res.data?.success) {
         if (res.data.isLive) {
           let url = '';
@@ -699,11 +817,13 @@ const NewListings = () => {
           else if (listing.platform === 'ebay') url = listing.ebayUrl;
           else if (listing.platform === 'etsy') url = listing.etsyUrl;
           else if (listing.platform === 'depop') url = listing.depopUrl;
-          window.open(url, '_blank');
+          else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+          if (url) window.open(url, '_blank');
         } else {
-          toast.warning(`Listing was deleted/not found on ${listing.platform}. Status reset to Draft!`);
-          setPreviewListing(res.data.data);
-          setListings(prev => prev.map(l => l._id === listing._id ? res.data.data : l));
+          toast.warning(`Listing was deleted/delisted on ${listing.platform}. Status updated!`);
+          fetchListings();
+          if (activeTab === 'channel') fetchChannelInventory();
+          setPreviewListing(null);
         }
       }
     } catch (err) {
@@ -713,7 +833,8 @@ const NewListings = () => {
       else if (listing.platform === 'ebay') url = listing.ebayUrl;
       else if (listing.platform === 'etsy') url = listing.etsyUrl;
       else if (listing.platform === 'depop') url = listing.depopUrl;
-      window.open(url, '_blank');
+      else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+      if (url) window.open(url, '_blank');
     } finally {
       setVerifyingListingId(null);
     }
@@ -912,186 +1033,176 @@ const NewListings = () => {
     }
   };
 
+  const handleMercariPublish = async (listing) => {
+    setMercariPublishingId(listing._id);
+    try {
+      toast.info("Publishing to Mercari directly via API...");
+      const res = await externalImportService.publish(listing._id, { platform: 'mercari' });
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Mercari!");
+        fetchListings();
+        if (activeTab === 'channel') fetchChannelInventory();
+      }
+    } catch (error) {
+      console.error("Error publishing to Mercari:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Mercari.");
+    } finally {
+      setMercariPublishingId(null);
+    }
+  };
+
+  const handleAmazonPublish = async (listing) => {
+    setAmazonPublishingId(listing._id);
+    try {
+      toast.info("Publishing to Amazon directly via SP-API...");
+      const res = await amazonService.publish(listing._id);
+      if (res.data?.success) {
+        toast.success("Listing successfully published to Amazon!");
+        setPreviewListing(null);
+        fetchListings();
+        if (activeTab === 'channel') fetchChannelInventory();
+      }
+    } catch (error) {
+      console.error("Error publishing to Amazon:", error);
+      toast.error(error.response?.data?.message || "Failed to publish listing to Amazon.");
+    } finally {
+      setAmazonPublishingId(null);
+    }
+  };
+
   const renderModalFooter = () => {
     if (!previewListing) return null;
-    if (previewListing.isChannelProduct) {
-      if (!previewListing.url) return null;
-      return (
-        <a 
-          href={previewListing.url}
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5"
-        >
-          <ExternalLink size={16} />
-          View on {previewListing.platform === 'ebay' ? 'eBay' : previewListing.platform === 'poshmark' ? 'Poshmark' : 'Depop'}
-        </a>
-      );
+
+    const getPlatformInfo = (platformName, logoSrc, name) => {
+      const platformSpecificItem = previewListing.listingsMap ? previewListing.listingsMap[platformName] : null;
+      const rawPlatformStatus = platformSpecificItem 
+        ? platformSpecificItem.status?.toLowerCase() 
+        : previewListing[`${platformName}Status`]?.toLowerCase();
+
+      let isLive = false;
+      if (rawPlatformStatus === 'published' || rawPlatformStatus === 'active' || rawPlatformStatus === 'live') {
+        isLive = true;
+      } else if (!rawPlatformStatus) {
+        if (previewListing.platform === platformName && (previewListing.status === 'published' || previewListing.status === 'active' || previewListing.status === 'live')) {
+          isLive = true;
+        }
+      }
+
+      let url = previewListing[`${platformName}Url`] || (previewListing.platform === platformName ? previewListing.url : null);
+      if (!url) {
+        const id = previewListing[`${platformName}ListingId`] || platformSpecificItem?.listingId || (previewListing.platform === platformName ? (previewListing.liveId || previewListing.itemId || previewListing._id) : null);
+        if (id && id !== '-') {
+          if (platformName === 'ebay') url = `https://www.ebay.com/itm/${id}`;
+          else if (platformName === 'poshmark') url = `https://poshmark.com/listing/${id}`;
+          else if (platformName === 'mercari') url = `https://www.mercari.com/item/${id}/`;
+          else if (platformName === 'etsy') url = `https://www.etsy.com/listing/${id}`;
+          else if (platformName === 'amazon') url = previewListing.amazonAsin ? `https://www.amazon.com/dp/${previewListing.amazonAsin}` : (id ? `https://sellercentral.amazon.com/inventory` : null);
+          else if (platformName === 'depop') url = `https://www.depop.com/products/${id}`;
+        }
+      }
+
+      let isLoading = false;
+      let onPublish = () => {};
+
+      if (platformName === 'ebay') {
+        isLoading = publishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'ebay');
+        onPublish = () => handlePublish(previewListing._id);
+      } else if (platformName === 'poshmark') {
+        isLoading = poshmarkDirectPublishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'poshmark');
+        onPublish = () => handlePoshmarkDirectPublish(previewListing);
+      } else if (platformName === 'mercari') {
+        isLoading = mercariPublishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'mercari');
+        onPublish = () => handleMercariPublish(previewListing);
+      } else if (platformName === 'etsy') {
+        isLoading = etsyPublishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'etsy');
+        onPublish = () => handleEtsyPublish(previewListing);
+      } else if (platformName === 'amazon') {
+        isLoading = amazonPublishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'amazon');
+        onPublish = () => handleAmazonPublish(previewListing);
+      } else if (platformName === 'depop') {
+        isLoading = depopDirectPublishingId === previewListing._id || (verifyingListingId === previewListing._id && previewListing.platform === 'depop');
+        onPublish = () => handleDepopDirectPublish(previewListing);
+      }
+
+      return {
+        id: platformName,
+        name,
+        logo: logoSrc,
+        isLive: isLive && !!url,
+        url,
+        isLoading,
+        onPublish
+      };
+    };
+
+    let platforms = [
+      getPlatformInfo('ebay', '/ebay.png', 'eBay'),
+      getPlatformInfo('poshmark', '/poshmark.png', 'Poshmark'),
+      getPlatformInfo('mercari', '/mercari.png', 'Mercari'),
+      getPlatformInfo('etsy', '/etsy.png', 'Etsy'),
+      getPlatformInfo('amazon', '/amazon.png', 'Amazon'),
+      // getPlatformInfo('depop', '/depop.png', 'Depop'),
+    ];
+
+    if (activeTab === 'channel' || previewListing.isChannelProduct) {
+      const targetPlatform = previewListing.platform || selectedChannel;
+      platforms = platforms.filter(p => p.id === targetPlatform);
     }
 
     return (
-      <>
-        {previewListing.platform === 'poshmark' && (
-          <>
-            {previewListing.poshmarkUrl ? (
-              <button 
-                onClick={() => handleVerifyAndOpen(previewListing)}
-                disabled={verifyingListingId === previewListing._id}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {verifyingListingId === previewListing._id ? (
-                  <>
-                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Verifying...
-                  </>
-                ) : (
-                  'View on Poshmark'
-                )}
-              </button>
-            ) : (
-              <>
-                <button 
-                  onClick={() => handlePoshmarkDirectPublish(previewListing)}
-                  disabled={poshmarkDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkPublishingId === previewListing._id}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
-                >
-                  {poshmarkDirectPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing Direct...
-                    </>
-                  ) : (
-                    'List to Poshmark (Direct API)'
-                  )}
-                </button>
-                <button 
-                  onClick={() => handlePoshmarkPublish(previewListing)}
-                  disabled={poshmarkPublishingId === previewListing._id || verifyingListingId === previewListing._id || poshmarkDirectPublishingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                >
-                  {poshmarkPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing...
-                    </>
-                  ) : (
-                    'List to Poshmark (Extension)'
-                  )}
-                </button>
-              </>
-            )}
-          </>
-        )}
-        {previewListing.platform === 'ebay' && (
-          <button 
-            onClick={() => {
-              if (previewListing.ebayUrl) {
-                handleVerifyAndOpen(previewListing);
-              } else {
-                handlePublish(previewListing._id);
-              }
-            }}
-            disabled={publishingId === previewListing._id || verifyingListingId === previewListing._id}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-          >
-            {verifyingListingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                Verifying...
-              </>
-            ) : publishingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                Listing...
-              </>
-            ) : previewListing.ebayUrl ? (
-              'View on eBay'
-            ) : (
-              'List to eBay (API)'
-            )}
-          </button>
-        )}
-        {previewListing.platform === 'etsy' && (
-          <button 
-            onClick={() => {
-              if (previewListing.etsyUrl) {
-                handleVerifyAndOpen(previewListing);
-              } else {
-                handleEtsyPublish(previewListing);
-              }
-            }}
-            disabled={etsyPublishingId === previewListing._id || verifyingListingId === previewListing._id}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            {verifyingListingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Verifying...
-              </>
-            ) : etsyPublishingId === previewListing._id ? (
-              <>
-                <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Listing...
-              </>
-            ) : previewListing.etsyUrl ? (
-              'View on Etsy'
-            ) : (
-              'List to Etsy (API)'
-            )}
-          </button>
-        )}
-        {previewListing.platform === 'depop' && (
-          <>
-            {previewListing.depopUrl ? (
-              <button 
-                onClick={() => handleVerifyAndOpen(previewListing)}
-                disabled={verifyingListingId === previewListing._id}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {verifyingListingId === previewListing._id ? (
-                  <>
-                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Verifying...
-                  </>
-                ) : (
-                  'View on Depop'
-                )}
-              </button>
-            ) : (
-              <>
-                <button 
-                  onClick={() => handleDepopDirectPublish(previewListing)}
-                  disabled={depopDirectPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopPublishingId === previewListing._id}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50"
-                >
-                  {depopDirectPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing Direct...
-                    </>
-                  ) : (
-                    'List to Depop (Direct API)'
-                  )}
-                </button>
-                <button 
-                  onClick={() => handleDepopPublish(previewListing)}
-                  disabled={depopPublishingId === previewListing._id || verifyingListingId === previewListing._id || depopDirectPublishingId === previewListing._id}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:opacity-50"
-                >
-                  {depopPublishingId === previewListing._id ? (
-                    <>
-                      <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                      Listing...
-                    </>
-                  ) : (
-                    'List to Depop (Extension)'
-                  )}
-                </button>
-              </>
-            )}
-          </>
-        )}
-      </>
+      <div className="flex items-center gap-2">
+        {platforms.map((p) => {
+          const tooltip = p.isLoading 
+            ? `Publishing to ${p.name}...` 
+            : p.isLive 
+              ? `Live on ${p.name} - Click to open listing` 
+              : `Click to list on ${p.name}`;
+
+          return (
+            <button
+              key={p.id}
+              type="button"
+              title={tooltip}
+              disabled={p.isLoading}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (p.isLive) {
+                  if (p.url) window.open(p.url, '_blank');
+                  else handleVerifyAndOpen(previewListing);
+                } else {
+                  p.onPublish();
+                }
+              }}
+              className={`relative w-9 h-9 rounded-full border flex items-center justify-center p-1.5 transition-all cursor-pointer group ${
+                p.isLive
+                  ? 'border-emerald-300 bg-white hover:border-emerald-500 hover:shadow-md hover:shadow-emerald-500/10 hover:scale-105'
+                  : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-500/10 hover:scale-105'
+              }`}
+            >
+              <img 
+                src={p.logo} 
+                alt={p.name} 
+                className={`w-full h-full object-contain transition-all ${
+                  p.isLive ? '' : 'opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0'
+                }`} 
+              />
+              {/* Live Green Dot */}
+              {p.isLive && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white"></span>
+                </span>
+              )}
+              {/* Spinner if Loading */}
+              {p.isLoading && (
+                <div className="absolute inset-0 bg-white/80 rounded-full flex items-center justify-center">
+                  <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
     );
   };
 
@@ -1129,17 +1240,15 @@ const NewListings = () => {
     const isEtsy = selectedChannel === 'etsy';
     const isPoshmark = selectedChannel === 'poshmark';
     const isDepop = selectedChannel === 'depop';
+    const isMercari = selectedChannel === 'mercari';
+    const isAmazon = selectedChannel === 'amazon';
 
     const title = product.title || '';
     const brand = product.brand || '';
     const sku = product.sku || '-';
     const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
 
-    // Status: eBay/Etsy/Poshmark all report a real per-item marketplace status now
-    // (eBay/Etsy via the synced Product cache, Poshmark via its own API's
-    // status/inventory fields on each live-fetched post). Depop is still fetched
-    // live without a real status signal, so it stays 'live' as before.
-    const status = (isEbay || isEtsy || isPoshmark || isDepop) 
+    const status = (isEbay || isEtsy || isPoshmark || isDepop || isMercari || isAmazon) 
       ? ((product.status === 'active' || product.status === 'live') ? 'active' : product.status === 'draft' ? 'draft' : 'inactive') 
       : 'live';
 
@@ -1162,14 +1271,31 @@ const NewListings = () => {
     } else if (isDepop) {
       liveId = product.depopListingId || '-';
       url = product.depopUrl || '';
+    } else if (isMercari) {
+      liveId = product.mercariListingId || '-';
+      url = product.mercariUrl || (product.mercariListingId ? `https://www.mercari.com/item/${product.mercariListingId}/` : '');
+    } else if (isAmazon) {
+      liveId = product.amazonListingId || product.amazonAsin || '-';
+      url = product.amazonUrl || (product.amazonAsin ? `https://www.amazon.com/dp/${product.amazonAsin}` : '');
     }
 
-    // Last Synced Date / Scraped Date
-    let dateText = 'Live';
-    if ((isEbay || isEtsy) && product.updated_at) {
-      dateText = new Date(product.updated_at).toLocaleDateString();
-    } else if (product.createdAt) {
-      dateText = new Date(product.createdAt).toLocaleDateString();
+    // Extract and format accurate Date
+    const rawDate = product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || product.inventory_booked_at;
+    let dateText = 'Recent';
+    if (rawDate) {
+      let d;
+      if (typeof rawDate === 'number') {
+        d = rawDate < 1e11 ? new Date(rawDate * 1000) : new Date(rawDate);
+      } else {
+        d = new Date(rawDate);
+      }
+      if (!isNaN(d.getTime())) {
+        dateText = d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
     }
 
     return { title, brand, sku, thumbnail, status, price: parsedPrice, liveId, url, dateText };
@@ -1181,6 +1307,7 @@ const NewListings = () => {
     if (channel === 'poshmark') return 'Poshmark';
     if (channel === 'depop') return 'Depop';
     if (channel === 'mercari') return 'Mercari';
+    if (channel === 'amazon') return 'Amazon';
     return channel;
   };
 
@@ -1261,26 +1388,71 @@ const NewListings = () => {
     return 0;
   });
 
-  // Filter Channel Products
-  const filteredChannelProducts = channelProducts.filter((product) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      !searchTerm ||
-      (product.title && product.title.toLowerCase().includes(term)) ||
-      (product.sku && product.sku.toLowerCase().includes(term)) ||
-      (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
-      (product.etsyListingId && product.etsyListingId.toLowerCase().includes(term)) ||
-      (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
-      (product.depopListingId && product.depopListingId.toLowerCase().includes(term));
+  // Filter & Sort Channel Products
+  const filteredAndSortedChannelProducts = React.useMemo(() => {
+    const term = (searchTerm || '').trim().toLowerCase();
+    
+    // 1. Filter
+    const filtered = channelProducts.filter((product) => {
+      const details = getProductDetails(product);
+      
+      const matchesSearch =
+        !term ||
+        (details.title && details.title.toLowerCase().includes(term)) ||
+        (details.sku && details.sku.toLowerCase().includes(term)) ||
+        (details.brand && details.brand.toLowerCase().includes(term)) ||
+        (details.liveId && details.liveId.toLowerCase().includes(term)) ||
+        (product.title && product.title.toLowerCase().includes(term)) ||
+        (product.sku && product.sku.toLowerCase().includes(term)) ||
+        (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
+        (product.etsyListingId && product.etsyListingId.toLowerCase().includes(term)) ||
+        (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
+        (product.depopListingId && product.depopListingId.toLowerCase().includes(term)) ||
+        (product.mercariListingId && product.mercariListingId.toLowerCase().includes(term));
 
-    let matchesStatus = true;
-    if (channelStatusFilter !== 'all') {
-      const normalizedStatus = getProductDetails(product).status; // 'active' | 'inactive' | 'live'
-      matchesStatus = normalizedStatus === channelStatusFilter;
-    }
+      let matchesStatus = true;
+      if (channelStatusFilter !== 'all') {
+        const normalizedStatus = details.status; // 'active' | 'inactive' | 'draft'
+        matchesStatus = normalizedStatus === channelStatusFilter;
+      }
 
-    return matchesSearch && matchesStatus;
-  });
+      return matchesSearch && matchesStatus;
+    });
+
+    // 2. Sort
+    return [...filtered].sort((a, b) => {
+      const detailsA = getProductDetails(a);
+      const detailsB = getProductDetails(b);
+
+      const rawDateA = a.updated_at || a.updatedAt || a.createdAt || a.created_at || a.createdDate || a.created || a.updated || a.date_created || 0;
+      const rawDateB = b.updated_at || b.updatedAt || b.createdAt || b.created_at || b.createdDate || b.created || b.updated || b.date_created || 0;
+      const timeA = typeof rawDateA === 'number' ? (rawDateA < 1e11 ? rawDateA * 1000 : rawDateA) : new Date(rawDateA || 0).getTime();
+      const timeB = typeof rawDateB === 'number' ? (rawDateB < 1e11 ? rawDateB * 1000 : rawDateB) : new Date(rawDateB || 0).getTime();
+
+      const priceA = detailsA.price || 0;
+      const priceB = detailsB.price || 0;
+
+      const titleA = (detailsA.title || '').toLowerCase();
+      const titleB = (detailsB.title || '').toLowerCase();
+
+      switch (channelSortOption) {
+        case 'newest':
+          return (timeB || 0) - (timeA || 0);
+        case 'oldest':
+          return (timeA || 0) - (timeB || 0);
+        case 'price-asc':
+          return priceA - priceB;
+        case 'price-desc':
+          return priceB - priceA;
+        case 'title-asc':
+          return titleA.localeCompare(titleB);
+        case 'title-desc':
+          return titleB.localeCompare(titleA);
+        default:
+          return (timeB || 0) - (timeA || 0);
+      }
+    });
+  }, [channelProducts, searchTerm, channelStatusFilter, channelSortOption, selectedChannel]);
 
   // Pagination Calculations
   // Local
@@ -1291,23 +1463,397 @@ const NewListings = () => {
   const paginatedListings = sortedListings.slice(startIndex, endIndex);
 
   // Channel
-  const totalChannelPages = Math.ceil(filteredChannelProducts.length / itemsPerPage) || 1;
+  const totalChannelPages = Math.ceil(filteredAndSortedChannelProducts.length / itemsPerPage) || 1;
   const activeChannelPage = Math.min(currentPage, totalChannelPages);
   const startChannelIndex = (activeChannelPage - 1) * itemsPerPage;
-  const endChannelIndex = Math.min(startChannelIndex + itemsPerPage, filteredChannelProducts.length);
-  const paginatedChannelProducts = filteredChannelProducts.slice(startChannelIndex, endChannelIndex);
+  const endChannelIndex = Math.min(startChannelIndex + itemsPerPage, filteredAndSortedChannelProducts.length);
+  const paginatedChannelProducts = filteredAndSortedChannelProducts.slice(startChannelIndex, endChannelIndex);
 
   // Generalised Pagination Bounds for UI display
   const displayedTotalPages = activeTab === 'local' ? totalPages : totalChannelPages;
   const displayedActivePage = activeTab === 'local' ? activePage : activeChannelPage;
   const displayedStartIndex = activeTab === 'local' ? startIndex : startChannelIndex;
   const displayedEndIndex = activeTab === 'local' ? endIndex : endChannelIndex;
-  const displayedTotalCount = activeTab === 'local' ? sortedListings.length : filteredChannelProducts.length;
+  const displayedTotalCount = activeTab === 'local' ? sortedListings.length : filteredAndSortedChannelProducts.length;
 
   // Reset currentPage to 1 when filters, tabs, or items per page change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, channelStatusFilter, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
+  }, [searchTerm, statusFilter, channelStatusFilter, channelSortOption, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
+
+  // Smart Import Modal Handlers
+  const handleOpenImportModal = async () => {
+    setImportModalOpen(true);
+    setImportLoading(true);
+    setImportSearchTerm('');
+    try {
+      const res = await listingService.getActiveChannelPreview();
+      if (res.data.success) {
+        const groups = res.data.groups || [];
+        setImportGroups(groups);
+
+        const initialGroupIds = {};
+        const initialPlatforms = {};
+
+        groups.forEach((grp) => {
+          initialGroupIds[grp.groupId] = false;
+          initialPlatforms[grp.groupId] = {};
+          ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy'].forEach((plat) => {
+            if (grp.channels?.[plat]) {
+              initialPlatforms[grp.groupId][plat] = false;
+            }
+          });
+        });
+
+        setSelectedGroupIds(initialGroupIds);
+        setSelectedPlatforms(initialPlatforms);
+      } else {
+        toast.error(res.data.message || 'Failed to fetch active channel listings.');
+      }
+    } catch (err) {
+      console.error('Error fetching active channel preview:', err);
+      toast.error(err.response?.data?.message || 'Failed to fetch active channel listings.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const filteredImportGroups = importGroups
+    .filter((grp) => {
+      if (importFilterTab === 'multi' && grp.channelCount <= 1) return false;
+      if (importFilterTab === 'single' && grp.channelCount > 1) return false;
+      if (importFilterTab === 'in_local' && !grp.alreadyInLocal) return false;
+      if (importFilterTab === 'not_in_local' && grp.alreadyInLocal) return false;
+
+      if (!importSearchTerm) return true;
+      const term = importSearchTerm.toLowerCase();
+      const titleMatch = grp.title?.toLowerCase().includes(term);
+      const skuMatch = grp.sku?.toLowerCase().includes(term);
+      const brandMatch = grp.brand?.toLowerCase().includes(term);
+      return titleMatch || skuMatch || brandMatch;
+    })
+    .sort((a, b) => {
+      if (!a.alreadyInLocal && b.alreadyInLocal) return -1;
+      if (a.alreadyInLocal && !b.alreadyInLocal) return 1;
+      if ((b.unlinkedChannelCount || 0) !== (a.unlinkedChannelCount || 0)) {
+        return (b.unlinkedChannelCount || 0) - (a.unlinkedChannelCount || 0);
+      }
+      return b.channelCount - a.channelCount;
+    });
+
+  const handleSelectByCriteria = (criteria) => {
+    const newGroupIds = { ...selectedGroupIds };
+    const newPlatforms = { ...selectedPlatforms };
+
+    importGroups.forEach((grp) => {
+      if (grp.alreadyInLocal) {
+        newGroupIds[grp.groupId] = false;
+        if (newPlatforms[grp.groupId]) {
+          Object.keys(newPlatforms[grp.groupId]).forEach((p) => {
+            newPlatforms[grp.groupId][p] = false;
+          });
+        }
+        return;
+      }
+
+      let shouldSelect = false;
+      if (criteria === 'all') {
+        shouldSelect = true;
+      } else if (criteria === 'multi') {
+        shouldSelect = grp.channelCount > 1;
+      } else if (criteria === 'single') {
+        shouldSelect = grp.channelCount === 1;
+      } else if (criteria === 'none') {
+        shouldSelect = false;
+      }
+
+      let hasAnySelectedChannel = false;
+      if (!newPlatforms[grp.groupId]) newPlatforms[grp.groupId] = {};
+
+      ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy'].forEach((plat) => {
+        if (grp.channels?.[plat]) {
+          const isAlreadyInLocal = !!grp.channels[plat].alreadyInLocal;
+          if (!isAlreadyInLocal && shouldSelect) {
+            newPlatforms[grp.groupId][plat] = true;
+            hasAnySelectedChannel = true;
+          } else {
+            newPlatforms[grp.groupId][plat] = false;
+          }
+        }
+      });
+
+      newGroupIds[grp.groupId] = hasAnySelectedChannel;
+    });
+
+    setSelectedGroupIds(newGroupIds);
+    setSelectedPlatforms(newPlatforms);
+  };
+
+  const handleToggleSelectAllImport = () => {
+    const importableFiltered = filteredImportGroups.filter(g => !g.alreadyInLocal);
+    const allSelected = importableFiltered.length > 0 && importableFiltered.every(grp => selectedGroupIds[grp.groupId]);
+
+    const newGroupIds = { ...selectedGroupIds };
+    const newPlatforms = { ...selectedPlatforms };
+
+    if (allSelected) {
+      importableFiltered.forEach(grp => {
+        newGroupIds[grp.groupId] = false;
+        if (newPlatforms[grp.groupId]) {
+          Object.keys(newPlatforms[grp.groupId]).forEach(plat => {
+            newPlatforms[grp.groupId][plat] = false;
+          });
+        }
+      });
+    } else {
+      importableFiltered.forEach(grp => {
+        let hasAny = false;
+        if (!newPlatforms[grp.groupId]) newPlatforms[grp.groupId] = {};
+        ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].forEach(plat => {
+          if (grp.channels?.[plat] && !grp.channels[plat].alreadyInLocal) {
+            newPlatforms[grp.groupId][plat] = true;
+            hasAny = true;
+          }
+        });
+        newGroupIds[grp.groupId] = hasAny;
+      });
+    }
+
+    setSelectedGroupIds(newGroupIds);
+    setSelectedPlatforms(newPlatforms);
+  };
+
+  const handleToggleGroupRow = (groupId) => {
+    const grp = importGroups.find(g => g.groupId === groupId);
+    if (!grp || grp.alreadyInLocal) return;
+
+    const isCurrentlySelected = !!selectedGroupIds[groupId];
+    const newGroupIds = { ...selectedGroupIds };
+    const newPlatforms = { ...selectedPlatforms };
+
+    if (!newPlatforms[groupId]) newPlatforms[groupId] = {};
+
+    let hasAnySelected = false;
+    ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].forEach(plat => {
+      if (grp.channels?.[plat]) {
+        if (grp.channels[plat].alreadyInLocal) {
+          newPlatforms[groupId][plat] = false;
+        } else {
+          newPlatforms[groupId][plat] = !isCurrentlySelected;
+          if (!isCurrentlySelected) hasAnySelected = true;
+        }
+      }
+    });
+
+    newGroupIds[groupId] = !isCurrentlySelected && hasAnySelected;
+
+    setSelectedGroupIds(newGroupIds);
+    setSelectedPlatforms(newPlatforms);
+  };
+
+  const handleTogglePlatform = (groupId, platform) => {
+    const grp = importGroups.find(g => g.groupId === groupId);
+    if (!grp || grp.alreadyInLocal) return;
+    if (grp.channels?.[platform]?.alreadyInLocal) return;
+
+    const currentPlats = selectedPlatforms[groupId] || {};
+    const newPlatState = !currentPlats[platform];
+    const updatedPlats = { ...currentPlats, [platform]: newPlatState };
+
+    const newPlatforms = { ...selectedPlatforms, [groupId]: updatedPlats };
+
+    const hasAny = Object.keys(updatedPlats).some(p => updatedPlats[p]);
+    const newGroupIds = { ...selectedGroupIds, [groupId]: hasAny };
+    setSelectedPlatforms(newPlatforms);
+    setSelectedGroupIds(newGroupIds);
+  };
+
+  const getSelectedImportCounts = () => {
+    let groupCount = 0;
+    let channelCount = 0;
+
+    importGroups.forEach(grp => {
+      if (selectedGroupIds[grp.groupId]) {
+        const plats = selectedPlatforms[grp.groupId] || {};
+        let activeInGroup = 0;
+        ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].forEach(plat => {
+          if (grp.channels?.[plat] && plats[plat] && !grp.channels[plat].alreadyInLocal) {
+            activeInGroup++;
+          }
+        });
+        if (activeInGroup > 0) {
+          groupCount++;
+          channelCount += activeInGroup;
+        }
+      }
+    });
+
+    return { groupCount, channelCount };
+  };
+
+  const handleExecuteImport = async () => {
+    const selectedPayload = [];
+
+    for (const group of importGroups) {
+      if (!selectedGroupIds[group.groupId]) continue;
+
+      const groupPlats = selectedPlatforms[group.groupId] || {};
+      const activeSelectedChannels = {};
+      let hasAny = false;
+
+      for (const plat of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+        if (group.channels?.[plat] && groupPlats[plat] && !group.channels[plat].alreadyInLocal) {
+          activeSelectedChannels[plat] = {
+            ...group.channels[plat],
+            selected: true
+          };
+          hasAny = true;
+        }
+      }
+
+      if (hasAny) {
+        selectedPayload.push({
+          ...group,
+          channels: activeSelectedChannels
+        });
+      }
+    }
+
+    if (selectedPayload.length === 0) {
+      toast.error('Please select at least one item and platform to import.');
+      return;
+    }
+
+    setImportSubmitting(true);
+    try {
+      const res = await listingService.importActiveChannels({ items: selectedPayload });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Successfully imported to Local Database!');
+        setImportModalOpen(false);
+        await fetchListings();
+        setActiveTab('local');
+        localStorage.setItem('elister_active_listings_tab', 'local');
+      } else {
+        toast.error(res.data.message || 'Failed to import items.');
+      }
+    } catch (err) {
+      console.error('Error importing active channels:', err);
+      toast.error(err.response?.data?.message || 'Failed to import items.');
+    } finally {
+      setImportSubmitting(false);
+    }
+  };
+
+  // Smart Local Merge Handlers
+  const handleOpenLocalMergeModal = async () => {
+    setLocalMergeModalOpen(true);
+    setLocalMergeLoading(true);
+    setLocalMergeSearchTerm('');
+    setLocalMergeFilterTab('all');
+    try {
+      const res = await listingService.getLocalMergePreview();
+      if (res.data.success) {
+        const groups = res.data.groups || [];
+        setLocalMergeGroups(groups);
+        const initialSelected = {};
+        groups.forEach(g => {
+          initialSelected[g.groupId] = false;
+        });
+        setSelectedMergeGroupIds(initialSelected);
+      } else {
+        toast.error(res.data.message || 'Failed to scan local duplicates.');
+      }
+    } catch (err) {
+      console.error('Error fetching local merge preview:', err);
+      toast.error(err.response?.data?.message || 'Failed to scan local duplicates.');
+    } finally {
+      setLocalMergeLoading(false);
+    }
+  };
+
+  const filteredLocalMergeGroups = localMergeGroups.filter(grp => {
+    if (localMergeFilterTab === 'multi' && grp.channelCount <= 1) return false;
+    if (localMergeFilterTab === '2plus' && grp.duplicateCount < 2) return false;
+
+    if (!localMergeSearchTerm) return true;
+    const term = localMergeSearchTerm.toLowerCase();
+    const titleMatch = grp.masterListing?.title?.toLowerCase().includes(term);
+    const skuMatch = grp.masterListing?.sku?.toLowerCase().includes(term);
+    return titleMatch || skuMatch;
+  });
+
+  const handleSelectLocalMergeByCriteria = (criteria) => {
+    const newSelected = { ...selectedMergeGroupIds };
+    localMergeGroups.forEach(grp => {
+      if (criteria === 'all') {
+        newSelected[grp.groupId] = true;
+      } else if (criteria === 'multi') {
+        newSelected[grp.groupId] = grp.channelCount > 1;
+      } else if (criteria === '2plus') {
+        newSelected[grp.groupId] = grp.duplicateCount >= 2;
+      } else if (criteria === 'none') {
+        newSelected[grp.groupId] = false;
+      }
+    });
+    setSelectedMergeGroupIds(newSelected);
+  };
+
+  const handleToggleSelectAllLocalMerge = () => {
+    const filtered = filteredLocalMergeGroups;
+    const allSelected = filtered.length > 0 && filtered.every(g => selectedMergeGroupIds[g.groupId]);
+    const newSelected = { ...selectedMergeGroupIds };
+
+    if (allSelected) {
+      filtered.forEach(g => { newSelected[g.groupId] = false; });
+    } else {
+      filtered.forEach(g => { newSelected[g.groupId] = true; });
+    }
+    setSelectedMergeGroupIds(newSelected);
+  };
+
+  const handleToggleMergeGroupRow = (groupId) => {
+    setSelectedMergeGroupIds(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
+
+  const getSelectedLocalMergeCounts = () => {
+    let groupCount = 0;
+    let duplicateCount = 0;
+    localMergeGroups.forEach(grp => {
+      if (selectedMergeGroupIds[grp.groupId]) {
+        groupCount++;
+        duplicateCount += grp.duplicateCount;
+      }
+    });
+    return { groupCount, duplicateCount };
+  };
+
+  const handleExecuteBulkMerge = async () => {
+    const selectedGroupsToMerge = localMergeGroups.filter(g => selectedMergeGroupIds[g.groupId]);
+    if (selectedGroupsToMerge.length === 0) {
+      toast.error('Please select at least one cluster to merge.');
+      return;
+    }
+
+    setLocalMergeSubmitting(true);
+    try {
+      const res = await listingService.bulkMergeListings({ groups: selectedGroupsToMerge });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Successfully merged local listings!');
+        setLocalMergeModalOpen(false);
+        await fetchListings();
+      } else {
+        toast.error(res.data.message || 'Failed to merge listings.');
+      }
+    } catch (err) {
+      console.error('Error executing bulk merge:', err);
+      toast.error(err.response?.data?.message || 'Failed to merge listings.');
+    } finally {
+      setLocalMergeSubmitting(false);
+    }
+  };
 
   const getPageNumbers = (curr, total) => {
     const pages = [];
@@ -1393,6 +1939,8 @@ const NewListings = () => {
       return `https://poshmark.com/listing/${checkId}`;
     } else if (platformName === 'etsy') {
       return `https://www.etsy.com/listing/${checkId}`;
+    } else if (platformName === 'amazon') {
+      return `https://www.amazon.com/dp/${checkId}`;
     }
     return '#';
   };
@@ -1534,6 +2082,70 @@ const NewListings = () => {
     }
   };
 
+  const handleMoveToNewItem = async (item, platformName) => {
+    setActiveListedDropdown(null);
+
+    const platformDisplayName = getChannelDisplayName(platformName);
+    const confirmMove = await confirm(
+      `Are you sure you want to move this ${platformDisplayName} listing to a New Item row in Local Database? It will be removed from this current row and created as an independent new item.`,
+      {
+        title: `Move ${platformDisplayName} to New Item`,
+        destructive: false
+      }
+    );
+    if (!confirmMove) return;
+
+    try {
+      toast.info(`Moving ${platformDisplayName} to a new item...`);
+      const targetId = item._id;
+      if (!targetId || String(targetId).startsWith('mock-')) {
+        toast.success(`Successfully moved mock item to new item!`);
+        return;
+      }
+
+      const response = await listingService.moveToNewItem(targetId, platformName);
+      if (response.data?.success) {
+        toast.success(`Successfully moved ${platformDisplayName} to a new independent item!`);
+        fetchListings();
+        fetchChannelInventory();
+      } else {
+        toast.error(response.data?.message || `Failed to move ${platformDisplayName} to new item.`);
+      }
+    } catch (err) {
+      console.error(`Error moving platform to new item:`, err);
+      toast.error(err.response?.data?.message || `Failed to move ${platformDisplayName} to new item.`);
+    }
+  };
+
+  const handleMergeChannel = async (sourceListingId, targetListingId, platformName) => {
+    const platformDisplayName = getChannelDisplayName(platformName);
+    toast.info(`Merging ${platformDisplayName} into item...`);
+
+    try {
+      if (String(sourceListingId).startsWith('mock-') || String(targetListingId).startsWith('mock-')) {
+        toast.success(`Successfully merged ${platformDisplayName} into item!`);
+        return;
+      }
+
+      const response = await listingService.mergeChannel({
+        sourceListingId,
+        targetListingId,
+        platform: platformName
+      });
+
+      if (response.data?.success) {
+        toast.success(`Successfully merged ${platformDisplayName} into this item!`);
+        fetchListings();
+        fetchChannelInventory();
+      } else {
+        toast.error(response.data?.message || `Failed to merge ${platformDisplayName}`);
+      }
+    } catch (err) {
+      console.error('Error merging channel:', err);
+      toast.error(err.response?.data?.message || `Failed to merge ${platformDisplayName}`);
+    }
+  };
+
   const handleVerifyStatus = async (item, platformName) => {
     setActiveListedDropdown(null);
     
@@ -1542,20 +2154,26 @@ const NewListings = () => {
       return;
     }
 
-    toast.info(`Verifying live status on ${platformName.toUpperCase()}...`);
+    const platform = platformName || item.platform || selectedChannel || 'ebay';
+    toast.info(`Verifying live status on ${platform.toUpperCase()}...`);
     try {
-      const response = await listingService.verifyLive(item._id);
-      if (response.data.success) {
-        if (response.data.isLive) {
-          toast.success(`Listing is active and live on ${platformName.toUpperCase()}!`);
-        } else {
-          toast.warning(`Listing was not found or ended on ${platformName.toUpperCase()}! Reset to Not Listed.`);
-          fetchListings(); // reload list to show updated status
+      let response;
+      if (platform === 'mercari') {
+        response = await mercariService.verifyStatus(item._id || item.mercariListingId);
+      } else {
+        response = await listingService.verifyLive(item._id);
+      }
+      
+      if (response.data?.success) {
+        toast.success(response.data.message || `Status verified on ${platform.toUpperCase()}!`);
+        fetchListings();
+        if (activeTab === 'channel') {
+          fetchChannelInventory();
         }
       }
     } catch (err) {
       console.error(`Error verifying live status:`, err);
-      toast.error(err.response?.data?.message || `Failed to verify status.`);
+      toast.error(err.response?.data?.message || `Failed to verify status on ${platform.toUpperCase()}.`);
     }
   };
 
@@ -1600,6 +2218,12 @@ const NewListings = () => {
           toast.success("Listing successfully reactivated on Mercari!");
           fetchListings();
         }
+      } else if (platformName === 'amazon') {
+        const res = await amazonService.publish(item._id);
+        if (res.data?.success) {
+          toast.success("Listing successfully reactivated on Amazon!");
+          fetchListings();
+        }
       }
     } catch (error) {
       console.error(`Error relisting on ${platformName}:`, error);
@@ -1612,6 +2236,8 @@ const NewListings = () => {
     setSearchTerm('');
     setStatusFilter('all');
     setChannelStatusFilter('all');
+    setChannelSortOption('newest');
+    localStorage.removeItem('elister_channel_sort_option');
     setFilterListedOn([]);
     setFilterNoListedOn([]);
     setTempListedOn([]);
@@ -1624,7 +2250,7 @@ const NewListings = () => {
     const disconnectOnly = activeTab === 'local';
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
     const isMasterListing = platformSpecificItem && platformSpecificItem._id === item._id;
-    const platformStatus = (platformSpecificItem && !isMasterListing)
+    const rawPlatformStatus = (platformSpecificItem && !isMasterListing)
       ? platformSpecificItem.status?.toLowerCase() 
       : item[`${platformName}Status`]?.toLowerCase();
 
@@ -1634,38 +2260,43 @@ const NewListings = () => {
     let isDelisted = false;
     let isFailed = false;
 
-    if (platformStatus === 'published' || platformStatus === 'active') {
+    if (rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted') {
+      // Explicitly Not Listed on this platform
+      isListed = false;
+      isDraft = false;
+      isDelisted = false;
+      isFailed = false;
+    } else if (rawPlatformStatus === 'published' || rawPlatformStatus === 'active') {
       isListed = true;
-    } else if (platformStatus === 'draft') {
+    } else if (rawPlatformStatus === 'draft') {
       isDraft = true;
-    } else if (platformStatus === 'delisted') {
+    } else if (rawPlatformStatus === 'delisted') {
       isDelisted = true;
-    } else if (platformStatus === 'failed') {
+    } else if (rawPlatformStatus === 'failed') {
       isFailed = true;
-    } else {
-      // Fallbacks if platformStatus is undefined/none (e.g. for local listing representation)
+    } else if (!rawPlatformStatus) {
+      // Fallbacks only if rawPlatformStatus is undefined
       const specificStatus = platformSpecificItem?.status?.toLowerCase();
-      if (specificStatus === 'published' || specificStatus === 'active') {
-        isListed = true;
-      } else if (specificStatus === 'draft') {
-        isDraft = true;
-      } else if (specificStatus === 'delisted') {
-        isDelisted = true;
-      } else if (specificStatus === 'failed') {
-        isFailed = true;
-      } else {
-        // Main item checks
+      if (specificStatus && specificStatus !== 'none' && specificStatus !== 'unlisted') {
+        if (specificStatus === 'published' || specificStatus === 'active') {
+          isListed = true;
+        } else if (specificStatus === 'draft') {
+          isDraft = true;
+        } else if (specificStatus === 'delisted') {
+          isDelisted = true;
+        } else if (specificStatus === 'failed') {
+          isFailed = true;
+        }
+      } else if (item.platform === platformName) {
         const itemStatus = item.status?.toLowerCase();
-        if (item.platform === platformName) {
-          if (itemStatus === 'active' || itemStatus === 'published') {
-            isListed = true;
-          } else if (itemStatus === 'draft') {
-            isDraft = true;
-          } else if (itemStatus === 'delisted') {
-            isDelisted = true;
-          } else if (itemStatus === 'failed') {
-            isFailed = true;
-          }
+        if (itemStatus === 'active' || itemStatus === 'published') {
+          isListed = true;
+        } else if (itemStatus === 'draft') {
+          isDraft = true;
+        } else if (itemStatus === 'delisted') {
+          isDelisted = true;
+        } else if (itemStatus === 'failed') {
+          isFailed = true;
         }
       }
     }
@@ -1679,11 +2310,34 @@ const NewListings = () => {
     }
 
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
+    const isBeingDragged = draggedChannel?.sourceListingId === item._id && draggedChannel?.platform === platformName;
+
     if (isListed || isDelisted || isDraft || isFailed) {
       const liveUrl = getListingUrl(item, platformName, checkId);
 
       return (
-        <div className="relative flex flex-col items-center justify-center py-1 select-none w-full">
+        <div 
+          draggable={activeTab === 'local'}
+          onDragStart={(e) => {
+            if (activeTab !== 'local') return;
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+              sourceListingId: item._id,
+              platform: platformName,
+              title: item.title,
+              images: item.images || [item.thumbnail],
+              sku: item.sku
+            }));
+            e.dataTransfer.effectAllowed = 'move';
+            setDraggedChannel({ sourceListingId: item._id, platform: platformName, title: item.title });
+          }}
+          onDragEnd={() => {
+            setDraggedChannel(null);
+            setDragOverTarget(null);
+          }}
+          className={`relative flex flex-col items-center justify-center py-1 select-none w-full ${
+            activeTab === 'local' ? 'cursor-grab active:cursor-grabbing' : ''
+          } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
+        >
           <div
             onClick={(e) => {
               e.stopPropagation();
@@ -1707,7 +2361,7 @@ const NewListings = () => {
               });
             }}
             className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
-            title="Click for options"
+            title={activeTab === 'local' ? "Click for options or Drag to another item to merge" : "Click for options"}
           >
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm shrink-0 transition-colors ${
               isListed 
@@ -1756,7 +2410,7 @@ const NewListings = () => {
                   className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <ExternalLink size={13} className="text-indigo-500 shrink-0" />
-                  View Listing
+                  View on {getChannelDisplayName(platformName)}
                 </a>
               )}
               {!isDraft && (
@@ -1799,6 +2453,16 @@ const NewListings = () => {
               )}
               {activeTab === 'local' ? (
                 <>
+                  {(isDraft || isListed) && (
+                    <button
+                      type="button"
+                      onClick={() => handleMoveToNewItem(item, platformName)}
+                      className="w-full px-3.5 py-2 text-xs font-bold text-indigo-650 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                    >
+                      <Plus size={13} className="text-indigo-500 shrink-0" />
+                      New Item
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleDeletePlatformListing(item, platformName, true)}
@@ -1807,14 +2471,16 @@ const NewListings = () => {
                     <Trash2 size={13} className="text-red-500 shrink-0" />
                     Delete from Crosslisting
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePlatformListing(item, platformName, false)}
-                    className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                  >
-                    <Trash2 size={13} className="text-red-500 shrink-0" />
-                    Delete from {getChannelDisplayName(platformName)} (Actual Site)
-                  </button>
+                  {(isListed || isDelisted) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePlatformListing(item, platformName, false)}
+                      className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                    >
+                      <Trash2 size={13} className="text-red-500 shrink-0" />
+                      Delete from {getChannelDisplayName(platformName)} (Actual Site)
+                    </button>
+                  )}
                 </>
               ) : (
                 <button
@@ -1833,19 +2499,89 @@ const NewListings = () => {
       );
     } else {
       // Not Listed status
+      const isDropTarget = activeTab === 'local' && draggedChannel && draggedChannel.platform === platformName && draggedChannel.sourceListingId !== item._id;
+      const isHovered = dragOverTarget === `${item._id}-${platformName}`;
+
       return (
         <div 
           onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
-          className="flex flex-col items-center justify-center py-1 cursor-pointer group hover:scale-105 transition-all select-none"
+          onDragOver={(e) => {
+            if (isDropTarget) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverTarget !== `${item._id}-${platformName}`) {
+                setDragOverTarget(`${item._id}-${platformName}`);
+              }
+            }
+          }}
+          onDragLeave={() => {
+            if (dragOverTarget === `${item._id}-${platformName}`) {
+              setDragOverTarget(null);
+            }
+          }}
+          onDrop={async (e) => {
+            if (!isDropTarget) return;
+            e.preventDefault();
+            setDragOverTarget(null);
+            setDraggedChannel(null);
+            try {
+              const dataStr = e.dataTransfer.getData('text/plain');
+              if (!dataStr) return;
+              const data = JSON.parse(dataStr);
+              if (data.sourceListingId && data.platform === platformName && data.sourceListingId !== item._id) {
+                // Client-side quick validation check
+                const srcTitle = (data.title || '').trim().toLowerCase();
+                const trgTitle = (item.title || '').trim().toLowerCase();
+                const srcSku = (data.sku || '').trim().toLowerCase();
+                const trgSku = (item.sku || '').trim().toLowerCase();
+
+                const skuMatches = srcSku && trgSku && srcSku !== '-' && trgSku !== '-' && srcSku === trgSku;
+                const imagesMatch = Array.isArray(data.images) && Array.isArray(item.images) && data.images.some(img => item.images.includes(img));
+                
+                // Token overlap check
+                const t1 = srcTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+                const t2 = trgTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+                const common = t1.filter(w => t2.includes(w));
+                const diceScore = (t1.length + t2.length > 0) ? (2 * common.length) / (t1.length + t2.length) : 0;
+
+                if (!skuMatches && !imagesMatch && diceScore < 0.60) {
+                  toast.error(`Cannot merge: Products do not match (${Math.round(diceScore * 100)}% match)! Merging is only allowed for the same physical product across platforms.`);
+                  return;
+                }
+
+                await handleMergeChannel(data.sourceListingId, item._id, platformName);
+              }
+            } catch (err) {
+              console.error('Drop error:', err);
+            }
+          }}
+          className={`flex flex-col items-center justify-center py-1 cursor-pointer group transition-all select-none ${
+            isDropTarget
+              ? isHovered
+                ? 'scale-110 ring-2 ring-indigo-500 rounded-xl bg-indigo-50/90 shadow-lg animate-pulse'
+                : 'ring-2 ring-dashed ring-indigo-400 rounded-xl bg-indigo-50/40 animate-pulse'
+              : 'hover:scale-105'
+          }`}
+          title={isDropTarget ? "Drop here to merge channel into this item!" : "Not Listed"}
         >
-          <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center bg-slate-50 text-slate-400 shadow-sm shrink-0 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100">
+          <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm shrink-0 transition-colors ${
+            isDropTarget
+              ? isHovered
+                ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
+                : 'border-indigo-300 bg-indigo-50 text-indigo-500'
+              : 'border-slate-100 bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100'
+          }`}>
             {/* Custom generic shop/building logo for grey placeholder */}
             <svg className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
           </div>
-          <span className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-600 mt-1 select-none transition-colors">Not Listed</span>
+          <span className={`text-[10px] font-bold mt-1 select-none transition-colors ${
+            isDropTarget ? 'text-indigo-600 font-extrabold' : 'text-slate-400 group-hover:text-indigo-600'
+          }`}>
+            {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : 'Not Listed'}
+          </span>
         </div>
       );
     }
@@ -1871,25 +2607,54 @@ const NewListings = () => {
       _id: product._id || product.id || details.liveId || product.sku || Math.random().toString(), 
       title: product.title || details.title, 
       sku: product.sku || '',
-      brand: product.brand || '',
+      brand: product.brand || details.brand || '',
       size: product.size || '',
+      color: product.color || '',
       description: product.description || '',
-      price: product.selling_price || 0,
-      images: product.images || [],
-      status: 'draft',
-      isFromSyncedProduct: true
+      price: typeof product.selling_price === 'number' ? product.selling_price : (parseFloat(product.price) || 0),
+      originalPrice: product.originalPrice || '',
+      images: product.images && product.images.length > 0 ? product.images : (details.thumbnail ? [details.thumbnail] : []),
+      category: product.category_name || product.category || details.category || '',
+      itemSpecifics: product.itemSpecifics || {},
+      selectedCondition: product.condition || product.selectedCondition || '',
+      conditionNote: product.conditionNote || '',
+      status: details.status === 'active' ? 'published' : (details.status === 'draft' ? 'draft' : 'delisted'),
+      isFromSyncedProduct: true,
+      isChannelProduct: true
     };
     delete base.listingsMap;
     base.platform = platformName;
     base[`${platformName}Url`] = details.url || base[`${platformName}Url`];
     base[`${platformName}Status`] = details.status === 'active' ? 'published' : (details.status === 'draft' ? 'draft' : 'delisted');
+    base[`${platformName}ListingId`] = details.liveId || product.mercariListingId || base[`${platformName}ListingId`];
+    if (platformName === 'mercari') {
+      base.mercariListingId = product.mercariListingId || (product.sku && product.sku.startsWith('M-m') ? product.sku.replace('M-', '') : details.liveId);
+      base.categoryId = product.categoryId || base.categoryId;
+    }
     return base;
   };
 
-  // Derived flag used purely for empty-state copy/actions (no filtering behavior change)
-  const hasActiveLocalFilters = !!(searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0);
+  // Channel-specific stat metrics
+  const channelStats = React.useMemo(() => {
+    let total = channelProducts.length;
+    let active = 0;
+    let draft = 0;
+    let inactive = 0;
+    let errors = 0;
 
-  const statCards = [
+    channelProducts.forEach(p => {
+      const details = getProductDetails(p);
+      const st = (details.status || p.status || '').toLowerCase();
+      if (st === 'active' || st === 'live' || st === 'published') active++;
+      else if (st === 'draft') draft++;
+      else if (st === 'failed' || st === 'error') errors++;
+      else inactive++;
+    });
+
+    return { total, active, draft, inactive, errors };
+  }, [channelProducts]);
+
+  const statCards = activeTab === 'local' ? [
     {
       key: 'all',
       label: 'Total Listings',
@@ -1930,6 +2695,47 @@ const NewListings = () => {
       color: 'bg-slate-100 text-slate-500 border-slate-200',
       ring: 'border-slate-400 ring-2 ring-slate-400/15',
     },
+  ] : [
+    {
+      key: 'all',
+      label: `${getChannelDisplayName(selectedChannel)} Total`,
+      value: channelStats.total,
+      icon: <Boxes size={20} />,
+      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
+    },
+    {
+      key: 'active',
+      label: 'Active',
+      value: channelStats.active,
+      icon: <CheckCircle2 size={20} />,
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
+    },
+    {
+      key: 'draft',
+      label: 'Drafts',
+      value: channelStats.draft,
+      icon: <FileText size={20} />,
+      color: 'bg-amber-50 text-amber-600 border-amber-100',
+      ring: 'border-amber-500 ring-2 ring-amber-500/15',
+    },
+    {
+      key: 'failed',
+      label: 'Errors',
+      value: channelStats.errors,
+      icon: <AlertCircle size={20} />,
+      color: 'bg-rose-50 text-rose-600 border-rose-100',
+      ring: 'border-rose-500 ring-2 ring-rose-500/15',
+    },
+    {
+      key: 'inactive',
+      label: 'Inactive / Ended',
+      value: channelStats.inactive,
+      icon: <EyeOff size={20} />,
+      color: 'bg-slate-100 text-slate-500 border-slate-200',
+      ring: 'border-slate-400 ring-2 ring-slate-400/15',
+    },
   ];
 
   return (
@@ -1943,12 +2749,23 @@ const NewListings = () => {
             initial={reducedMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
-            onClick={() => setStatusFilter(card.key)}
+            onClick={() => {
+              if (activeTab === 'local') {
+                setStatusFilter(card.key);
+              } else {
+                setChannelStatusFilter(card.key);
+              }
+            }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') setStatusFilter(card.key); }}
+            onKeyDown={(e) => { 
+              if (e.key === 'Enter') {
+                if (activeTab === 'local') setStatusFilter(card.key);
+                else setChannelStatusFilter(card.key);
+              }
+            }}
             className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
-              statusFilter === card.key
+              (activeTab === 'local' ? statusFilter === card.key : channelStatusFilter === card.key)
                 ? `${card.ring} bg-white shadow-md`
                 : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
             }`}
@@ -1998,6 +2815,19 @@ const NewListings = () => {
           </button>
         </div>
 
+        {/* Local Database Actions (only visible when in local tab) */}
+        {activeTab === 'local' && (
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={handleOpenLocalMergeModal}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            >
+              <GitMerge size={14} />
+              <span>Smart Merge</span>
+            </button>
+          </div>
+        )}
+
         {/* Channel Selection & Sync Actions (only visible when in channel tab) */}
         {activeTab === 'channel' && (
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -2042,7 +2872,7 @@ const NewListings = () => {
               >
                 Poshmark
               </button>
-              <button
+              {/* <button
                 onClick={() => {
                   setSelectedChannel('depop');
                   localStorage.setItem('elister_selected_listings_channel', 'depop');
@@ -2054,7 +2884,7 @@ const NewListings = () => {
                 }`}
               >
                 Depop
-              </button>
+              </button> */}
               <button
                 onClick={() => {
                   setSelectedChannel('mercari');
@@ -2068,6 +2898,19 @@ const NewListings = () => {
               >
                 Mercari
               </button>
+              <button
+                onClick={() => {
+                  setSelectedChannel('amazon');
+                  localStorage.setItem('elister_selected_listings_channel', 'amazon');
+                }}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  selectedChannel === 'amazon'
+                    ? 'bg-white text-indigo-600 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Amazon
+              </button>
             </div>
 
             {/* Sync Button */}
@@ -2080,6 +2923,15 @@ const NewListings = () => {
             >
               {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
             </Button>
+
+            {/* Import to Local Button */}
+            <button
+              onClick={handleOpenImportModal}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            >
+              <Download size={14} />
+              <span>Import to Local</span>
+            </button>
           </div>
         )}
       </div>
@@ -2088,36 +2940,60 @@ const NewListings = () => {
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
 
         {/* Search Input */}
-        <div className="relative flex-1 w-full">
+        <div className={`relative ${activeTab === 'channel' ? 'w-full sm:w-64 md:w-72 lg:w-80 shrink-0' : 'flex-1 w-full'}`}>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === 'local' ? "Search listings by title or SKU..." : `Search ${selectedChannel} products...`}
+            placeholder={activeTab === 'local' ? "Search listings by title or SKU..." : `Search ${getChannelDisplayName(selectedChannel)} products...`}
             className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
 
         {/* Dropdowns & Link options */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Channel Inventory Status Filter: All / Active / Inactive */}
+          {/* Channel Inventory Status Filter: All / Active / Inactive / Draft */}
           {activeTab === 'channel' && (
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
-              {['all', 'active', 'inactive', 'draft'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => setChannelStatusFilter(option)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
-                    channelStatusFilter === option
-                      ? 'bg-white text-indigo-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
+            <>
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+                {['all', 'active', 'inactive', 'draft'].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => setChannelStatusFilter(option)}
+                    className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
+                      channelStatusFilter === option
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+
+              {/* Channel Inventory Sort Dropdown (Date, Price, Alphabetical) */}
+              <div className="relative">
+                <select
+                  value={channelSortOption}
+                  onChange={(e) => {
+                    setChannelSortOption(e.target.value);
+                    localStorage.setItem('elister_channel_sort_option', e.target.value);
+                  }}
+                  className="px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 rounded-2xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none pr-9"
                 >
-                  {option}
-                </button>
-              ))}
-            </div>
+                  <option value="newest">Date: Newest First</option>
+                  <option value="oldest">Date: Oldest First</option>
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                  <option value="title-asc">Alphabetical (A - Z)</option>
+                  <option value="title-desc">Alphabetical (Z - A)</option>
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+            </>
           )}
 
           {/* Consolidated Filter Button */}
@@ -2144,7 +3020,8 @@ const NewListings = () => {
           )}
 
           {/* Clear filter button */}
-          {(searchTerm || statusFilter !== 'all' || channelStatusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
+          {((activeTab === 'local' && (searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest')) ||
+            (activeTab === 'channel' && (searchTerm || channelStatusFilter !== 'all' || channelSortOption !== 'newest'))) && (
             <button
               onClick={handleClearFilters}
               className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
@@ -2185,22 +3062,28 @@ const NewListings = () => {
                 {paginatedListings.map((item) => (
                   <div key={item._id} className="p-4 space-y-3">
                     <div className="flex items-start gap-3">
-                      <input type="checkbox" className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
-                      <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
-                        {item.thumbnail || (item.images && item.images.length > 0) ? (
-                          <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          <ImageOff size={16} className="text-slate-300" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">
-                          {item.title}
-                        </p>
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                          <span className="font-mono text-slate-500">{item.sku || '-'}</span>
-                          <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
-                          <span>{formatTimeAgo(item.createdAt)}</span>
+                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
+                      <div 
+                        className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
+                        onClick={() => handleOpenPreview(item, 'ebay')}
+                        title="Click to preview listing"
+                      >
+                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
+                          {item.thumbnail || (item.images && item.images.length > 0) ? (
+                            <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <ImageOff size={16} className="text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                            {item.title}
+                          </p>
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+                            <span className="font-mono text-slate-500">{item.sku || '-'}</span>
+                            <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
+                            <span>{formatTimeAgo(item.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
                       <IconButton
@@ -2221,9 +3104,10 @@ const NewListings = () => {
                     <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
                       {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                       {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                      {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
+                      {/* {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')} */}
                       {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                       {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                      {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                     </div>
                   </div>
                 ))}
@@ -2234,7 +3118,7 @@ const NewListings = () => {
                 <table className="w-full text-left border-collapse">
 
                   {/* Headers */}
-                  <thead className="sticky top-20 z-10 bg-slate-50">
+                  <thead className="bg-slate-50 border-b border-slate-100">
                     <tr className="border-b border-slate-100">
                       <th className="px-6 py-4 w-12 text-center">
                         <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
@@ -2254,9 +3138,10 @@ const NewListings = () => {
                       <th colSpan="6" />
                       <th className="py-2.5 text-center border-l border-slate-100 w-20">eBay</th>
                       <th className="py-2.5 text-center w-20">Poshmark</th>
-                      <th className="py-2.5 text-center w-20">Depop</th>
+                      {/* <th className="py-2.5 text-center w-20">Depop</th> */}
                       <th className="py-2.5 text-center w-20">Etsy</th>
-                      <th className="py-2.5 text-center w-20 border-r border-slate-100">Mercari</th>
+                      <th className="py-2.5 text-center w-20">Mercari</th>
+                      <th className="py-2.5 text-center w-20 border-r border-slate-100">Amazon</th>
                       <th />
                     </tr>
                   </thead>
@@ -2272,16 +3157,20 @@ const NewListings = () => {
                         </td>
 
                         {/* Item */}
-                        <td className="px-6 py-4 max-w-sm">
+                        <td 
+                          className="px-6 py-4 max-w-sm cursor-pointer group select-none"
+                          onClick={() => handleOpenPreview(item, 'ebay')}
+                          title="Click to preview listing"
+                        >
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:ring-2 group-hover:ring-indigo-500/20 group-hover:scale-105 transition-all">
                               {item.thumbnail || (item.images && item.images.length > 0) ? (
                                 <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
                               ) : (
                                 <ImageOff size={16} className="text-slate-300" />
                               )}
                             </div>
-                            <span className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-relaxed">
+                            <span className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-relaxed group-hover:text-indigo-600 transition-colors">
                               {item.title}
                             </span>
                           </div>
@@ -2309,21 +3198,24 @@ const NewListings = () => {
                           </span>
                         </td>
 
-                        {/* Crosslisting cell components: eBay, Poshmark, Depop, Etsy, Mercari */}
+                        {/* Crosslisting cell components: eBay, Poshmark, Depop, Etsy, Mercari, Amazon */}
                         <td className="border-l border-slate-100">
                           {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                         </td>
                         <td>
                           {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                         </td>
-                        <td>
+                        {/* <td>
                           {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
-                        </td>
+                        </td> */}
                         <td>
                           {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                         </td>
-                        <td className="border-r border-slate-100">
+                        <td>
                           {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                        </td>
+                        <td className="border-r border-slate-100">
+                          {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                         </td>
 
                         {/* Actions */}
@@ -2378,57 +3270,58 @@ const NewListings = () => {
             <div className="md:hidden divide-y divide-slate-100">
               {paginatedChannelProducts.map((product, index) => {
                 const details = getProductDetails(product);
-                const isMarketplaceStatus = selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark';
+                const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
+                const channelIcon = selectedChannel === 'ebay' 
+                  ? '/ebay.png' 
+                  : selectedChannel === 'etsy' 
+                    ? '/etsy.png' 
+                    : selectedChannel === 'poshmark' 
+                      ? '/poshmark.png' 
+                      : selectedChannel === 'depop' 
+                        ? '/depop.png' 
+                        : '/mercari.png';
                 const badgeStatus = isMarketplaceStatus
                   ? details.status
                   : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
                 return (
                   <div key={product._id || `${details.liveId}-${index}`} className="p-4 space-y-3">
                     <div className="flex items-start gap-3">
-                      <input type="checkbox" className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
-                      <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
-                        {details.thumbnail ? (
-                          <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          <ImageOff size={16} className="text-slate-300" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">
-                          {details.title}
-                        </p>
-                        {details.brand && (
-                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{details.brand}</p>
-                        )}
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                          <span className="font-mono text-slate-500">{details.sku || '-'}</span>
-                          <span className="text-slate-700 font-extrabold">${details.price.toFixed(2)}</span>
-                          <span>{details.dateText}</span>
+                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
+                      <div 
+                        className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
+                        onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
+                        title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
+                      >
+                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
+                          {details.thumbnail ? (
+                            <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <ImageOff size={16} className="text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                            {details.title}
+                          </p>
+                          {details.brand && (
+                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{details.brand}</p>
+                          )}
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+                            <span className="font-mono text-slate-500">{details.sku || '-'}</span>
+                            <span className="text-slate-700 font-extrabold">${details.price.toFixed(2)}</span>
+                            <span>{details.dateText}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                       <StatusBadge status={badgeStatus} />
-                      {isMarketplaceStatus ? (
-                        renderCrosslistingCell(
-                          buildChannelDropdownItem(product, details, selectedChannel),
-                          selectedChannel,
-                          details.liveId,
-                          selectedChannel === 'ebay' ? '/ebay.png' : selectedChannel === 'etsy' ? '/etsy.png' : '/poshmark.png'
-                        )
-                      ) : (
-                        details.url && (
-                          <a
-                            href={details.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-slate-500 hover:text-slate-900 text-[10px] font-black transition-all cursor-pointer"
-                          >
-                            <ExternalLink size={13} />
-                            View on {selectedChannel}
-                          </a>
-                        )
+                      {renderCrosslistingCell(
+                        buildChannelDropdownItem(product, details, selectedChannel),
+                        selectedChannel,
+                        details.liveId,
+                        channelIcon
                       )}
                     </div>
                   </div>
@@ -2441,7 +3334,7 @@ const NewListings = () => {
               <table className="w-full text-left border-collapse">
 
                 {/* Headers */}
-                <thead className="sticky top-20 z-10 bg-slate-50">
+                <thead className="bg-slate-50 border-b border-slate-100">
                   <tr className="border-b border-slate-100">
                     <th className="px-6 py-4 w-12 text-center">
                       <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
@@ -2451,7 +3344,7 @@ const NewListings = () => {
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Live ID</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Last Synced / Live</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
                   </tr>
                 </thead>
@@ -2460,7 +3353,16 @@ const NewListings = () => {
                 <tbody className="divide-y divide-slate-50">
                   {paginatedChannelProducts.map((product, index) => {
                     const details = getProductDetails(product);
-                    const isMarketplaceStatus = selectedChannel === 'ebay' || selectedChannel === 'etsy' || selectedChannel === 'poshmark';
+                    const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
+                    const channelIcon = selectedChannel === 'ebay' 
+                      ? '/ebay.png' 
+                      : selectedChannel === 'etsy' 
+                        ? '/etsy.png' 
+                        : selectedChannel === 'poshmark' 
+                          ? '/poshmark.png' 
+                          : selectedChannel === 'depop' 
+                            ? '/depop.png' 
+                            : '/mercari.png';
                     const badgeStatus = isMarketplaceStatus
                       ? details.status
                       : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
@@ -2473,9 +3375,13 @@ const NewListings = () => {
                         </td>
 
                         {/* Product info */}
-                        <td className="px-6 py-4 max-w-sm">
+                        <td 
+                          className="px-6 py-4 max-w-sm cursor-pointer group select-none"
+                          onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
+                          title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
+                        >
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:ring-2 group-hover:ring-indigo-500/20 group-hover:scale-105 transition-all">
                               {details.thumbnail ? (
                                 <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
                               ) : (
@@ -2483,7 +3389,7 @@ const NewListings = () => {
                               )}
                             </div>
                             <div>
-                              <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed">
+                              <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed group-hover:text-indigo-600 transition-colors">
                                 {details.title}
                               </span>
                               {details.brand && (
@@ -2520,30 +3426,14 @@ const NewListings = () => {
 
                         {/* Actions */}
                         <td className="px-6 py-4 text-center">
-                          {isMarketplaceStatus ? (
-                            <div className="flex justify-center">
-                              {renderCrosslistingCell(
-                                buildChannelDropdownItem(product, details, selectedChannel),
-                                selectedChannel,
-                                details.liveId,
-                                selectedChannel === 'ebay' ? '/ebay.png' : selectedChannel === 'etsy' ? '/etsy.png' : '/poshmark.png'
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex justify-center items-center gap-2">
-                              {details.url && (
-                                <a
-                                  href={details.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  aria-label={`View on ${selectedChannel}`}
-                                  className="inline-flex items-center justify-center p-2.5 rounded-2xl text-slate-400 hover:text-indigo-600 hover:bg-slate-50 border border-border transition-all active:scale-95 cursor-pointer"
-                                >
-                                  <ExternalLink size={16} />
-                                </a>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex justify-center">
+                            {renderCrosslistingCell(
+                              buildChannelDropdownItem(product, details, selectedChannel),
+                              selectedChannel,
+                              details.liveId,
+                              channelIcon
+                            )}
+                          </div>
                         </td>
 
                       </tr>
@@ -2698,60 +3588,74 @@ const NewListings = () => {
                   <div className="flex-1 space-y-3.5">
                     <h4 className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">Listed On</h4>
                     
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       {/* eBay */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempListedOn.includes('ebay')}
                           onChange={() => toggleTempListedOn('ebay')}
-                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/ebay.png" className="w-6 h-6 object-contain" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                          <img src="/ebay.png" className="w-5 h-5 object-contain" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
                       </label>
 
                       {/* Poshmark */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempListedOn.includes('poshmark')}
                           onChange={() => toggleTempListedOn('poshmark')}
-                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/poshmark.png" className="w-6 h-6 object-contain" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                          <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
                       </label>
 
-                      {/* Depop */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
-                        <input 
-                          type="checkbox" 
-                          checked={tempListedOn.includes('depop')}
-                          onChange={() => toggleTempListedOn('depop')}
-                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
-                        />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/depop.png" className="w-6 h-6 object-contain" alt="" />
-                          <span className="text-[9px] font-bold text-slate-500">Depop</span>
-                        </div>
-                      </label>
-
                       {/* Etsy */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempListedOn.includes('etsy')}
                           onChange={() => toggleTempListedOn('etsy')}
-                          className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                          <img src="/etsy.png" className="w-5 h-5 object-contain rounded-md" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
+                        </div>
+                      </label>
+
+                      {/* Mercari */}
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={tempListedOn.includes('mercari')}
+                          onChange={() => toggleTempListedOn('mercari')}
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
+                        />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
+                          <img src="/mercari.png" className="w-5 h-5 object-contain" alt="" />
+                          <span className="text-[9px] font-bold text-slate-500">Mercari</span>
+                        </div>
+                      </label>
+
+                      {/* Amazon */}
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={tempListedOn.includes('amazon')}
+                          onChange={() => toggleTempListedOn('amazon')}
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
+                        />
+                        <div className="flex flex-col items-center gap-1 bg-slate-900 border border-slate-800 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-400 transition-all shrink-0">
+                          <img src="/amazon.png" className="w-5 h-5 object-contain" alt="" />
+                          <span className="text-[9px] font-bold text-slate-200">Amazon</span>
                         </div>
                       </label>
                     </div>
@@ -2767,60 +3671,74 @@ const NewListings = () => {
                   <div className="flex-1 space-y-3.5">
                     <h4 className="text-[11px] font-black text-rose-700 uppercase tracking-wider">No Listed On</h4>
                     
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       {/* eBay */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempNoListedOn.includes('ebay')}
                           onChange={() => toggleTempNoListedOn('ebay')}
-                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/ebay.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                          <img src="/ebay.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
                       </label>
 
                       {/* Poshmark */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempNoListedOn.includes('poshmark')}
                           onChange={() => toggleTempNoListedOn('poshmark')}
-                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/poshmark.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                          <img src="/poshmark.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
                       </label>
 
-                      {/* Depop */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
-                        <input 
-                          type="checkbox" 
-                          checked={tempNoListedOn.includes('depop')}
-                          onChange={() => toggleTempNoListedOn('depop')}
-                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
-                        />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/depop.png" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" alt="" />
-                          <span className="text-[9px] font-bold text-slate-500">Depop</span>
-                        </div>
-                      </label>
-
                       {/* Etsy */}
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <input 
                           type="checkbox" 
                           checked={tempNoListedOn.includes('etsy')}
                           onChange={() => toggleTempNoListedOn('etsy')}
-                          className="w-4.5 h-4.5 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
-                        <div className="flex flex-col items-center gap-1.5 bg-white border border-slate-100 rounded-2xl p-2 w-16 h-16 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/etsy.png" className="w-6 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                          <img src="/etsy.png" className="w-5 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
+                        </div>
+                      </label>
+
+                      {/* Mercari */}
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={tempNoListedOn.includes('mercari')}
+                          onChange={() => toggleTempNoListedOn('mercari')}
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
+                        />
+                        <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
+                          <img src="/mercari.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <span className="text-[9px] font-bold text-slate-500">Mercari</span>
+                        </div>
+                      </label>
+
+                      {/* Amazon */}
+                      <label className="flex items-center gap-2 cursor-pointer group select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={tempNoListedOn.includes('amazon')}
+                          onChange={() => toggleTempNoListedOn('amazon')}
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
+                        />
+                        <div className="flex flex-col items-center gap-1 bg-slate-900 border border-slate-800 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-400 transition-all shrink-0">
+                          <img src="/amazon.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <span className="text-[9px] font-bold text-slate-200">Amazon</span>
                         </div>
                       </label>
                     </div>
@@ -2887,288 +3805,298 @@ const NewListings = () => {
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-border flex items-center justify-between">
               <div className="min-w-0 pr-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview ({previewListing.platform?.toUpperCase()})</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Preview</span>
                 <h3 className="text-lg font-bold text-slate-950 truncate max-w-lg mt-0.5">{previewListing.title}</h3>
               </div>
-              <IconButton
-                aria-label="Close"
-                onClick={() => setPreviewListing(null)}
-                className="shrink-0"
-              >
-                <X size={18} />
-              </IconButton>
+              <div className="flex items-center gap-2 shrink-0">
+                <IconButton
+                  aria-label="Edit Listing"
+                  title="Edit Listing"
+                  onClick={() => {
+                    setSelectedListing(previewListing);
+                    setSelectedPlatform(previewListing.platform || selectedChannel || 'ebay');
+                    setIsEditMode(true);
+                    setModalOpen(true);
+                    setPreviewListing(null);
+                  }}
+                >
+                  <Edit size={16} />
+                </IconButton>
+                <IconButton
+                  aria-label="Close"
+                  title="Close"
+                  onClick={() => setPreviewListing(null)}
+                >
+                  <X size={18} />
+                </IconButton>
+              </div>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
-              {/* Left Column - Gallery & Basic Details */}
-              <div className="md:col-span-5 space-y-6">
-                {/* Image Gallery */}
-                {previewListing.images && previewListing.images.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
-                      <img 
-                        src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
-                        alt="Main Preview" 
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    </div>
-                    {previewListing.images.length > 1 && (
-                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
-                        {previewListing.images.map((img, i) => (
-                          <button 
-                            key={i}
-                            onClick={() => setActiveImage(img)}
-                            className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
-                              (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
-                            }`}
-                          >
-                            <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
-                          </button>
-                        ))}
+            {(() => {
+              const activePlat = previewPlatform || previewListing.platform || 'ebay';
+              const platData = previewListing.platformData?.[activePlat] || 
+                (previewListing.listingsMap && previewListing.listingsMap[activePlat]) || 
+                (previewListing.platform === activePlat ? previewListing : {});
+
+              const displayTitle = platData.title || (previewListing.platform === activePlat ? previewListing.title : previewListing.title) || 'Untitled Item';
+              const displayDesc = platData.description || (previewListing.platform === activePlat ? previewListing.description : '') || previewListing.description || '';
+              const displayPrice = platData.price !== undefined && platData.price !== null
+                ? (typeof platData.price === 'number' ? platData.price : parseFloat(platData.price) || 0)
+                : (typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0);
+              const displayOrigPrice = platData.originalPrice || (previewListing.platform === activePlat ? previewListing.originalPrice : '');
+              const displayBrand = platData.brand || previewListing.brand || '-';
+              const displaySize = platData.size || previewListing.size || '-';
+              const displayColor = platData.color || previewListing.color || '-';
+              const displayCategory = platData.category || (previewListing.platform === activePlat ? previewListing.category : '-');
+              const displayCondition = platData.condition || platData.selectedCondition || (previewListing.platform === activePlat ? (previewListing.selectedCondition || previewListing.condition) : '');
+              const displaySku = platData.sku || previewListing.sku || '-';
+              const displaySpecifics = activePlat === 'ebay' 
+                ? (platData.itemSpecifics || (previewListing.platform === 'ebay' ? previewListing.itemSpecifics : {})) 
+                : {};
+              const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
+              const displayLiveId = platData.liveId || previewListing[`${activePlat}ListingId`];
+              const displayUrl = platData.url || previewListing[`${activePlat}Url`];
+
+              return (
+                <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8">
+                  {/* Left Column - Gallery, Platform Switcher & Logistics */}
+                  <div className="md:col-span-5 space-y-5">
+                    {/* Image Gallery */}
+                    {previewListing.images && previewListing.images.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="aspect-[4/3] bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
+                          <img 
+                            src={getImageSrc(activeImage || (previewListing.images && previewListing.images[0]))} 
+                            alt="Main Preview" 
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                        {previewListing.images.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin font-sans">
+                            {previewListing.images.map((img, i) => (
+                              <button 
+                                key={i}
+                                onClick={() => setActiveImage(img)}
+                                className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                                  (activeImage || previewListing.images[0]) === img ? 'border-indigo-600 shadow-md shadow-indigo-100' : 'border-slate-200'
+                                }`}
+                              >
+                                <img src={getImageSrc(img)} className="w-full h-full object-cover" alt="" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
+                        No Images Uploaded
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="aspect-[4/3] bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-400 text-sm">
-                    No Images Uploaded
-                  </div>
-                )}
 
-                {/* Logistics */}
-                {(previewListing.packageWeight || previewListing.packageDimensions) && (
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      {previewListing.packageWeight && (
-                        <div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
-                          <p className="text-sm font-bold text-slate-800">
-                            {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
-                          </p>
-                        </div>
-                      )}
-                      {previewListing.packageDimensions && (
-                        <div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
-                          <p className="text-sm font-bold text-slate-800">
-                            {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column - Specifics, Pricing & HTML Description */}
-              <div className="md:col-span-7 space-y-6 font-sans">
-                {/* Meta details */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</p>
-                    <div className="mt-1">{getStatusBadge(previewListing.status)}</div>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      {previewListing.platform === 'poshmark' ? 'Listing Price' : 'Price'}
-                    </p>
-                    <p className="text-base font-black text-slate-900 mt-1">
-                      ${(typeof previewListing.price === 'number' ? previewListing.price : parseFloat(previewListing.price) || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  {(previewListing.platform === 'poshmark' || previewListing.platform === 'etsy' || previewListing.platform === 'depop') && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
-                      <p className="text-base font-black text-slate-500 mt-1">
-                        ${previewListing.originalPrice ? parseFloat(previewListing.originalPrice || 0).toFixed(2) : '0.00'}
-                      </p>
-                    </div>
-                  )}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.brand || '-'}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.color || '-'}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.size || '-'}</p>
-                  </div>
-                  {previewListing.platform !== 'etsy' && (
-                    <>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantity</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.quantity || '1'}</p>
+                    {/* Platform Preview Selector Card */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                          Platform Preview Selector
+                        </span>
+                        <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                          Viewing: {activePlat.toUpperCase()}
+                        </span>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Style Tags</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.styleTag || '-'}</p>
-                      </div>
-                    </>
-                  )}
-                  {(previewListing.platform === 'etsy' || previewListing.platform === 'depop') && previewListing.material && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Material</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.material}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.age && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Age</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.age}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.source && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Source</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.source}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.bodyFit && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Body Fit</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bodyFit}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.occasion && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Occasion</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.occasion}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.depopType && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Depop Type</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.depopType}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.fastening && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fastening</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fastening}</p>
-                    </div>
-                  )}
-                  {previewListing.platform === 'depop' && previewListing.fit && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fit</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.fit}</p>
-                    </div>
-                  )}
-                  {previewListing.measurements && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Measurements</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.measurements}</p>
-                    </div>
-                  )}
-                  {previewListing.isbn && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ISBN</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.isbn}</p>
-                    </div>
-                  )}
-                  {previewListing.author && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Author</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.author}</p>
-                    </div>
-                  )}
-                  {previewListing.bookTitle && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Title</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.bookTitle}</p>
-                    </div>
-                  )}
-                  {previewListing.videoGameRating && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Video Game Rating</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.videoGameRating}</p>
-                    </div>
-                  )}
-                  {previewListing.selectedCondition && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.selectedCondition}</p>
-                    </div>
-                  )}
-                  {previewListing.shippingPrice && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Shipping Price</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">
-                        ${parseFloat(previewListing.shippingPrice || 0).toFixed(2)}
+                      <p className="text-[10px] text-slate-500 font-semibold leading-tight">
+                        Click any platform to view that marketplace's specific data:
                       </p>
-                    </div>
-                  )}
-                  {previewListing.worldwideShipping !== undefined && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Worldwide Shipping</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">
-                        {previewListing.worldwideShipping ? 'Yes' : 'No'}
-                      </p>
-                    </div>
-                  )}
-                  {previewListing.country && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Country/Location</p>
-                      <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.country}</p>
-                    </div>
-                  )}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.sku || '-'}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1 truncate">{previewListing.category || '-'}</p>
-                  </div>
-                </div>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                          { id: 'ebay', name: 'eBay', logo: '/ebay.png' },
+                          { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png' },
+                          { id: 'mercari', name: 'Mercari', logo: '/mercari.png' },
+                          /* { id: 'depop', name: 'Depop', logo: '/depop.png' }, */
+                          { id: 'etsy', name: 'Etsy', logo: '/etsy.png' },
+                          { id: 'amazon', name: 'Amazon', logo: '/amazon.png' },
+                        ].map((p) => {
+                          const isSelected = activePlat === p.id;
+                          const pData = previewListing.platformData?.[p.id] || (previewListing.listingsMap?.[p.id]);
+                          const isListed = !!(
+                            previewListing[`${p.id}ListingId`] ||
+                            pData?.liveId ||
+                            previewListing[`${p.id}Status`] === 'published' ||
+                            (previewListing.platform === p.id && (previewListing.status === 'published' || previewListing.status === 'active'))
+                          );
 
-                {/* Condition note */}
-                {previewListing.platform !== 'poshmark' && previewListing.conditionNote && (
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition Note</p>
-                    <p className="text-sm text-slate-700 mt-1 leading-relaxed">{previewListing.conditionNote}</p>
-                  </div>
-                )}
-
-                {/* Item Specifics */}
-                {previewListing.platform !== 'poshmark' && previewListing.platform !== 'etsy' && previewListing.platform !== 'depop' && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Item Specifics</h4>
-                    {previewListing.itemSpecifics && Object.keys(previewListing.itemSpecifics).length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {Object.entries(previewListing.itemSpecifics).map(([key, val]) => {
-                          const displayVal = Array.isArray(val) ? val.join(', ') : val;
                           return (
-                            <div key={key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                              <span className="text-xs font-bold text-slate-500">{key}</span>
-                              <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[150px]">{displayVal || '-'}</span>
-                            </div>
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setPreviewPlatform(p.id)}
+                              className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20'
+                                  : 'bg-white/70 hover:bg-white border-slate-200 hover:border-slate-300 opacity-80 hover:opacity-100'
+                              }`}
+                            >
+                              <img src={p.logo} alt={p.name} className="w-5 h-5 object-contain" />
+                              <span className={`text-[10px] font-bold mt-1 ${isSelected ? 'text-indigo-600 font-black' : 'text-slate-600'}`}>
+                                {p.name}
+                              </span>
+                              <span className={`text-[8px] font-extrabold px-1 rounded mt-0.5 ${
+                                isListed ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-400 bg-slate-100'
+                              }`}>
+                                {isListed ? 'Active' : 'Unlisted'}
+                              </span>
+                            </button>
                           );
                         })}
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">No specifics configured.</p>
+                    </div>
+
+                    {/* Logistics */}
+                    {(previewListing.packageWeight || previewListing.packageDimensions) && (
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 font-sans">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Packaging</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          {previewListing.packageWeight && (
+                            <div>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
+                              <p className="text-sm font-bold text-slate-800">
+                                {previewListing.packageWeight.lbs || 0} lbs {previewListing.packageWeight.oz || 0} oz
+                              </p>
+                            </div>
+                          )}
+                          {previewListing.packageDimensions && (
+                            <div>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Dimensions</p>
+                              <p className="text-sm font-bold text-slate-800">
+                                {previewListing.packageDimensions.length || 0}L x {previewListing.packageDimensions.width || 0}W x {previewListing.packageDimensions.height || 0}H in
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
 
-                {/* Description Template */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">Description</h4>
-                  <div 
-                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[300px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
-                    style={{ whiteSpace: 'pre-wrap' }}
-                    dangerouslySetInnerHTML={{ __html: previewListing.description }}
-                  />
+                  {/* Right Column - Platform Details, Specifics, Pricing & HTML Description */}
+                  <div className="md:col-span-7 space-y-5 font-sans">
+                    {/* Platform banner */}
+                    <div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={`/${activePlat}.png`} 
+                          alt={activePlat} 
+                          className="w-5 h-5 object-contain" 
+                        />
+                        <span className="text-xs font-black text-slate-800 capitalize">
+                          {activePlat} Listing Data
+                        </span>
+                      </div>
+                      {displayUrl && (
+                        <a
+                          href={displayUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1"
+                        >
+                          View Live Listing
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Meta details */}
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status on {activePlat}</p>
+                        <div className="mt-1">{getStatusBadge(displayStatus)}</div>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          {activePlat === 'poshmark' ? 'Listing Price' : 'Price'}
+                        </p>
+                        <p className="text-base font-black text-slate-900 mt-1">
+                          ${displayPrice.toFixed(2)}
+                        </p>
+                      </div>
+                      {(activePlat === 'poshmark' || activePlat === 'etsy' || activePlat === 'depop') && (
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Original Price</p>
+                          <p className="text-base font-black text-slate-500 mt-1">
+                            ${displayOrigPrice ? parseFloat(displayOrigPrice || 0).toFixed(2) : '0.00'}
+                          </p>
+                        </div>
+                      )}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Brand</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayBrand}</p>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayColor}</p>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Size</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displaySize}</p>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
+                        <p className="text-sm font-mono font-bold text-slate-800 mt-1 truncate">{displaySku}</p>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCategory}</p>
+                      </div>
+                      {displayCondition && (
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2 sm:col-span-1">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Condition</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCondition}</p>
+                        </div>
+                      )}
+                      {displayLiveId && (
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{activePlat} Live ID</p>
+                          <p className="text-xs font-mono font-bold text-slate-700 mt-0.5 truncate">{displayLiveId}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Item Specifics - ONLY for eBay */}
+                    {activePlat === 'ebay' && displaySpecifics && typeof displaySpecifics === 'object' && Object.keys(displaySpecifics).length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
+                          eBay Item Specifics
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {Object.entries(displaySpecifics).map(([key, val]) => {
+                            const displayVal = Array.isArray(val) ? val.join(', ') : val;
+                            return (
+                              <div key={key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+                                <span className="text-xs font-bold text-slate-500">{key}</span>
+                                <span className="text-xs font-extrabold text-slate-800 text-right truncate max-w-[140px]">{displayVal || '-'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Description Template */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-sans">
+                        {activePlat} Description
+                      </h4>
+                      <div 
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[260px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
+                        style={{ whiteSpace: 'pre-wrap' }}
+                        dangerouslySetInnerHTML={{ __html: displayDesc }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-border flex items-center justify-end gap-3 font-sans">
+            <div className="px-6 py-4 bg-slate-50 border-t border-border flex items-center justify-between font-sans">
               <Button
                 variant="outline"
                 onClick={() => setPreviewListing(null)}
@@ -3176,25 +4104,860 @@ const NewListings = () => {
                 Close
               </Button>
 
-              {!previewListing.isChannelProduct && (
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline-block">Marketplaces:</span>
+                {renderModalFooter()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Import to Local Modal */}
+      {importModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
+
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 shrink-0">
+                  <Download size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900">Import to Local Database</h2>
+                    <span className="px-2.5 py-0.5 text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                      Active Only
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                    Match and merge active products across all channels into your Master Local Database.
+                  </p>
+                </div>
+              </div>
+
+              {/* Header Right Actions */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Filter Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+                  <button
+                    onClick={() => setImportFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      importFilterTab === 'all'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    All ({importGroups.length})
+                  </button>
+                  <button
+                    onClick={() => setImportFilterTab('multi')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      importFilterTab === 'multi'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Multi-Channel ({importGroups.filter(g => g.channelCount > 1).length})
+                  </button>
+                  <button
+                    onClick={() => setImportFilterTab('single')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      importFilterTab === 'single'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Single Channel ({importGroups.filter(g => g.channelCount === 1).length})
+                  </button>
+                  <button
+                    onClick={() => setImportFilterTab('not_in_local')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      importFilterTab === 'not_in_local'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Not in DB ({importGroups.filter(g => !g.alreadyInLocal).length})
+                  </button>
+                  <button
+                    onClick={() => setImportFilterTab('in_local')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      importFilterTab === 'in_local'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    In Local DB ({importGroups.filter(g => g.alreadyInLocal).length})
+                  </button>
+                </div>
+
+                {/* Search in modal */}
+                <div className="relative w-full sm:w-56">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={importSearchTerm}
+                    onChange={(e) => setImportSearchTerm(e.target.value)}
+                    placeholder="Search title, SKU..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                  {importSearchTerm && (
+                    <button
+                      onClick={() => setImportSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setImportModalOpen(false)}
+                >
+                  <X size={16} />
+                </IconButton>
+              </div>
+            </div>
+
+            {/* Quick Selection Actions Toolbar */}
+            <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectByCriteria('all')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectByCriteria('multi')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select Multi-Channel Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectByCriteria('single')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select Single Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectByCriteria('none')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-all cursor-pointer"
+                >
+                  Deselect All
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 font-bold">
+                Showing <span className="text-slate-800 font-extrabold">{filteredImportGroups.length}</span> items
+              </div>
+            </div>
+
+            {/* Modal Body / Table */}
+            <div className="flex-1 overflow-y-auto min-h-[350px] p-4 sm:p-6 bg-slate-50/40">
+              {importLoading ? (
+                <div className="flex flex-col items-center justify-center py-24 space-y-3">
+                  <RefreshCw size={28} className="text-indigo-600 animate-spin" />
+                  <p className="text-xs font-black text-slate-700">Scanning & matching active channel listings...</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Checking eBay, Poshmark, Mercari, Depop, and Etsy</p>
+                </div>
+              ) : filteredImportGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <Package size={36} className="text-slate-300 mb-2" />
+                  <h3 className="text-sm font-extrabold text-slate-700">No active channel items found</h3>
+                  <p className="text-xs text-slate-400 max-w-md mt-1">
+                    {importSearchTerm ? 'No items match your search term.' : 'Make sure you have active listings synced in your channel inventory (eBay, Poshmark, Mercari, Depop, Etsy).'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      {/* Table Header with Platform Logos */}
+                      <thead className="bg-slate-50/90 border-b border-slate-100">
+                        <tr>
+                          <th className="px-4 py-3.5 w-12 text-center">
+                            <input
+                              type="checkbox"
+                              checked={
+                                filteredImportGroups.filter(g => !g.alreadyInLocal).length > 0 &&
+                                filteredImportGroups.filter(g => !g.alreadyInLocal).every((grp) => selectedGroupIds[grp.groupId])
+                              }
+                              onChange={handleToggleSelectAllImport}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                              title="Select / Deselect Unimported Items"
+                            />
+                          </th>
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[280px]">
+                            Product (Master)
+                          </th>
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                            SKU & Price
+                          </th>
+
+                          {/* Platform Columns with Logos */}
+                          <th className="px-3 py-3 text-center w-28 border-l border-slate-100">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">eBay</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-28">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Poshmark</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-28">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Mercari</span>
+                            </div>
+                          </th>
+                          {/* <th className="px-3 py-3 text-center w-28">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/depop.png" alt="Depop" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Depop</span>
+                            </div>
+                          </th> */}
+                          <th className="px-3 py-3 text-center w-28">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Etsy</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-28 border-r border-slate-100">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Amazon</span>
+                            </div>
+                          </th>
+
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">
+                            Match Status
+                          </th>
+                        </tr>
+                      </thead>
+
+                      {/* Table Rows */}
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {filteredImportGroups.map((group) => {
+                          const isRowChecked = !group.alreadyInLocal && !!selectedGroupIds[group.groupId];
+                          const groupPlats = selectedPlatforms[group.groupId] || {};
+
+                          return (
+                            <tr
+                              key={group.groupId}
+                              className={`transition-colors ${
+                                group.alreadyInLocal
+                                  ? 'bg-slate-50/50 opacity-60'
+                                  : isRowChecked
+                                  ? 'bg-indigo-50/20 hover:bg-indigo-50/40'
+                                  : 'hover:bg-slate-50/60 opacity-80'
+                              }`}
+                            >
+                              {/* Row Checkbox */}
+                              <td className="px-4 py-3.5 text-center">
+                                {group.alreadyInLocal ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={false}
+                                    disabled={true}
+                                    className="w-4 h-4 text-slate-300 border-slate-200 rounded cursor-not-allowed bg-slate-100"
+                                    title="Already in Local Database"
+                                  />
+                                ) : (
+                                  <input
+                                    type="checkbox"
+                                    checked={isRowChecked}
+                                    onChange={() => handleToggleGroupRow(group.groupId)}
+                                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                )}
+                              </td>
+
+                              {/* Product Info */}
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
+                                    {group.thumbnail || (group.images && group.images[0]) ? (
+                                      <img
+                                        src={group.thumbnail || group.images[0]}
+                                        className="w-full h-full object-cover"
+                                        alt=""
+                                        onError={(e) => { e.currentTarget.src = NO_IMAGE_PLACEHOLDER; }}
+                                      />
+                                    ) : (
+                                      <ImageOff size={16} className="text-slate-300" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 max-w-sm lg:max-w-md">
+                                    <p className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-snug">
+                                      {group.title}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {group.brand && (
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                          {group.brand}
+                                        </span>
+                                      )}
+                                      {group.size && (
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                          Size: {group.size}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* SKU & Price */}
+                              <td className="px-4 py-3.5">
+                                <div className="space-y-0.5">
+                                  <span className="font-mono text-[11px] font-bold text-slate-600 block">
+                                    {group.sku || '-'}
+                                  </span>
+                                  <span className="font-extrabold text-slate-800 text-xs block">
+                                    ${Number(group.price || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Platform Columns */}
+                              {['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].map((plat) => {
+                                const chData = group.channels?.[plat];
+                                const isAlreadyInLocal = !!chData?.alreadyInLocal;
+                                const isPlatChecked = !isAlreadyInLocal && !!groupPlats[plat];
+
+                                if (!chData) {
+                                  return (
+                                    <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                      <span className="text-slate-300 font-bold text-xs">—</span>
+                                    </td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                    <div className="inline-flex flex-col items-center gap-1">
+                                      <label className={`flex items-center gap-1.5 p-1.5 rounded-lg border transition-colors ${
+                                        isAlreadyInLocal
+                                          ? 'bg-slate-50/80 border-slate-100 opacity-60 cursor-not-allowed'
+                                          : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 cursor-pointer select-none'
+                                      }`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isAlreadyInLocal ? false : isPlatChecked}
+                                          disabled={isAlreadyInLocal}
+                                          onChange={() => !isAlreadyInLocal && handleTogglePlatform(group.groupId, plat)}
+                                          className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 disabled:cursor-not-allowed cursor-pointer"
+                                        />
+                                        {isAlreadyInLocal ? (
+                                          <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                            In DB
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                            Active
+                                          </span>
+                                        )}
+                                      </label>
+                                      {chData.liveId && (
+                                        <span className="text-[9px] font-mono text-slate-400 truncate max-w-[85px]" title={chData.liveId}>
+                                          {chData.liveId}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+
+                              {/* Match Status */}
+                              <td className="px-4 py-3.5 text-center">
+                                <div className="inline-flex flex-col items-center gap-1">
+                                  {group.channelCount > 1 ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap">
+                                      {group.channelCount} Channels Merged
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                                      Single Channel
+                                    </span>
+                                  )}
+
+                                  {group.alreadyInLocal ? (
+                                    <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 whitespace-nowrap">
+                                      Already in Local DB
+                                    </span>
+                                  ) : group.partiallyInLocal ? (
+                                    <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">
+                                      {group.unlinkedChannelCount || 1} {group.unlinkedChannelCount === 1 ? 'Channel' : 'Channels'} to Link
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs text-slate-500 font-bold">
+                {(() => {
+                  const counts = getSelectedImportCounts();
+                  return (
+                    <span>
+                      Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} master products</span> ({counts.channelCount} channel listings)
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <Button
                   variant="secondary"
-                  className="bg-amber-500! hover:bg-amber-600! text-white! shadow-amber-500/20!"
-                  icon={<Edit size={16} />}
-                  onClick={() => {
-                    setSelectedListing(previewListing);
-                    setSelectedPlatform(previewListing.platform || 'ebay');
-                    setIsEditMode(true);
-                    setModalOpen(true);
-                    setPreviewListing(null);
-                  }}
+                  size="sm"
+                  onClick={() => setImportModalOpen(false)}
+                  disabled={importSubmitting}
+                  className="w-full sm:w-auto"
                 >
-                  Edit Listing
+                  Cancel
                 </Button>
-              )}
-
-              {renderModalFooter()}
+                <button
+                  onClick={handleExecuteImport}
+                  disabled={importSubmitting || getSelectedImportCounts().groupCount === 0}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+                >
+                  {importSubmitting ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Importing to Local...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      <span>Import Selected to Local Database</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Smart Local Merge Modal */}
+      {localMergeModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
+
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 shrink-0">
+                  <GitMerge size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900">Smart Merge Local Listings</h2>
+                    <span className="px-2.5 py-0.5 text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                      Duplicates Found ({localMergeGroups.length})
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                    Merge duplicate listings of the same physical item across channels into a single unified master listing.
+                  </p>
+                </div>
+              </div>
+
+              {/* Header Right Actions */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Filter Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+                  <button
+                    onClick={() => setLocalMergeFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      localMergeFilterTab === 'all'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    All Duplicates ({localMergeGroups.length})
+                  </button>
+                  <button
+                    onClick={() => setLocalMergeFilterTab('multi')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      localMergeFilterTab === 'multi'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Multi-Channel ({localMergeGroups.filter(g => g.channelCount > 1).length})
+                  </button>
+                  <button
+                    onClick={() => setLocalMergeFilterTab('2plus')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      localMergeFilterTab === '2plus'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    2+ Duplicates ({localMergeGroups.filter(g => g.duplicateCount >= 2).length})
+                  </button>
+                </div>
+
+                {/* Search in modal */}
+                <div className="relative w-full sm:w-56">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={localMergeSearchTerm}
+                    onChange={(e) => setLocalMergeSearchTerm(e.target.value)}
+                    placeholder="Search title, SKU..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                  {localMergeSearchTerm && (
+                    <button
+                      onClick={() => setLocalMergeSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setLocalMergeModalOpen(false)}
+                >
+                  <X size={16} />
+                </IconButton>
+              </div>
+            </div>
+
+            {/* Quick Selection Actions Toolbar */}
+            <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectLocalMergeByCriteria('all')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectLocalMergeByCriteria('multi')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select Multi-Channel Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectLocalMergeByCriteria('2plus')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                >
+                  Select 2+ Duplicates Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectLocalMergeByCriteria('none')}
+                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-all cursor-pointer"
+                >
+                  Deselect All
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 font-bold">
+                Showing <span className="text-slate-800 font-extrabold">{filteredLocalMergeGroups.length}</span> duplicate clusters
+              </div>
+            </div>
+
+            {/* Modal Body / Table */}
+            <div className="flex-1 overflow-y-auto min-h-[350px] p-4 sm:p-6 bg-slate-50/40">
+              {localMergeLoading ? (
+                <div className="flex flex-col items-center justify-center py-24 space-y-3">
+                  <RefreshCw size={28} className="text-indigo-600 animate-spin" />
+                  <p className="text-xs font-black text-slate-700">Scanning local database for duplicate items...</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Matching titles, images, and SKU relationships</p>
+                </div>
+              ) : filteredLocalMergeGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <CheckCircle2 size={36} className="text-emerald-500 mb-2" />
+                  <h3 className="text-sm font-extrabold text-slate-700">No duplicate items found in Local Database</h3>
+                  <p className="text-xs text-slate-400 max-w-md mt-1">
+                    {localMergeSearchTerm ? 'No duplicate clusters match your search term.' : 'All local listings are cleanly organized without duplicates.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      {/* Table Header */}
+                      <thead className="bg-slate-50/90 border-b border-slate-100">
+                        <tr>
+                          <th className="px-4 py-3.5 w-12 text-center">
+                            <input
+                              type="checkbox"
+                              checked={
+                                filteredLocalMergeGroups.length > 0 &&
+                                filteredLocalMergeGroups.every((grp) => selectedMergeGroupIds[grp.groupId])
+                              }
+                              onChange={handleToggleSelectAllLocalMerge}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                              title="Select / Deselect Visible Items"
+                            />
+                          </th>
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[280px]">
+                            Master Listing (Kept)
+                          </th>
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[220px]">
+                            Duplicates to Merge & Clean
+                          </th>
+
+                          {/* Platform Columns with Logos */}
+                          <th className="px-3 py-3 text-center w-24 border-l border-slate-100">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">eBay</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-24">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Poshmark</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-24">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Mercari</span>
+                            </div>
+                          </th>
+                          {/* <th className="px-3 py-3 text-center w-24">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/depop.png" alt="Depop" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Depop</span>
+                            </div>
+                          </th> */}
+                          <th className="px-3 py-3 text-center w-24">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Etsy</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-3 text-center w-24 border-r border-slate-100">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                              <span className="text-[10px] font-black text-slate-600">Amazon</span>
+                            </div>
+                          </th>
+
+                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">
+                            Merge Summary
+                          </th>
+                        </tr>
+                      </thead>
+
+                      {/* Table Rows */}
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {filteredLocalMergeGroups.map((group) => {
+                          const isRowChecked = !!selectedMergeGroupIds[group.groupId];
+                          const master = group.masterListing || {};
+                          const duplicates = group.duplicateListings || [];
+
+                          return (
+                            <tr
+                              key={group.groupId}
+                              className={`transition-colors ${
+                                isRowChecked ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'hover:bg-slate-50/60 opacity-65'
+                              }`}
+                            >
+                              {/* Row Checkbox */}
+                              <td className="px-4 py-3.5 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isRowChecked}
+                                  onChange={() => handleToggleMergeGroupRow(group.groupId)}
+                                  className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                />
+                              </td>
+
+                              {/* Master Listing Info */}
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
+                                    {master.thumbnail || (master.images && master.images[0]) ? (
+                                      <img
+                                        src={master.thumbnail || master.images[0]}
+                                        className="w-full h-full object-cover"
+                                        alt=""
+                                        onError={(e) => { e.currentTarget.src = NO_IMAGE_PLACEHOLDER; }}
+                                      />
+                                    ) : (
+                                      <ImageOff size={16} className="text-slate-300" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 max-w-sm">
+                                    <p className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-snug">
+                                      {master.title}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        SKU: {master.sku || '-'}
+                                      </span>
+                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                                        ${Number(master.price || 0).toFixed(2)}
+                                      </span>
+                                      {master.status && (
+                                        <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                                          master.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                          {master.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Duplicates to Merge & Delete */}
+                              <td className="px-4 py-3.5">
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/60">
+                                      {group.duplicateCount} Duplicate Listing{group.duplicateCount > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                                    {duplicates.map((dup, idx) => (
+                                      <div key={dup._id || idx} className="flex items-center gap-2 text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                        <div className="w-6 h-6 bg-slate-200 rounded shrink-0 overflow-hidden flex items-center justify-center">
+                                          {dup.thumbnail ? (
+                                            <img src={dup.thumbnail} className="w-full h-full object-cover" alt="" onError={(e) => { e.currentTarget.src = NO_IMAGE_PLACEHOLDER; }} />
+                                          ) : (
+                                            <ImageOff size={10} className="text-slate-400" />
+                                          )}
+                                        </div>
+                                        <span className="truncate max-w-[180px] font-semibold text-slate-700" title={dup.title}>
+                                          {dup.title}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-mono ml-auto shrink-0">
+                                          {dup.platform || dup.status}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Platform Columns */}
+                              {['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].map((plat) => {
+                                const chData = group.channels?.[plat];
+                                if (!chData) {
+                                  return (
+                                    <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                      <span className="text-slate-300 font-bold text-xs">—</span>
+                                    </td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                    <div className="inline-flex flex-col items-center gap-0.5">
+                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                        Connected
+                                      </span>
+                                      {chData.liveId && (
+                                        <span className="text-[9px] font-mono text-slate-400 truncate max-w-[75px]" title={chData.liveId}>
+                                          {chData.liveId}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+
+                              {/* Merge Summary */}
+                              <td className="px-4 py-3.5 text-center">
+                                <div className="inline-flex flex-col items-center gap-1">
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap">
+                                    Merge {group.totalListingsInGroup} into 1 Master
+                                  </span>
+                                  <span className="text-[9px] font-bold text-slate-400">
+                                    Deletes {group.duplicateCount} Redundant
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs text-slate-500 font-bold">
+                {(() => {
+                  const counts = getSelectedLocalMergeCounts();
+                  return (
+                    <span>
+                      Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} item clusters</span> ({counts.duplicateCount} duplicate listings will be safely merged and removed)
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setLocalMergeModalOpen(false)}
+                  disabled={localMergeSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <button
+                  onClick={handleExecuteBulkMerge}
+                  disabled={localMergeSubmitting || getSelectedLocalMergeCounts().groupCount === 0}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+                >
+                  {localMergeSubmitting ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Merging Listings...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GitMerge size={14} />
+                      <span>Execute Bulk Merge</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

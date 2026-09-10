@@ -124,6 +124,23 @@ const userSchema = new mongoose.Schema({
     refreshToken: String,
     tokenExpires: Date
   },
+  amazonAccount: {
+    connected: {
+      type: Boolean,
+      default: false
+    },
+    sellerId: String,
+    marketplaceId: {
+      type: String,
+      default: 'ATVPDKIKX0DER'
+    },
+    storeName: String,
+    accessToken: String,
+    refreshToken: String,
+    tokenExpires: Date,
+    connectedAt: Date
+  },
+  amazonState: String,
   currency: {
     type: String,
     default: 'USD'
@@ -162,4 +179,4 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

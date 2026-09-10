@@ -161,6 +161,8 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
   });
   const [shippingProfiles, setShippingProfiles] = useState([]);
   const [etsyProperties, setEtsyProperties] = useState([]);
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
   const [etsyUrlInput, setEtsyUrlInput] = useState('');
@@ -435,7 +437,8 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
             description_prompt: selectedRuleObj?.description_prompt || '',
             description_template: selectedRuleObj?.description_template || '',
             condition_name: formData.selectedCondition,
-            model: formData.selectedModel || 'gpt-4o-mini'
+            model: formData.selectedModel || 'gpt-4o-mini',
+            existing_title: formData.title || ''
           })
         : await aiService.analyze({
             images: formData.images,
@@ -445,7 +448,8 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
             description_template: selectedRuleObj?.description_template || '',
             condition_note: selectedRuleObj?.condition_note || '',
             condition_name: formData.selectedCondition,
-            model: formData.selectedModel || 'gpt-4o-mini'
+            model: formData.selectedModel || 'gpt-4o-mini',
+            existing_title: formData.title || ''
           });
 
       if (response.data.success) {
@@ -453,7 +457,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
         if (targetPlatform === 'etsy') {
           setFormData(prev => ({
             ...prev,
-            title: result.title,
+            title: prev.title || result.title,
             price: result.price,
             description: result.description,
             conditionNote: selectedRuleObj?.condition_note || '',
@@ -475,7 +479,7 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
         } else {
           setFormData(prev => ({
             ...prev,
-            title: result.title,
+            title: prev.title || result.title,
             price: result.price,
             description: result.description,
             conditionNote: selectedRuleObj?.condition_note || '',
@@ -572,6 +576,24 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     label: c.label
   })), []);
 
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+
+    if (Array.isArray(files) && files.length === formData.images.length) {
+      const newFiles = [...files];
+      const [movedFile] = newFiles.splice(sourceIndex, 1);
+      newFiles.splice(targetIndex, 0, movedFile);
+      setFiles(newFiles);
+    }
+
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
+
   const deleteImage = (index) => {
     const newImages = formData.images.filter((_, idx) => idx !== index);
     const newFiles = files.filter((_, idx) => idx !== index);
@@ -581,15 +603,17 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
   const moveImage = (index, direction) => {
     const newImages = [...formData.images];
-    if (direction === 'left' && index > 0) {
-      const temp = newImages[index];
-      newImages[index] = newImages[index - 1];
-      newImages[index - 1] = temp;
-    } else if (direction === 'right' && index < newImages.length - 1) {
-      const temp = newImages[index];
-      newImages[index] = newImages[index + 1];
-      newImages[index + 1] = temp;
+    const newFiles = [...files];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newImages.length) return;
+    
+    [newImages[index], newImages[targetIndex]] = [newImages[targetIndex], newImages[index]];
+    if (newFiles.length === newImages.length) {
+      [newFiles[index], newFiles[targetIndex]] = [newFiles[targetIndex], newFiles[index]];
+      setFiles(newFiles);
     }
+    
     setFormData(prev => ({ ...prev, images: newImages }));
   };
 
@@ -740,15 +764,51 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
             <div className="grid grid-cols-3 gap-3">
               {formData.images.map((img, idx) => (
-                <div key={idx} className="relative aspect-square border border-slate-100 rounded-2xl overflow-hidden group">
-                  <img src={img} className="w-full h-full object-cover" alt="" />
+                <div 
+                  key={idx} 
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', String(idx));
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedImgIdx(idx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverImgIdx !== idx) setDragOverImgIdx(idx);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverImgIdx === idx) setDragOverImgIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const sourceIdx = draggedImgIdx !== null ? draggedImgIdx : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(sourceIdx)) {
+                      handleReorderImages(sourceIdx, idx);
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDraggedImgIdx(null);
+                    setDragOverImgIdx(null);
+                  }}
+                  className={`relative aspect-square border rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                    draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                  } ${
+                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100'
+                  }`}
+                  title="Drag and drop to reorder photos"
+                >
+                  <img src={img} className="w-full h-full object-cover pointer-events-none" alt="" />
 
                   {/* Hover Actions */}
                   <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                     {idx > 0 && (
                       <button
                         type="button"
-                        onClick={() => moveImage(idx, 'left')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveImage(idx, 'left');
+                        }}
                         className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
                         title="Move left"
                       >
@@ -757,7 +817,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                     )}
                     <button
                       type="button"
-                      onClick={() => deleteImage(idx)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteImage(idx);
+                      }}
                       className="p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
                       title="Delete"
                     >
@@ -766,7 +829,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                     {idx < formData.images.length - 1 && (
                       <button
                         type="button"
-                        onClick={() => moveImage(idx, 'right')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveImage(idx, 'right');
+                        }}
                         className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
                         title="Move right"
                       >
@@ -774,6 +840,12 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                       </button>
                     )}
                   </div>
+
+                  {idx === 0 && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider pointer-events-none">
+                      Cover
+                    </span>
+                  )}
                 </div>
               ))}
 
@@ -1220,7 +1292,21 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   />
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                <div className="flex items-center gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => {
+                      if (isModal && onClose) {
+                        onClose();
+                      } else {
+                        navigate('/listings');
+                      }
+                    }}
+                  >
+                    Cancel
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"

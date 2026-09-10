@@ -150,13 +150,13 @@ const Dashboard = () => {
       username: user?.poshmarkAccount?.username || 'Not connected',
       color: '#b00f1c'
     },
-    {
+    /* {
       name: 'Depop',
       connected: !!user?.depopAccount?.connected,
       username: user?.depopAccount?.username || 'Not connected',
       userId: user?.depopAccount?.userId,
       color: '#000000'
-    }
+    } */
   ];
 
   const chartData = statsData?.charts?.lineChart?.[timeframe] || [];
@@ -168,7 +168,7 @@ const Dashboard = () => {
     return [
       { label: 'eBay', value: counts.ebay || 0, color: '#4f46e5' },
       { label: 'Poshmark', value: counts.poshmark || 0, color: '#f43f5e' },
-      { label: 'Depop', value: counts.depop || 0, color: '#111827' },
+      // { label: 'Depop', value: counts.depop || 0, color: '#111827' },
       { label: 'Etsy', value: counts.etsy || 0, color: '#f55d3e' }
     ];
   }, [pieMode, pieTimeframe, statsData]);

@@ -56,6 +56,7 @@ export const bulkListingEbayService = {
 export const listingService = {
   getAll: () => API.get('/listings'),
   getOne: (id) => API.get(`/listings/${id}`),
+  getById: (id) => API.get(`/listings/${id}`),
   create: (data) => API.post('/listings', data),
   update: (id, data) => API.put(`/listings/${id}`, data),
   delete: (id) => API.delete(`/listings/${id}`),
@@ -65,7 +66,13 @@ export const listingService = {
   verifyLive: (id) => API.post(`/listings/${id}/verify-live`),
   delist: (id, platform) => API.post(`/listings/${id}/delist`, { platform }),
   deletePlatform: (id, platform, disconnectOnly = false) => API.post(`/listings/${id}/delete-platform`, { platform, disconnectOnly }),
+  moveToNewItem: (id, platform) => API.post(`/listings/${id}/move-to-new-item`, { platform }),
+  mergeChannel: (data) => API.post('/listings/merge-channel', data),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
+  getActiveChannelPreview: () => API.get('/listings/active-channel-preview'),
+  importActiveChannels: (data) => API.post('/listings/import-active-channels', data),
+  getLocalMergePreview: () => API.get('/listings/local-merge-preview'),
+  bulkMergeListings: (data) => API.post('/listings/bulk-merge', data),
 };
 
 export const ruleService = {
@@ -86,6 +93,8 @@ export const aiService = {
   etsyFetch: (data) => API.post('/ai/etsy-fetch', data),
   etsyAnalyze: (data) => API.post('/ai/etsy-analyze', data),
   etsySuggestCategories: (query) => API.get(`/ai/etsy-categories?query=${query}`),
+  amazonAnalyze: (data) => API.post('/ai/amazon-analyze', data),
+  amazonSuggestCategories: (query) => API.get(`/ai/amazon-categories?q=${encodeURIComponent(query)}`),
 };
 
 export const etsyService = {
@@ -97,6 +106,14 @@ export const etsyService = {
   getShippingProfiles: () => API.get('/etsy/shipping-profiles'),
   getCategoryProperties: (categoryId) => API.get(`/etsy/categories/${categoryId}/properties`),
   resolveCategory: (path) => API.get('/etsy/resolve-category', { params: { path } })
+};
+
+export const amazonService = {
+  connect: () => API.get('/amazon/connect'),
+  disconnect: () => API.post('/amazon/disconnect'),
+  sync: () => API.post('/amazon/sync'),
+  getInventory: () => API.get('/amazon/inventory'),
+  publish: (id, data) => API.post(`/amazon/publish/${id}`, data)
 };
 
 export const adminService = {
@@ -130,9 +147,14 @@ export const mercariService = {
   initiateLogin: (data) => API.post('/mercari/initiate-login', data),
   getSessionStatus: (sessionId) => API.get(`/mercari/session-status/${sessionId}`),
   submit2faStream: (data) => API.post('/mercari/submit-2fa-stream', data),
+  triggerVerificationMethod: (data) => API.post('/mercari/trigger-verification-method', data),
   publish: (id, data) => API.post(`/mercari/publish/${id}`, data),
+  delist: (id) => API.post(`/mercari/delist/${id}`),
+  delete: (id) => API.post(`/mercari/delete/${id}`),
+  verifyStatus: (id) => API.post(`/mercari/verify-status/${id}`),
   getLive: () => API.get('/mercari/live'),
-  suggestBrands: (query) => API.get(`/mercari/brands?query=${encodeURIComponent(query)}`)
+  suggestBrands: (query) => API.get(`/mercari/brands?query=${encodeURIComponent(query)}`),
+  getItemDetails: (id) => API.get(`/mercari/item-details/${id}`)
 };
 
 // Legacy mapping for compatibility
@@ -143,6 +165,7 @@ export const externalImportService = {
   initiateLogin: (data) => mercariService.initiateLogin(data),
   getSessionStatus: (sessionId) => mercariService.getSessionStatus(sessionId),
   submit2faStream: (data) => mercariService.submit2faStream(data),
+  triggerVerificationMethod: (data) => mercariService.triggerVerificationMethod(data),
   connectInteractiveDepop: () => depopService.connectInteractive(),
   verifyPoshmark2fa: (data) => data.platform === 'mercari' ? mercariService.verify2fa(data) : poshmarkService.verify2fa(data),
   publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : data.platform === 'mercari' ? mercariService.publish(id, data) : poshmarkService.publish(id, data),
@@ -154,6 +177,7 @@ export const orderService = {
   sync: () => API.post('/orders/sync'),
   update: (id, data) => API.put(`/orders/${id}`, data),
   delete: (id) => API.delete(`/orders/${id}`),
+  relist: (id) => API.post(`/orders/${id}/relist`),
 };
 
 export default API;

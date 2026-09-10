@@ -143,7 +143,7 @@ exports.createRazorpayOrder = async (req, res) => {
     
     // Plan prices in USD
     const planPrices = {
-      basic: { monthly: 1, yearly: 10 },
+      basic: { monthly: 79, yearly: 900 },
       pro: { monthly: 149, yearly: 1692 },
       enterprise: { monthly: 299, yearly: 3408 }
     };
@@ -214,7 +214,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
     }
 
     const planPrices = {
-      basic: { monthly: 1, yearly: 10 },
+      basic: { monthly: 79, yearly: 900 },
       pro: { monthly: 149, yearly: 1692 },
       enterprise: { monthly: 299, yearly: 3408 }
     };

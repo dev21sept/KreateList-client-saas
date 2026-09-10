@@ -1,7 +1,17 @@
+const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { scrapeMercariCloset, publishToMercari, getMercariProfile } = require('../services/mercariService');
+const { 
+  scrapeMercariCloset, 
+  publishToMercari, 
+  deactivateMercariListing, 
+  reactivateMercariListing, 
+  deleteFromMercari, 
+  verifyMercariListingStatus,
+  getMercariProfile,
+  fetchMercariItemDetails
+} = require('../services/mercariService');
 const { loginToMercari, verifyMercari2FA } = require('../services/mercariLoginService');
 
 // @desc    Connect Mercari credentials manually (cookies / token) or disconnect
@@ -225,7 +235,7 @@ exports.mercariVerify2FA = async (req, res) => {
   }
 };
 
-// @desc    Import external inventory from Mercari
+// @desc    Import external inventory from Mercari (Active, Inactive, and Drafts)
 // @route   POST /api/mercari/import
 // @access  Private
 exports.mercariImportCloset = async (req, res) => {
@@ -240,7 +250,7 @@ exports.mercariImportCloset = async (req, res) => {
     }
 
     const cleanUsername = username.trim();
-    console.log(`[Mercari Controller] Starting listings import for: ${cleanUsername}, UserID: ${req.user.id}`);
+    console.log(`[Mercari Controller] Starting complete listings import for: ${cleanUsername}, UserID: ${req.user.id}`);
     
     const user = await User.findById(req.user.id);
     const mercariAccount = user?.mercariAccount || {};
@@ -248,9 +258,15 @@ exports.mercariImportCloset = async (req, res) => {
 
     let importCount = 0;
     let duplicateCount = 0;
-    const importedItems = [];
+    const importedProducts = [];
 
     for (const item of scrapedListings) {
+      const isItemActive = item.status === 'active';
+      const productStatus = isItemActive ? 'active' : 'inactive';
+      const listingStatus = isItemActive ? 'published' : 'draft';
+      const mercariStatus = isItemActive ? 'published' : 'delisted';
+
+      // 1. Upsert into Product model
       let existingProduct = await Product.findOne({ 
         user: req.user.id, 
         source: 'mercari',
@@ -261,45 +277,45 @@ exports.mercariImportCloset = async (req, res) => {
       });
 
       if (existingProduct) {
-        if (!existingProduct.mercariListingId || !existingProduct.mercariUrl) {
-          existingProduct.mercariListingId = item.mercariListingId;
-          existingProduct.mercariUrl = item.mercariUrl;
-          existingProduct.updated_at = Date.now();
-          await existingProduct.save();
-        }
+        existingProduct.title = item.title;
+        existingProduct.selling_price = parseFloat(item.price) || existingProduct.selling_price || 0;
+        if (item.images && item.images.length > 0) existingProduct.images = item.images;
+        existingProduct.status = productStatus;
+        existingProduct.mercariListingId = item.mercariListingId;
+        existingProduct.mercariUrl = item.mercariUrl;
+        existingProduct.updated_at = Date.now();
+        await existingProduct.save();
         duplicateCount++;
-        continue;
+      } else {
+        const productPayload = {
+          user: req.user.id,
+          title: item.title,
+          description: item.title,
+          selling_price: parseFloat(item.price) || 0,
+          sku: `M-${item.mercariListingId}`,
+          brand: '',
+          size: '',
+          images: item.images,
+          source: 'mercari',
+          status: productStatus,
+          mercariListingId: item.mercariListingId,
+          mercariUrl: item.mercariUrl,
+          updated_at: Date.now()
+        };
+        const newProduct = await Product.create(productPayload);
+        importedProducts.push(newProduct);
+        importCount++;
       }
-
-      const productPayload = {
-        user: req.user.id,
-        title: item.title,
-        description: item.title, // Mercari thumbnail listing page doesn't have full description, use title
-        selling_price: parseFloat(item.price) || 0,
-        sku: `M-${item.mercariListingId}`,
-        brand: '',
-        size: '',
-        images: item.images,
-        source: 'mercari',
-        status: 'live',
-        mercariListingId: item.mercariListingId,
-        mercariUrl: item.mercariUrl,
-        updated_at: Date.now()
-      };
-
-      const newProduct = await Product.create(productPayload);
-      importedItems.push(newProduct);
-      importCount++;
     }
 
     res.status(200).json({
       success: true,
-      message: `Mercari listings import completed for ${cleanUsername}`,
+      message: `Mercari listings import completed for ${cleanUsername}. Scraped ${scrapedListings.length} total items.`,
       data: {
         totalFound: scrapedListings.length,
         importedCount: importCount,
         skippedDuplicates: duplicateCount,
-        listings: importedItems
+        listings: importedProducts
       }
     });
 
@@ -312,7 +328,7 @@ exports.mercariImportCloset = async (req, res) => {
   }
 };
 
-// @desc    Publish draft listing directly to Mercari using Direct APIs / Puppeteer
+// @desc    Publish or update draft listing directly on Mercari
 // @route   POST /api/mercari/publish/:id
 // @access  Private
 exports.mercariPublish = async (req, res) => {
@@ -417,6 +433,227 @@ exports.mercariPublish = async (req, res) => {
   }
 };
 
+// @desc    Delist / Deactivate listing from Mercari
+// @route   POST /api/mercari/delist/:id
+// @access  Private
+exports.mercariDelist = async (req, res) => {
+  try {
+    const listingId = req.params.id;
+    const user = await User.findById(req.user.id);
+    if (!user || !user.mercariAccount?.connected) {
+      return res.status(400).json({ success: false, message: 'Mercari account not connected.' });
+    }
+
+    let listing = await Listing.findById(listingId);
+    let prod = null;
+    if (!listing) {
+      prod = await Product.findById(listingId);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+      }
+    }
+
+    const activeId = listing?.mercariListingId || prod?.mercariListingId;
+    if (!activeId) {
+      return res.status(400).json({ success: false, message: 'No Mercari listing ID found for this item.' });
+    }
+
+    await deactivateMercariListing(activeId, user.mercariAccount);
+
+    if (listing) {
+      listing.mercariStatus = 'delisted';
+      if (listing.ebayStatus !== 'published' && listing.poshmarkStatus !== 'published' && listing.etsyStatus !== 'published' && listing.depopStatus !== 'published') {
+        listing.status = 'delisted';
+      }
+      await listing.save();
+    }
+
+    await Product.findOneAndUpdate(
+      { user: req.user.id, $or: [{ mercariListingId: activeId }, { _id: listingId }] },
+      { status: 'inactive', updated_at: Date.now() }
+    );
+
+    res.status(200).json({ success: true, message: 'Listing successfully deactivated on Mercari!' });
+  } catch (err) {
+    console.error(`[Mercari Controller] Delist error:`, err.message);
+    res.status(500).json({ success: false, message: `Failed to delist from Mercari: ${err.message}` });
+  }
+};
+
+// @desc    Delete listing from Mercari
+// @route   POST /api/mercari/delete/:id
+// @access  Private
+exports.mercariDelete = async (req, res) => {
+  try {
+    const listingId = req.params.id;
+    const user = await User.findById(req.user.id);
+    if (!user || !user.mercariAccount?.connected) {
+      return res.status(400).json({ success: false, message: 'Mercari account not connected.' });
+    }
+
+    let listing = await Listing.findById(listingId);
+    let prod = null;
+    if (!listing) {
+      prod = await Product.findById(listingId);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+      }
+    }
+
+    const activeId = listing?.mercariListingId || prod?.mercariListingId;
+    if (activeId) {
+      try {
+        await deleteFromMercari(activeId, user.mercariAccount);
+      } catch (delErr) {
+        console.warn(`[Mercari Controller] Delete attempt failed on Mercari web:`, delErr.message);
+      }
+    }
+
+    if (listing) {
+      listing.mercariListingId = undefined;
+      listing.mercariUrl = undefined;
+      listing.mercariStatus = 'none';
+      if (listing.ebayStatus !== 'published' && listing.poshmarkStatus !== 'published' && listing.etsyStatus !== 'published' && listing.depopStatus !== 'published') {
+        listing.status = 'draft';
+      }
+      await listing.save();
+    }
+
+    await Product.findOneAndDelete({
+      user: req.user.id,
+      $or: [{ mercariListingId: activeId }, { _id: listingId }]
+    });
+
+    res.status(200).json({ success: true, message: 'Listing successfully deleted from Mercari!' });
+  } catch (err) {
+    console.error(`[Mercari Controller] Delete error:`, err.message);
+    res.status(500).json({ success: false, message: `Failed to delete from Mercari: ${err.message}` });
+  }
+};
+
+// @desc    Verify live status of a listing on Mercari
+// @route   POST /api/mercari/verify-status/:id
+// @access  Private
+exports.mercariVerifyStatus = async (req, res) => {
+  try {
+    const itemId = req.params.id;
+    const user = await User.findById(req.user.id);
+    if (!user || !user.mercariAccount?.connected) {
+      return res.status(400).json({ success: false, message: 'Mercari account not connected.' });
+    }
+
+    let listing = null;
+    let product = null;
+
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(itemId);
+    if (isValidObjectId) {
+      listing = await Listing.findById(itemId);
+      if (!listing) {
+        product = await Product.findById(itemId);
+        if (product && product.user.toString() === req.user.id) {
+          listing = await Listing.findOne({ user: req.user.id, $or: [{ sku: product.sku }, { mercariListingId: product.mercariListingId }] });
+        }
+      } else {
+        product = await Product.findOne({ user: req.user.id, $or: [{ sku: listing.sku }, { mercariListingId: listing.mercariListingId }], source: 'mercari' });
+      }
+    } else {
+      listing = await Listing.findOne({ user: req.user.id, $or: [{ mercariListingId: itemId }, { sku: itemId }] });
+      product = await Product.findOne({ user: req.user.id, $or: [{ mercariListingId: itemId }, { sku: itemId }], source: 'mercari' });
+    }
+
+    let mercariListingId = listing?.mercariListingId || product?.mercariListingId || (itemId.startsWith('m') ? itemId : null);
+
+    // If still missing, check if there's any matching product in Channel Inventory by title
+    if (!mercariListingId && listing?.title) {
+      const matchByTitle = await Product.findOne({
+        user: req.user.id,
+        source: 'mercari',
+        title: { $regex: listing.title.trim().substring(0, 20), $options: 'i' }
+      });
+      if (matchByTitle?.mercariListingId) {
+        mercariListingId = matchByTitle.mercariListingId;
+        listing.mercariListingId = mercariListingId;
+        listing.mercariUrl = `https://www.mercari.com/item/${mercariListingId}/`;
+        await listing.save();
+      }
+    }
+
+    if (!mercariListingId) {
+      if (listing) {
+        listing.mercariStatus = 'none';
+        await listing.save();
+      }
+      return res.status(200).json({
+        success: true,
+        data: {
+          status: 'draft',
+          mercariStatus: 'none',
+          isLive: false
+        },
+        message: 'Item has not been published to Mercari yet (Draft / Unlisted).'
+      });
+    }
+
+    const verifyResult = await verifyMercariListingStatus(mercariListingId, user.mercariAccount);
+    
+    // Update listing and product based on live status
+    if (listing) {
+      if (verifyResult.status === 'deleted' || verifyResult.mercariStatus === 'deleted') {
+        listing.mercariStatus = 'none';
+        listing.mercariListingId = undefined;
+        listing.mercariUrl = undefined;
+      } else {
+        listing.mercariStatus = verifyResult.mercariStatus;
+      }
+
+      const hasActive = (listing.ebayStatus === 'published' || 
+                         listing.poshmarkStatus === 'published' || 
+                         listing.etsyStatus === 'published' || 
+                         listing.depopStatus === 'published' ||
+                         listing.mercariStatus === 'published');
+      const hasDelisted = (listing.ebayStatus === 'delisted' || 
+                           listing.poshmarkStatus === 'delisted' || 
+                           listing.etsyStatus === 'delisted' || 
+                           listing.depopStatus === 'delisted' ||
+                           listing.mercariStatus === 'delisted');
+      if (hasActive) {
+        listing.status = 'published';
+      } else if (hasDelisted) {
+        listing.status = 'delisted';
+      } else {
+        listing.status = 'draft';
+      }
+      await listing.save();
+    }
+
+    if (product) {
+      if (verifyResult.status === 'deleted' || verifyResult.mercariStatus === 'deleted') {
+        await Product.findByIdAndDelete(product._id);
+      } else {
+        product.status = verifyResult.status;
+        await product.save();
+      }
+    } else if (verifyResult.status === 'deleted') {
+      await Product.findOneAndDelete({ user: req.user.id, mercariListingId });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        mercariListingId,
+        status: verifyResult.status,
+        mercariStatus: verifyResult.mercariStatus,
+        isLive: verifyResult.isLive,
+        item: verifyResult.item
+      },
+      message: `Verified status on Mercari: ${verifyResult.status}`
+    });
+  } catch (err) {
+    console.error(`[Mercari Controller] Verify status error:`, err.message);
+    res.status(500).json({ success: false, message: `Failed to verify status on Mercari: ${err.message}` });
+  }
+};
+
 // @desc    Get live channel inventory
 // @route   GET /api/mercari/live
 // @access  Private
@@ -430,14 +667,40 @@ exports.mercariGetLive = async (req, res) => {
     if (!user.mercariAccount?.connected || !user.mercariAccount?.username) {
       return res.status(400).json({ success: false, message: 'Mercari account is not connected.' });
     }
-    
+
+    // 1. Instantly return cached products from DB for fast loading
+    const cachedProducts = await Product.find({ 
+      user: req.user.id, 
+      source: 'mercari' 
+    }).sort({ updated_at: -1 });
+
+    if (cachedProducts && cachedProducts.length > 0) {
+      return res.status(200).json({
+        success: true,
+        data: cachedProducts
+      });
+    }
+
+    // 2. If no products in DB yet, attempt live scrape
     const mercariAccount = user.mercariAccount || {};
     const username = mercariAccount.username;
     
-    const liveListings = await scrapeMercariCloset(username, mercariAccount);
+    let liveListings = [];
+    try {
+      liveListings = await scrapeMercariCloset(username, mercariAccount);
+    } catch (scrapeErr) {
+      console.warn(`[Mercari Controller] Live scrape fallback to cached:`, scrapeErr.message);
+      return res.status(200).json({
+        success: true,
+        data: cachedProducts || []
+      });
+    }
 
     const savedProducts = [];
     for (const item of liveListings) {
+      const isItemActive = item.status === 'active';
+      const productStatus = isItemActive ? 'active' : 'inactive';
+
       let existingProduct = await Product.findOne({ 
         user: req.user.id, 
         source: 'mercari',
@@ -449,9 +712,9 @@ exports.mercariGetLive = async (req, res) => {
 
       if (existingProduct) {
         existingProduct.title = item.title;
-        existingProduct.selling_price = parseFloat(item.price) || 0;
-        existingProduct.images = item.images;
-        existingProduct.status = 'live';
+        existingProduct.selling_price = parseFloat(item.price) || existingProduct.selling_price || 0;
+        if (item.images && item.images.length > 0) existingProduct.images = item.images;
+        existingProduct.status = productStatus;
         existingProduct.updated_at = Date.now();
         await existingProduct.save();
         savedProducts.push(existingProduct);
@@ -466,7 +729,7 @@ exports.mercariGetLive = async (req, res) => {
           size: '',
           images: item.images,
           source: 'mercari',
-          status: 'live',
+          status: productStatus,
           mercariListingId: item.mercariListingId,
           mercariUrl: item.mercariUrl,
           updated_at: Date.now()
@@ -482,7 +745,8 @@ exports.mercariGetLive = async (req, res) => {
     });
   } catch (err) {
     console.error(`[Mercari Controller] Error getting live inventory:`, err.message);
-    res.status(200).json({ success: false, message: err.message, data: [] });
+    const fallback = await Product.find({ user: req.user.id, source: 'mercari' }).sort({ updated_at: -1 });
+    res.status(200).json({ success: true, data: fallback || [] });
   }
 };
 
@@ -498,7 +762,7 @@ exports.mercariInitiateLogin = async (req, res) => {
 
     const sessionId = 'mercari_' + Math.random().toString(36).substring(2, 15);
     
-    // Start loginToMercari asynchronously in the background (no await!)
+    // Start loginToMercari asynchronously in the background
     loginToMercari(username, password, sessionId, req.user.id)
       .then(result => {
         console.log(`[Mercari Background Login] Finished for session ${sessionId}:`, result.success);
@@ -527,7 +791,6 @@ exports.mercariSessionStatus = async (req, res) => {
     const state = getSessionState(sessionId);
     
     if (!state) {
-      // Check if user is already connected (if completed, it clears session state)
       const user = await User.findById(req.user.id);
       if (user?.mercariAccount?.connected) {
         return res.status(200).json({
@@ -545,7 +808,8 @@ exports.mercariSessionStatus = async (req, res) => {
       status: state.status,
       message: state.message,
       latestScreenshot: state.latestScreenshot,
-      '2faRequired': state['2faRequired']
+      '2faRequired': state['2faRequired'],
+      verificationOptions: state.verificationOptions || null
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -562,7 +826,6 @@ exports.mercariSubmit2faStream = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Session ID and verification code are required.' });
     }
 
-    // Start verification in background
     verifyMercari2FA(sessionId, code, req.user.id)
       .then(result => {
         console.log(`[Mercari Background 2FA] Finished for session ${sessionId}:`, result.success);
@@ -575,6 +838,25 @@ exports.mercariSubmit2faStream = async (req, res) => {
       success: true,
       message: 'Code submitted. Verifying...'
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Trigger specific verification method (SMS, Voice Call, Resend)
+// @route   POST /api/mercari/trigger-verification-method
+// @access  Private
+exports.mercariTriggerVerificationMethod = async (req, res) => {
+  try {
+    const { sessionId, method } = req.body;
+    if (!sessionId || !method) {
+      return res.status(400).json({ success: false, message: 'Session ID and verification method are required.' });
+    }
+
+    const { triggerVerificationMethod } = require('../services/mercariLoginService');
+    const result = await triggerVerificationMethod(sessionId, method);
+
+    res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -605,5 +887,172 @@ exports.getMercariBrands = async (req, res) => {
     res.json({ success: true, brands: matches });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get complete Mercari item details (all photos, description, category, size, brand)
+// @route   GET /api/mercari/item-details/:id
+// @access  Private
+exports.mercariGetItemDetails = async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const forceRefresh = req.query.force === 'true';
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    let targetMercariId = '';
+    let product = null;
+    let listing = null;
+
+    // 1. Resolve rawId (could be Mercari ID "m61...", SKU "M-m61...", or Mongo ObjectId)
+    if (String(rawId).startsWith('m') && !rawId.includes('-')) {
+      targetMercariId = rawId;
+    } else if (String(rawId).startsWith('M-m')) {
+      targetMercariId = rawId.replace('M-', '');
+    }
+
+    if (rawId.match(/^[0-9a-fA-F]{24}$/)) {
+      product = await Product.findById(rawId);
+      if (product) {
+        targetMercariId = product.mercariListingId || (product.sku ? product.sku.replace('M-', '') : '');
+      } else {
+        listing = await Listing.findById(rawId);
+        if (listing) {
+          targetMercariId = listing.mercariListingId || (listing.sku ? listing.sku.replace('M-', '') : '');
+        }
+      }
+    }
+
+    if (!targetMercariId && rawId) {
+      targetMercariId = String(rawId).replace(/^M-/, '');
+    }
+
+    if (!product && targetMercariId) {
+      product = await Product.findOne({
+        user: req.user.id,
+        $or: [
+          { mercariListingId: targetMercariId },
+          { sku: `M-${targetMercariId}` },
+          { sku: targetMercariId }
+        ]
+      });
+    }
+
+    if (!listing && targetMercariId) {
+      listing = await Listing.findOne({
+        user: req.user.id,
+        $or: [
+          { mercariListingId: targetMercariId },
+          { sku: `M-${targetMercariId}` },
+          { sku: targetMercariId }
+        ]
+      });
+    }
+
+    // Fast return if cached Product has all images and full description and force is false
+    if (!forceRefresh && product && product.images && product.images.length > 1 && product.description && product.description !== product.title) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          _id: product._id,
+          mercariListingId: product.mercariListingId || targetMercariId,
+          title: product.title,
+          description: product.description,
+          price: product.selling_price || product.price,
+          selling_price: product.selling_price || product.price,
+          images: product.images,
+          photosLength: product.images.length,
+          brand: product.brand || '',
+          size: product.size || '',
+          category: product.category || product.category_name || '',
+          categoryId: product.categoryId || '',
+          selectedCondition: product.selectedCondition || product.condition || 'good',
+          status: product.status || 'inactive'
+        }
+      });
+    }
+
+    if (!targetMercariId) {
+      return res.status(400).json({ success: false, message: 'Could not resolve Mercari listing ID.' });
+    }
+
+    if (!user.mercariAccount?.connected || !user.mercariAccount?.sessionCookie) {
+      // If not connected, return whatever DB has
+      if (product) {
+        return res.status(200).json({ success: true, data: product });
+      }
+      return res.status(400).json({ success: false, message: 'Mercari account is not connected.' });
+    }
+
+    console.log(`[Mercari Controller] Auto-enriching Mercari item: ${targetMercariId}`);
+    const details = await fetchMercariItemDetails(targetMercariId, user.mercariAccount);
+
+    // Save enriched details in Product model
+    if (product) {
+      product.title = details.title || product.title;
+      product.description = details.description || product.description;
+      product.selling_price = parseFloat(details.price) || product.selling_price;
+      if (details.images && details.images.length > 0) product.images = details.images;
+      if (details.brand) product.brand = details.brand;
+      if (details.size) product.size = details.size;
+      if (details.category) product.category = details.category;
+      if (details.categoryId) product.categoryId = details.categoryId;
+      if (details.condition) product.condition = details.condition;
+      if (details.selectedCondition) product.selectedCondition = details.selectedCondition;
+      if (details.status) product.status = details.status;
+      product.updated_at = Date.now();
+      await product.save();
+    } else {
+      product = await Product.create({
+        user: req.user.id,
+        title: details.title,
+        description: details.description,
+        selling_price: parseFloat(details.price) || 0,
+        sku: `M-${targetMercariId}`,
+        brand: details.brand,
+        size: details.size,
+        category: details.category,
+        categoryId: details.categoryId,
+        condition: details.condition,
+        selectedCondition: details.selectedCondition,
+        images: details.images,
+        source: 'mercari',
+        status: details.status,
+        mercariListingId: targetMercariId,
+        mercariUrl: `https://www.mercari.com/item/${targetMercariId}/`,
+        updated_at: Date.now()
+      });
+    }
+
+    // Also update Listing model if present
+    if (listing) {
+      listing.title = details.title || listing.title;
+      listing.description = details.description || listing.description;
+      listing.price = parseFloat(details.price) || listing.price;
+      if (details.images && details.images.length > 0) listing.images = details.images;
+      if (details.brand) listing.brand = details.brand;
+      if (details.size) listing.size = details.size;
+      if (details.category) listing.category = details.category;
+      if (details.categoryId) listing.categoryId = details.categoryId;
+      if (details.selectedCondition) listing.selectedCondition = details.selectedCondition;
+      listing.mercariStatus = details.status === 'active' ? 'published' : 'delisted';
+      if (details.status === 'active') listing.status = 'published';
+      await listing.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: product._id,
+        ...details
+      }
+    });
+
+  } catch (err) {
+    console.error('[Mercari Controller] Error fetching full item details:', err.message);
+    res.status(500).json({ success: false, message: `Failed to fetch Mercari item details: ${err.message}` });
   }
 };

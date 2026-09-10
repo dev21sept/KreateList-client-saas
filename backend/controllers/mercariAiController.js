@@ -198,7 +198,8 @@ exports.mercariAnalyzeListing = async (req, res) => {
             condition_name = 'Good',
             gender = 'Unisex',
             condition_note = '',
-            model = 'gpt-4o-mini'
+            model = 'gpt-4o-mini',
+            existing_title = ''
         } = req.body;
 
         let aiClient = openai;
@@ -332,8 +333,8 @@ ${prefixesText}
  4. Visual features: 
     - Describe the item's key design, style, cuts, sleeve style/length, button front, neck/collar style, zippers, pockets, patterns, and any distinguishing characteristics in 'visual_description'.
  5. Title Attributes:
-    - Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
-    - Output these as a key-value dictionary in 'title_parts'.
+    ${existing_title && existing_title.trim() !== '' ? `- CRITICAL TITLE RULE: The product title is ALREADY ESTABLISHED as: "${existing_title.trim()}". You MUST extract matching attributes for this title inside 'title_parts' for the Title Sequence: [${effectiveStructure.join(', ')}].` : `- Extract these precise attributes for the Title Sequence: [${effectiveStructure.join(', ')}]
+    - Output these as a key-value dictionary in 'title_parts'.`}
 
 Response ONLY as JSON:
 {
@@ -468,21 +469,26 @@ Response ONLY as JSON:
             standardizedParts[key] = foundKey ? aiResponseParts[foundKey] : '';
         });
 
-        const titleString = effectiveStructure
-            .map(key => {
-                let val = standardizedParts[key] || '';
-                val = String(val).replace(/,/g, '');
-                if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
-                    return `Size ${val}`;
-                }
-                return val;
-            })
-            .filter(val => val && val.toString().trim() !== '')
-            .join(' ')
-            .substring(0, 80)
-            .trim();
+        let finalTitle = '';
+        if (existing_title && existing_title.trim() !== '') {
+            finalTitle = existing_title.trim().substring(0, 80);
+        } else {
+            const titleString = effectiveStructure
+                .map(key => {
+                    let val = standardizedParts[key] || '';
+                    val = String(val).replace(/,/g, '');
+                    if (key.toLowerCase().includes('size') && val && !val.toLowerCase().startsWith('size')) {
+                        return `Size ${val}`;
+                    }
+                    return val;
+                })
+                .filter(val => val && val.toString().trim() !== '')
+                .join(' ')
+                .substring(0, 80)
+                .trim();
 
-        const finalTitle = titleString || finalData.title || 'New Listing';
+            finalTitle = titleString || finalData.title || 'New Listing';
+        }
         
         let templatedDescription = finalData.description || '';
         templatedDescription = templatedDescription

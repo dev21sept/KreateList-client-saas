@@ -24,6 +24,8 @@
     "*://*.vinted.hu/*",
     "*://*.vinted.sk/*",
     "*://*.vinted.at/*",
+    "*://*.elister.ai/*",
+    "*://elister.ai/*",
     "*://app.elister.ai/*",
     "*://localhost/*",
     "*://127.0.0.1/*"
@@ -52,6 +54,8 @@
         "*://*.vinted.hu/*",
         "*://*.vinted.sk/*",
         "*://*.vinted.at/*",
+        "*://*.elister.ai/*",
+        "*://elister.ai/*",
         "*://app.elister.ai/*",
         "*://localhost/*",
         "*://127.0.0.1/*"

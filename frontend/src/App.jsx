@@ -28,9 +28,10 @@ import CreateListing from './pages/CreateMasterListing';
 import CreateEbayListing from './pages/CreateEbayListing';
 import BulkListingEbay from './pages/BulkListingEbay';
 import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
-import CreateDepopListing from './pages/CreateDepopListing';
+// import CreateDepopListing from './pages/CreateDepopListing';
 import CreateEtsyListing from './pages/CreateEtsyListing';
 import CreateMercariListing from './pages/CreateMercariListing';
+import CreateAmazonListing from './pages/CreateAmazonListing';
 import Rules from './pages/Rules';
 import EbayAccounts from './pages/EbayAccounts';
 import Subscription from './pages/Subscription';
@@ -82,9 +83,10 @@ const DomainRedirect = ({ children }) => {
       '/create-ebay-listing',
       '/create-ebay-bulk-listing',
       '/create-poshmark-listing',
-      '/create-depop-listing',
+      // '/create-depop-listing',
       '/create-etsy-listing',
       '/create-mercari-listing',
+      '/create-amazon-listing',
       '/rules',
       '/ebay-accounts',
       '/ebay-callback',
@@ -164,9 +166,10 @@ const App = () => {
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
               <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />
               <Route path="/create-poshmark-listing" element={<CreatePoshmarkListing />} />
-              <Route path="/create-depop-listing" element={<CreateDepopListing />} />
+              {/* <Route path="/create-depop-listing" element={<CreateDepopListing />} /> */}
               <Route path="/create-etsy-listing" element={<CreateEtsyListing />} />
               <Route path="/create-mercari-listing" element={<CreateMercariListing />} />
+              <Route path="/create-amazon-listing" element={<CreateAmazonListing />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/ebay-accounts" element={<EbayAccounts />} />
               {/* Alias for ebay callback to handle it on the same page */}

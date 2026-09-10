@@ -3,7 +3,8 @@ const {
   getOrders,
   syncOrders,
   updateOrderStatus,
-  deleteOrder
+  deleteOrder,
+  relistOrder
 } = require('../controllers/orderController');
 const { protect } = require('../middleware/auth');
 
@@ -16,6 +17,8 @@ router.route('/')
   .get(getOrders);
 
 router.post('/sync', syncOrders);
+
+router.post('/:id/relist', relistOrder);
 
 router.route('/:id')
   .put(updateOrderStatus)

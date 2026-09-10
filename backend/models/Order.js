@@ -8,8 +8,7 @@ const orderSchema = new mongoose.Schema({
   },
   orderId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   ebayOrderId: String,
   sellerId: String,
@@ -17,8 +16,10 @@ const orderSchema = new mongoose.Schema({
   totalAmount: Number,
   currency: String,
   status: String,
-  paymentStatus: String,
-  createdDate: Date,
+  createdDate: {
+    type: Date,
+    default: Date.now
+  },
   paidDate: Date,
   lineItems: [{
     lineItemId: String,
@@ -31,7 +32,7 @@ const orderSchema = new mongoose.Schema({
   shippingStep: mongoose.Schema.Types.Mixed,
   platform: {
     type: String,
-    enum: ['ebay', 'depop', 'poshmark', 'etsy'],
+    enum: ['ebay', 'depop', 'poshmark', 'etsy', 'mercari'],
     default: 'ebay'
   },
   orderUrl: String,
@@ -39,6 +40,8 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updated_at' } });
 
-module.exports = mongoose.model('Order', orderSchema);
+orderSchema.index({ user: 1, orderId: 1 }, { unique: true });
+
+module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);

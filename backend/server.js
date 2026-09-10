@@ -69,6 +69,8 @@ app.use('/api/depop', require('./routes/depopRoutes'));
 app.use('/api/etsy', require('./routes/etsyRoutes'));
 // Mercari Routes
 app.use('/api/mercari', require('./routes/mercariRoutes'));
+// Amazon Routes
+app.use('/api/amazon', require('./routes/amazonRoutes'));
 // Sales Orders Routes
 app.use('/api/orders', require('./routes/orderRoutes'));
 

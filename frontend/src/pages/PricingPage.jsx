@@ -26,14 +26,14 @@ const PricingPage = () => {
       name: 'BASIC',
       monthlyPrice: 79,
       icon: <Zap className="w-5 h-5 text-blue-500" />,
-      perfectFor: ['New resellers', 'Small eBay sellers', 'Side hustlers'],
+      perfectFor: ['Small resellers', 'Beginners', 'Side hustlers'],
       features: [
-        '500 AI Listings / month',
+        '500 AI Listings',
         '1 eBay Account',
-        'AI Titles & Descriptions',
-        'Smart Listing Templates',
+        'AI Title Generator',
+        'AI Description Generator',
+        'Standard Templates',
         'Basic Analytics',
-        'Image Upload Support',
         'Email Support'
       ]
     },
@@ -42,32 +42,33 @@ const PricingPage = () => {
       monthlyPrice: 149,
       popular: true,
       icon: <Rocket className="w-5 h-5 text-indigo-600" />,
-      perfectFor: ['Growing resellers', 'Full-time sellers', 'Multi-account stores'],
+      perfectFor: ['Growing stores', 'Full-time resellers', 'Multi-account sellers'],
       features: [
-        '3,000 AI Listings / month',
+        '3,000 AI Listings',
         '5 eBay Accounts',
-        'AI SEO Optimization',
+        'Advanced AI Optimization',
         'Bulk Listing Tools',
         'Inventory Sync',
-        'Team Collaboration',
         'AI Pricing Suggestions',
-        'Priority Support'
+        'Priority Support',
+        'Team Access'
       ]
     },
     {
       name: 'ENTERPRISE',
       monthlyPrice: 299,
       icon: <Users className="w-5 h-5 text-purple-600" />,
-      perfectFor: ['Large reseller teams', 'Agencies & enterprises', 'High-volume sellers'],
+      perfectFor: ['Agencies', 'Large teams', 'High-volume businesses'],
       features: [
-        '10,000 AI Listings / month',
-        'Unlimited eBay Accounts',
+        '10,000 AI Listings',
+        'Unlimited Accounts',
         'API Access',
-        'Advanced Automation',
-        'Team Roles & Permissions',
-        'Dedicated Account Manager',
-        'White Label Support',
-        '24/7 Premium Support'
+        'Dedicated Manager',
+        'Team Roles',
+        'White Label',
+        'Custom Automation',
+        'Premium AI Processing',
+        '24/7 Support'
       ]
     }
   ];
@@ -126,9 +127,9 @@ const PricingPage = () => {
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select your profile to find your plan</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             {[
-              { label: 'New Seller / Side Hustler', plan: 'BASIC' },
-              { label: 'Full-time / Active Seller', plan: 'PRO' },
-              { label: 'Large Team / High Volume', plan: 'ENTERPRISE' }
+              { label: 'Small Reseller / Side Hustler', plan: 'BASIC' },
+              { label: 'Growing Store / Full-time Reseller', plan: 'PRO' },
+              { label: 'Agency / High-Volume Business', plan: 'ENTERPRISE' }
             ].map(profile => (
               <button
                 key={profile.plan}

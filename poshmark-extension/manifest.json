@@ -18,6 +18,8 @@
     "*://*.poshmark.co.uk/*",
     "*://poshmark.com.au/*",
     "*://*.poshmark.com.au/*",
+    "*://*.elister.ai/*",
+    "*://elister.ai/*",
     "*://app.elister.ai/*",
     "*://localhost/*",
     "*://127.0.0.1/*"
@@ -39,6 +41,8 @@
         "*://*.poshmark.co.uk/*",
         "*://poshmark.com.au/*",
         "*://*.poshmark.com.au/*",
+        "*://*.elister.ai/*",
+        "*://elister.ai/*",
         "*://app.elister.ai/*",
         "*://localhost/*",
         "*://127.0.0.1/*"
