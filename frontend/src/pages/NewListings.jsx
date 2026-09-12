@@ -207,11 +207,63 @@ const MOCK_LISTINGS = [
   }
 ];
 
+const isSyntheticSku = (str) => {
+  if (!str || typeof str !== 'string') return true;
+  const s = str.trim();
+  if (s === '' || s === '-') return true;
+  const parts = s.split(/[\s|,\/]+/).map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return true;
+  return parts.every(part =>
+    /^(EBAY|POSH|POSHMARK|MERCARI|ETSY|AMAZON|M|P|E)-[a-zA-Z0-9_\-]+$/i.test(part) ||
+    /^[0-9]{11,14}$/.test(part) ||
+    /^[a-f0-9]{24}$/i.test(part) ||
+    /^m[0-9]{10,12}$/i.test(part)
+  );
+};
+
+const getDisplaySku = (rawSku) => {
+  if (!rawSku || typeof rawSku !== 'string') return '-';
+  const clean = rawSku.trim();
+  if (isSyntheticSku(clean)) return '-';
+  return clean;
+};
+
+const getPlatformLiveId = (listing, plat) => {
+  if (!listing) return '';
+  const platData = listing.platformData?.[plat] || (listing.listingsMap?.[plat]) || (listing.platform === plat ? listing : {});
+  if (platData.liveId && platData.liveId !== '-') return platData.liveId;
+  if (platData.listingId && platData.listingId !== '-') return platData.listingId;
+  if (listing[`${plat}ListingId`] && listing[`${plat}ListingId`] !== '-') return listing[`${plat}ListingId`];
+  if (plat === 'ebay' && listing.ebayListingId) return listing.ebayListingId;
+  if (plat === 'poshmark' && listing.poshmarkListingId) return listing.poshmarkListingId;
+  if (plat === 'mercari' && listing.mercariListingId) return listing.mercariListingId;
+  if (plat === 'etsy' && listing.etsyListingId) return listing.etsyListingId;
+  if (plat === 'amazon' && (listing.amazonListingId || listing.amazonAsin)) return listing.amazonListingId || listing.amazonAsin;
+  
+  // Extract from raw SKU if any legacy value has it
+  const rawSku = listing.sku || '';
+  if (plat === 'ebay') {
+    const m = rawSku.match(/EBAY-([0-9]+)/i);
+    if (m) return m[1];
+  } else if (plat === 'poshmark') {
+    const m = rawSku.match(/P-([a-f0-9]{24})/i);
+    if (m) return m[1];
+  } else if (plat === 'mercari') {
+    const m = rawSku.match(/M-(m[0-9]+)/i);
+    if (m) return m[1];
+  } else if (plat === 'etsy') {
+    const m = rawSku.match(/ETSY-([0-9]+)/i);
+    if (m) return m[1];
+  }
+  return '';
+};
+
 const groupListingsBySku = (rawListings) => {
   const groups = [];
 
   rawListings.forEach(item => {
-    const sku = item.sku ? item.sku.trim() : '';
+    const rawSku = item.sku ? item.sku.trim() : '';
+    const sku = !isSyntheticSku(rawSku) ? rawSku : '';
     const thumbnail = item.thumbnail ? item.thumbnail.trim() : '';
     
     // Find if there is an existing group that matches by SKU
@@ -330,6 +382,35 @@ const NewListings = () => {
   const [previewPlatform, setPreviewPlatform] = useState('ebay');
   const [activeImage, setActiveImage] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Quick SKU Edit states
+  const [editingSkuId, setEditingSkuId] = useState(null);
+  const [tempSkuValue, setTempSkuValue] = useState('');
+  const [savingSku, setSavingSku] = useState(false);
+
+  const handleQuickUpdateSku = async (listingId, newSku) => {
+    if (!listingId) return;
+    setSavingSku(true);
+    try {
+      const cleanNewSku = (newSku || '').trim();
+      await listingService.update(listingId, { sku: cleanNewSku });
+      toast.success('SKU updated successfully!');
+      setListings(prev => prev.map(l => (l._id === listingId || (l.allIds && l.allIds.includes(listingId))) ? { ...l, sku: cleanNewSku } : l));
+      setPreviewListing(prev => {
+        if (!prev) return null;
+        if (prev._id === listingId || (prev.allIds && prev.allIds.includes(listingId))) {
+          return { ...prev, sku: cleanNewSku };
+        }
+        return prev;
+      });
+      setEditingSkuId(null);
+    } catch (err) {
+      console.error('Failed to update SKU:', err);
+      toast.error('Failed to update SKU');
+    } finally {
+      setSavingSku(false);
+    }
+  };
 
   // Publishing process states
   const [publishingId, setPublishingId] = useState(null);
@@ -1245,7 +1326,7 @@ const NewListings = () => {
 
     const title = product.title || '';
     const brand = product.brand || '';
-    const sku = product.sku || '-';
+    const sku = getDisplaySku(product.sku);
     const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
 
     const status = (isEbay || isEtsy || isPoshmark || isDepop || isMercari || isAmazon) 
@@ -1260,22 +1341,22 @@ const NewListings = () => {
     let liveId = '-';
     let url = '';
     if (isEbay) {
-      liveId = product.ebayListingId || '-';
-      url = product.ebayUrl || '';
+      liveId = product.ebayListingId || product.itemId || (product.sku?.match(/EBAY-([0-9]+)/i)?.[1]) || product.liveId || '-';
+      url = product.ebayUrl || (liveId !== '-' ? `https://www.ebay.com/itm/${liveId}` : '');
     } else if (isEtsy) {
-      liveId = product.etsyListingId || '-';
-      url = product.etsyUrl || '';
+      liveId = product.etsyListingId || product.listingId || (product.sku?.match(/ETSY-([0-9]+)/i)?.[1]) || product.liveId || '-';
+      url = product.etsyUrl || (liveId !== '-' ? `https://www.etsy.com/listing/${liveId}` : '');
     } else if (isPoshmark) {
-      liveId = product.poshmarkListingId || '-';
-      url = product.poshmarkUrl || '';
+      liveId = product.poshmarkListingId || product.postId || (product.sku?.match(/P-([a-f0-9]{24})/i)?.[1]) || product.liveId || '-';
+      url = product.poshmarkUrl || (liveId !== '-' ? `https://poshmark.com/listing/${liveId}` : '');
     } else if (isDepop) {
-      liveId = product.depopListingId || '-';
+      liveId = product.depopListingId || product.liveId || '-';
       url = product.depopUrl || '';
     } else if (isMercari) {
-      liveId = product.mercariListingId || '-';
-      url = product.mercariUrl || (product.mercariListingId ? `https://www.mercari.com/item/${product.mercariListingId}/` : '');
+      liveId = product.mercariListingId || product.itemId || (product.sku?.match(/M-(m[0-9]+)/i)?.[1]) || product.liveId || '-';
+      url = product.mercariUrl || (liveId !== '-' ? `https://www.mercari.com/item/${liveId}/` : '');
     } else if (isAmazon) {
-      liveId = product.amazonListingId || product.amazonAsin || '-';
+      liveId = product.amazonListingId || product.amazonAsin || product.asin || product.liveId || '-';
       url = product.amazonUrl || (product.amazonAsin ? `https://www.amazon.com/dp/${product.amazonAsin}` : '');
     }
 
@@ -3080,7 +3161,7 @@ const NewListings = () => {
                             {item.title}
                           </p>
                           <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                            <span className="font-mono text-slate-500">{item.sku || '-'}</span>
+                            <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
                             <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
                             <span>{formatTimeAgo(item.createdAt)}</span>
                           </div>
@@ -3178,7 +3259,56 @@ const NewListings = () => {
 
                         {/* SKU */}
                         <td className="px-6 py-4">
-                          <span className="font-mono text-xs font-bold text-slate-500">{item.sku || '-'}</span>
+                          {editingSkuId === item._id ? (
+                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={tempSkuValue}
+                                onChange={(e) => setTempSkuValue(e.target.value)}
+                                placeholder="SKU"
+                                className="text-xs font-mono font-bold bg-white border border-indigo-400 rounded-lg px-2 py-1 w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleQuickUpdateSku(item._id, tempSkuValue);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingSkuId(null);
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                disabled={savingSku}
+                                onClick={() => handleQuickUpdateSku(item._id, tempSkuValue)}
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0"
+                              >
+                                {savingSku ? '...' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingSkuId(null)}
+                                className="px-1 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer shrink-0"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group/sku">
+                              <span className="font-mono text-xs font-bold text-slate-600">{getDisplaySku(item.sku)}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSkuId(item._id);
+                                  setTempSkuValue(getDisplaySku(item.sku) === '-' ? '' : getDisplaySku(item.sku));
+                                }}
+                                className="opacity-0 group-hover/sku:opacity-100 text-slate-400 hover:text-indigo-600 transition-opacity p-0.5 cursor-pointer"
+                                title="Edit SKU"
+                              >
+                                <Edit size={11} />
+                              </button>
+                            </div>
+                          )}
                         </td>
 
                         {/* Qty */}
@@ -3816,12 +3946,12 @@ const NewListings = () => {
         const displayColor = platData.color || previewListing.color || '-';
         const displayCategory = platData.category || (previewListing.platform === activePlat ? previewListing.category : '-');
         const displayCondition = platData.condition || platData.selectedCondition || (previewListing.platform === activePlat ? (previewListing.selectedCondition || previewListing.condition) : '');
-        const displaySku = platData.sku || previewListing.sku || '-';
+        const displaySku = getDisplaySku(platData.sku || previewListing.sku || '');
         const displaySpecifics = activePlat === 'ebay' 
           ? (platData.itemSpecifics || (previewListing.platform === 'ebay' ? previewListing.itemSpecifics : {})) 
           : {};
         const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
-        const displayLiveId = platData.liveId || previewListing[`${activePlat}ListingId`];
+        const displayLiveId = getPlatformLiveId(previewListing, activePlat);
         const displayUrl = platData.url || previewListing[`${activePlat}Url`];
 
         return (
@@ -4037,8 +4167,58 @@ const NewListings = () => {
                       <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displaySize}</p>
                     </div>
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
-                      <p className="text-sm font-mono font-bold text-slate-800 mt-1 truncate">{displaySku}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</p>
+                        {editingSkuId !== previewListing._id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSkuId(previewListing._id);
+                              setTempSkuValue(displaySku === '-' ? '' : displaySku);
+                            }}
+                            className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                          >
+                            <Edit size={10} />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
+                      {editingSkuId === previewListing._id ? (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={tempSkuValue}
+                            onChange={(e) => setTempSkuValue(e.target.value)}
+                            placeholder="Enter SKU..."
+                            className="text-xs font-mono font-bold bg-white border border-indigo-400 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleQuickUpdateSku(previewListing._id, tempSkuValue);
+                              } else if (e.key === 'Escape') {
+                                setEditingSkuId(null);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={savingSku}
+                            onClick={() => handleQuickUpdateSku(previewListing._id, tempSkuValue)}
+                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0"
+                          >
+                            {savingSku ? '...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingSkuId(null)}
+                            className="px-1.5 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer shrink-0"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-mono font-bold text-slate-800 mt-1 truncate">{displaySku}</p>
+                      )}
                     </div>
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</p>
@@ -4050,7 +4230,7 @@ const NewListings = () => {
                         <p className="text-sm font-bold text-slate-800 mt-1 truncate">{displayCondition}</p>
                       </div>
                     )}
-                    {displayLiveId && (
+                    {displayLiveId && displayLiveId !== '-' && (
                       <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 col-span-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{activePlat} Live ID</p>
                         <p className="text-xs font-mono font-bold text-slate-700 mt-0.5 truncate">{displayLiveId}</p>
@@ -4421,7 +4601,7 @@ const NewListings = () => {
                               <td className="px-4 py-3.5">
                                 <div className="space-y-0.5">
                                   <span className="font-mono text-[11px] font-bold text-slate-600 block">
-                                    {group.sku || '-'}
+                                    {getDisplaySku(group.sku) || '-'}
                                   </span>
                                   <span className="font-extrabold text-slate-800 text-xs block">
                                     ${Number(group.price || 0).toFixed(2)}
@@ -4818,7 +4998,7 @@ const NewListings = () => {
                                     </p>
                                     <div className="flex items-center gap-2 mt-1">
                                       <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                        SKU: {master.sku || '-'}
+                                        SKU: {getDisplaySku(master.sku)}
                                       </span>
                                       <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
                                         ${Number(master.price || 0).toFixed(2)}

@@ -675,7 +675,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             : (imgUrl ? [imgUrl] : []);
 
           const fullUrl = post.share_url || `https://poshmark.com/listing/${post.id}`;
-          const generatedSku = `P-${post.id}`;
+          const generatedSku = (post.sku && String(post.sku).trim()) ? String(post.sku).trim() : '';
 
           // Real marketplace status from Poshmark's own API: a post is only
           // truly active if it's published, flagged as an active item, and its
@@ -761,7 +761,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
               
               const listingIdMatch = fullUrl.match(/-([a-f0-9]{24})$/);
               const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
-              const generatedSku = `P-${poshmarkId || Date.now().toString().substring(8)}`;
+              const generatedSku = '';
 
               listings.push({
                 title: title.trim(),
@@ -810,7 +810,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
 
       const listingIdMatch = fullUrl.match(/-([a-f0-9]{24})$/);
       const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
-      const generatedSku = `P-${poshmarkId || Date.now().toString().substring(8)}`;
+      const generatedSku = '';
 
       if (title && !listings.some(l => l.poshmarkUrl === fullUrl)) {
         listings.push({

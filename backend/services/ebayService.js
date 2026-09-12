@@ -859,7 +859,7 @@ async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1
             const priceText = $item.find('BuyItNowPrice, CurrentPrice, ConvertedBuyItNowPrice, ConvertedCurrentPrice').first().text();
             const price = parseFloat(priceText || '0');
             const rawSku = $item.find('SKU').text();
-            const sku = rawSku && rawSku.trim() ? rawSku.trim() : `EBAY-${itemId}`;
+            const sku = rawSku && rawSku.trim() ? rawSku.trim() : '';
             const quantity = parseInt($item.find('Quantity').text() || '1', 10);
             const viewUrl = $item.find('ViewItemURL').text() || `https://www.ebay.com/itm/${itemId}`;
             

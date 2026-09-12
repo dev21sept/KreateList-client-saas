@@ -20,7 +20,7 @@ const listingSchema = new mongoose.Schema({
   },
   sku: {
     type: String,
-    required: [true, 'Please add an SKU'],
+    default: '',
     trim: true
   },
   category: {
