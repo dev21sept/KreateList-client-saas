@@ -18,16 +18,22 @@ exports.amazonConnect = async (req, res) => {
     const finalProtocol = isProd ? 'https' : protocol;
     const redirectUri = process.env.AMAZON_REDIRECT_URI || `${finalProtocol}://${host}/api/amazon/callback`;
 
+    const regionParam = (req.query.region || req.query.country || req.query.marketplace || '').toLowerCase();
+    const isIndia = regionParam === 'in' || regionParam === 'india' || user.country === 'India';
+    const sellerDomain = isIndia ? 'sellercentral.amazon.in' : 'sellercentral.amazon.com';
+
     const state = req.user.id;
     user.amazonState = state;
     await user.save();
 
     // Amazon SP-API Authorization consent URL
-    const authUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${encodeURIComponent(amazonService.AMAZON_CLIENT_ID)}&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&version=beta`;
+    const authUrl = `https://${sellerDomain}/apps/authorize/consent?application_id=${encodeURIComponent(amazonService.AMAZON_CLIENT_ID)}&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&version=beta`;
 
     res.status(200).json({
       success: true,
-      url: authUrl
+      url: authUrl,
+      indiaUrl: `https://sellercentral.amazon.in/apps/authorize/consent?application_id=${encodeURIComponent(amazonService.AMAZON_CLIENT_ID)}&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&version=beta`,
+      usUrl: `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${encodeURIComponent(amazonService.AMAZON_CLIENT_ID)}&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}&version=beta`
     });
   } catch (err) {
     console.error('[Amazon Controller] Connect error:', err);
@@ -40,7 +46,7 @@ exports.amazonConnect = async (req, res) => {
  */
 exports.amazonCallback = async (req, res) => {
   const { code, spapi_oauth_code, state, selling_partner_id } = req.query;
-  const rawFrontendUrl = process.env.FRONTEND_URL || 'https://app.elister.ai';
+  const rawFrontendUrl = process.env.FRONTEND_URL || 'https://elister.ai';
   const frontendUrl = rawFrontendUrl.trim().replace(/\/$/, '');
 
   const authCode = spapi_oauth_code || code;
@@ -80,15 +86,17 @@ exports.amazonCallback = async (req, res) => {
     user.amazonState = undefined;
     await user.save();
 
-    // Optionally retrieve marketplace participations to get exact store name
+    // Retrieve marketplace participations to get exact store name and marketplace ID
     try {
       const participations = await amazonService.getMarketplaceParticipations(user);
       if (participations && participations.length > 0) {
-        const primary = participations[0];
-        if (primary.storeName || primary.sellerId) {
-          user.amazonAccount.storeName = primary.storeName || user.amazonAccount.storeName;
-          await user.save();
-        }
+        const activePart = participations.find(p => p.participation?.isParticipating !== false) || participations[0];
+        const mktId = activePart.marketplace?.id || activePart.marketplaceId || user.amazonAccount.marketplaceId;
+        const sName = activePart.storeName || activePart.marketplace?.name || user.amazonAccount.storeName;
+
+        user.amazonAccount.marketplaceId = mktId;
+        user.amazonAccount.storeName = sName;
+        await user.save();
       }
     } catch (partErr) {
       console.warn('[Amazon Callback] participations lookup warning:', partErr.message);

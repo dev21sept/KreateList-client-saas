@@ -1,10 +1,33 @@
 const axios = require('axios');
 const User = require('../models/User');
 
-const AMAZON_CLIENT_ID = process.env.AMAZON_CLIENT_ID 
-const AMAZON_CLIENT_SECRET = process.env.AMAZON_CLIENT_SECRET 
+const AMAZON_CLIENT_ID = process.env.AMAZON_CLIENT_ID;
+const AMAZON_CLIENT_SECRET = process.env.AMAZON_CLIENT_SECRET;
 const DEFAULT_MARKETPLACE_ID = 'ATVPDKIKX0DER'; // Amazon US
-const SP_API_ENDPOINT_NA = 'https://sellingpartnerapi-na.amazon.com';
+
+const SP_API_ENDPOINTS = {
+  na: 'https://sellingpartnerapi-na.amazon.com',
+  eu: 'https://sellingpartnerapi-eu.amazon.com',
+  fe: 'https://sellingpartnerapi-fe.amazon.com'
+};
+
+const MARKETPLACE_CONFIG = {
+  'A21TJRUUN4KGV': { name: 'Amazon India', region: 'eu', domain: 'amazon.in', currency: 'INR' },
+  'ATVPDKIKX0DER': { name: 'Amazon US', region: 'na', domain: 'amazon.com', currency: 'USD' },
+  'A2EUQ1WTGCTBG2': { name: 'Amazon Canada', region: 'na', domain: 'amazon.ca', currency: 'CAD' },
+  'A1AM78C64UM0Y8': { name: 'Amazon Mexico', region: 'na', domain: 'amazon.com.mx', currency: 'MXN' },
+  'A1F83G8C2ARO7P': { name: 'Amazon UK', region: 'eu', domain: 'amazon.co.uk', currency: 'GBP' },
+  'A1PA6795UKMFR9': { name: 'Amazon Germany', region: 'eu', domain: 'amazon.de', currency: 'EUR' },
+  'A13V1IB3VIYZZH': { name: 'Amazon France', region: 'eu', domain: 'amazon.fr', currency: 'EUR' },
+  'APJ6JRA9NG5V4': { name: 'Amazon Italy', region: 'eu', domain: 'amazon.it', currency: 'EUR' },
+  'A1RKKUPIHCS9HS': { name: 'Amazon Spain', region: 'eu', domain: 'amazon.es', currency: 'EUR' },
+};
+
+function getSpApiEndpoint(marketplaceId = 'ATVPDKIKX0DER') {
+  const cfg = MARKETPLACE_CONFIG[marketplaceId];
+  const region = cfg ? cfg.region : 'na';
+  return SP_API_ENDPOINTS[region] || SP_API_ENDPOINTS.na;
+}
 
 /**
  * Exchange Authorization Code from LWA / SP-API OAuth for Tokens
@@ -82,15 +105,29 @@ async function getLwaAccessToken(user) {
 async function getMarketplaceParticipations(user) {
   try {
     const accessToken = await getLwaAccessToken(user);
+    const userMarketplace = user?.amazonAccount?.marketplaceId || DEFAULT_MARKETPLACE_ID;
+    const primaryEndpoint = getSpApiEndpoint(userMarketplace);
 
-    const response = await axios.get(`${SP_API_ENDPOINT_NA}/sellers/v1/marketplaceParticipations`, {
-      headers: {
-        'x-amz-access-token': accessToken,
-        'Content-Type': 'application/json'
+    // Try primary endpoint first, then fallback to other region if needed
+    const endpointsToTry = [primaryEndpoint, SP_API_ENDPOINTS.eu, SP_API_ENDPOINTS.na].filter((v, i, a) => a.indexOf(v) === i);
+
+    for (const endpoint of endpointsToTry) {
+      try {
+        const response = await axios.get(`${endpoint}/sellers/v1/marketplaceParticipations`, {
+          headers: {
+            'x-amz-access-token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        });
+        if (response.data?.payload && response.data.payload.length > 0) {
+          return response.data.payload;
+        }
+      } catch (e) {
+        // Try next endpoint
       }
-    });
-
-    return response.data?.payload || [];
+    }
+    return [];
   } catch (error) {
     console.warn('[Amazon Service] getMarketplaceParticipations warning:', error.response?.data || error.message);
     return [];
@@ -137,6 +174,9 @@ async function publishToAmazon(listing, user) {
   const productType = listing.amazonProductType || 'PRODUCT';
   const conditionType = mapConditionToAmazon(listing.amazonCondition || listing.selectedCondition || listing.condition);
 
+  const mktConfig = MARKETPLACE_CONFIG[marketplaceId] || { currency: 'USD', domain: 'amazon.com' };
+  const currencyCode = mktConfig.currency || 'USD';
+
   const attributes = {
     item_name: [
       {
@@ -164,7 +204,7 @@ async function publishToAmazon(listing, user) {
     ],
     purchasable_offer: [
       {
-        currency: 'USD',
+        currency: currencyCode,
         our_price: [
           {
             schedule: [
@@ -231,7 +271,8 @@ async function publishToAmazon(listing, user) {
     attributes: attributes
   };
 
-  const url = `${SP_API_ENDPOINT_NA}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}?marketplaceIds=${marketplaceId}&issueLocale=en_US`;
+  const spEndpoint = getSpApiEndpoint(marketplaceId);
+  const url = `${spEndpoint}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}?marketplaceIds=${marketplaceId}&issueLocale=en_US`;
 
   try {
     const response = await axios.put(url, payload, {
@@ -244,13 +285,14 @@ async function publishToAmazon(listing, user) {
     const data = response.data;
     const status = data.status || 'ACCEPTED';
     const submissionId = data.submissionId || `${sellerId}-${sku}`;
+    const targetDomain = mktConfig.domain || 'amazon.com';
 
     return {
       success: true,
       sku: sku,
       status: status,
       submissionId: submissionId,
-      url: `https://www.amazon.com/dp/${listing.amazonAsin || ''}`
+      url: `https://${targetDomain}/dp/${listing.amazonAsin || ''}`
     };
   } catch (error) {
     console.error('[Amazon Service] publishToAmazon error:', error.response?.data || error.message);
@@ -272,7 +314,8 @@ async function deleteFromAmazon(sku, user) {
   }
 
   const accessToken = await getLwaAccessToken(user);
-  const url = `${SP_API_ENDPOINT_NA}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}?marketplaceIds=${marketplaceId}`;
+  const spEndpoint = getSpApiEndpoint(marketplaceId);
+  const url = `${spEndpoint}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}?marketplaceIds=${marketplaceId}`;
 
   try {
     const response = await axios.delete(url, {
