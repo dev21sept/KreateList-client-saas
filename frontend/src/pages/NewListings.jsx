@@ -3757,58 +3757,6 @@ const NewListings = () => {
             )}
           </div>
 
-          {/* Selected Items Banner in Local Database tab */}
-          {selectedListingIds.length > 0 && (
-            <div className="bg-indigo-50/90 border border-indigo-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap animate-in fade-in duration-150 shadow-2xs">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">
-                  {selectedListingIds.length}
-                </span>
-                <span className="text-xs font-bold text-indigo-950">
-                  {selectedListingIds.length === 1 ? '1 listing selected' : `${selectedListingIds.length} listings selected`}
-                </span>
-                <span className="text-indigo-300">•</span>
-                <button
-                  type="button"
-                  onClick={handleToggleSelectAll}
-                  className="text-xs font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer"
-                >
-                  {isAllSelected ? 'Deselect all on this page' : 'Select all on this page'}
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={bulkDelisting || bulkDeleting}
-                  onClick={handleBulkDelist}
-                  className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                  title="Delist selected listings from all connected marketplaces"
-                >
-                  <XCircle size={13} className="text-amber-600" />
-                  <span>{bulkDelisting ? 'Delisting...' : 'Delist Selected'}</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={bulkDeleting || bulkDelisting}
-                  onClick={handleBulkDelete}
-                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                  title="Permanently delete selected listings from database"
-                >
-                  <Trash2 size={13} />
-                  <span>{bulkDeleting ? 'Deleting...' : 'Delete Selected from Database'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedListingIds([])}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-indigo-100/50 transition-colors cursor-pointer"
-                  title="Clear selection"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-          )}
-
         </div>
       ) : (
         /* CHANNEL INVENTORY FILTER & SEARCH ROW */
@@ -4819,11 +4767,11 @@ const NewListings = () => {
           <div className="bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between gap-3">
             {/* Selection info */}
             <div className="flex items-center gap-2.5 shrink-0">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-black">
+              <span className="flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-full bg-indigo-600 text-white text-xs font-black">
                 {selectedListingIds.length}
               </span>
               <span className="text-xs font-bold text-slate-200">
-                {selectedListingIds.length === 1 ? '1 listing selected' : `${selectedListingIds.length} listings selected`}
+                {selectedListingIds.length === 1 ? 'listing selected' : 'listings selected'}
               </span>
             </div>
 
