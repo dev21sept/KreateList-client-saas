@@ -2547,7 +2547,7 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-stretch justify-between gap-2.5 w-[165px] min-h-[96px] h-[96px] select-none cursor-grab active:cursor-grabbing ${
+            className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-stretch justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${
               isListed 
                 ? 'border-slate-200/90 hover:border-emerald-300' 
                 : isDraft 
@@ -2557,67 +2557,69 @@ const NewListings = () => {
                     : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-400'
             } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
-            {/* Top-Right 3-Dots Dropdown Trigger */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isDropdownOpen) {
-                  setActiveListedDropdown(null);
-                  return;
-                }
-                const rect = e.currentTarget.getBoundingClientRect();
-                const openUpward = rect.bottom > window.innerHeight * 0.6;
-                const menuWidth = 190;
-                const left = Math.min(
-                  Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
-                  window.innerWidth - menuWidth - 8
-                );
-                setActiveListedDropdown({
-                  itemId: item._id,
-                  platform: platformName,
-                  openUpward,
-                  left,
-                  verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
-                });
-              }}
-              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer z-10"
-              title="Marketplace options"
-            >
-              <MoreVertical size={12} />
-            </button>
-
-            {/* Left Side: Status pill + Price + Open Link */}
+            {/* Left Side: Status pill + 3-dots on top, Price in middle, Open Link at bottom */}
             <div className="flex flex-col justify-between flex-1 min-w-0 pr-1 py-0.5">
               <div>
-                {/* Status Pill Badge */}
-                {isListed && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 shrink-0 animate-pulse"></span>
-                    Listed
-                  </span>
-                )}
-                {isDraft && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 shrink-0"></span>
-                    Draft
-                  </span>
-                )}
-                {isFailed && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 shrink-0"></span>
-                    Error
-                  </span>
-                )}
-                {isDelisted && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1.5 shrink-0"></span>
-                    Delisted
-                  </span>
-                )}
+                {/* Top Row: Status badge on left, 3-dots trigger on right */}
+                <div className="flex items-center justify-between gap-1 w-full">
+                  {isListed && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 shrink-0 animate-pulse"></span>
+                      Listed
+                    </span>
+                  )}
+                  {isDraft && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 shrink-0"></span>
+                      Draft
+                    </span>
+                  )}
+                  {isFailed && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 shrink-0"></span>
+                      Error
+                    </span>
+                  )}
+                  {isDelisted && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1 shrink-0"></span>
+                      Delisted
+                    </span>
+                  )}
+
+                  {/* 3-Dots Dropdown Trigger - In left info section, clearly visible */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isDropdownOpen) {
+                        setActiveListedDropdown(null);
+                        return;
+                      }
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const openUpward = rect.bottom > window.innerHeight * 0.6;
+                      const menuWidth = 190;
+                      const left = Math.min(
+                        Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                        window.innerWidth - menuWidth - 8
+                      );
+                      setActiveListedDropdown({
+                        itemId: item._id,
+                        platform: platformName,
+                        openUpward,
+                        left,
+                        verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                      });
+                    }}
+                    className="w-5 h-5 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                    title="Marketplace options"
+                  >
+                    <MoreVertical size={13} />
+                  </button>
+                </div>
 
                 {/* Price */}
-                <div className="text-sm font-black text-slate-900 tracking-tight mt-1.5">
+                <div className="text-sm font-extrabold text-slate-900 tracking-tight mt-1.5">
                   {formattedPrice}
                 </div>
               </div>
@@ -2672,8 +2674,8 @@ const NewListings = () => {
               </div>
             </div>
 
-            {/* Right Side: Marketplace Image Thumbnail */}
-            <div className="w-[58px] h-[78px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform">
+            {/* Right Side: Marketplace Image Thumbnail (Taller Portrait) */}
+            <div className="w-[68px] h-[92px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform">
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -2740,7 +2742,7 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-2xl p-2.5 bg-slate-50/40 hover:bg-teal-50/20 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[165px] min-h-[96px] h-[96px] select-none ${
+            className={`relative border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-2xl p-2.5 bg-slate-50/40 hover:bg-teal-50/20 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] min-h-[108px] h-[108px] select-none ${
               isDropTarget
                 ? isHovered
                   ? 'scale-105 ring-2 ring-teal-500 rounded-2xl bg-teal-50/90 shadow-md'
@@ -2749,7 +2751,7 @@ const NewListings = () => {
             }`}
             title={isDropTarget ? "Drop here to merge channel into this item!" : `Click to list on ${getChannelDisplayName(platformName)}`}
           >
-            <Plus size={24} className="stroke-[2.5] text-teal-700 group-hover:scale-110 transition-transform mb-1 shrink-0" />
+            <Plus size={26} className="stroke-[2.5] text-teal-700 group-hover:scale-110 transition-transform mb-1 shrink-0" />
             <span className="text-[12px] font-bold text-teal-800 leading-snug select-none">
               {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : (
                 <>
@@ -3340,35 +3342,35 @@ const NewListings = () => {
                   {/* Headers */}
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none">
-                      <th className="px-5 py-4 w-12 text-center">
+                      <th className="px-4 py-4 w-10 text-center">
                         <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                       </th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-500 tracking-wider min-w-[280px]">Item</th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
+                      <th className="px-4 py-4 text-xs font-black text-slate-500 tracking-wider min-w-[260px]">Item</th>
+                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/ebay.png" className="w-4 h-4 object-contain" alt="" />
                           <span>eBay</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
+                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/poshmark.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Poshmark</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
+                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/mercari.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Mercari</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
+                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/etsy.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Etsy</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
+                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/amazon.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Amazon</span>
@@ -3385,15 +3387,15 @@ const NewListings = () => {
                         <tr key={item._id} className="hover:bg-slate-50/70 transition-colors">
 
                           {/* Checkbox */}
-                          <td className="px-5 py-4 text-center align-middle">
+                          <td className="px-4 py-4 text-center align-middle">
                             <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                           </td>
 
                           {/* Item */}
-                          <td className="px-6 py-4 min-w-[280px] max-w-[340px] align-middle">
+                          <td className="px-4 py-4 min-w-[260px] max-w-[340px] align-middle">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-[68px] h-[88px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
+                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
                                 onClick={() => handleOpenPreview(item, 'ebay')}
                                 title="Click to preview listing"
                               >
@@ -3406,12 +3408,12 @@ const NewListings = () => {
                               <div className="flex-1 min-w-0">
                                 <p 
                                   onClick={() => handleOpenPreview(item, 'ebay')}
-                                  className="font-extrabold text-slate-800 text-xs leading-snug line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer"
+                                  className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer"
                                   title={item.title}
                                 >
                                   {item.title}
                                 </p>
-                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-2 text-[11px] font-semibold text-slate-400">
+                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-2 text-xs font-semibold text-slate-400">
                                   {/* SKU with inline edit */}
                                   <div className="flex items-center gap-1">
                                     <span className="text-slate-400 font-bold">SKU:</span>
@@ -3471,19 +3473,19 @@ const NewListings = () => {
                           </td>
 
                           {/* 5 Crosslisting Platform Matrix Cards */}
-                          <td className="px-3 py-3.5 align-middle">
+                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
                             {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                           </td>
-                          <td className="px-3 py-3.5 align-middle">
+                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
                             {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                           </td>
-                          <td className="px-3 py-3.5 align-middle">
+                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
                             {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                           </td>
-                          <td className="px-3 py-3.5 align-middle">
+                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
                             {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                           </td>
-                          <td className="px-3 py-3.5 align-middle">
+                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
                             {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                           </td>
 
