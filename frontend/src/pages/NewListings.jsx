@@ -27,7 +27,9 @@ import {
   EyeOff,
   Download,
   GitMerge,
-  MoreVertical
+  MoreVertical,
+  Star,
+  ArrowUpDown
 } from 'lucide-react';
 import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -495,8 +497,66 @@ const NewListings = () => {
   const [channelSortOption, setChannelSortOption] = useState(() => {
     return localStorage.getItem('elister_channel_sort_option') || 'newest';
   });
-  const [sortOption, setSortOption] = useState('newest');
+  const [sortOption, setSortOption] = useState('crosslisted-desc');
   
+  // Favorites State
+  const [favoriteIds, setFavoriteIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('elister_favorite_listings') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const handleToggleFavorite = (itemId, e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setFavoriteIds(prev => {
+      const next = prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId];
+      try {
+        localStorage.setItem('elister_favorite_listings', JSON.stringify(next));
+      } catch (err) {
+        console.error('Error saving favorites:', err);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSortDirection = () => {
+    const pairs = {
+      'crosslisted-desc': 'crosslisted-asc',
+      'crosslisted-asc': 'crosslisted-desc',
+      'newest': 'oldest',
+      'oldest': 'newest',
+      'title-asc': 'title-desc',
+      'title-desc': 'title-asc',
+      'price-desc': 'price-asc',
+      'price-asc': 'price-desc',
+      'qty-desc': 'qty-asc',
+      'qty-asc': 'qty-desc',
+    };
+    setSortOption(prev => pairs[prev] || 'crosslisted-desc');
+  };
+
+  const getActivePlatformCount = (item) => {
+    if (!item) return 0;
+    let count = 0;
+    const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+    for (const p of platforms) {
+      const pSub = item.listingsMap?.[p];
+      const rawSt = pSub ? pSub.status?.toLowerCase() : item[`${p}Status`]?.toLowerCase();
+      const liveId = item[`${p}ListingId`] || pSub?.listingId || item.platformData?.[p]?.liveId || item.platformData?.[p]?.listingId;
+      if ((rawSt === 'published' || rawSt === 'active' || rawSt === 'live') && liveId && liveId !== '-') {
+        count++;
+      } else if (!rawSt && item.platform === p && (item.status?.toLowerCase() === 'active' || item.status?.toLowerCase() === 'published')) {
+        count++;
+      }
+    }
+    return count;
+  };
+
   // Filter Modal States
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filterListedOn, setFilterListedOn] = useState([]);
@@ -505,13 +565,14 @@ const NewListings = () => {
   // Temporary Modal States
   const [tempListedOn, setTempListedOn] = useState([]);
   const [tempNoListedOn, setTempNoListedOn] = useState([]);
-  const [tempSortOption, setTempSortOption] = useState('newest');
+  const [tempSortOption, setTempSortOption] = useState('crosslisted-desc');
 
   const hasActiveLocalFilters = Boolean(
     searchTerm ||
     statusFilter !== 'all' ||
     (filterListedOn && filterListedOn.length > 0) ||
-    (filterNoListedOn && filterNoListedOn.length > 0)
+    (filterNoListedOn && filterNoListedOn.length > 0) ||
+    sortOption !== 'crosslisted-desc'
   );
 
   // Helpers to toggle platforms inside modal
@@ -1442,28 +1503,82 @@ const NewListings = () => {
     return groupListingsBySku(listings);
   }, [listings]);
 
+  // Tab counts for Local Database status tabs
+  const localTabCounts = React.useMemo(() => {
+    let all = groupedListingsList.length;
+    let active = 0;
+    let sold = 0;
+    let delisted = 0;
+    let draft = 0;
+    let error = 0;
+    let favorite = 0;
+
+    groupedListingsList.forEach((item) => {
+      const statusLower = item.status?.toLowerCase();
+      const isSold =
+        statusLower === 'sold' ||
+        Boolean(item.soldOn) ||
+        Boolean(item.soldPlatform) ||
+        (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
+      const pCount = getActivePlatformCount(item);
+
+      if (isSold) {
+        sold++;
+      } else if (pCount > 0 || statusLower === 'active' || statusLower === 'published') {
+        active++;
+      } else if (statusLower === 'delisted') {
+        delisted++;
+      } else if (statusLower === 'draft') {
+        draft++;
+      } else if (statusLower === 'failed' || statusLower === 'error') {
+        error++;
+      } else {
+        draft++;
+      }
+
+      if (favoriteIds.includes(item._id) || item.isFavorite) {
+        favorite++;
+      }
+    });
+
+    return { all, active, sold, delisted, draft, error, favorite };
+  }, [groupedListingsList, favoriteIds]);
+
   // Filter listings
   const filteredListings = groupedListingsList.filter((item) => {
+    const term = (searchTerm || '').trim().toLowerCase();
     const matchesSearch = 
-      item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      item.title?.toLowerCase().includes(term) ||
+      item.sku?.toLowerCase().includes(term) ||
+      (item.brand && item.brand.toLowerCase().includes(term));
     
+    const statusLower = item.status?.toLowerCase();
+    const isSold =
+      statusLower === 'sold' ||
+      Boolean(item.soldOn) ||
+      Boolean(item.soldPlatform) ||
+      (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
+    const pCount = getActivePlatformCount(item);
+
     let matchesStatus = false;
     if (statusFilter === 'all') {
       matchesStatus = true;
     } else if (statusFilter === 'active') {
-      matchesStatus = item.status?.toLowerCase() === 'active';
+      matchesStatus = !isSold && (pCount > 0 || statusLower === 'active' || statusLower === 'published');
+    } else if (statusFilter === 'sold') {
+      matchesStatus = isSold;
+    } else if (statusFilter === 'delisted') {
+      matchesStatus = !isSold && statusLower === 'delisted';
     } else if (statusFilter === 'draft') {
-      matchesStatus = item.status?.toLowerCase() === 'draft';
-    } else if (statusFilter === 'failed') {
-      matchesStatus = item.status?.toLowerCase() === 'failed';
+      matchesStatus = !isSold && (statusLower === 'draft' || (!statusLower && pCount === 0));
+    } else if (statusFilter === 'error' || statusFilter === 'failed') {
+      matchesStatus = !isSold && (statusLower === 'failed' || statusLower === 'error');
+    } else if (statusFilter === 'favorite') {
+      matchesStatus = favoriteIds.includes(item._id) || item.isFavorite;
     } else if (statusFilter === 'unlisted') {
-      matchesStatus = item.status?.toLowerCase() !== 'active';
+      matchesStatus = !isSold && pCount === 0 && statusLower !== 'active' && statusLower !== 'published';
     }
-
-    const statusLower = item.status?.toLowerCase();
-    const isPublished = statusLower === 'active' || statusLower === 'published';
-    const isUnpublished = statusLower === 'draft' || statusLower === 'failed';
 
     // Listed On platforms filter
     let matchesListedOn = true;
@@ -1471,16 +1586,23 @@ const NewListings = () => {
       matchesListedOn = Object.values(item.listingsMap || {}).some(sub => 
         filterListedOn.includes(sub.platform?.toLowerCase()) && 
         (sub.status?.toLowerCase() === 'active' || sub.status?.toLowerCase() === 'published')
-      );
+      ) || filterListedOn.some(p => {
+        const rawSt = item[`${p}Status`]?.toLowerCase();
+        const liveId = item[`${p}ListingId`];
+        return (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
+      });
     }
 
     // No Listed On platforms filter
     let matchesNoListedOn = true;
     if (filterNoListedOn.length > 0) {
-      matchesNoListedOn = Object.values(item.listingsMap || {}).some(sub => 
-        filterNoListedOn.includes(sub.platform?.toLowerCase()) && 
-        (sub.status?.toLowerCase() === 'draft' || sub.status?.toLowerCase() === 'failed')
-      );
+      matchesNoListedOn = filterNoListedOn.every(p => {
+        const pSub = item.listingsMap?.[p];
+        const rawSt = pSub ? pSub.status?.toLowerCase() : item[`${p}Status`]?.toLowerCase();
+        const liveId = item[`${p}ListingId`] || pSub?.listingId;
+        const isLiveOnP = (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
+        return !isLiveOnP;
+      });
     }
 
     return matchesSearch && matchesStatus && matchesListedOn && matchesNoListedOn;
@@ -1488,25 +1610,37 @@ const NewListings = () => {
 
   // Sort listings
   const sortedListings = [...filteredListings].sort((a, b) => {
-    if (sortOption === 'newest') {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    const timeA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0).getTime();
+    const countA = getActivePlatformCount(a);
+    const countB = getActivePlatformCount(b);
+    const priceA = parseFloat(a.price) || 0;
+    const priceB = parseFloat(b.price) || 0;
+
+    switch (sortOption) {
+      case 'crosslisted-desc':
+        return (countB - countA) || (timeB - timeA);
+      case 'crosslisted-asc':
+        return (countA - countB) || (timeB - timeA);
+      case 'newest':
+        return timeB - timeA;
+      case 'oldest':
+        return timeA - timeB;
+      case 'price-desc':
+        return priceB - priceA;
+      case 'price-asc':
+        return priceA - priceB;
+      case 'title-asc':
+        return (a.title || '').localeCompare(b.title || '');
+      case 'title-desc':
+        return (b.title || '').localeCompare(a.title || '');
+      case 'qty-desc':
+        return (b.quantity || 0) - (a.quantity || 0);
+      case 'qty-asc':
+        return (a.quantity || 0) - (b.quantity || 0);
+      default:
+        return (countB - countA) || (timeB - timeA);
     }
-    if (sortOption === 'oldest') {
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-    }
-    if (sortOption === 'title-asc') {
-      return (a.title || '').localeCompare(b.title || '');
-    }
-    if (sortOption === 'title-desc') {
-      return (b.title || '').localeCompare(a.title || '');
-    }
-    if (sortOption === 'qty-desc') {
-      return (b.quantity || 0) - (a.quantity || 0);
-    }
-    if (sortOption === 'qty-asc') {
-      return (a.quantity || 0) - (b.quantity || 0);
-    }
-    return 0;
   });
 
   // Filter & Sort Channel Products
@@ -3064,51 +3198,44 @@ const NewListings = () => {
   return (
     <div className="space-y-6">
 
-      {/* STATS BANNER */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-        {statCards.map((card, idx) => (
-          <motion.div
-            key={card.key}
-            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
-            onClick={() => {
-              if (activeTab === 'local') {
-                setStatusFilter(card.key);
-              } else {
-                setChannelStatusFilter(card.key);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { 
-              if (e.key === 'Enter') {
-                if (activeTab === 'local') setStatusFilter(card.key);
-                else setChannelStatusFilter(card.key);
-              }
-            }}
-            className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
-              (activeTab === 'local' ? statusFilter === card.key : channelStatusFilter === card.key)
-                ? `${card.ring} bg-white shadow-md`
-                : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
-            }`}
-          >
-            <div className="flex justify-between items-start">
-              <div className={`p-3 rounded-2xl border shrink-0 ${card.color}`}>
-                {card.icon}
+      {/* CHANNEL STATS BANNER (only when on channel tab) */}
+      {activeTab === 'channel' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+          {statCards.map((card, idx) => (
+            <motion.div
+              key={card.key}
+              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
+              onClick={() => setChannelStatusFilter(card.key)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter') setChannelStatusFilter(card.key);
+              }}
+              className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
+                channelStatusFilter === card.key
+                  ? `${card.ring} bg-white shadow-md`
+                  : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div className={`p-3 rounded-2xl border shrink-0 ${card.color}`}>
+                  {card.icon}
+                </div>
               </div>
-            </div>
-            <div>
-              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{card.label}</h3>
-              <p className="text-2xl font-black text-slate-900 mt-0.5">{(card.value ?? 0).toLocaleString()}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+              <div>
+                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{card.label}</h3>
+                <p className="text-2xl font-black text-slate-900 mt-0.5">{(card.value ?? 0).toLocaleString()}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* TABS SWITCHER & SYNC BAR */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
-        {/* Tabs */}
+        {/* Tabs Mode */}
         <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
           <button
             onClick={() => {
@@ -3138,7 +3265,7 @@ const NewListings = () => {
           </button>
         </div>
 
-        {/* Local Database Actions (only visible when in local tab) */}
+        {/* Local Database Actions */}
         {activeTab === 'local' && (
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <button
@@ -3151,89 +3278,27 @@ const NewListings = () => {
           </div>
         )}
 
-        {/* Channel Selection & Sync Actions (only visible when in channel tab) */}
+        {/* Channel Selection & Sync Actions */}
         {activeTab === 'channel' && (
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {/* Channel Toggle Buttons */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
-              <button
-                onClick={() => {
-                  setSelectedChannel('ebay');
-                  localStorage.setItem('elister_selected_listings_channel', 'ebay');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'ebay'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                eBay
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('etsy');
-                  localStorage.setItem('elister_selected_listings_channel', 'etsy');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'etsy'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Etsy
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('poshmark');
-                  localStorage.setItem('elister_selected_listings_channel', 'poshmark');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'poshmark'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Poshmark
-              </button>
-              {/* <button
-                onClick={() => {
-                  setSelectedChannel('depop');
-                  localStorage.setItem('elister_selected_listings_channel', 'depop');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'depop'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Depop
-              </button> */}
-              <button
-                onClick={() => {
-                  setSelectedChannel('mercari');
-                  localStorage.setItem('elister_selected_listings_channel', 'mercari');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'mercari'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Mercari
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('amazon');
-                  localStorage.setItem('elister_selected_listings_channel', 'amazon');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'amazon'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Amazon
-              </button>
+              {['ebay', 'etsy', 'poshmark', 'mercari', 'amazon'].map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => {
+                    setSelectedChannel(ch);
+                    localStorage.setItem('elister_selected_listings_channel', ch);
+                  }}
+                  className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                    selectedChannel === ch
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {getChannelDisplayName(ch)}
+                </button>
+              ))}
             </div>
 
             {/* Sync Button */}
@@ -3259,102 +3324,211 @@ const NewListings = () => {
         )}
       </div>
 
-      {/* FILTER / SEARCH ROW */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-
-        {/* Search Input */}
-        <div className={`relative ${activeTab === 'channel' ? 'w-full sm:w-64 md:w-72 lg:w-80 shrink-0' : 'flex-1 w-full'}`}>
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === 'local' ? "Search listings by title or SKU..." : `Search ${getChannelDisplayName(selectedChannel)} products...`}
-            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-          />
-        </div>
-
-        {/* Dropdowns & Link options */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Channel Inventory Status Filter: All / Active / Inactive / Draft */}
-          {activeTab === 'channel' && (
-            <>
-              <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
-                {['all', 'active', 'inactive', 'draft'].map((option) => (
+      {/* LOCAL DATABASE CONTROLS: 7 STATUS TABS + SORT/INVERT/FILTER + FULL-WIDTH SEARCH */}
+      {activeTab === 'local' ? (
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+          
+          {/* Top Row: Horizontal Status Tabs on Left, Sort / Direction / Filter on Right */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+            {/* Status Tabs Navigation */}
+            <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
+              {[
+                { key: 'all', label: 'All Listings', count: localTabCounts.all },
+                { key: 'active', label: 'Active', count: localTabCounts.active },
+                { key: 'sold', label: 'Sold', count: localTabCounts.sold },
+                { key: 'delisted', label: 'Delisted', count: localTabCounts.delisted },
+                { key: 'draft', label: 'Drafts', count: localTabCounts.draft },
+                { key: 'error', label: 'Errors', count: localTabCounts.error },
+                { key: 'favorite', label: 'Favorites', count: localTabCounts.favorite },
+              ].map((tab) => {
+                const isActive = statusFilter === tab.key;
+                return (
                   <button
-                    key={option}
-                    onClick={() => setChannelStatusFilter(option)}
-                    className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
-                      channelStatusFilter === option
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.key)}
+                    className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
+                      isActive
+                        ? 'text-indigo-600 font-extrabold'
+                        : 'text-slate-500 hover:text-slate-800 font-bold'
                     }`}
                   >
-                    {option}
+                    <span>{tab.label}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
+                        isActive
+                          ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/70'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {tab.count.toLocaleString()}
+                    </span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeListingTabIndicator"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
                   </button>
-                ))}
-              </div>
+                );
+              })}
+            </div>
 
-              {/* Channel Inventory Sort Dropdown (Date, Price, Alphabetical) */}
+            {/* Right Controls: Sort dropdown, Invert Sort Direction, Filter Modal Trigger, Clear */}
+            <div className="flex items-center flex-wrap gap-2.5 shrink-0 self-end xl:self-auto">
+              {/* Sort Dropdown */}
               <div className="relative">
                 <select
-                  value={channelSortOption}
-                  onChange={(e) => {
-                    setChannelSortOption(e.target.value);
-                    localStorage.setItem('elister_channel_sort_option', e.target.value);
-                  }}
-                  className="px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 rounded-2xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none pr-9"
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value)}
+                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  title="Sort Listings"
                 >
-                  <option value="newest">Date: Newest First</option>
-                  <option value="oldest">Date: Oldest First</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                  <option value="title-asc">Alphabetical (A - Z)</option>
-                  <option value="title-desc">Alphabetical (Z - A)</option>
+                  <option value="crosslisted-desc">Most Cross-Listed (5 → 1)</option>
+                  <option value="crosslisted-asc">Least Cross-Listed (1 → 5)</option>
+                  <option value="newest">Last Updated (Newest)</option>
+                  <option value="oldest">Last Updated (Oldest)</option>
+                  <option value="title-asc">Title (A - Z)</option>
+                  <option value="title-desc">Title (Z - A)</option>
+                  <option value="price-desc">Price (High - Low)</option>
+                  <option value="price-asc">Price (Low - High)</option>
+                  <option value="qty-desc">Quantity (High - Low)</option>
+                  <option value="qty-asc">Quantity (Low - High)</option>
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                   <ChevronDown size={14} />
                 </div>
               </div>
-            </>
-          )}
 
-          {/* Consolidated Filter Button */}
-          {activeTab === 'local' && (
-            <button
-              onClick={() => {
-                setTempListedOn(filterListedOn);
-                setTempNoListedOn(filterNoListedOn);
-                setTempSortOption(sortOption);
-                setFilterModalOpen(true);
-              }}
-              className={`flex items-center gap-2 px-4 py-2.5 bg-white border rounded-2xl text-xs font-extrabold text-slate-700 hover:border-indigo-200 transition-all cursor-pointer ${
-                (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-200'
-              }`}
-            >
-              <SlidersHorizontal size={14} className="text-slate-400" />
-              Filters
-              {(filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-black bg-indigo-600 text-white rounded-full leading-none">
-                  {(filterListedOn.length > 0 ? 1 : 0) + (filterNoListedOn.length > 0 ? 1 : 0) + (sortOption !== 'newest' ? 1 : 0)}
-                </span>
+              {/* Sort Invert Toggle Button */}
+              <button
+                type="button"
+                onClick={handleToggleSortDirection}
+                title="Invert / Toggle Sort Order"
+                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95"
+              >
+                <ArrowUpDown size={14} />
+              </button>
+
+              {/* Filter Button */}
+              <button
+                onClick={() => {
+                  setTempListedOn(filterListedOn);
+                  setTempNoListedOn(filterNoListedOn);
+                  setTempSortOption(sortOption);
+                  setFilterModalOpen(true);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 bg-white border rounded-xl text-xs font-extrabold text-slate-700 hover:border-indigo-300 transition-all cursor-pointer shadow-2xs ${
+                  (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'crosslisted-desc') ? 'border-indigo-500 ring-2 ring-indigo-500/10 text-indigo-600' : 'border-slate-200'
+                }`}
+              >
+                <SlidersHorizontal size={13} className="text-slate-400" />
+                <span>Filters</span>
+                {(filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'crosslisted-desc') && (
+                  <span className="ml-0.5 px-1.5 py-0.2 text-[9px] font-black bg-indigo-600 text-white rounded-full leading-none">
+                    {(filterListedOn.length > 0 ? 1 : 0) + (filterNoListedOn.length > 0 ? 1 : 0) + (sortOption !== 'crosslisted-desc' ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+
+              {/* Clear filters button */}
+              {hasActiveLocalFilters && (
+                <button
+                  onClick={handleClearFilters}
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer"
+                >
+                  Clear
+                </button>
               )}
-            </button>
-          )}
+            </div>
+          </div>
 
-          {/* Clear filter button */}
-          {((activeTab === 'local' && (searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest')) ||
-            (activeTab === 'channel' && (searchTerm || channelStatusFilter !== 'all' || channelSortOption !== 'newest'))) && (
-            <button
-              onClick={handleClearFilters}
-              className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
+          {/* Full-width Search Bar */}
+          <div className="relative w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search listings by title, SKU, or brand..."
+              className="w-full pl-11 pr-10 py-2.5 bg-slate-50/80 border border-slate-150 focus:bg-white rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400 shadow-2xs"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
         </div>
+      ) : (
+        /* CHANNEL INVENTORY FILTER & SEARCH ROW */
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="relative w-full sm:w-64 md:w-72 lg:w-80 shrink-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={`Search ${getChannelDisplayName(selectedChannel)} products...`}
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+            />
+          </div>
 
-      </div>
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+              {['all', 'active', 'inactive', 'draft'].map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setChannelStatusFilter(option)}
+                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
+                    channelStatusFilter === option
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <select
+                value={channelSortOption}
+                onChange={(e) => {
+                  setChannelSortOption(e.target.value);
+                  localStorage.setItem('elister_channel_sort_option', e.target.value);
+                }}
+                className="px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 rounded-2xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none pr-9"
+              >
+                <option value="newest">Date: Newest First</option>
+                <option value="oldest">Date: Oldest First</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="title-asc">Alphabetical (A - Z)</option>
+                <option value="title-desc">Alphabetical (Z - A)</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <ChevronDown size={14} />
+              </div>
+            </div>
+
+            {(searchTerm || channelStatusFilter !== 'all' || channelSortOption !== 'newest') && (
+              <button
+                onClick={handleClearFilters}
+                className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TABLE */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -3391,12 +3565,25 @@ const NewListings = () => {
                         onClick={() => handleOpenPreview(item, 'ebay')}
                         title="Click to preview listing"
                       >
-                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
+                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform relative group/mimg">
                           {item.thumbnail || (item.images && item.images.length > 0) ? (
                             <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
                           ) : (
                             <ImageOff size={16} className="text-slate-300" />
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleFavorite(item._id, e)}
+                            title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center shadow-xs transition-all cursor-pointer ${
+                              favoriteIds.includes(item._id) ? 'opacity-100 scale-100' : 'opacity-70 group-hover/mimg:opacity-100'
+                            }`}
+                          >
+                            <Star
+                              size={11}
+                              className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400 hover:text-amber-400"}
+                            />
+                          </button>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
@@ -3496,7 +3683,7 @@ const NewListings = () => {
                           <td className="px-4 py-3 align-middle w-[31%]">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
+                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform relative group/img"
                                 onClick={() => handleOpenPreview(item, 'ebay')}
                                 title="Click to preview listing"
                               >
@@ -3505,6 +3692,19 @@ const NewListings = () => {
                                 ) : (
                                   <ImageOff size={18} className="text-slate-300" />
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleToggleFavorite(item._id, e)}
+                                  title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
+                                  className={`absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-white/95 backdrop-blur-xs flex items-center justify-center shadow-xs transition-all cursor-pointer z-10 ${
+                                    favoriteIds.includes(item._id) ? 'opacity-100 scale-100' : 'opacity-0 group-hover/img:opacity-100 hover:scale-110'
+                                  }`}
+                                >
+                                  <Star
+                                    size={13}
+                                    className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400 hover:text-amber-400"}
+                                  />
+                                </button>
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p 
@@ -3941,8 +4141,12 @@ const NewListings = () => {
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                   {[
+                    { value: 'crosslisted-desc', label: 'Most Cross-Listed (5 → 1)' },
+                    { value: 'crosslisted-asc', label: 'Least Cross-Listed (1 → 5)' },
                     { value: 'newest', label: 'Newest First' },
                     { value: 'oldest', label: 'Oldest First' },
+                    { value: 'price-desc', label: 'Price (High - Low)' },
+                    { value: 'price-asc', label: 'Price (Low - High)' },
                     { value: 'title-asc', label: 'Title (A-Z)' },
                     { value: 'title-desc', label: 'Title (Z-A)' },
                     { value: 'qty-desc', label: 'Qty (High-Low)' },
@@ -3951,7 +4155,7 @@ const NewListings = () => {
                     <button
                       key={option.value}
                       onClick={() => setTempSortOption(option.value)}
-                      className={`px-4 py-2.5 rounded-2xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                      className={`px-3.5 py-2.5 rounded-2xl text-xs font-bold border transition-all cursor-pointer text-center ${
                         tempSortOption === option.value
                           ? 'border-indigo-500 bg-indigo-50/40 text-indigo-600 font-extrabold ring-2 ring-indigo-500/10'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -4151,8 +4355,8 @@ const NewListings = () => {
                   setTempNoListedOn([]);
                   setFilterListedOn([]);
                   setFilterNoListedOn([]);
-                  setTempSortOption('newest');
-                  setSortOption('newest');
+                  setTempSortOption('crosslisted-desc');
+                  setSortOption('crosslisted-desc');
                 }}
               >
                 Reset
