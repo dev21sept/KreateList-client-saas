@@ -194,25 +194,38 @@ const MOCK_LISTINGS = [
   }
 ];
 
+const isSyntheticPart = (part) => {
+  if (!part || typeof part !== 'string') return true;
+  const p = part.trim();
+  if (p === '' || p === '-') return true;
+  return (
+    /^(EBAY|POSH|POSHMARK|MERCARI|ETSY|AMAZON|DEPOP|M|P|E)-[a-zA-Z0-9_\-]+$/i.test(p) ||
+    /^[0-9]{11,14}$/.test(p) ||
+    /^[a-f0-9]{24}$/i.test(p) ||
+    /^m[0-9]{10,12}$/i.test(p)
+  );
+};
+
 const isSyntheticSku = (str) => {
   if (!str || typeof str !== 'string') return true;
   const s = str.trim();
   if (s === '' || s === '-') return true;
   const parts = s.split(/[\s|,\/]+/).map(p => p.trim()).filter(Boolean);
   if (parts.length === 0) return true;
-  return parts.every(part =>
-    /^(EBAY|POSH|POSHMARK|MERCARI|ETSY|AMAZON|M|P|E)-[a-zA-Z0-9_\-]+$/i.test(part) ||
-    /^[0-9]{11,14}$/.test(part) ||
-    /^[a-f0-9]{24}$/i.test(part) ||
-    /^m[0-9]{10,12}$/i.test(part)
-  );
+  return parts.every(part => isSyntheticPart(part));
 };
 
 const getDisplaySku = (rawSku) => {
   if (!rawSku || typeof rawSku !== 'string') return '-';
   const clean = rawSku.trim();
-  if (isSyntheticSku(clean)) return '-';
-  return clean;
+  if (!clean || clean === '-') return '-';
+  
+  // Filter out any synthetic marketplace IDs (e.g. 'P-6a7d6f6798bbf377f3a9c3f8 | 4913' -> '4913')
+  const parts = clean.split(/[\s|,\/]+/).map(p => p.trim()).filter(Boolean);
+  const realParts = parts.filter(p => !isSyntheticPart(p));
+  
+  if (realParts.length === 0) return '-';
+  return realParts.join(' | ');
 };
 
 const getPlatformLiveId = (listing, plat) => {
@@ -250,7 +263,8 @@ const groupListingsBySku = (rawListings) => {
 
   rawListings.forEach(item => {
     const rawSku = item.sku ? item.sku.trim() : '';
-    const sku = !isSyntheticSku(rawSku) ? rawSku : '';
+    const cleanSku = getDisplaySku(rawSku);
+    const sku = cleanSku !== '-' ? cleanSku : '';
     const thumbnail = item.thumbnail ? item.thumbnail.trim() : '';
     
     // Find if there is an existing group that matches by SKU
@@ -292,6 +306,30 @@ const groupListingsBySku = (rawListings) => {
       if (item.mercariStatus) existing.mercariStatus = item.mercariStatus;
       if (item.amazonStatus) existing.amazonStatus = item.amazonStatus;
 
+      // Merge platformData and platform-specific prices
+      if (!existing.platformData) existing.platformData = {};
+      if (item.platformData) {
+        existing.platformData = { ...existing.platformData, ...item.platformData };
+      }
+      if (item.platform && item.price) {
+        existing.platformData[item.platform] = { ...(existing.platformData[item.platform] || {}), price: item.price };
+      }
+      if (item.ebayPrice) {
+        existing.platformData.ebay = { ...(existing.platformData.ebay || {}), price: item.ebayPrice };
+      }
+      if (item.poshmarkPrice) {
+        existing.platformData.poshmark = { ...(existing.platformData.poshmark || {}), price: item.poshmarkPrice };
+      }
+      if (item.mercariPrice) {
+        existing.platformData.mercari = { ...(existing.platformData.mercari || {}), price: item.mercariPrice };
+      }
+      if (item.etsyPrice) {
+        existing.platformData.etsy = { ...(existing.platformData.etsy || {}), price: item.etsyPrice };
+      }
+      if (item.amazonPrice) {
+        existing.platformData.amazon = { ...(existing.platformData.amazon || {}), price: item.amazonPrice };
+      }
+
       // If any of the listings is more recent, use its title/thumbnail/date and other details
       const itemTime = new Date(item.updatedAt || item.updated_at || item.createdAt || item.created_at || 0).getTime();
       const existingTime = new Date(existing.updatedAt || existing.updated_at || existing.createdAt || existing.created_at || 0).getTime();
@@ -303,12 +341,16 @@ const groupListingsBySku = (rawListings) => {
         if (item.size) existing.size = item.size;
         if (item.brand) existing.brand = item.brand;
         if (item.color) existing.color = item.color;
-        if (item.price) existing.price = item.price;
         if (item.description) existing.description = item.description;
         if (item.category) existing.category = item.category;
         if (item.categoryId) existing.categoryId = item.categoryId;
         if (item.itemSpecifics) existing.itemSpecifics = item.itemSpecifics;
         if (item.conditionNote) existing.conditionNote = item.conditionNote;
+      }
+
+      // If existing SKU is '-' but incoming item has real SKU, use it
+      if (existing.sku === '-' && sku) {
+        existing.sku = sku;
       }
 
       const statusLower = item.status?.toLowerCase();
@@ -327,9 +369,18 @@ const groupListingsBySku = (rawListings) => {
         updatedAt: item.updatedAt || item.updated_at || item.createdAt,
         createdAt: item.createdAt || item.created_at || item.updatedAt,
         allIds: [item._id],
-        sku: sku || '-',
-        skus: sku ? [sku] : [],
+        sku: (sku && sku !== '-') ? sku : '-',
+        skus: (sku && sku !== '-') ? [sku] : [],
         thumbnails: thumbnail ? [thumbnail] : [],
+        platformData: {
+          ...(item.platformData || {}),
+          ...(item.platform && item.price ? { [item.platform]: { ...(item.platformData?.[item.platform] || {}), price: item.price } } : {}),
+          ...(item.ebayPrice ? { ebay: { ...(item.platformData?.ebay || {}), price: item.ebayPrice } } : {}),
+          ...(item.poshmarkPrice ? { poshmark: { ...(item.platformData?.poshmark || {}), price: item.poshmarkPrice } } : {}),
+          ...(item.mercariPrice ? { mercari: { ...(item.platformData?.mercari || {}), price: item.mercariPrice } } : {}),
+          ...(item.etsyPrice ? { etsy: { ...(item.platformData?.etsy || {}), price: item.etsyPrice } } : {}),
+          ...(item.amazonPrice ? { amazon: { ...(item.platformData?.amazon || {}), price: item.amazonPrice } } : {}),
+        },
         listingsMap: {}
       };
 
@@ -2408,11 +2459,35 @@ const NewListings = () => {
     const isHovered = dragOverTarget === `${item._id}-${platformName}`;
 
     // Platform-specific price & image
-    const platformPrice = platformSpecificItem?.price ?? item.platformData?.[platformName]?.price ?? item[`${platformName}Price`] ?? item.price;
+    let platformPrice = null;
+    if (item.platformData?.[platformName]?.price !== undefined && item.platformData[platformName]?.price !== null) {
+      platformPrice = item.platformData[platformName].price;
+    } else if (platformSpecificItem?.platformData?.[platformName]?.price !== undefined && platformSpecificItem.platformData[platformName]?.price !== null) {
+      platformPrice = platformSpecificItem.platformData[platformName].price;
+    } else if (item[`${platformName}Price`] !== undefined && item[`${platformName}Price`] !== null && item[`${platformName}Price`] !== '') {
+      platformPrice = item[`${platformName}Price`];
+    } else if (platformSpecificItem?.[`${platformName}Price`] !== undefined && platformSpecificItem[`${platformName}Price`] !== null && platformSpecificItem[`${platformName}Price`] !== '') {
+      platformPrice = platformSpecificItem[`${platformName}Price`];
+    } else if (platformSpecificItem && platformSpecificItem.platform === platformName && platformSpecificItem.price !== undefined && platformSpecificItem.price !== null) {
+      platformPrice = platformSpecificItem.price;
+    } else {
+      platformPrice = item.price;
+    }
+
     const numPrice = typeof platformPrice === 'number' ? platformPrice : parseFloat(platformPrice);
     const formattedPrice = (!isNaN(numPrice) && numPrice > 0) ? `$${numPrice.toFixed(2)}` : (item.price ? `$${parseFloat(item.price || 0).toFixed(2)}` : '$0.00');
 
-    const platformImg = platformSpecificItem?.thumbnail || (platformSpecificItem?.images && platformSpecificItem.images[0]) || item.platformData?.[platformName]?.thumbnail || (item.platformData?.[platformName]?.images && item.platformData[platformName].images[0]) || item.thumbnail || (item.images && item.images[0]) || null;
+    const platformImg = 
+      item.platformData?.[platformName]?.thumbnail || 
+      (item.platformData?.[platformName]?.images && item.platformData[platformName].images[0]) ||
+      platformSpecificItem?.platformData?.[platformName]?.thumbnail ||
+      (platformSpecificItem?.platformData?.[platformName]?.images && platformSpecificItem.platformData[platformName].images[0]) ||
+      (platformSpecificItem && platformSpecificItem.platform === platformName && (platformSpecificItem.thumbnail || (platformSpecificItem.images && platformSpecificItem.images[0]))) ||
+      platformSpecificItem?.thumbnail || 
+      (platformSpecificItem?.images && platformSpecificItem.images[0]) || 
+      item.thumbnail || 
+      (item.images && item.images[0]) || 
+      null;
     const liveUrl = getListingUrl(item, platformName, resolvedCheckId);
 
     // Dropdown Portal Menu Component
@@ -3453,11 +3528,34 @@ const NewListings = () => {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setEditingSkuId(item._id);
-                                          setTempSkuValue(getDisplaySku(item.sku) === '-' ? '' : getDisplaySku(item.sku));
+                                          const direct = getDisplaySku(item.sku);
+                                          const fallback = (item.skus?.map(s => getDisplaySku(s)).find(s => s && s !== '-')) || '';
+                                          const currentVal = direct !== '-' ? direct : fallback;
+                                          setTempSkuValue(currentVal === '-' ? '' : currentVal);
                                         }}
                                         title="Click to edit SKU"
                                       >
-                                        <span className="font-mono font-bold text-slate-600">{getDisplaySku(item.sku)}</span>
+                                        <span className="font-mono font-bold text-slate-600">
+                                          {(() => {
+                                            const direct = getDisplaySku(item.sku);
+                                            if (direct && direct !== '-') return direct;
+                                            if (Array.isArray(item.skus)) {
+                                              const fromSkus = item.skus.map(s => getDisplaySku(s)).find(s => s && s !== '-');
+                                              if (fromSkus) return fromSkus;
+                                            }
+                                            if (item.listingsMap) {
+                                              const fromMap = Object.values(item.listingsMap).map(sub => getDisplaySku(sub?.sku)).find(s => s && s !== '-');
+                                              if (fromMap) return fromMap;
+                                            }
+                                            if (item.platformData) {
+                                              for (const p of Object.keys(item.platformData)) {
+                                                const fromPData = getDisplaySku(item.platformData[p]?.sku);
+                                                if (fromPData && fromPData !== '-') return fromPData;
+                                              }
+                                            }
+                                            return '-';
+                                          })()}
+                                        </span>
                                         <Edit size={10} className="text-slate-400 opacity-0 group-hover/sku:opacity-100 hover:text-indigo-600 transition-opacity" />
                                       </div>
                                     )}
