@@ -540,13 +540,37 @@ const NewListings = () => {
     setSortOption(prev => pairs[prev] || 'crosslisted-desc');
   };
 
+  const getCrosslistedPlatformCount = (item) => {
+    if (!item) return 0;
+    let count = 0;
+    const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+    for (const p of platforms) {
+      const pSub = item.listingsMap?.[p];
+      const rawSt = (pSub ? pSub.status : item[`${p}Status`])?.toLowerCase();
+      const liveId = item[`${p}ListingId`] || pSub?.listingId || item.platformData?.[p]?.liveId || item.platformData?.[p]?.listingId;
+      
+      const isExplicitlyUnlisted = rawSt === 'none' || rawSt === 'unlisted';
+      const hasPresence = 
+        (liveId && liveId !== '-' && liveId !== 'undefined' && liveId !== 'null') ||
+        (rawSt && !isExplicitlyUnlisted) ||
+        Boolean(pSub) ||
+        Boolean(item.platformData?.[p]) ||
+        (item.platform === p);
+
+      if (hasPresence && !isExplicitlyUnlisted) {
+        count++;
+      }
+    }
+    return count;
+  };
+
   const getActivePlatformCount = (item) => {
     if (!item) return 0;
     let count = 0;
     const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
     for (const p of platforms) {
       const pSub = item.listingsMap?.[p];
-      const rawSt = pSub ? pSub.status?.toLowerCase() : item[`${p}Status`]?.toLowerCase();
+      const rawSt = (pSub ? pSub.status : item[`${p}Status`])?.toLowerCase();
       const liveId = item[`${p}ListingId`] || pSub?.listingId || item.platformData?.[p]?.liveId || item.platformData?.[p]?.listingId;
       if ((rawSt === 'published' || rawSt === 'active' || rawSt === 'live') && liveId && liveId !== '-') {
         count++;
@@ -555,6 +579,14 @@ const NewListings = () => {
       }
     }
     return count;
+  };
+
+  const getSortPlatformCount = (item) => {
+    if (statusFilter === 'active') {
+      const activeCount = getActivePlatformCount(item);
+      return activeCount > 0 ? activeCount : getCrosslistedPlatformCount(item);
+    }
+    return getCrosslistedPlatformCount(item);
   };
 
   // Filter Modal States
@@ -1612,8 +1644,8 @@ const NewListings = () => {
   const sortedListings = [...filteredListings].sort((a, b) => {
     const timeA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0).getTime();
     const timeB = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0).getTime();
-    const countA = getActivePlatformCount(a);
-    const countB = getActivePlatformCount(b);
+    const countA = getSortPlatformCount(a);
+    const countB = getSortPlatformCount(b);
     const priceA = parseFloat(a.price) || 0;
     const priceB = parseFloat(b.price) || 0;
 
@@ -2177,27 +2209,150 @@ const NewListings = () => {
     return `${Math.floor(diffSeconds / 31536000)}y ago`;
   };
 
-  // Active Listed Dropdown state
+  // Active Dropdown states
   const [activeListedDropdown, setActiveListedDropdown] = useState(null);
+  const [activeMasterDropdown, setActiveMasterDropdown] = useState(null);
 
   useEffect(() => {
-    const handleClickOutside = () => setActiveListedDropdown(null);
+    const handleClickOutside = () => {
+      setActiveListedDropdown(null);
+      setActiveMasterDropdown(null);
+    };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Close the floating crosslisting dropdown if the page scrolls out from under it,
-  // since its position is computed once (fixed, in viewport coords) at open time.
+  // Close floating dropdowns if the page scrolls
   useEffect(() => {
-    if (!activeListedDropdown) return;
-    const closeOnScroll = () => setActiveListedDropdown(null);
+    if (!activeListedDropdown && !activeMasterDropdown) return;
+    const closeOnScroll = () => {
+      setActiveListedDropdown(null);
+      setActiveMasterDropdown(null);
+    };
     window.addEventListener('scroll', closeOnScroll, true);
     window.addEventListener('resize', closeOnScroll);
     return () => {
       window.removeEventListener('scroll', closeOnScroll, true);
       window.removeEventListener('resize', closeOnScroll);
     };
-  }, [activeListedDropdown]);
+  }, [activeListedDropdown, activeMasterDropdown]);
+
+  const handleDelistAllPlatforms = async (item) => {
+    setActiveMasterDropdown(null);
+    setActiveListedDropdown(null);
+
+    const confirmDelist = await confirm(
+      `Are you sure you want to delist "${item.title}" from ALL active marketplaces (eBay, Poshmark, Mercari, Etsy, Amazon)? This will end the active listings on all connected platforms.`,
+      {
+        title: 'Delist from ALL Marketplaces',
+        destructive: true
+      }
+    );
+    if (!confirmDelist) return;
+
+    toast.info("Delisting from all marketplaces...");
+    try {
+      const platformsToDelist = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+      const promises = platformsToDelist.map(async (plat) => {
+        const platSpecific = item.listingsMap ? item.listingsMap[plat] : null;
+        const rawSt = (platSpecific ? platSpecific.status : item[`${plat}Status`])?.toLowerCase();
+        const liveId = item[`${plat}ListingId`] || platSpecific?.listingId || item.platformData?.[plat]?.liveId;
+        
+        const isLive = (rawSt === 'published' || rawSt === 'active') || (liveId && liveId !== '-');
+        if (isLive) {
+          try {
+            await listingService.delist(platSpecific?._id || item._id, plat);
+          } catch (e) {
+            console.warn(`Delisting on ${plat} failed:`, e);
+          }
+        }
+      });
+
+      await Promise.allSettled(promises);
+      toast.success("Successfully sent delist requests to all marketplaces!");
+      fetchListings();
+    } catch (err) {
+      console.error("Error delisting from all:", err);
+      toast.error("Failed to delist from all marketplaces.");
+    }
+  };
+
+  const renderMasterPortalDropdown = () => {
+    if (!activeMasterDropdown) return null;
+    const { item, openUpward, left, verticalOffset } = activeMasterDropdown;
+    if (!item) return null;
+
+    const style = {
+      position: 'fixed',
+      left: `${left}px`,
+      zIndex: 9999,
+      width: '210px',
+    };
+    if (openUpward) {
+      style.bottom = `${verticalOffset}px`;
+    } else {
+      style.top = `${verticalOffset}px`;
+    }
+
+    return createPortal(
+      <div
+        style={style}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl border border-slate-150 p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 duration-150"
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMasterDropdown(null);
+            handleOpenPreview(item, 'ebay');
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
+        >
+          <Eye size={13} className="text-slate-400" />
+          <span>Preview Listing</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMasterDropdown(null);
+            setSelectedListing(item);
+            setSelectedPlatform(item.platform || 'ebay');
+            setIsEditMode(true);
+            setModalOpen(true);
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
+        >
+          <Edit size={13} className="text-slate-400" />
+          <span>Edit Listing</span>
+        </button>
+
+        <div className="h-px bg-slate-100 my-1" />
+
+        <button
+          type="button"
+          onClick={() => handleDelistAllPlatforms(item)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer text-left"
+        >
+          <XCircle size={13} className="text-amber-500" />
+          <span>Delist from All Marketplaces</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMasterDropdown(null);
+            handleDelete(item);
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer text-left"
+        >
+          <Trash2 size={13} className="text-rose-500" />
+          <span>Delete Item</span>
+        </button>
+      </div>,
+      document.body
+    );
+  };
 
   const getListingUrl = (item, platformName, checkId) => {
     if (item[`${platformName}Url`]) return item[`${platformName}Url`];
@@ -2910,7 +3065,14 @@ const NewListings = () => {
             </div>
 
             {/* Right Side: Marketplace Image Thumbnail (Taller Portrait) */}
-            <div className="w-[68px] h-[92px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform">
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenPreview(item, platformName);
+              }}
+              title={`Click to preview on ${getChannelDisplayName(platformName)}`}
+              className="w-[68px] h-[92px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer hover:border-indigo-300 hover:shadow-md"
+            >
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -3561,50 +3723,78 @@ const NewListings = () => {
                     <div className="flex items-start gap-3">
                       <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
                       <div 
-                        className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
+                        className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 cursor-pointer relative"
                         onClick={() => handleOpenPreview(item, 'ebay')}
                         title="Click to preview listing"
                       >
-                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform relative group/mimg">
-                          {item.thumbnail || (item.images && item.images.length > 0) ? (
-                            <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <ImageOff size={16} className="text-slate-300" />
-                          )}
+                        {item.thumbnail || (item.images && item.images.length > 0) ? (
+                          <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <ImageOff size={16} className="text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <p 
+                            className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
+                            onClick={() => handleOpenPreview(item, 'ebay')}
+                          >
+                            {item.title}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (activeMasterDropdown?.itemId === item._id) {
+                                setActiveMasterDropdown(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const openUpward = rect.bottom > window.innerHeight * 0.6;
+                              const menuWidth = 200;
+                              const left = Math.min(
+                                Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                                window.innerWidth - menuWidth - 8
+                              );
+                              setActiveMasterDropdown({
+                                itemId: item._id,
+                                item,
+                                openUpward,
+                                left,
+                                verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                              });
+                            }}
+                            className="w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                            title="Item options"
+                          >
+                            <MoreVertical size={13} />
+                          </button>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
                           <button
                             type="button"
                             onClick={(e) => handleToggleFavorite(item._id, e)}
                             title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
-                            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center shadow-xs transition-all cursor-pointer ${
-                              favoriteIds.includes(item._id) ? 'opacity-100 scale-100' : 'opacity-70 group-hover/mimg:opacity-100'
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                              favoriteIds.includes(item._id)
+                                ? 'bg-amber-50 text-amber-600 font-black border border-amber-200'
+                                : 'text-slate-400 hover:text-amber-500 hover:bg-slate-100'
                             }`}
                           >
                             <Star
                               size={11}
-                              className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400 hover:text-amber-400"}
+                              className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400"}
                             />
+                            <span>{favoriteIds.includes(item._id) ? 'Favorited' : 'Favorite'}</span>
                           </button>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                            {item.title}
-                          </p>
-                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                            <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
-                            <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
-                            <span>{formatTimeAgo(item.updatedAt || item.updated_at || item.createdAt || item.created_at)}</span>
-                          </div>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
+                          <span className="text-slate-300">•</span>
+                          <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
+                          <span className="text-slate-300">•</span>
+                          <span>{formatTimeAgo(item.updatedAt || item.updated_at || item.createdAt || item.created_at)}</span>
                         </div>
                       </div>
-                      <IconButton
-                        variant="danger"
-                        size="sm"
-                        aria-label="Delete Listing"
-                        onClick={() => handleDelete(item)}
-                        className="shrink-0"
-                      >
-                        <Trash2 size={14} />
-                      </IconButton>
                     </div>
 
                     <div>
@@ -3683,7 +3873,7 @@ const NewListings = () => {
                           <td className="px-4 py-3 align-middle w-[31%]">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform relative group/img"
+                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform relative"
                                 onClick={() => handleOpenPreview(item, 'ebay')}
                                 title="Click to preview listing"
                               >
@@ -3692,29 +3882,68 @@ const NewListings = () => {
                                 ) : (
                                   <ImageOff size={18} className="text-slate-300" />
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleToggleFavorite(item._id, e)}
-                                  title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
-                                  className={`absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-white/95 backdrop-blur-xs flex items-center justify-center shadow-xs transition-all cursor-pointer z-10 ${
-                                    favoriteIds.includes(item._id) ? 'opacity-100 scale-100' : 'opacity-0 group-hover/img:opacity-100 hover:scale-110'
-                                  }`}
-                                >
-                                  <Star
-                                    size={13}
-                                    className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400 hover:text-amber-400"}
-                                  />
-                                </button>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p 
-                                  onClick={() => handleOpenPreview(item, 'ebay')}
-                                  className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer"
-                                  title={item.title}
-                                >
-                                  {item.title}
-                                </p>
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <p 
+                                    onClick={() => handleOpenPreview(item, 'ebay')}
+                                    className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
+                                    title={item.title}
+                                  >
+                                    {item.title}
+                                  </p>
+                                  {/* Master 3-Dot Options Trigger */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (activeMasterDropdown?.itemId === item._id) {
+                                        setActiveMasterDropdown(null);
+                                        return;
+                                      }
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      const openUpward = rect.bottom > window.innerHeight * 0.6;
+                                      const menuWidth = 210;
+                                      const left = Math.min(
+                                        Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                                        window.innerWidth - menuWidth - 8
+                                      );
+                                      setActiveMasterDropdown({
+                                        itemId: item._id,
+                                        item,
+                                        openUpward,
+                                        left,
+                                        verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                                      });
+                                    }}
+                                    className="w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                                    title="Item options"
+                                  >
+                                    <MoreVertical size={14} />
+                                  </button>
+                                </div>
+                                
                                 <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-2 text-xs font-semibold text-slate-400">
+                                  {/* Favorite Star Under Title */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleFavorite(item._id, e)}
+                                    title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                                      favoriteIds.includes(item._id)
+                                        ? 'bg-amber-50 text-amber-600 font-bold border border-amber-200'
+                                        : 'text-slate-400 hover:text-amber-500 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <Star
+                                      size={12}
+                                      className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400 hover:text-amber-400"}
+                                    />
+                                    <span className="text-[11px]">{favoriteIds.includes(item._id) ? 'Favorited' : 'Favorite'}</span>
+                                  </button>
+
+                                  <span className="text-slate-300">•</span>
+
                                   {/* SKU with inline edit */}
                                   <div className="flex items-center gap-1">
                                     <span className="text-slate-400 font-bold">SKU:</span>
@@ -4379,6 +4608,9 @@ const NewListings = () => {
           </div>
         </div>
       )}
+
+      {/* Master Item Dropdown Portal */}
+      {renderMasterPortalDropdown()}
 
       {/* Crosslisting Modal */}
       <CrosslistingModal
