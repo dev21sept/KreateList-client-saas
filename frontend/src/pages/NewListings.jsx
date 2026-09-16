@@ -1763,10 +1763,140 @@ const NewListings = () => {
   const displayedEndIndex = activeTab === 'local' ? endIndex : endChannelIndex;
   const displayedTotalCount = activeTab === 'local' ? sortedListings.length : filteredAndSortedChannelProducts.length;
 
+  // Multi-select Bulk Actions State
+  const [selectedListingIds, setSelectedListingIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDelisting, setBulkDelisting] = useState(false);
+
   // Reset currentPage to 1 when filters, tabs, or items per page change
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedListingIds([]);
   }, [searchTerm, statusFilter, channelStatusFilter, channelSortOption, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
+
+  useEffect(() => {
+    setSelectedListingIds([]);
+  }, [currentPage]);
+
+  const isAllSelected = paginatedListings.length > 0 && paginatedListings.every(item => selectedListingIds.includes(item._id));
+
+  const handleToggleSelectItem = (itemId, e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedListingIds(prev =>
+      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const handleToggleSelectAll = (e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const currentPageIds = paginatedListings.map(item => item._id);
+    if (isAllSelected) {
+      setSelectedListingIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+    } else {
+      setSelectedListingIds(prev => Array.from(new Set([...prev, ...currentPageIds])));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedListingIds.length === 0) return;
+
+    const count = selectedListingIds.length;
+    const confirmDelete = await confirm(
+      `Are you sure you want to delete all ${count} selected item${count > 1 ? 's' : ''} from the database? This cannot be undone.`,
+      {
+        title: `Delete ${count} Selected Item${count > 1 ? 's' : ''}`,
+        destructive: true
+      }
+    );
+    if (!confirmDelete) return;
+
+    setBulkDeleting(true);
+    toast.info(`Deleting ${count} items from database...`);
+
+    try {
+      const selectedItems = listings.filter(l => selectedListingIds.includes(l._id));
+      const allTargetIds = new Set();
+
+      selectedListingIds.forEach(id => allTargetIds.add(id));
+      selectedItems.forEach(item => {
+        if (Array.isArray(item.allIds)) {
+          item.allIds.forEach(id => allTargetIds.add(id));
+        }
+        if (item.listingsMap && typeof item.listingsMap === 'object') {
+          Object.values(item.listingsMap).forEach(sub => {
+            if (sub?._id) allTargetIds.add(sub._id);
+          });
+        }
+      });
+
+      const deletePromises = Array.from(allTargetIds).map(id => {
+        if (String(id).startsWith('mock-')) return Promise.resolve();
+        return listingService.delete(id);
+      });
+
+      await Promise.allSettled(deletePromises);
+      toast.success(`Successfully deleted ${count} listing${count > 1 ? 's' : ''}!`);
+      setSelectedListingIds([]);
+      fetchListings();
+    } catch (err) {
+      console.error('Error deleting selected listings:', err);
+      toast.error('Failed to delete selected listings.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleBulkDelist = async () => {
+    if (selectedListingIds.length === 0) return;
+
+    const count = selectedListingIds.length;
+    const confirmDelist = await confirm(
+      `Are you sure you want to delist all ${count} selected item${count > 1 ? 's' : ''} from ALL active marketplaces (eBay, Poshmark, Mercari, Etsy, Amazon)?`,
+      {
+        title: `Delist ${count} Selected Item${count > 1 ? 's' : ''}`,
+        destructive: true
+      }
+    );
+    if (!confirmDelist) return;
+
+    setBulkDelisting(true);
+    toast.info(`Delisting ${count} items from all marketplaces...`);
+
+    try {
+      const selectedItems = listings.filter(l => selectedListingIds.includes(l._id));
+      const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+      const delistPromises = [];
+
+      selectedItems.forEach(item => {
+        platforms.forEach(plat => {
+          const platSpecific = item.listingsMap ? item.listingsMap[plat] : null;
+          const rawSt = (platSpecific ? platSpecific.status : item[`${plat}Status`])?.toLowerCase();
+          const liveId = item[`${plat}ListingId`] || platSpecific?.listingId || item.platformData?.[plat]?.liveId;
+          const isLive = (rawSt === 'published' || rawSt === 'active') || (liveId && liveId !== '-');
+          if (isLive) {
+            const targetId = platSpecific?._id || item._id;
+            if (!String(targetId).startsWith('mock-')) {
+              delistPromises.push(listingService.delist(targetId, plat).catch(e => console.warn(`Delist failed on ${plat}:`, e)));
+            }
+          }
+        });
+      });
+
+      await Promise.allSettled(delistPromises);
+      toast.success(`Delist requests sent for ${count} listings!`);
+      setSelectedListingIds([]);
+      fetchListings();
+    } catch (err) {
+      console.error('Error delisting selected items:', err);
+      toast.error('Failed to delist selected items.');
+    } finally {
+      setBulkDelisting(false);
+    }
+  };
 
   // Smart Import Modal Handlers
   const handleOpenImportModal = async () => {
@@ -3627,6 +3757,58 @@ const NewListings = () => {
             )}
           </div>
 
+          {/* Selected Items Banner in Local Database tab */}
+          {selectedListingIds.length > 0 && (
+            <div className="bg-indigo-50/90 border border-indigo-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap animate-in fade-in duration-150 shadow-2xs">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                  {selectedListingIds.length}
+                </span>
+                <span className="text-xs font-bold text-indigo-950">
+                  {selectedListingIds.length === 1 ? '1 listing selected' : `${selectedListingIds.length} listings selected`}
+                </span>
+                <span className="text-indigo-300">•</span>
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className="text-xs font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer"
+                >
+                  {isAllSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={bulkDelisting || bulkDeleting}
+                  onClick={handleBulkDelist}
+                  className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Delist selected listings from all connected marketplaces"
+                >
+                  <XCircle size={13} className="text-amber-600" />
+                  <span>{bulkDelisting ? 'Delisting...' : 'Delist Selected'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkDeleting || bulkDelisting}
+                  onClick={handleBulkDelete}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Permanently delete selected listings from database"
+                >
+                  <Trash2 size={13} />
+                  <span>{bulkDeleting ? 'Deleting...' : 'Delete Selected from Database'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedListingIds([])}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-indigo-100/50 transition-colors cursor-pointer"
+                  title="Clear selection"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       ) : (
         /* CHANNEL INVENTORY FILTER & SEARCH ROW */
@@ -3718,99 +3900,108 @@ const NewListings = () => {
             <>
               {/* MOBILE CARD VIEW */}
               <div className="md:hidden divide-y divide-slate-100">
-                {paginatedListings.map((item) => (
-                  <div key={item._id} className="p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
-                      <div 
-                        className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 cursor-pointer relative"
-                        onClick={() => handleOpenPreview(item, 'ebay')}
-                        title="Click to preview listing"
-                      >
-                        {item.thumbnail || (item.images && item.images.length > 0) ? (
-                          <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          <ImageOff size={16} className="text-slate-300" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <p 
-                            className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
-                            onClick={() => handleOpenPreview(item, 'ebay')}
-                          >
-                            {item.title}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activeMasterDropdown?.itemId === item._id) {
-                                setActiveMasterDropdown(null);
-                                return;
-                              }
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const openUpward = rect.bottom > window.innerHeight * 0.6;
-                              const menuWidth = 200;
-                              const left = Math.min(
-                                Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
-                                window.innerWidth - menuWidth - 8
-                              );
-                              setActiveMasterDropdown({
-                                itemId: item._id,
-                                item,
-                                openUpward,
-                                left,
-                                verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
-                              });
-                            }}
-                            className="w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                            title="Item options"
-                          >
-                            <MoreVertical size={13} />
-                          </button>
+                {paginatedListings.map((item) => {
+                  const isCardSelected = selectedListingIds.includes(item._id);
+                  return (
+                    <div key={item._id} className={`p-4 space-y-3 transition-colors ${isCardSelected ? 'bg-indigo-50/40' : ''}`}>
+                      <div className="flex items-start gap-3">
+                        <input 
+                          type="checkbox" 
+                          checked={isCardSelected}
+                          onChange={(e) => handleToggleSelectItem(item._id, e)}
+                          onClick={(e) => e.stopPropagation()} 
+                          className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" 
+                        />
+                        <div 
+                          className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 cursor-pointer relative"
+                          onClick={() => handleOpenPreview(item, 'ebay')}
+                          title="Click to preview listing"
+                        >
+                          {item.thumbnail || (item.images && item.images.length > 0) ? (
+                            <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <ImageOff size={16} className="text-slate-300" />
+                          )}
                         </div>
-                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleFavorite(item._id, e)}
-                            title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                              favoriteIds.includes(item._id)
-                                ? 'bg-amber-50 text-amber-600 font-black border border-amber-200'
-                                : 'text-slate-400 hover:text-amber-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            <Star
-                              size={11}
-                              className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400"}
-                            />
-                            <span>{favoriteIds.includes(item._id) ? 'Favorited' : 'Favorite'}</span>
-                          </button>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
-                          <span className="text-slate-300">•</span>
-                          <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
-                          <span className="text-slate-300">•</span>
-                          <span>{formatTimeAgo(item.updatedAt || item.updated_at || item.createdAt || item.created_at)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1.5">
+                            <p 
+                              className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
+                              onClick={() => handleOpenPreview(item, 'ebay')}
+                            >
+                              {item.title}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeMasterDropdown?.itemId === item._id) {
+                                  setActiveMasterDropdown(null);
+                                  return;
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const openUpward = rect.bottom > window.innerHeight * 0.6;
+                                const menuWidth = 200;
+                                const left = Math.min(
+                                  Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                                  window.innerWidth - menuWidth - 8
+                                );
+                                setActiveMasterDropdown({
+                                  itemId: item._id,
+                                  item,
+                                  openUpward,
+                                  left,
+                                  verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                                });
+                              }}
+                              className="w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                              title="Item options"
+                            >
+                              <MoreVertical size={13} />
+                            </button>
+                          </div>
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleFavorite(item._id, e)}
+                              title={favoriteIds.includes(item._id) ? "Remove from Favorites" : "Add to Favorites"}
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                                favoriteIds.includes(item._id)
+                                  ? 'bg-amber-50 text-amber-600 font-black border border-amber-200'
+                                  : 'text-slate-400 hover:text-amber-500 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Star
+                                size={11}
+                                className={favoriteIds.includes(item._id) ? "fill-amber-400 text-amber-400" : "text-slate-400"}
+                              />
+                              <span>{favoriteIds.includes(item._id) ? 'Favorited' : 'Favorite'}</span>
+                            </button>
+                            <span className="text-slate-300">•</span>
+                            <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
+                            <span className="text-slate-300">•</span>
+                            <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
+                            <span className="text-slate-300">•</span>
+                            <span>{formatTimeAgo(item.updatedAt || item.updated_at || item.createdAt || item.created_at)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <StatusBadge status={item.status} />
-                    </div>
+                      <div>
+                        <StatusBadge status={item.status} />
+                      </div>
 
-                    <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
-                      {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
-                      {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                      {/* {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')} */}
-                      {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
-                      {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
-                      {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                      <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
+                        {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                        {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                        {/* {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')} */}
+                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                        {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                        {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* DESKTOP TABLE VIEW */}
@@ -3821,7 +4012,13 @@ const NewListings = () => {
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none">
                       <th className="px-3 py-4 w-12 text-center">
-                        <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                        <input 
+                          type="checkbox" 
+                          checked={isAllSelected}
+                          onChange={handleToggleSelectAll}
+                          title={isAllSelected ? "Deselect all on this page" : "Select all on this page"}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
+                        />
                       </th>
                       <th className="px-4 py-4 text-xs font-black text-slate-500 tracking-wider w-[31%]">Item</th>
                       <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
@@ -3861,12 +4058,19 @@ const NewListings = () => {
                   <tbody className="divide-y divide-slate-100">
                     {paginatedListings.map((item) => {
                       const realUpdatedTime = item.updatedAt || item.updated_at || item.createdAt || item.created_at || item.lastUpdated;
+                      const isRowSelected = selectedListingIds.includes(item._id);
                       return (
-                        <tr key={item._id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr key={item._id} className={`transition-colors ${isRowSelected ? 'bg-indigo-50/60 hover:bg-indigo-50/80' : 'hover:bg-slate-50/70'}`}>
 
                           {/* Checkbox */}
                           <td className="px-3 py-3 text-center align-middle w-12">
-                            <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                            <input 
+                              type="checkbox" 
+                              checked={isRowSelected}
+                              onChange={(e) => handleToggleSelectItem(item._id, e)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
+                            />
                           </td>
 
                           {/* Item */}
@@ -4605,6 +4809,58 @@ const NewListings = () => {
               </Button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Actions Toolbar */}
+      {selectedListingIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 duration-200 w-[92%] max-w-xl">
+          <div className="bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between gap-3">
+            {/* Selection info */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-black">
+                {selectedListingIds.length}
+              </span>
+              <span className="text-xs font-bold text-slate-200">
+                {selectedListingIds.length === 1 ? '1 listing selected' : `${selectedListingIds.length} listings selected`}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={bulkDelisting || bulkDeleting}
+                onClick={handleBulkDelist}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                title="Delist selected listings from all connected marketplaces"
+              >
+                <XCircle size={14} className="text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">{bulkDelisting ? 'Delisting...' : 'Delist Selected'}</span>
+                <span className="sm:hidden">Delist</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={bulkDeleting || bulkDelisting}
+                onClick={handleBulkDelete}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all cursor-pointer shadow-md shadow-rose-950/40 disabled:opacity-50"
+                title="Permanently delete selected listings from database"
+              >
+                <Trash2 size={14} className="shrink-0" />
+                <span>{bulkDeleting ? 'Deleting...' : 'Delete Selected'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedListingIds([])}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Deselect all"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
         </div>
       )}
