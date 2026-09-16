@@ -26,7 +26,12 @@ import {
   Eye,
   EyeOff,
   Download,
-  GitMerge
+  GitMerge,
+  List,
+  LayoutGrid,
+  MoreVertical,
+  Copy,
+  Check
 } from 'lucide-react';
 import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -277,9 +282,9 @@ const groupListingsBySku = (rawListings) => {
       const existing = matchedGroup;
       
       // Add platform status documents or the item itself
-      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
+      const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon', 'depop'];
       platforms.forEach(p => {
-        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
+        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed' || item[`${p}Status`] === 'delisted') {
           if (!existing.listingsMap[p] || (new Date(item.createdAt || 0) > new Date(existing.listingsMap[p].createdAt || 0))) {
             existing.listingsMap[p] = item;
           }
@@ -299,13 +304,21 @@ const groupListingsBySku = (rawListings) => {
         existing.poshmarkListingId = item.poshmarkListingId;
         existing.poshmarkUrl = item.poshmarkUrl;
       }
-      if (item.depopListingId) {
-        existing.depopListingId = item.depopListingId;
-        existing.depopUrl = item.depopUrl;
+      if (item.mercariListingId) {
+        existing.mercariListingId = item.mercariListingId;
+        existing.mercariUrl = item.mercariUrl;
       }
       if (item.etsyListingId) {
         existing.etsyListingId = item.etsyListingId;
         existing.etsyUrl = item.etsyUrl;
+      }
+      if (item.amazonListingId || item.amazonAsin) {
+        existing.amazonListingId = item.amazonListingId || item.amazonAsin;
+        existing.amazonUrl = item.amazonUrl;
+      }
+      if (item.depopListingId) {
+        existing.depopListingId = item.depopListingId;
+        existing.depopUrl = item.depopUrl;
       }
 
       // If any of the listings is more recent, use its title/thumbnail/date and other details
@@ -345,9 +358,9 @@ const groupListingsBySku = (rawListings) => {
       };
 
       // Set the initial platform mappings
-      const platforms = ['ebay', 'poshmark', 'depop', 'etsy'];
+      const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon', 'depop'];
       platforms.forEach(p => {
-        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed') {
+        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed' || item[`${p}Status`] === 'delisted') {
           newGroup.listingsMap[p] = item;
         }
       });
@@ -1985,27 +1998,38 @@ const NewListings = () => {
     return 'Just now';
   };
 
+  // Active View Mode ('list' | 'grid')
+  const [viewMode, setViewMode] = useState('list');
+  // Row selection checkboxes
+  const [selectedListingIds, setSelectedListingIds] = useState({});
   // Active Listed Dropdown state
   const [activeListedDropdown, setActiveListedDropdown] = useState(null);
+  // Active Row 3-dot dropdown state
+  const [activeRowDropdown, setActiveRowDropdown] = useState(null);
 
   useEffect(() => {
-    const handleClickOutside = () => setActiveListedDropdown(null);
+    const handleClickOutside = () => {
+      setActiveListedDropdown(null);
+      setActiveRowDropdown(null);
+    };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Close the floating crosslisting dropdown if the page scrolls out from under it,
-  // since its position is computed once (fixed, in viewport coords) at open time.
+  // Close floating dropdowns on scroll or resize
   useEffect(() => {
-    if (!activeListedDropdown) return;
-    const closeOnScroll = () => setActiveListedDropdown(null);
+    if (!activeListedDropdown && !activeRowDropdown) return;
+    const closeOnScroll = () => {
+      setActiveListedDropdown(null);
+      setActiveRowDropdown(null);
+    };
     window.addEventListener('scroll', closeOnScroll, true);
     window.addEventListener('resize', closeOnScroll);
     return () => {
       window.removeEventListener('scroll', closeOnScroll, true);
       window.removeEventListener('resize', closeOnScroll);
     };
-  }, [activeListedDropdown]);
+  }, [activeListedDropdown, activeRowDropdown]);
 
   const getListingUrl = (item, platformName, checkId) => {
     if (item[`${platformName}Url`]) return item[`${platformName}Url`];
@@ -2018,6 +2042,8 @@ const NewListings = () => {
       return `https://www.ebay.com/itm/${checkId}`;
     } else if (platformName === 'poshmark') {
       return `https://poshmark.com/listing/${checkId}`;
+    } else if (platformName === 'mercari') {
+      return `https://www.mercari.com/us/item/${checkId}`;
     } else if (platformName === 'etsy') {
       return `https://www.etsy.com/listing/${checkId}`;
     } else if (platformName === 'amazon') {
@@ -2328,7 +2354,6 @@ const NewListings = () => {
   };
 
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
-    const disconnectOnly = activeTab === 'local';
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
     const isMasterListing = platformSpecificItem && platformSpecificItem._id === item._id;
     const rawPlatformStatus = (platformSpecificItem && !isMasterListing)
@@ -2342,7 +2367,6 @@ const NewListings = () => {
     let isFailed = false;
 
     if (rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted') {
-      // Explicitly Not Listed on this platform
       isListed = false;
       isDraft = false;
       isDelisted = false;
@@ -2353,10 +2377,9 @@ const NewListings = () => {
       isDraft = true;
     } else if (rawPlatformStatus === 'delisted') {
       isDelisted = true;
-    } else if (rawPlatformStatus === 'failed') {
+    } else if (rawPlatformStatus === 'failed' || rawPlatformStatus === 'error') {
       isFailed = true;
     } else if (!rawPlatformStatus) {
-      // Fallbacks only if rawPlatformStatus is undefined
       const specificStatus = platformSpecificItem?.status?.toLowerCase();
       if (specificStatus && specificStatus !== 'none' && specificStatus !== 'unlisted') {
         if (specificStatus === 'published' || specificStatus === 'active') {
@@ -2365,7 +2388,7 @@ const NewListings = () => {
           isDraft = true;
         } else if (specificStatus === 'delisted') {
           isDelisted = true;
-        } else if (specificStatus === 'failed') {
+        } else if (specificStatus === 'failed' || specificStatus === 'error') {
           isFailed = true;
         }
       } else if (item.platform === platformName) {
@@ -2376,7 +2399,7 @@ const NewListings = () => {
           isDraft = true;
         } else if (itemStatus === 'delisted') {
           isDelisted = true;
-        } else if (itemStatus === 'failed') {
+        } else if (itemStatus === 'failed' || itemStatus === 'error') {
           isFailed = true;
         }
       }
@@ -2390,36 +2413,217 @@ const NewListings = () => {
       }
     }
 
+    // Price calculation
+    const rawPrice = platformSpecificItem?.price ?? item[`${platformName}Price`] ?? item.price;
+    const numPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(rawPrice);
+    const displayPrice = (!isNaN(numPrice) && numPrice > 0) ? `$${numPrice.toFixed(2)}` : (item.price ? `$${Number(item.price).toFixed(2)}` : '$0.00');
+
+    // Thumbnail calculation
+    const cellThumbnail = platformSpecificItem?.thumbnail || 
+      (platformSpecificItem?.images && platformSpecificItem.images[0]) || 
+      item[`${platformName}Thumbnail`] || 
+      item.thumbnail || 
+      (item.images && item.images[0]) || 
+      null;
+
+    const liveUrl = getListingUrl(item, platformName, checkId);
     const isDropdownOpen = activeListedDropdown?.itemId === item._id && activeListedDropdown?.platform === platformName;
     const isBeingDragged = draggedChannel?.sourceListingId === item._id && draggedChannel?.platform === platformName;
+    const isDropTarget = activeTab === 'local' && draggedChannel && draggedChannel.platform === platformName && draggedChannel.sourceListingId !== item._id;
+    const isHovered = dragOverTarget === `${item._id}-${platformName}`;
 
-    if (isListed || isDelisted || isDraft || isFailed) {
-      const liveUrl = getListingUrl(item, platformName, checkId);
+    // Badge styling matching screenshot
+    let badgeNode = null;
+    if (isListed) {
+      badgeNode = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+          Listed
+        </span>
+      );
+    } else if (isDraft) {
+      badgeNode = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+          Draft
+        </span>
+      );
+    } else if (isFailed) {
+      badgeNode = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+          Error
+        </span>
+      );
+    } else if (isDelisted) {
+      badgeNode = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+          Delisted
+        </span>
+      );
+    } else {
+      badgeNode = (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-slate-50 text-slate-400 border border-slate-200/60 shrink-0">
+          Not Listed
+        </span>
+      );
+    }
 
-      return (
-        <div 
-          draggable={activeTab === 'local'}
-          onDragStart={(e) => {
-            if (activeTab !== 'local') return;
-            e.dataTransfer.setData('text/plain', JSON.stringify({
-              sourceListingId: item._id,
-              platform: platformName,
-              title: item.title,
-              images: item.images || [item.thumbnail],
-              sku: item.sku
-            }));
-            e.dataTransfer.effectAllowed = 'move';
-            setDraggedChannel({ sourceListingId: item._id, platform: platformName, title: item.title });
-          }}
-          onDragEnd={() => {
-            setDraggedChannel(null);
+    return (
+      <div
+        draggable={activeTab === 'local' && (isListed || isDraft || isDelisted || isFailed)}
+        onDragStart={(e) => {
+          if (activeTab !== 'local') return;
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            sourceListingId: item._id,
+            platform: platformName,
+            title: item.title,
+            images: item.images || [item.thumbnail],
+            sku: item.sku
+          }));
+          e.dataTransfer.effectAllowed = 'move';
+          setDraggedChannel({ sourceListingId: item._id, platform: platformName, title: item.title });
+        }}
+        onDragEnd={() => {
+          setDraggedChannel(null);
+          setDragOverTarget(null);
+        }}
+        onDragOver={(e) => {
+          if (isDropTarget) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (dragOverTarget !== `${item._id}-${platformName}`) {
+              setDragOverTarget(`${item._id}-${platformName}`);
+            }
+          }
+        }}
+        onDragLeave={() => {
+          if (dragOverTarget === `${item._id}-${platformName}`) {
             setDragOverTarget(null);
-          }}
-          className={`relative flex flex-col items-center justify-center py-1 select-none w-full ${
-            activeTab === 'local' ? 'cursor-grab active:cursor-grabbing' : ''
-          } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
-        >
+          }
+        }}
+        onDrop={async (e) => {
+          if (!isDropTarget) return;
+          e.preventDefault();
+          setDragOverTarget(null);
+          setDraggedChannel(null);
+          try {
+            const dataStr = e.dataTransfer.getData('text/plain');
+            if (!dataStr) return;
+            const data = JSON.parse(dataStr);
+            if (data.sourceListingId && data.platform === platformName && data.sourceListingId !== item._id) {
+              const srcTitle = (data.title || '').trim().toLowerCase();
+              const trgTitle = (item.title || '').trim().toLowerCase();
+              const srcSku = (data.sku || '').trim().toLowerCase();
+              const trgSku = (item.sku || '').trim().toLowerCase();
+
+              const skuMatches = srcSku && trgSku && srcSku !== '-' && trgSku !== '-' && srcSku === trgSku;
+              const imagesMatch = Array.isArray(data.images) && Array.isArray(item.images) && data.images.some(img => item.images.includes(img));
+              
+              const t1 = srcTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+              const t2 = trgTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+              const common = t1.filter(w => t2.includes(w));
+              const diceScore = (t1.length + t2.length > 0) ? (2 * common.length) / (t1.length + t2.length) : 0;
+
+              if (!skuMatches && !imagesMatch && diceScore < 0.60) {
+                toast.error(`Cannot merge: Products do not match (${Math.round(diceScore * 100)}% match)! Merging is only allowed for the same physical product across platforms.`);
+                return;
+              }
+
+              await handleMergeChannel(data.sourceListingId, item._id, platformName);
+            }
+          } catch (err) {
+            console.error('Drop error:', err);
+          }
+        }}
+        className={`relative rounded-2xl border transition-all p-2.5 flex items-center justify-between gap-2 select-none w-full min-w-[138px] max-w-[165px] h-[74px] shadow-2xs group/cell ${
+          isDropTarget
+            ? isHovered
+              ? 'scale-105 ring-2 ring-indigo-500 bg-indigo-50/90 shadow-md border-indigo-400 animate-pulse'
+              : 'ring-2 ring-dashed ring-indigo-400 bg-indigo-50/30 border-indigo-200'
+            : isBeingDragged
+              ? 'opacity-40 scale-95 border-indigo-300'
+              : isListed
+                ? 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+                : (isDraft || isFailed)
+                  ? 'bg-slate-50/70 border-slate-200/80 hover:border-indigo-200'
+                  : 'bg-slate-50/40 border-slate-100 hover:border-slate-200'
+        }`}
+      >
+        {/* Left Side: Status Badge, Price, Open Link */}
+        <div className="flex flex-col justify-between h-full min-w-0 flex-1 pr-1">
+          <div className="flex items-center">
+            {badgeNode}
+          </div>
+
+          <div className="text-xs font-black text-slate-900 tracking-tight leading-none mt-1 truncate">
+            {displayPrice}
+          </div>
+
+          <div className="mt-auto pt-0.5">
+            {isListed && liveUrl && liveUrl !== '#' ? (
+              <a
+                href={liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer leading-none"
+              >
+                <ExternalLink size={10} className="shrink-0" />
+                <span>Open</span>
+              </a>
+            ) : (isDraft || isFailed || isDelisted) ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditListedItem(item, platformName);
+                }}
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer leading-none"
+              >
+                <ExternalLink size={10} className="shrink-0" />
+                <span>Open</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenCrosslisting(platformSpecificItem || item, platformName);
+                }}
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-indigo-600 hover:underline cursor-pointer leading-none"
+              >
+                <Plus size={10} className="shrink-0" />
+                <span>List</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right Side: Platform Image & Top-Right 3-Dot Button */}
+        <div className="relative shrink-0 flex items-center justify-center">
           <div
+            onClick={() => {
+              if (isListed && liveUrl && liveUrl !== '#') {
+                window.open(liveUrl, '_blank');
+              } else {
+                handleOpenPreview(platformSpecificItem || item, platformName);
+              }
+            }}
+            className="w-11 h-11 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center shadow-inner cursor-pointer group-hover/cell:scale-105 transition-transform"
+            title={`Preview on ${getChannelDisplayName(platformName)}`}
+          >
+            {cellThumbnail ? (
+              <img src={cellThumbnail} className="w-full h-full object-cover" alt={platformName} />
+            ) : (
+              <img src={logoSrc} className="w-5 h-5 object-contain opacity-50" alt={platformName} />
+            )}
+          </div>
+
+          {/* 3-Dot Dropdown Button in Top-Right Corner */}
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               if (isDropdownOpen) {
@@ -2428,7 +2632,7 @@ const NewListings = () => {
               }
               const rect = e.currentTarget.getBoundingClientRect();
               const openUpward = rect.bottom > window.innerHeight * 0.6;
-              const menuWidth = 180;
+              const menuWidth = 205;
               const left = Math.min(
                 Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
                 window.innerWidth - menuWidth - 8
@@ -2441,231 +2645,142 @@ const NewListings = () => {
                 verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
               });
             }}
-            className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none w-full"
-            title={activeTab === 'local' ? "Click for options or Drag to another item to merge" : "Click for options"}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white hover:bg-slate-50 rounded-full shadow-xs border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 cursor-pointer z-10 transition-colors group-hover/cell:border-indigo-300"
+            title="Marketplace Actions"
           >
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm shrink-0 transition-colors ${
-              isListed 
-                ? 'border-slate-100 bg-white group-hover:border-indigo-200' 
-                : isDraft
-                  ? 'border-orange-100 bg-white group-hover:border-orange-300'
-                  : isFailed
-                    ? 'border-rose-100 bg-rose-50/50 group-hover:border-rose-300 group-hover:bg-rose-100/50'
-                    : 'border-amber-200 bg-amber-50/50 group-hover:border-amber-300 group-hover:bg-amber-100/50'
-            }`}>
-              <img src={logoSrc} className={`w-5 h-5 object-contain ${isListed || isDraft ? '' : 'opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0'}`} alt={platformName} />
-            </div>
-            <span className={`text-[10px] font-black mt-1 select-none flex items-center gap-0.5 ${
-              isListed 
-                ? 'text-emerald-600 group-hover:text-indigo-650' 
-                : isDraft
-                  ? 'text-orange-500 group-hover:text-orange-700'
-                  : isFailed
-                    ? 'text-rose-600 group-hover:text-rose-800'
-                    : 'text-amber-500 group-hover:text-amber-700'
-            }`}>
-              {isListed ? 'Listed' : isDraft ? 'Draft' : isFailed ? 'Failed' : 'Delisted'} <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </span>
-            {isListed && (
-              <span className="text-[9px] font-mono text-slate-400 mt-0.5 select-none truncate max-w-[70px] text-center" title={checkId}>{checkId}</span>
-            )}
-          </div>
+            <MoreVertical size={11} />
+          </button>
+        </div>
 
-          {isDropdownOpen && createPortal(
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: 'fixed',
-                left: activeListedDropdown.left,
-                [activeListedDropdown.openUpward ? 'bottom' : 'top']: activeListedDropdown.verticalOffset,
-                width: 180,
-              }}
-              className="z-[999] bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 animate-in fade-in zoom-in-95 duration-150 text-left"
-            >
-              {!isDraft && liveUrl && liveUrl !== '#' && (
-                <a
-                  href={liveUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setActiveListedDropdown(null)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <ExternalLink size={13} className="text-indigo-500 shrink-0" />
-                  View on {getChannelDisplayName(platformName)}
-                </a>
-              )}
-              {!isDraft && (
-                <button
-                  type="button"
-                  onClick={() => handleVerifyStatus(item, platformName)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                >
-                  <RefreshCw size={13} className="text-indigo-500 shrink-0" />
-                  Verify Status
-                </button>
-              )}
+        {/* Floating Portal Dropdown */}
+        {isDropdownOpen && createPortal(
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: activeListedDropdown.left,
+              [activeListedDropdown.openUpward ? 'bottom' : 'top']: activeListedDropdown.verticalOffset,
+              width: 205,
+            }}
+            className="z-[999] bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 animate-in fade-in zoom-in-95 duration-150 text-left"
+          >
+            <div className="px-3 py-1.5 border-b border-slate-100 flex items-center gap-2">
+              <img src={logoSrc} className="w-4 h-4 object-contain" alt="" />
+              <span className="text-[11px] font-black text-slate-800 capitalize">{getChannelDisplayName(platformName)}</span>
+            </div>
+
+            {!isDraft && liveUrl && liveUrl !== '#' && (
+              <a
+                href={liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setActiveListedDropdown(null)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <ExternalLink size={13} className="text-indigo-500 shrink-0" />
+                View on {getChannelDisplayName(platformName)}
+              </a>
+            )}
+
+            {!isDraft && (isListed || isDelisted) && (
               <button
                 type="button"
-                onClick={() => handleEditListedItem(item, platformName)}
+                onClick={() => handleVerifyStatus(item, platformName)}
                 className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
               >
-                <Edit size={13} className="text-indigo-500 shrink-0" />
-                Edit Listing
+                <RefreshCw size={13} className="text-indigo-500 shrink-0" />
+                Verify Live Status
               </button>
-              {(isDraft || isDelisted || isFailed) && (
-                <button
-                  type="button"
-                  onClick={() => handleRelistItemDirect(item, platformName)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-emerald-650 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                >
-                  <RefreshCw size={13} className="text-emerald-500 shrink-0" />
-                  List / Publish
-                </button>
-              )}
-              {isListed && (
-                <button
-                  type="button"
-                  onClick={() => handleDelistItem(item, platformName)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                >
-                  <XCircle size={13} className="text-amber-500 shrink-0" />
-                  Delist Listing
-                </button>
-              )}
-              {activeTab === 'local' ? (
-                <>
-                  {(isDraft || isListed) && (
-                    <button
-                      type="button"
-                      onClick={() => handleMoveToNewItem(item, platformName)}
-                      className="w-full px-3.5 py-2 text-xs font-bold text-indigo-650 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                    >
-                      <Plus size={13} className="text-indigo-500 shrink-0" />
-                      New Item
-                    </button>
-                  )}
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleEditListedItem(item, platformName)}
+              className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+            >
+              <Edit size={13} className="text-indigo-500 shrink-0" />
+              Edit Listing Prep
+            </button>
+
+            {(isDraft || isDelisted || isFailed) && (
+              <button
+                type="button"
+                onClick={() => handleRelistItemDirect(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <RefreshCw size={13} className="text-emerald-500 shrink-0" />
+                List / Publish
+              </button>
+            )}
+
+            {isListed && (
+              <button
+                type="button"
+                onClick={() => handleDelistItem(item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <XCircle size={13} className="text-amber-500 shrink-0" />
+                Delist Listing
+              </button>
+            )}
+
+            {activeTab === 'local' ? (
+              <>
+                {(isDraft || isListed) && (
                   <button
                     type="button"
-                    onClick={() => handleDeletePlatformListing(item, platformName, true)}
-                    className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                    onClick={() => handleMoveToNewItem(item, platformName)}
+                    className="w-full px-3.5 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
                   >
-                    <Trash2 size={13} className="text-red-500 shrink-0" />
-                    Delete from Crosslisting
+                    <Plus size={13} className="text-indigo-500 shrink-0" />
+                    Move to New Item
                   </button>
-                  {(isListed || isDelisted) && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePlatformListing(item, platformName, false)}
-                      className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
-                    >
-                      <Trash2 size={13} className="text-red-500 shrink-0" />
-                      Delete from {getChannelDisplayName(platformName)} (Actual Site)
-                    </button>
-                  )}
-                </>
-              ) : (
+                )}
                 <button
                   type="button"
-                  onClick={() => handleDeletePlatformListing(item, platformName, false)}
-                  className="w-full px-3.5 py-2 text-xs font-bold text-red-650 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                  onClick={() => handleDeletePlatformListing(item, platformName, true)}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
                 >
                   <Trash2 size={13} className="text-red-500 shrink-0" />
-                  Delete from {getChannelDisplayName(platformName)}
+                  Delete from Crosslisting
                 </button>
-              )}
-            </div>,
-            document.body
-          )}
-        </div>
-      );
-    } else {
-      // Not Listed status
-      const isDropTarget = activeTab === 'local' && draggedChannel && draggedChannel.platform === platformName && draggedChannel.sourceListingId !== item._id;
-      const isHovered = dragOverTarget === `${item._id}-${platformName}`;
+                {(isListed || isDelisted) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePlatformListing(item, platformName, false)}
+                    className="w-full px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                  >
+                    <Trash2 size={13} className="text-red-500 shrink-0" />
+                    Delete from {getChannelDisplayName(platformName)} (Actual Site)
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDeletePlatformListing(item, platformName, false)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Trash2 size={13} className="text-red-500 shrink-0" />
+                Delete from {getChannelDisplayName(platformName)}
+              </button>
+            )}
 
-      return (
-        <div 
-          onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
-          onDragOver={(e) => {
-            if (isDropTarget) {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              if (dragOverTarget !== `${item._id}-${platformName}`) {
-                setDragOverTarget(`${item._id}-${platformName}`);
-              }
-            }
-          }}
-          onDragLeave={() => {
-            if (dragOverTarget === `${item._id}-${platformName}`) {
-              setDragOverTarget(null);
-            }
-          }}
-          onDrop={async (e) => {
-            if (!isDropTarget) return;
-            e.preventDefault();
-            setDragOverTarget(null);
-            setDraggedChannel(null);
-            try {
-              const dataStr = e.dataTransfer.getData('text/plain');
-              if (!dataStr) return;
-              const data = JSON.parse(dataStr);
-              if (data.sourceListingId && data.platform === platformName && data.sourceListingId !== item._id) {
-                // Client-side quick validation check
-                const srcTitle = (data.title || '').trim().toLowerCase();
-                const trgTitle = (item.title || '').trim().toLowerCase();
-                const srcSku = (data.sku || '').trim().toLowerCase();
-                const trgSku = (item.sku || '').trim().toLowerCase();
-
-                const skuMatches = srcSku && trgSku && srcSku !== '-' && trgSku !== '-' && srcSku === trgSku;
-                const imagesMatch = Array.isArray(data.images) && Array.isArray(item.images) && data.images.some(img => item.images.includes(img));
-                
-                // Token overlap check
-                const t1 = srcTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
-                const t2 = trgTitle.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
-                const common = t1.filter(w => t2.includes(w));
-                const diceScore = (t1.length + t2.length > 0) ? (2 * common.length) / (t1.length + t2.length) : 0;
-
-                if (!skuMatches && !imagesMatch && diceScore < 0.60) {
-                  toast.error(`Cannot merge: Products do not match (${Math.round(diceScore * 100)}% match)! Merging is only allowed for the same physical product across platforms.`);
-                  return;
-                }
-
-                await handleMergeChannel(data.sourceListingId, item._id, platformName);
-              }
-            } catch (err) {
-              console.error('Drop error:', err);
-            }
-          }}
-          className={`flex flex-col items-center justify-center py-1 cursor-pointer group transition-all select-none ${
-            isDropTarget
-              ? isHovered
-                ? 'scale-110 ring-2 ring-indigo-500 rounded-xl bg-indigo-50/90 shadow-lg animate-pulse'
-                : 'ring-2 ring-dashed ring-indigo-400 rounded-xl bg-indigo-50/40 animate-pulse'
-              : 'hover:scale-105'
-          }`}
-          title={isDropTarget ? "Drop here to merge channel into this item!" : "Not Listed"}
-        >
-          <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm shrink-0 transition-colors ${
-            isDropTarget
-              ? isHovered
-                ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                : 'border-indigo-300 bg-indigo-50 text-indigo-500'
-              : 'border-slate-100 bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100'
-          }`}>
-            {/* Custom generic shop/building logo for grey placeholder */}
-            <svg className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <span className={`text-[10px] font-bold mt-1 select-none transition-colors ${
-            isDropTarget ? 'text-indigo-600 font-extrabold' : 'text-slate-400 group-hover:text-indigo-600'
-          }`}>
-            {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : 'Not Listed'}
-          </span>
-        </div>
-      );
-    }
+            {!isListed && !isDraft && !isFailed && !isDelisted && (
+              <button
+                type="button"
+                onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
+                className="w-full px-3.5 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              >
+                <Plus size={13} className="text-indigo-500 shrink-0" />
+                Cross-list to {getChannelDisplayName(platformName)}
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+      </div>
+    );
   };
 
   // Builds an item shape compatible with renderCrosslistingCell's Listed/Delisted
@@ -2735,646 +2850,625 @@ const NewListings = () => {
     return { total, active, draft, inactive, errors };
   }, [channelProducts]);
 
-  const statCards = activeTab === 'local' ? [
-    {
-      key: 'all',
-      label: 'Total Listings',
-      value: stats?.total ?? 0,
-      icon: <Boxes size={20} />,
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
-    },
-    {
-      key: 'active',
-      label: 'Active',
-      value: stats?.published ?? 0,
-      icon: <CheckCircle2 size={20} />,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
-    },
-    {
-      key: 'draft',
-      label: 'Drafts',
-      value: stats?.draft ?? 0,
-      icon: <FileText size={20} />,
-      color: 'bg-amber-50 text-amber-600 border-amber-100',
-      ring: 'border-amber-500 ring-2 ring-amber-500/15',
-    },
-    {
-      key: 'failed',
-      label: 'Errors',
-      value: stats?.failed ?? 0,
-      icon: <AlertCircle size={20} />,
-      color: 'bg-rose-50 text-rose-600 border-rose-100',
-      ring: 'border-rose-500 ring-2 ring-rose-500/15',
-    },
-    {
-      key: 'unlisted',
-      label: 'Unlisted',
-      value: stats?.unlisted ?? 0,
-      icon: <EyeOff size={20} />,
-      color: 'bg-slate-100 text-slate-500 border-slate-200',
-      ring: 'border-slate-400 ring-2 ring-slate-400/15',
-    },
-  ] : [
-    {
-      key: 'all',
-      label: `${getChannelDisplayName(selectedChannel)} Total`,
-      value: channelStats.total,
-      icon: <Boxes size={20} />,
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
-    },
-    {
-      key: 'active',
-      label: 'Active',
-      value: channelStats.active,
-      icon: <CheckCircle2 size={20} />,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
-    },
-    {
-      key: 'draft',
-      label: 'Drafts',
-      value: channelStats.draft,
-      icon: <FileText size={20} />,
-      color: 'bg-amber-50 text-amber-600 border-amber-100',
-      ring: 'border-amber-500 ring-2 ring-amber-500/15',
-    },
-    {
-      key: 'failed',
-      label: 'Errors',
-      value: channelStats.errors,
-      icon: <AlertCircle size={20} />,
-      color: 'bg-rose-50 text-rose-600 border-rose-100',
-      ring: 'border-rose-500 ring-2 ring-rose-500/15',
-    },
-    {
-      key: 'inactive',
-      label: 'Inactive / Ended',
-      value: channelStats.inactive,
-      icon: <EyeOff size={20} />,
-      color: 'bg-slate-100 text-slate-500 border-slate-200',
-      ring: 'border-slate-400 ring-2 ring-slate-400/15',
-    },
-  ];
+  const localTabCounts = React.useMemo(() => {
+    let active = 0;
+    let draft = 0;
+    let failed = 0;
+    let unlisted = 0;
+
+    groupedListingsList.forEach(item => {
+      const st = item.status?.toLowerCase();
+      if (st === 'active' || st === 'published') active++;
+      else if (st === 'draft') draft++;
+      else if (st === 'failed' || st === 'error') failed++;
+      else unlisted++;
+    });
+
+    return {
+      all: stats?.total ?? groupedListingsList.length,
+      active: stats?.published ?? active,
+      draft: stats?.draft ?? draft,
+      failed: stats?.failed ?? failed,
+      unlisted: stats?.unlisted ?? unlisted,
+    };
+  }, [groupedListingsList, stats]);
+
+  const channelTabCounts = React.useMemo(() => {
+    let active = 0;
+    let draft = 0;
+    let failed = 0;
+    let inactive = 0;
+
+    channelProducts.forEach(p => {
+      const details = getProductDetails(p);
+      const st = (details.status || p.status || '').toLowerCase();
+      if (st === 'active' || st === 'live' || st === 'published') active++;
+      else if (st === 'draft') draft++;
+      else if (st === 'failed' || st === 'error') failed++;
+      else inactive++;
+    });
+
+    return {
+      all: channelProducts.length,
+      active,
+      draft,
+      failed,
+      inactive,
+    };
+  }, [channelProducts]);
+
+  const currentTabCounts = activeTab === 'local' ? localTabCounts : channelTabCounts;
+
+  const handleToggleSelectAllRows = () => {
+    const list = activeTab === 'local' ? paginatedListings : paginatedChannelProducts;
+    const allSelected = list.length > 0 && list.every(l => selectedListingIds[l._id || l.id]);
+    const updated = { ...selectedListingIds };
+    list.forEach(l => {
+      const id = l._id || l.id;
+      if (id) updated[id] = !allSelected;
+    });
+    setSelectedListingIds(updated);
+  };
+
+  const handleToggleRowSelect = (id) => {
+    if (!id) return;
+    setSelectedListingIds(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
-      {/* STATS BANNER */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-        {statCards.map((card, idx) => (
-          <motion.div
-            key={card.key}
-            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
-            onClick={() => {
-              if (activeTab === 'local') {
-                setStatusFilter(card.key);
-              } else {
-                setChannelStatusFilter(card.key);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { 
-              if (e.key === 'Enter') {
-                if (activeTab === 'local') setStatusFilter(card.key);
-                else setChannelStatusFilter(card.key);
-              }
-            }}
-            className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
-              (activeTab === 'local' ? statusFilter === card.key : channelStatusFilter === card.key)
-                ? `${card.ring} bg-white shadow-md`
-                : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
-            }`}
-          >
-            <div className="flex justify-between items-start">
-              <div className={`p-3 rounded-2xl border shrink-0 ${card.color}`}>
-                {card.icon}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{card.label}</h3>
-              <p className="text-2xl font-black text-slate-900 mt-0.5">{(card.value ?? 0).toLocaleString()}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* TABS SWITCHER & SYNC BAR */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
-        {/* Tabs */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
-          <button
-            onClick={() => {
-              setActiveTab('local');
-              localStorage.setItem('elister_active_listings_tab', 'local');
-            }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              activeTab === 'local'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Local Database
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('channel');
-              localStorage.setItem('elister_active_listings_tab', 'channel');
-            }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              activeTab === 'channel'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Channel Inventory
-          </button>
+      {/* TOP HEADER / ACTION BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        <div>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Inventory</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+              {displayedTotalCount.toLocaleString()} items
+            </span>
+          </h1>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">
+            Manage, sync, and cross-list inventory across eBay, Poshmark, Mercari, Etsy & Amazon
+          </p>
         </div>
 
-        {/* Local Database Actions (only visible when in local tab) */}
-        {activeTab === 'local' && (
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        {/* Global Action Buttons */}
+        <div className="flex items-center flex-wrap gap-2">
+          {/* View Mode Toggle: Local DB vs Channel Sync */}
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
             <button
-              onClick={handleOpenLocalMergeModal}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+              onClick={() => {
+                setActiveTab('local');
+                localStorage.setItem('elister_active_listings_tab', 'local');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                activeTab === 'local'
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <GitMerge size={14} />
-              <span>Smart Merge</span>
+              Master Inventory
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('channel');
+                localStorage.setItem('elister_active_listings_tab', 'channel');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                activeTab === 'channel'
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Channel Sync
             </button>
           </div>
-        )}
 
-        {/* Channel Selection & Sync Actions (only visible when in channel tab) */}
-        {activeTab === 'channel' && (
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            {/* Channel Toggle Buttons */}
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
-              <button
-                onClick={() => {
-                  setSelectedChannel('ebay');
-                  localStorage.setItem('elister_selected_listings_channel', 'ebay');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'ebay'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                eBay
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('etsy');
-                  localStorage.setItem('elister_selected_listings_channel', 'etsy');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'etsy'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Etsy
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('poshmark');
-                  localStorage.setItem('elister_selected_listings_channel', 'poshmark');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'poshmark'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Poshmark
-              </button>
-              {/* <button
-                onClick={() => {
-                  setSelectedChannel('depop');
-                  localStorage.setItem('elister_selected_listings_channel', 'depop');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'depop'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Depop
-              </button> */}
-              <button
-                onClick={() => {
-                  setSelectedChannel('mercari');
-                  localStorage.setItem('elister_selected_listings_channel', 'mercari');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'mercari'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Mercari
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedChannel('amazon');
-                  localStorage.setItem('elister_selected_listings_channel', 'amazon');
-                }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedChannel === 'amazon'
-                    ? 'bg-white text-indigo-600 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Amazon
-              </button>
-            </div>
-
-            {/* Sync Button */}
-            <Button
-              onClick={handleSyncInventory}
-              disabled={syncing || !isChannelConnected()}
-              size="sm"
-              icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />}
-              className="w-full sm:w-auto"
-            >
-              {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
-            </Button>
-
-            {/* Import to Local Button */}
-            <button
-              onClick={handleOpenImportModal}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
-            >
-              <Download size={14} />
-              <span>Import to Local</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* FILTER / SEARCH ROW */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-
-        {/* Search Input */}
-        <div className={`relative ${activeTab === 'channel' ? 'w-full sm:w-64 md:w-72 lg:w-80 shrink-0' : 'flex-1 w-full'}`}>
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === 'local' ? "Search listings by title or SKU..." : `Search ${getChannelDisplayName(selectedChannel)} products...`}
-            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-          />
-        </div>
-
-        {/* Dropdowns & Link options */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Channel Inventory Status Filter: All / Active / Inactive / Draft */}
-          {activeTab === 'channel' && (
+          {activeTab === 'local' ? (
             <>
+              <button
+                onClick={handleOpenLocalMergeModal}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-slate-700 hover:text-indigo-600 rounded-xl text-xs font-extrabold shadow-2xs transition-all cursor-pointer"
+              >
+                <GitMerge size={13} className="text-indigo-500" />
+                <span>Smart Merge</span>
+              </button>
+              <Button
+                size="sm"
+                icon={<Plus size={14} />}
+                onClick={() => navigate('/create-listing')}
+                className="shadow-xs"
+              >
+                Create Listing
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Channel Selector Pills */}
               <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
-                {['all', 'active', 'inactive', 'draft'].map((option) => (
+                {['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].map((channel) => (
                   <button
-                    key={option}
-                    onClick={() => setChannelStatusFilter(option)}
-                    className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
-                      channelStatusFilter === option
+                    key={channel}
+                    onClick={() => {
+                      setSelectedChannel(channel);
+                      localStorage.setItem('elister_selected_listings_channel', channel);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-extrabold capitalize transition-all cursor-pointer whitespace-nowrap ${
+                      selectedChannel === channel
                         ? 'bg-white text-indigo-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {option}
+                    {getChannelDisplayName(channel)}
                   </button>
                 ))}
               </div>
-
-              {/* Channel Inventory Sort Dropdown (Date, Price, Alphabetical) */}
-              <div className="relative">
-                <select
-                  value={channelSortOption}
-                  onChange={(e) => {
-                    setChannelSortOption(e.target.value);
-                    localStorage.setItem('elister_channel_sort_option', e.target.value);
-                  }}
-                  className="px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 rounded-2xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none pr-9"
-                >
-                  <option value="newest">Date: Newest First</option>
-                  <option value="oldest">Date: Oldest First</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                  <option value="title-asc">Alphabetical (A - Z)</option>
-                  <option value="title-desc">Alphabetical (Z - A)</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown size={14} />
-                </div>
-              </div>
+              <Button
+                onClick={handleSyncInventory}
+                disabled={syncing || !isChannelConnected()}
+                size="sm"
+                icon={<RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />}
+              >
+                {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
+              </Button>
+              <button
+                onClick={handleOpenImportModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer"
+              >
+                <Download size={13} />
+                <span>Import to Master</span>
+              </button>
             </>
           )}
+        </div>
+      </div>
 
-          {/* Consolidated Filter Button */}
+      {/* TOP TABS & CONTROLS ROW (Matching Screenshot Exact Layout) */}
+      <div className="bg-white px-5 pt-3.5 pb-0 rounded-3xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        
+        {/* Status Filter Tabs on Left */}
+        <div className="flex items-center gap-6 overflow-x-auto w-full md:w-auto border-b md:border-b-0 border-slate-100">
+          {[
+            { key: 'all', label: 'All Listings', count: currentTabCounts.all },
+            { key: 'active', label: 'Active', count: currentTabCounts.active },
+            { key: 'draft', label: 'Drafts', count: currentTabCounts.draft },
+            { key: 'failed', label: 'Errors', count: currentTabCounts.failed },
+            { key: activeTab === 'local' ? 'unlisted' : 'inactive', label: activeTab === 'local' ? 'Unlisted' : 'Inactive', count: activeTab === 'local' ? currentTabCounts.unlisted : currentTabCounts.inactive }
+          ].map((tab) => {
+            const isSelected = activeTab === 'local' ? statusFilter === tab.key : channelStatusFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  if (activeTab === 'local') {
+                    setStatusFilter(tab.key);
+                  } else {
+                    setChannelStatusFilter(tab.key);
+                  }
+                }}
+                className={`pb-3.5 text-xs font-black transition-all cursor-pointer whitespace-nowrap relative border-b-2 ${
+                  isSelected
+                    ? 'text-indigo-600 border-indigo-600'
+                    : 'text-slate-500 hover:text-slate-800 border-transparent'
+                }`}
+              >
+                {tab.label} <span className={isSelected ? 'text-indigo-600' : 'text-slate-400 font-bold'}>({(tab.count ?? 0).toLocaleString()})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Controls: Sort dropdown, List/Grid switchers, Filters Button */}
+        <div className="flex items-center gap-2.5 pb-3 md:pb-3.5 w-full md:w-auto justify-end">
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <select
+              value={activeTab === 'local' ? sortOption : channelSortOption}
+              onChange={(e) => {
+                if (activeTab === 'local') {
+                  setSortOption(e.target.value);
+                } else {
+                  setChannelSortOption(e.target.value);
+                  localStorage.setItem('elister_channel_sort_option', e.target.value);
+                }
+              }}
+              className="pl-3 pr-8 py-2 bg-white border border-slate-200/90 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none cursor-pointer appearance-none shadow-2xs transition-colors"
+            >
+              <option value="newest">Last updated (newest)</option>
+              <option value="oldest">Last updated (oldest)</option>
+              <option value="price-desc">Price: High to Low</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="title-asc">Alphabetical (A - Z)</option>
+              <option value="title-desc">Alphabetical (Z - A)</option>
+              <option value="qty-desc">Quantity: High to Low</option>
+            </select>
+            <ChevronDown size={13} className="text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* List / Grid View Switcher */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+              title="Table View"
+            >
+              <List size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+              title="Grid View"
+            >
+              <LayoutGrid size={15} />
+            </button>
+          </div>
+
+          {/* Filters Modal Button */}
           {activeTab === 'local' && (
             <button
+              type="button"
               onClick={() => {
                 setTempListedOn(filterListedOn);
                 setTempNoListedOn(filterNoListedOn);
                 setTempSortOption(sortOption);
                 setFilterModalOpen(true);
               }}
-              className={`flex items-center gap-2 px-4 py-2.5 bg-white border rounded-2xl text-xs font-extrabold text-slate-700 hover:border-indigo-200 transition-all cursor-pointer ${
-                (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-200'
+              className={`flex items-center gap-1.5 px-3 py-2 bg-white border rounded-xl text-xs font-extrabold text-slate-700 hover:border-indigo-300 shadow-2xs transition-all cursor-pointer ${
+                (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest')
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/10 text-indigo-600'
+                  : 'border-slate-200/90'
               }`}
             >
-              <SlidersHorizontal size={14} className="text-slate-400" />
-              Filters
+              <SlidersHorizontal size={13} className="text-slate-400" />
+              <span>Filters</span>
               {(filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest') && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-black bg-indigo-600 text-white rounded-full leading-none">
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[10px] font-black">
                   {(filterListedOn.length > 0 ? 1 : 0) + (filterNoListedOn.length > 0 ? 1 : 0) + (sortOption !== 'newest' ? 1 : 0)}
                 </span>
               )}
             </button>
           )}
 
-          {/* Clear filter button */}
-          {((activeTab === 'local' && (searchTerm || statusFilter !== 'all' || filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'newest')) ||
-            (activeTab === 'channel' && (searchTerm || channelStatusFilter !== 'all' || channelSortOption !== 'newest'))) && (
+          {/* Clear active filters */}
+          {hasActiveLocalFilters && (
             <button
+              type="button"
               onClick={handleClearFilters}
-              className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
+              className="text-xs font-black text-indigo-600 hover:text-indigo-800 hover:underline px-1.5 transition-colors cursor-pointer"
             >
               Clear
             </button>
           )}
         </div>
-
       </div>
 
-      {/* TABLE */}
+      {/* FULL-WIDTH SEARCH BAR (Matching Screenshot) */}
+      <div className="relative w-full">
+        <Search className="absolute left-4.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search listings by title, SKU, brand or keywords..."
+          className="w-full pl-12 pr-10 py-3 bg-white border border-slate-200/90 focus:border-indigo-500 rounded-2xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-2xs"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-500 text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* LISTINGS DATA CONTAINER */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         {activeTab === 'local' ? (
           loading ? (
             <LoadingState label="Loading inventory data..." />
           ) : paginatedListings.length === 0 ? (
             <EmptyState
-              icon={<Package size={20} />}
-              title={hasActiveLocalFilters ? 'No listings match your filters' : 'No listings yet'}
+              icon={<Package size={22} />}
+              title={hasActiveLocalFilters ? 'No listings match your filters' : 'No listings in inventory'}
               description={hasActiveLocalFilters
                 ? 'Try adjusting or clearing your filters to see more results.'
-                : 'Create your first listing to start cross-listing it across marketplaces.'}
+                : 'Create your first listing or import from your connected marketplace channels.'}
               action={hasActiveLocalFilters ? (
                 <Button variant="secondary" size="sm" onClick={handleClearFilters}>
                   Clear Filters
                 </Button>
               ) : (
-                <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/create-ebay-listing')}>
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/create-listing')}>
                   Create a Listing
                 </Button>
               )}
             />
-          ) : (
-            <>
-              {/* MOBILE CARD VIEW */}
-              <div className="md:hidden divide-y divide-slate-100">
-                {paginatedListings.map((item) => (
-                  <div key={item._id} className="p-4 space-y-3">
+          ) : viewMode === 'grid' ? (
+            /* GRID VIEW */
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {paginatedListings.map((item) => (
+                <div
+                  key={item._id}
+                  className="bg-white border border-slate-200/90 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group"
+                >
+                  <div>
                     <div className="flex items-start gap-3">
-                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
                       <div 
-                        className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
+                        className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform"
                         onClick={() => handleOpenPreview(item, 'ebay')}
-                        title="Click to preview listing"
                       >
-                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
-                          {item.thumbnail || (item.images && item.images.length > 0) ? (
-                            <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <ImageOff size={16} className="text-slate-300" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                            {item.title}
-                          </p>
-                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                            <span className="font-mono text-slate-500">{getDisplaySku(item.sku)}</span>
-                            <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
-                            <span>{formatTimeAgo(item.createdAt)}</span>
-                          </div>
+                        {item.thumbnail || (item.images && item.images.length > 0) ? (
+                          <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <ImageOff size={16} className="text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p 
+                          onClick={() => handleOpenPreview(item, 'ebay')}
+                          className="font-extrabold text-slate-800 text-xs leading-snug line-clamp-2 cursor-pointer group-hover:text-indigo-600 transition-colors"
+                        >
+                          {item.title}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-bold">
+                          <span className="font-mono text-slate-500">SKU: {getDisplaySku(item.sku)}</span>
                         </div>
                       </div>
-                      <IconButton
-                        variant="danger"
-                        size="sm"
-                        aria-label="Delete Listing"
-                        onClick={() => handleDelete(item)}
-                        className="shrink-0"
-                      >
-                        <Trash2 size={14} />
-                      </IconButton>
                     </div>
 
-                    <div>
-                      <StatusBadge status={item.status} />
-                    </div>
-
-                    <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
-                      {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
-                      {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                      {/* {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')} */}
-                      {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
-                      {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
-                      {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">eBay</span>
+                        {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">Poshmark</span>
+                        {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">Mercari</span>
+                        {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">Etsy</span>
+                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">Amazon</span>
+                        {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
 
-              {/* DESKTOP TABLE VIEW */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs font-bold text-slate-400">
+                    <span>{formatTimeAgo(item.createdAt)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                      title="Delete listing"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* DESKTOP TABLE VIEW (Matching Screenshot Layout) */
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[980px]">
+                {/* Table Header */}
+                <thead className="bg-slate-50/70 border-b border-slate-100 select-none">
+                  <tr>
+                    <th className="px-4 py-3.5 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={paginatedListings.length > 0 && paginatedListings.every(l => selectedListingIds[l._id])}
+                        onChange={handleToggleSelectAllRows}
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        title="Select / Deselect all visible"
+                      />
+                    </th>
+                    <th className="px-4 py-3.5 text-xs font-black text-slate-600 min-w-[240px] max-w-[300px]">
+                      Item
+                    </th>
+                    <th className="px-2 py-3.5 text-center min-w-[142px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <img src="/ebay.png" alt="eBay" className="w-4 h-4 object-contain" />
+                        <span className="text-xs font-black text-slate-700">eBay</span>
+                      </div>
+                    </th>
+                    <th className="px-2 py-3.5 text-center min-w-[142px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <img src="/poshmark.png" alt="Poshmark" className="w-4 h-4 object-contain" />
+                        <span className="text-xs font-black text-slate-700">Poshmark</span>
+                      </div>
+                    </th>
+                    <th className="px-2 py-3.5 text-center min-w-[142px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <img src="/mercari.png" alt="Mercari" className="w-4 h-4 object-contain" />
+                        <span className="text-xs font-black text-slate-700">Mercari</span>
+                      </div>
+                    </th>
+                    <th className="px-2 py-3.5 text-center min-w-[142px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <img src="/etsy.png" alt="Etsy" className="w-4 h-4 object-contain" />
+                        <span className="text-xs font-black text-slate-700">Etsy</span>
+                      </div>
+                    </th>
+                    <th className="px-2 py-3.5 text-center min-w-[142px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <img src="/amazon.png" alt="Amazon" className="w-4 h-4 object-contain" />
+                        <span className="text-xs font-black text-slate-700">Amazon</span>
+                      </div>
+                    </th>
+                    <th className="px-4 py-3.5 text-xs font-black text-slate-600 text-center w-16">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
 
-                  {/* Headers */}
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr className="border-b border-slate-100">
-                      <th className="px-6 py-4 w-12 text-center">
-                        <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Item</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Qty</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Last Updated</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center border-l border-slate-100" colSpan="5">
-                        Cross-listed On
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                    </tr>
-                    {/* Platform subheaders matching image */}
-                    <tr className="border-b border-slate-100 text-[10px] font-extrabold text-slate-400 select-none">
-                      <th colSpan="6" />
-                      <th className="py-2.5 text-center border-l border-slate-100 w-20">eBay</th>
-                      <th className="py-2.5 text-center w-20">Poshmark</th>
-                      {/* <th className="py-2.5 text-center w-20">Depop</th> */}
-                      <th className="py-2.5 text-center w-20">Etsy</th>
-                      <th className="py-2.5 text-center w-20">Mercari</th>
-                      <th className="py-2.5 text-center w-20 border-r border-slate-100">Amazon</th>
-                      <th />
-                    </tr>
-                  </thead>
-
-                  {/* Rows */}
-                  <tbody className="divide-y divide-slate-50">
-                    {paginatedListings.map((item) => (
-                      <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
-
+                {/* Table Body Rows */}
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedListings.map((item) => {
+                    const isChecked = !!selectedListingIds[item._id];
+                    return (
+                      <tr
+                        key={item._id}
+                        className={`transition-colors ${
+                          isChecked ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'hover:bg-slate-50/60'
+                        }`}
+                      >
                         {/* Checkbox */}
-                        <td className="px-6 py-4 text-center">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                        <td className="px-4 py-3.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleRowSelect(item._id)}
+                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                          />
                         </td>
 
-                        {/* Item */}
-                        <td 
-                          className="px-6 py-4 max-w-sm cursor-pointer group select-none"
-                          onClick={() => handleOpenPreview(item, 'ebay')}
-                          title="Click to preview listing"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:ring-2 group-hover:ring-indigo-500/20 group-hover:scale-105 transition-all">
+                        {/* Item Column: Thumbnail, Title, SKU, Last Updated */}
+                        <td className="px-4 py-3 min-w-[240px] max-w-[300px]">
+                          <div 
+                            className="flex items-start gap-3 cursor-pointer group select-none"
+                            onClick={() => handleOpenPreview(item, 'ebay')}
+                            title="Click to preview listing"
+                          >
+                            <div className="w-13 h-13 rounded-xl bg-slate-50 border border-slate-200/80 overflow-hidden shadow-inner shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
                               {item.thumbnail || (item.images && item.images.length > 0) ? (
                                 <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
                               ) : (
                                 <ImageOff size={16} className="text-slate-300" />
                               )}
                             </div>
-                            <span className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-relaxed group-hover:text-indigo-600 transition-colors">
-                              {item.title}
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-extrabold text-slate-900 text-xs leading-snug line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                                {item.title}
+                              </p>
+                              
+                              {/* SKU and Last Updated metadata line */}
+                              <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-1 text-[10px] font-semibold text-slate-400">
+                                {editingSkuId === item._id ? (
+                                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="text"
+                                      value={tempSkuValue}
+                                      onChange={(e) => setTempSkuValue(e.target.value)}
+                                      placeholder="SKU"
+                                      className="text-[10px] font-mono font-bold bg-white border border-indigo-400 rounded px-1.5 py-0.5 w-20 focus:outline-none"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleQuickUpdateSku(item._id, tempSkuValue);
+                                        else if (e.key === 'Escape') setEditingSkuId(null);
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickUpdateSku(item._id, tempSkuValue)}
+                                      className="px-1.5 py-0.5 bg-indigo-600 text-white rounded text-[9px] font-bold"
+                                    >
+                                      Save
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span 
+                                    className="font-mono text-slate-500 font-bold hover:text-indigo-600 cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingSkuId(item._id);
+                                      setTempSkuValue(getDisplaySku(item.sku) === '-' ? '' : getDisplaySku(item.sku));
+                                    }}
+                                    title="Click to edit SKU"
+                                  >
+                                    SKU: {getDisplaySku(item.sku)}
+                                  </span>
+                                )}
+                                <span>•</span>
+                                <span>Last updated: {formatTimeAgo(item.createdAt)}</span>
+                              </div>
+                            </div>
                           </div>
                         </td>
 
-                        {/* SKU */}
-                        <td className="px-6 py-4">
-                          {editingSkuId === item._id ? (
-                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="text"
-                                value={tempSkuValue}
-                                onChange={(e) => setTempSkuValue(e.target.value)}
-                                placeholder="SKU"
-                                className="text-xs font-mono font-bold bg-white border border-indigo-400 rounded-lg px-2 py-1 w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleQuickUpdateSku(item._id, tempSkuValue);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingSkuId(null);
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                disabled={savingSku}
-                                onClick={() => handleQuickUpdateSku(item._id, tempSkuValue)}
-                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0"
-                              >
-                                {savingSku ? '...' : 'Save'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingSkuId(null)}
-                                className="px-1 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer shrink-0"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 group/sku">
-                              <span className="font-mono text-xs font-bold text-slate-600">{getDisplaySku(item.sku)}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingSkuId(item._id);
-                                  setTempSkuValue(getDisplaySku(item.sku) === '-' ? '' : getDisplaySku(item.sku));
-                                }}
-                                className="opacity-0 group-hover/sku:opacity-100 text-slate-400 hover:text-indigo-600 transition-opacity p-0.5 cursor-pointer"
-                                title="Edit SKU"
-                              >
-                                <Edit size={11} />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Qty */}
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-xs font-extrabold text-slate-700">{item.quantity || 1}</span>
-                        </td>
-
-                        {/* Status badge */}
-                        <td className="px-6 py-4">
-                          <StatusBadge status={item.status} />
-                        </td>
-
-                        {/* Last Updated */}
-                        <td className="px-6 py-4">
-                          <span className="text-xs font-semibold text-slate-400">
-                            {formatTimeAgo(item.createdAt)}
-                          </span>
-                        </td>
-
-                        {/* Crosslisting cell components: eBay, Poshmark, Depop, Etsy, Mercari, Amazon */}
-                        <td className="border-l border-slate-100">
+                        {/* Marketplace Columns */}
+                        <td className="px-2 py-3 text-center">
                           {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                         </td>
-                        <td>
+                        <td className="px-2 py-3 text-center">
                           {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                         </td>
-                        {/* <td>
-                          {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')}
-                        </td> */}
-                        <td>
-                          {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
-                        </td>
-                        <td>
+                        <td className="px-2 py-3 text-center">
                           {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                         </td>
-                        <td className="border-r border-slate-100">
+                        <td className="px-2 py-3 text-center">
+                          {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                        </td>
+                        <td className="px-2 py-3 text-center">
                           {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                         </td>
 
-                        {/* Actions */}
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center items-center gap-2">
-                            <IconButton
-                              variant="danger"
-                              size="sm"
-                              aria-label="Delete Listing"
-                              onClick={() => handleDelete(item)}
+                        {/* Actions Column: Row 3-Dot Button */}
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex justify-center items-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeRowDropdown?.itemId === item._id) {
+                                  setActiveRowDropdown(null);
+                                  return;
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const openUpward = rect.bottom > window.innerHeight * 0.6;
+                                const menuWidth = 180;
+                                const left = Math.min(
+                                  Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                                  window.innerWidth - menuWidth - 8
+                                );
+                                setActiveRowDropdown({
+                                  itemId: item._id,
+                                  openUpward,
+                                  left,
+                                  verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                                });
+                              }}
+                              className="w-8 h-8 rounded-full border border-slate-200/90 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                              title="Item Actions"
                             >
-                              <Trash2 size={15} />
-                            </IconButton>
+                              <MoreVertical size={14} />
+                            </button>
                           </div>
                         </td>
-
                       </tr>
-                    ))}
-                  </tbody>
-
-                </table>
-              </div>
-            </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )
         ) : !isChannelConnected() ? (
           <EmptyState
-            icon={<AlertCircle size={20} className="text-amber-500" />}
-            title={<span className="capitalize">{selectedChannel} Channel Not Connected</span>}
-            description={`Connect your ${selectedChannel} account in Integrations settings to view and synchronize your live inventory.`}
+            icon={<AlertCircle size={22} className="text-amber-500" />}
+            title={<span className="capitalize">{getChannelDisplayName(selectedChannel)} Channel Not Connected</span>}
+            description={`Connect your ${getChannelDisplayName(selectedChannel)} account in Integrations settings to view and synchronize your live inventory.`}
             action={
               <Button size="sm" onClick={() => navigate('/integrations')}>
                 Connect {getChannelDisplayName(selectedChannel)}
@@ -3382,12 +3476,12 @@ const NewListings = () => {
             }
           />
         ) : channelLoading ? (
-          <LoadingState label={`Loading ${selectedChannel} inventory...`} />
+          <LoadingState label={`Loading ${getChannelDisplayName(selectedChannel)} inventory...`} />
         ) : paginatedChannelProducts.length === 0 ? (
           <EmptyState
-            icon={<ShoppingBag size={20} />}
-            title="No products found"
-            description={`No products found matching the current filters. Click "Sync ${getChannelDisplayName(selectedChannel)}" to fetch your items.`}
+            icon={<ShoppingBag size={22} />}
+            title="No live products found"
+            description={`No products found matching the current filters. Click "Sync ${getChannelDisplayName(selectedChannel)}" to fetch active items.`}
             action={
               <Button size="sm" icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />} onClick={handleSyncInventory} disabled={syncing}>
                 Sync {getChannelDisplayName(selectedChannel)}
@@ -3395,259 +3489,231 @@ const NewListings = () => {
             }
           />
         ) : (
-          <>
-            {/* MOBILE CARD VIEW */}
-            <div className="md:hidden divide-y divide-slate-100">
-              {paginatedChannelProducts.map((product, index) => {
-                const details = getProductDetails(product);
-                const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
-                const channelIcon = selectedChannel === 'ebay' 
-                  ? '/ebay.png' 
-                  : selectedChannel === 'etsy' 
-                    ? '/etsy.png' 
-                    : selectedChannel === 'poshmark' 
-                      ? '/poshmark.png' 
-                      : selectedChannel === 'depop' 
-                        ? '/depop.png' 
-                        : '/mercari.png';
-                const badgeStatus = isMarketplaceStatus
-                  ? details.status
-                  : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
-                return (
-                  <div key={product._id || `${details.liveId}-${index}`} className="p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
-                      <div 
-                        className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
-                        onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
-                        title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
+          /* CHANNEL INVENTORY TABLE */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[900px]">
+              <thead className="bg-slate-50/70 border-b border-slate-100 select-none">
+                <tr>
+                  <th className="px-4 py-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={paginatedChannelProducts.length > 0 && paginatedChannelProducts.every(p => selectedListingIds[p._id || p.id])}
+                      onChange={handleToggleSelectAllRows}
+                      className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600 min-w-[260px]">Product</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600">Status</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600">Live ID</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600">SKU</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600">Price</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600">Date</th>
+                  <th className="px-4 py-3.5 text-xs font-black text-slate-600 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedChannelProducts.map((product, index) => {
+                  const details = getProductDetails(product);
+                  const channelIcon = selectedChannel === 'ebay' ? '/ebay.png' : selectedChannel === 'poshmark' ? '/poshmark.png' : selectedChannel === 'mercari' ? '/mercari.png' : selectedChannel === 'etsy' ? '/etsy.png' : '/amazon.png';
+                  const badgeStatus = details.status === 'active' || details.status === 'live' || details.status === 'published' ? 'Active' : (details.status === 'draft' ? 'Draft' : 'Failed');
+                  const dropdownItem = buildChannelDropdownItem(product, details, selectedChannel);
+                  const isChecked = !!selectedListingIds[product._id || product.id];
+
+                  return (
+                    <tr key={product._id || `${details.liveId}-${index}`} className={`transition-colors ${isChecked ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'hover:bg-slate-50/60'}`}>
+                      <td className="px-4 py-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleRowSelect(product._id || product.id)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+                      <td 
+                        className="px-4 py-3.5 max-w-sm cursor-pointer group"
+                        onClick={() => handleOpenPreview(dropdownItem, selectedChannel)}
                       >
-                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
-                          {details.thumbnail ? (
-                            <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <ImageOff size={16} className="text-slate-300" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                            {details.title}
-                          </p>
-                          {details.brand && (
-                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{details.brand}</p>
-                          )}
-                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
-                            <span className="font-mono text-slate-500">{details.sku || '-'}</span>
-                            <span className="text-slate-700 font-extrabold">${details.price.toFixed(2)}</span>
-                            <span>{details.dateText}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                      <StatusBadge status={badgeStatus} />
-                      {renderCrosslistingCell(
-                        buildChannelDropdownItem(product, details, selectedChannel),
-                        selectedChannel,
-                        details.liveId,
-                        channelIcon
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* DESKTOP TABLE VIEW */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-
-                {/* Headers */}
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr className="border-b border-slate-100">
-                    <th className="px-6 py-4 w-12 text-center">
-                      <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
-                    </th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Live ID</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-
-                {/* Rows */}
-                <tbody className="divide-y divide-slate-50">
-                  {paginatedChannelProducts.map((product, index) => {
-                    const details = getProductDetails(product);
-                    const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
-                    const channelIcon = selectedChannel === 'ebay' 
-                      ? '/ebay.png' 
-                      : selectedChannel === 'etsy' 
-                        ? '/etsy.png' 
-                        : selectedChannel === 'poshmark' 
-                          ? '/poshmark.png' 
-                          : selectedChannel === 'depop' 
-                            ? '/depop.png' 
-                            : '/mercari.png';
-                    const badgeStatus = isMarketplaceStatus
-                      ? details.status
-                      : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
-                    return (
-                      <tr key={product._id || `${details.liveId}-${index}`} className="hover:bg-slate-50/60 transition-colors">
-
-                        {/* Checkbox */}
-                        <td className="px-6 py-4 text-center">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
-                        </td>
-
-                        {/* Product info */}
-                        <td 
-                          className="px-6 py-4 max-w-sm cursor-pointer group select-none"
-                          onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
-                          title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:ring-2 group-hover:ring-indigo-500/20 group-hover:scale-105 transition-all">
-                              {details.thumbnail ? (
-                                <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
-                              ) : (
-                                <ImageOff size={16} className="text-slate-300" />
-                              )}
-                            </div>
-                            <div>
-                              <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed group-hover:text-indigo-600 transition-colors">
-                                {details.title}
-                              </span>
-                              {details.brand && (
-                                <span className="text-[10px] text-slate-400 block font-semibold mt-0.5">{details.brand}</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-6 py-4">
-                          <StatusBadge status={badgeStatus} />
-                        </td>
-
-                        {/* Live ID */}
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-xs font-bold text-slate-500">{details.liveId}</span>
-                        </td>
-
-                        {/* SKU */}
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-xs font-bold text-slate-500">{details.sku || '-'}</span>
-                        </td>
-
-                        {/* Price */}
-                        <td className="px-6 py-4 font-bold text-slate-900 text-sm">
-                          ${details.price.toFixed(2)}
-                        </td>
-
-                        {/* Date */}
-                        <td className="px-6 py-4 text-xs font-semibold text-slate-400">
-                          {details.dateText}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center">
-                            {renderCrosslistingCell(
-                              buildChannelDropdownItem(product, details, selectedChannel),
-                              selectedChannel,
-                              details.liveId,
-                              channelIcon
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
+                            {details.thumbnail ? (
+                              <img src={details.thumbnail} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <ImageOff size={16} className="text-slate-300" />
                             )}
                           </div>
-                        </td>
-
-                      </tr>
-                    );
-                  })}
-                </tbody>
-
-              </table>
-            </div>
-          </>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-extrabold text-slate-800 text-xs line-clamp-1 group-hover:text-indigo-600 transition-colors block">
+                              {details.title}
+                            </span>
+                            {details.brand && (
+                              <span className="text-[10px] text-slate-400 block font-semibold mt-0.5">{details.brand}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={badgeStatus} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="font-mono text-xs font-bold text-slate-500">{details.liveId}</span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="font-mono text-xs font-bold text-slate-500">{details.sku || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3.5 font-bold text-slate-900 text-xs">
+                        ${details.price.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-semibold text-slate-400">
+                        {details.dateText}
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <div className="flex justify-center">
+                          {renderCrosslistingCell(
+                            dropdownItem,
+                            selectedChannel,
+                            details.liveId,
+                            channelIcon
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        {/* Bottom Pagination */}
-        <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs font-extrabold text-slate-400 select-none order-2 sm:order-1">
-            Showing {displayedTotalCount === 0 ? 0 : displayedStartIndex + 1} to {displayedEndIndex} of {displayedTotalCount.toLocaleString()} {activeTab === 'local' ? 'listings' : 'live products'}
-          </p>
+        {/* BOTTOM PAGINATION BAR (Matching Screenshot) */}
+        <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white">
+          <div className="text-xs font-bold text-slate-400 select-none">
+            Showing <span className="font-extrabold text-slate-700">{displayedTotalCount === 0 ? 0 : displayedStartIndex + 1}</span> – <span className="font-extrabold text-slate-700">{displayedEndIndex}</span> of <span className="font-extrabold text-slate-700">{displayedTotalCount.toLocaleString()}</span> listings
+          </div>
 
-          <div className="flex items-center gap-4 sm:gap-6 order-1 sm:order-2">
-            <div className="flex items-center gap-1">
-              <IconButton
-                aria-label="Previous page"
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
                 disabled={displayedActivePage === 1}
-                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
               >
-                <ChevronLeft size={16} />
-              </IconButton>
+                <ChevronLeft size={13} />
+                <span>Previous</span>
+              </button>
 
-              {getPageNumbers(displayedActivePage, displayedTotalPages).map((page, index) => {
-                if (page === '...') {
+              {/* Numbered Page Buttons */}
+              <div className="flex items-center gap-1">
+                {getPageNumbers(displayedActivePage, displayedTotalPages).map((p, idx) => {
+                  if (p === '...') {
+                    return <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-slate-400 font-bold select-none">...</span>;
+                  }
+                  const isCurrent = p === displayedActivePage;
                   return (
-                    <span key={`dots-${index}`} className="px-1 text-slate-400 text-xs font-extrabold select-none">
-                      ...
-                    </span>
+                    <button
+                      key={`page-${p}`}
+                      type="button"
+                      onClick={() => setCurrentPage(p)}
+                      className={`w-7 h-7 rounded-full text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                        isCurrent
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p}
+                    </button>
                   );
-                }
-                const isCurrent = page === displayedActivePage;
-                return (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
-                      isCurrent
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                        : 'text-slate-500 hover:bg-slate-100 font-bold'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
+                })}
+              </div>
 
-              <IconButton
-                aria-label="Next page"
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, displayedTotalPages))}
-                disabled={displayedActivePage === displayedTotalPages}
-                size="sm"
+              <button
+                type="button"
+                disabled={displayedActivePage === displayedTotalPages || displayedTotalPages === 0}
+                onClick={() => setCurrentPage(prev => Math.min(displayedTotalPages, prev + 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
               >
-                <ChevronRight size={16} />
-              </IconButton>
+                <span>Next</span>
+                <ChevronRight size={13} />
+              </button>
             </div>
 
-            {/* page count indicator */}
-            <div className="relative flex items-center">
+            {/* Per Page Selector */}
+            <div className="relative">
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-border hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                className="appearance-none pr-7 pl-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
               >
-                <option value={5}>5 / page</option>
                 <option value={10}>10 / page</option>
                 <option value={20}>20 / page</option>
                 <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
               </select>
-              <ChevronDown size={14} className="text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown size={13} className="text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </div>
-
       </div>
+
+      {/* Row Actions Portal Dropdown */}
+      {activeRowDropdown && createPortal(
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: activeRowDropdown.left,
+            [activeRowDropdown.openUpward ? 'bottom' : 'top']: activeRowDropdown.verticalOffset,
+            width: 195,
+          }}
+          className="z-[999] bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 animate-in fade-in zoom-in-95 duration-150 text-left"
+        >
+          {(() => {
+            const currentItem = groupedListingsList.find(l => l._id === activeRowDropdown.itemId) || listings.find(l => l._id === activeRowDropdown.itemId);
+            if (!currentItem) return null;
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveRowDropdown(null);
+                    handleOpenPreview(currentItem, 'ebay');
+                  }}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left"
+                >
+                  <Eye size={13} className="text-indigo-500 shrink-0" />
+                  View Full Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveRowDropdown(null);
+                    handleOpenCrosslisting(currentItem, 'ebay');
+                  }}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <GitMerge size={13} className="text-indigo-500 shrink-0" />
+                  Cross-list Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveRowDropdown(null);
+                    handleDelete(currentItem);
+                  }}
+                  className="w-full px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+                >
+                  <Trash2 size={13} className="text-rose-500 shrink-0" />
+                  Delete Listing
+                </button>
+              </>
+            );
+          })()}
+        </div>,
+        document.body
+      )}
 
       {/* Filter Inventory Modal */}
       {filterModalOpen && (
