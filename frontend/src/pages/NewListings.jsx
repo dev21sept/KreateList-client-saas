@@ -540,6 +540,22 @@ const NewListings = () => {
     setSortOption(prev => pairs[prev] || 'crosslisted-desc');
   };
 
+  const handleToggleChannelSortDirection = () => {
+    const pairs = {
+      'newest': 'oldest',
+      'oldest': 'newest',
+      'price-desc': 'price-asc',
+      'price-asc': 'price-desc',
+      'title-asc': 'title-desc',
+      'title-desc': 'title-asc',
+    };
+    setChannelSortOption(prev => {
+      const next = pairs[prev] || 'newest';
+      localStorage.setItem('elister_channel_sort_option', next);
+      return next;
+    });
+  };
+
   const getCrosslistedPlatformCount = (item) => {
     if (!item) return 0;
     let count = 0;
@@ -605,6 +621,12 @@ const NewListings = () => {
     (filterListedOn && filterListedOn.length > 0) ||
     (filterNoListedOn && filterNoListedOn.length > 0) ||
     sortOption !== 'crosslisted-desc'
+  );
+
+  const hasActiveChannelFilters = Boolean(
+    searchTerm ||
+    channelStatusFilter !== 'all' ||
+    channelSortOption !== 'newest'
   );
 
   // Helpers to toggle platforms inside modal
@@ -1462,9 +1484,19 @@ const NewListings = () => {
     const sku = getDisplaySku(product.sku);
     const thumbnail = product.thumbnail || (product.images && product.images[0]) || '';
 
-    const status = (isEbay || isEtsy || isPoshmark || isDepop || isMercari || isAmazon) 
-      ? ((product.status === 'active' || product.status === 'live') ? 'active' : product.status === 'draft' ? 'draft' : 'inactive') 
-      : 'live';
+    const rawStatus = (product.status || '').toLowerCase();
+    let status = 'active';
+    if (rawStatus === 'active' || rawStatus === 'live' || rawStatus === 'published') {
+      status = 'active';
+    } else if (rawStatus === 'draft') {
+      status = 'draft';
+    } else if (rawStatus === 'delisted' || rawStatus === 'ended' || rawStatus === 'inactive' || rawStatus === 'cancelled' || rawStatus === 'closed' || rawStatus === 'sold' || rawStatus === 'completed') {
+      status = 'delisted';
+    } else if (rawStatus === 'failed' || rawStatus === 'error' || rawStatus === 'action_required') {
+      status = 'error';
+    } else {
+      status = 'active';
+    }
 
     // Price
     const price = product.selling_price !== undefined ? product.selling_price : product.price;
@@ -1575,6 +1607,27 @@ const NewListings = () => {
 
     return { all, active, sold, delisted, draft, error, favorite };
   }, [groupedListingsList, favoriteIds]);
+
+  // Tab counts for All Platform Inventory status tabs (All, Active, Delisted, Drafts, Errors - NO Sold, NO Favorites)
+  const channelTabCounts = React.useMemo(() => {
+    let all = channelProducts.length;
+    let active = 0;
+    let delisted = 0;
+    let draft = 0;
+    let error = 0;
+
+    channelProducts.forEach((p) => {
+      const details = getProductDetails(p);
+      const st = details.status;
+      if (st === 'active') active++;
+      else if (st === 'delisted') delisted++;
+      else if (st === 'draft') draft++;
+      else if (st === 'error') error++;
+      else active++;
+    });
+
+    return { all, active, delisted, draft, error };
+  }, [channelProducts, selectedChannel]);
 
   // Filter listings
   const filteredListings = groupedListingsList.filter((item) => {
@@ -1699,7 +1752,7 @@ const NewListings = () => {
 
       let matchesStatus = true;
       if (channelStatusFilter !== 'all') {
-        const normalizedStatus = details.status; // 'active' | 'inactive' | 'draft'
+        const normalizedStatus = details.status; // 'active' | 'delisted' | 'draft' | 'error'
         matchesStatus = normalizedStatus === channelStatusFilter;
       }
 
@@ -2882,8 +2935,8 @@ const NewListings = () => {
     setFilterNoListedOn([]);
     setTempListedOn([]);
     setTempNoListedOn([]);
-    setSortOption('newest');
-    setTempSortOption('newest');
+    setSortOption('crosslisted-desc');
+    setTempSortOption('crosslisted-desc');
   };
 
   const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
@@ -3492,237 +3545,98 @@ const NewListings = () => {
     return base;
   };
 
-  // Channel-specific stat metrics
-  const channelStats = React.useMemo(() => {
-    let total = channelProducts.length;
-    let active = 0;
-    let draft = 0;
-    let inactive = 0;
-    let errors = 0;
-
-    channelProducts.forEach(p => {
-      const details = getProductDetails(p);
-      const st = (details.status || p.status || '').toLowerCase();
-      if (st === 'active' || st === 'live' || st === 'published') active++;
-      else if (st === 'draft') draft++;
-      else if (st === 'failed' || st === 'error') errors++;
-      else inactive++;
-    });
-
-    return { total, active, draft, inactive, errors };
-  }, [channelProducts]);
-
-  const statCards = activeTab === 'local' ? [
-    {
-      key: 'all',
-      label: 'Total Listings',
-      value: stats?.total ?? 0,
-      icon: <Boxes size={20} />,
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
-    },
-    {
-      key: 'active',
-      label: 'Active',
-      value: stats?.published ?? 0,
-      icon: <CheckCircle2 size={20} />,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
-    },
-    {
-      key: 'draft',
-      label: 'Drafts',
-      value: stats?.draft ?? 0,
-      icon: <FileText size={20} />,
-      color: 'bg-amber-50 text-amber-600 border-amber-100',
-      ring: 'border-amber-500 ring-2 ring-amber-500/15',
-    },
-    {
-      key: 'failed',
-      label: 'Errors',
-      value: stats?.failed ?? 0,
-      icon: <AlertCircle size={20} />,
-      color: 'bg-rose-50 text-rose-600 border-rose-100',
-      ring: 'border-rose-500 ring-2 ring-rose-500/15',
-    },
-    {
-      key: 'unlisted',
-      label: 'Unlisted',
-      value: stats?.unlisted ?? 0,
-      icon: <EyeOff size={20} />,
-      color: 'bg-slate-100 text-slate-500 border-slate-200',
-      ring: 'border-slate-400 ring-2 ring-slate-400/15',
-    },
-  ] : [
-    {
-      key: 'all',
-      label: `${getChannelDisplayName(selectedChannel)} Total`,
-      value: channelStats.total,
-      icon: <Boxes size={20} />,
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-      ring: 'border-indigo-500 ring-2 ring-indigo-500/15',
-    },
-    {
-      key: 'active',
-      label: 'Active',
-      value: channelStats.active,
-      icon: <CheckCircle2 size={20} />,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      ring: 'border-emerald-500 ring-2 ring-emerald-500/15',
-    },
-    {
-      key: 'draft',
-      label: 'Drafts',
-      value: channelStats.draft,
-      icon: <FileText size={20} />,
-      color: 'bg-amber-50 text-amber-600 border-amber-100',
-      ring: 'border-amber-500 ring-2 ring-amber-500/15',
-    },
-    {
-      key: 'failed',
-      label: 'Errors',
-      value: channelStats.errors,
-      icon: <AlertCircle size={20} />,
-      color: 'bg-rose-50 text-rose-600 border-rose-100',
-      ring: 'border-rose-500 ring-2 ring-rose-500/15',
-    },
-    {
-      key: 'inactive',
-      label: 'Inactive / Ended',
-      value: channelStats.inactive,
-      icon: <EyeOff size={20} />,
-      color: 'bg-slate-100 text-slate-500 border-slate-200',
-      ring: 'border-slate-400 ring-2 ring-slate-400/15',
-    },
-  ];
-
   return (
     <div className="space-y-6">
 
-      {/* CHANNEL STATS BANNER (only when on channel tab) */}
-      {activeTab === 'channel' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-          {statCards.map((card, idx) => (
-            <motion.div
-              key={card.key}
-              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: reducedMotion ? 0 : idx * 0.05 }}
-              onClick={() => setChannelStatusFilter(card.key)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { 
-                if (e.key === 'Enter') setChannelStatusFilter(card.key);
-              }}
-              className={`p-5 rounded-3xl border flex flex-col justify-between h-32 cursor-pointer transition-all select-none ${
-                channelStatusFilter === card.key
-                  ? `${card.ring} bg-white shadow-md`
-                  : 'border-slate-100 bg-white shadow-sm hover:shadow-card-hover hover:border-slate-200'
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <div className={`p-3 rounded-2xl border shrink-0 ${card.color}`}>
-                  {card.icon}
-                </div>
-              </div>
-              <div>
-                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{card.label}</h3>
-                <p className="text-2xl font-black text-slate-900 mt-0.5">{(card.value ?? 0).toLocaleString()}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* TABS SWITCHER & SYNC BAR */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
-        {/* Tabs Mode */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
+      {/* TABS SWITCHER & TOP ACTIONS BAR */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+        {/* Left Side: Tabs Switcher */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full lg:w-auto">
           <button
             onClick={() => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
             }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 lg:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'local'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Local Database
+            Master Cross-Listing
           </button>
           <button
             onClick={() => {
               setActiveTab('channel');
               localStorage.setItem('elister_active_listings_tab', 'channel');
             }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 lg:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'channel'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Channel Inventory
+            All Platform Inventory
           </button>
         </div>
 
-        {/* Local Database Actions */}
-        {activeTab === 'local' && (
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={handleOpenLocalMergeModal}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
-            >
-              <GitMerge size={14} />
-              <span>Smart Merge</span>
-            </button>
-          </div>
-        )}
+        {/* Right Side: Channel Switcher (if channel tab) + Universal Actions (Smart Merge & Import) */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+          {activeTab === 'channel' && (
+            <>
+              {/* Channel Switcher Pills */}
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
+                {['ebay', 'etsy', 'poshmark', 'mercari', 'amazon'].map((ch) => (
+                  <button
+                    key={ch}
+                    onClick={() => {
+                      setSelectedChannel(ch);
+                      localStorage.setItem('elister_selected_listings_channel', ch);
+                    }}
+                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                      selectedChannel === ch
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {getChannelDisplayName(ch)}
+                  </button>
+                ))}
+              </div>
 
-        {/* Channel Selection & Sync Actions */}
-        {activeTab === 'channel' && (
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            {/* Channel Toggle Buttons */}
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
-              {['ebay', 'etsy', 'poshmark', 'mercari', 'amazon'].map((ch) => (
-                <button
-                  key={ch}
-                  onClick={() => {
-                    setSelectedChannel(ch);
-                    localStorage.setItem('elister_selected_listings_channel', ch);
-                  }}
-                  className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                    selectedChannel === ch
-                      ? 'bg-white text-indigo-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {getChannelDisplayName(ch)}
-                </button>
-              ))}
-            </div>
+              {/* Sync Button */}
+              <Button
+                onClick={handleSyncInventory}
+                disabled={syncing || !isChannelConnected()}
+                size="sm"
+                icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />}
+                className="w-full sm:w-auto"
+              >
+                {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
+              </Button>
+            </>
+          )}
 
-            {/* Sync Button */}
-            <Button
-              onClick={handleSyncInventory}
-              disabled={syncing || !isChannelConnected()}
-              size="sm"
-              icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />}
-              className="w-full sm:w-auto"
-            >
-              {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
-            </Button>
+          {/* Smart Merge Button (Universal: Available in both tabs) */}
+          <button
+            onClick={handleOpenLocalMergeModal}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            title="Scan and merge duplicated or cross-channel listings"
+          >
+            <GitMerge size={14} className="text-indigo-600" />
+            <span>Smart Merge</span>
+          </button>
 
-            {/* Import to Local Button */}
-            <button
-              onClick={handleOpenImportModal}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
-            >
-              <Download size={14} />
-              <span>Import to Local</span>
-            </button>
-          </div>
-        )}
+          {/* Import to Local Button (Universal: Available in both tabs) */}
+          <button
+            onClick={handleOpenImportModal}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            title="Import live items from connected channels into database"
+          >
+            <Download size={14} />
+            <span>Import to Local</span>
+          </button>
+        </div>
       </div>
 
       {/* LOCAL DATABASE CONTROLS: 7 STATUS TABS + SORT/INVERT/FILTER + FULL-WIDTH SEARCH */}
@@ -3868,66 +3782,122 @@ const NewListings = () => {
 
         </div>
       ) : (
-        /* CHANNEL INVENTORY FILTER & SEARCH ROW */
-        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-64 md:w-72 lg:w-80 shrink-0">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
+        /* ALL PLATFORM INVENTORY CONTROLS: 5 STATUS TABS + SORT + FULL-WIDTH SEARCH */
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+          
+          {/* Top Row: Horizontal Status Tabs on Left, Sort dropdown on Right */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+            {/* Status Tabs Navigation (NO Sold, NO Favorites) */}
+            <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
+              {[
+                { key: 'all', label: 'All Products', count: channelTabCounts.all },
+                { key: 'active', label: 'Active', count: channelTabCounts.active },
+                { key: 'delisted', label: 'Delisted', count: channelTabCounts.delisted },
+                { key: 'draft', label: 'Drafts', count: channelTabCounts.draft },
+                { key: 'error', label: 'Errors', count: channelTabCounts.error },
+              ].map((tab) => {
+                const isActive = channelStatusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setChannelStatusFilter(tab.key)}
+                    className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
+                      isActive
+                        ? 'text-indigo-600 font-extrabold'
+                        : 'text-slate-500 hover:text-slate-800 font-bold'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
+                        isActive
+                          ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/70'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {tab.count.toLocaleString()}
+                    </span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeChannelListingTabIndicator"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Controls: Sort dropdown, Invert Sort Direction, Clear */}
+            <div className="flex items-center flex-wrap gap-2.5 shrink-0 self-end xl:self-auto">
+              {/* Sort Dropdown */}
+              <div className="relative">
+                <select
+                  value={channelSortOption}
+                  onChange={(e) => {
+                    setChannelSortOption(e.target.value);
+                    localStorage.setItem('elister_channel_sort_option', e.target.value);
+                  }}
+                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  title="Sort Channel Inventory"
+                >
+                  <option value="newest">Last Updated (Newest)</option>
+                  <option value="oldest">Last Updated (Oldest)</option>
+                  <option value="price-desc">Price (High - Low)</option>
+                  <option value="price-asc">Price (Low - High)</option>
+                  <option value="title-asc">Title (A - Z)</option>
+                  <option value="title-desc">Title (Z - A)</option>
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+
+              {/* Sort Invert Toggle Button */}
+              <button
+                type="button"
+                onClick={handleToggleChannelSortDirection}
+                title="Invert / Toggle Sort Order"
+                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95"
+              >
+                <ArrowUpDown size={14} />
+              </button>
+
+              {/* Clear filters button */}
+              {hasActiveChannelFilters && (
+                <button
+                  onClick={handleClearFilters}
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Full-width Search Bar */}
+          <div className="relative w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Search ${getChannelDisplayName(selectedChannel)} products...`}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+              placeholder={`Search ${getChannelDisplayName(selectedChannel)} products by title, SKU, or ID...`}
+              className="w-full pl-11 pr-10 py-2.5 bg-slate-50/80 border border-slate-150 focus:bg-white rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400 shadow-2xs"
             />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
-              {['all', 'active', 'inactive', 'draft'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => setChannelStatusFilter(option)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black capitalize transition-all cursor-pointer whitespace-nowrap ${
-                    channelStatusFilter === option
-                      ? 'bg-white text-indigo-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative">
-              <select
-                value={channelSortOption}
-                onChange={(e) => {
-                  setChannelSortOption(e.target.value);
-                  localStorage.setItem('elister_channel_sort_option', e.target.value);
-                }}
-                className="px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 rounded-2xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none pr-9"
-              >
-                <option value="newest">Date: Newest First</option>
-                <option value="oldest">Date: Oldest First</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-                <option value="title-asc">Alphabetical (A - Z)</option>
-                <option value="title-desc">Alphabetical (Z - A)</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <ChevronDown size={14} />
-              </div>
-            </div>
-
-            {(searchTerm || channelStatusFilter !== 'all' || channelSortOption !== 'newest') && (
+            {searchTerm && (
               <button
-                onClick={handleClearFilters}
-                className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-2 transition-all cursor-pointer"
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
               >
-                Clear
+                <X size={14} />
               </button>
             )}
           </div>
+
         </div>
       )}
 
@@ -4348,13 +4318,19 @@ const NewListings = () => {
         ) : paginatedChannelProducts.length === 0 ? (
           <EmptyState
             icon={<ShoppingBag size={20} />}
-            title="No products found"
-            description={`No products found matching the current filters. Click "Sync ${getChannelDisplayName(selectedChannel)}" to fetch your items.`}
-            action={
+            title={hasActiveChannelFilters ? 'No products match your filters' : `No ${getChannelDisplayName(selectedChannel)} products found`}
+            description={hasActiveChannelFilters
+              ? 'Try adjusting or clearing your filters to see more results.'
+              : `No products found. Click "Sync ${getChannelDisplayName(selectedChannel)}" to fetch your live items.`}
+            action={hasActiveChannelFilters ? (
+              <Button variant="secondary" size="sm" onClick={handleClearFilters}>
+                Clear Filters
+              </Button>
+            ) : (
               <Button size="sm" icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />} onClick={handleSyncInventory} disabled={syncing}>
                 Sync {getChannelDisplayName(selectedChannel)}
               </Button>
-            }
+            )}
           />
         ) : (
           <>
