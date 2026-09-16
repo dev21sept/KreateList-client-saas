@@ -3373,22 +3373,10 @@ const NewListings = () => {
     }
 
     // ==============================================
-    // 2. CHANNEL INVENTORY TAB: COMPACT ACTION BUTTON
+    // 2. CHANNEL INVENTORY TAB: CIRCLE LOGO + STATUS DROPDOWN
     // ==============================================
     return (
-      <div className="relative flex items-center justify-center gap-1.5 py-1 select-none">
-        {liveUrl && liveUrl !== '#' && (
-          <a
-            href={liveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="w-7 h-7 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
-            title={`Open on ${getChannelDisplayName(platformName)}`}
-          >
-            <ExternalLink size={13} />
-          </a>
-        )}
+      <div className="relative flex flex-col items-center justify-center py-1 select-none">
         <button
           type="button"
           onClick={(e) => {
@@ -3412,10 +3400,44 @@ const NewListings = () => {
               verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
             });
           }}
-          className="w-7 h-7 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
-          title="Marketplace options"
+          className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none"
+          title={`${getChannelDisplayName(platformName)} options`}
         >
-          <MoreVertical size={13} />
+          {/* Circular Platform Logo */}
+          <div className="relative w-8 h-8 rounded-full border border-slate-200 bg-white group-hover:border-indigo-300 flex items-center justify-center shadow-xs shrink-0 transition-all">
+            <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
+            {isListed && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white"></span>
+              </span>
+            )}
+          </div>
+
+          {/* Real Status Text below circle logo */}
+          <div className="mt-1 flex items-center gap-0.5">
+            {isSold ? (
+              <span className="text-[10px] font-black text-purple-600 flex items-center gap-0.5">
+                Sold <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </span>
+            ) : isListed ? (
+              <span className="text-[10px] font-black text-emerald-600 flex items-center gap-0.5">
+                Listed <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </span>
+            ) : isDraft ? (
+              <span className="text-[10px] font-black text-slate-500 flex items-center gap-0.5">
+                Draft <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </span>
+            ) : isDelisted ? (
+              <span className="text-[10px] font-black text-amber-600 flex items-center gap-0.5">
+                Delisted <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </span>
+            ) : (
+              <span className="text-[10px] font-black text-slate-500 flex items-center gap-0.5">
+                Inactive <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </span>
+            )}
+          </div>
         </button>
 
         {renderPortalDropdown()}
