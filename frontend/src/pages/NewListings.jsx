@@ -1778,7 +1778,16 @@ const NewListings = () => {
     setSelectedListingIds([]);
   }, [currentPage]);
 
-  const isAllSelected = paginatedListings.length > 0 && paginatedListings.every(item => selectedListingIds.includes(item._id));
+  const getChannelItemKey = (product, index) => {
+    const details = getProductDetails(product);
+    return product._id || product.id || details.liveId || `${selectedChannel}-${details.sku || index}`;
+  };
+
+  const currentDisplayedPageIds = activeTab === 'local'
+    ? paginatedListings.map(item => item._id)
+    : paginatedChannelProducts.map((p, i) => getChannelItemKey(p, i));
+
+  const isAllSelected = currentDisplayedPageIds.length > 0 && currentDisplayedPageIds.every(id => selectedListingIds.includes(id));
 
   const handleToggleSelectItem = (itemId, e) => {
     if (e) {
@@ -1793,11 +1802,10 @@ const NewListings = () => {
     if (e) {
       e.stopPropagation();
     }
-    const currentPageIds = paginatedListings.map(item => item._id);
     if (isAllSelected) {
-      setSelectedListingIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+      setSelectedListingIds(prev => prev.filter(id => !currentDisplayedPageIds.includes(id)));
     } else {
-      setSelectedListingIds(prev => Array.from(new Set([...prev, ...currentPageIds])));
+      setSelectedListingIds(prev => Array.from(new Set([...prev, ...currentDisplayedPageIds])));
     }
   };
 
@@ -1805,6 +1813,42 @@ const NewListings = () => {
     if (selectedListingIds.length === 0) return;
 
     const count = selectedListingIds.length;
+
+    if (activeTab === 'channel') {
+      const confirmDelete = await confirm(
+        `Are you sure you want to delete/end all ${count} selected item${count > 1 ? 's' : ''} from ${getChannelDisplayName(selectedChannel)}?`,
+        {
+          title: `Delete ${count} Selected Item${count > 1 ? 's' : ''} from ${getChannelDisplayName(selectedChannel)}`,
+          destructive: true
+        }
+      );
+      if (!confirmDelete) return;
+
+      setBulkDeleting(true);
+      toast.info(`Deleting selected items from ${getChannelDisplayName(selectedChannel)}...`);
+      try {
+        const promises = paginatedChannelProducts
+          .filter((p, i) => selectedListingIds.includes(getChannelItemKey(p, i)))
+          .map(async (product) => {
+            const details = getProductDetails(product);
+            const targetItem = buildChannelDropdownItem(product, details, selectedChannel);
+            if (targetItem._id && !String(targetItem._id).startsWith('mock-')) {
+              return listingService.deletePlatform(targetItem._id, selectedChannel, false);
+            }
+          });
+        await Promise.allSettled(promises);
+        toast.success(`Deleted selected items from ${getChannelDisplayName(selectedChannel)}!`);
+        setSelectedListingIds([]);
+        fetchChannelInventory();
+      } catch (err) {
+        console.error('Error deleting channel items:', err);
+        toast.error('Failed to delete selected items.');
+      } finally {
+        setBulkDeleting(false);
+      }
+      return;
+    }
+
     const confirmDelete = await confirm(
       `Are you sure you want to delete all ${count} selected item${count > 1 ? 's' : ''} from the database? This cannot be undone.`,
       {
@@ -1854,6 +1898,42 @@ const NewListings = () => {
     if (selectedListingIds.length === 0) return;
 
     const count = selectedListingIds.length;
+
+    if (activeTab === 'channel') {
+      const confirmDelist = await confirm(
+        `Are you sure you want to delist all ${count} selected item${count > 1 ? 's' : ''} from ${getChannelDisplayName(selectedChannel)}?`,
+        {
+          title: `Delist ${count} Selected Item${count > 1 ? 's' : ''} from ${getChannelDisplayName(selectedChannel)}`,
+          destructive: true
+        }
+      );
+      if (!confirmDelist) return;
+
+      setBulkDelisting(true);
+      toast.info(`Delisting selected items from ${getChannelDisplayName(selectedChannel)}...`);
+      try {
+        const promises = paginatedChannelProducts
+          .filter((p, i) => selectedListingIds.includes(getChannelItemKey(p, i)))
+          .map(async (product) => {
+            const details = getProductDetails(product);
+            const targetItem = buildChannelDropdownItem(product, details, selectedChannel);
+            if (targetItem._id && !String(targetItem._id).startsWith('mock-')) {
+              return listingService.delist(targetItem._id, selectedChannel);
+            }
+          });
+        await Promise.allSettled(promises);
+        toast.success(`Delisted selected items from ${getChannelDisplayName(selectedChannel)}!`);
+        setSelectedListingIds([]);
+        fetchChannelInventory();
+      } catch (err) {
+        console.error('Error delisting channel items:', err);
+        toast.error('Failed to delist selected items.');
+      } finally {
+        setBulkDelisting(false);
+      }
+      return;
+    }
+
     const confirmDelist = await confirm(
       `Are you sure you want to delist all ${count} selected item${count > 1 ? 's' : ''} from ALL active marketplaces (eBay, Poshmark, Mercari, Etsy, Amazon)?`,
       {
@@ -3296,7 +3376,19 @@ const NewListings = () => {
     // 2. CHANNEL INVENTORY TAB: COMPACT ACTION BUTTON
     // ==============================================
     return (
-      <div className="relative flex flex-col items-center justify-center py-1 select-none">
+      <div className="relative flex items-center justify-center gap-1.5 py-1 select-none">
+        {liveUrl && liveUrl !== '#' && (
+          <a
+            href={liveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="w-7 h-7 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
+            title={`Open on ${getChannelDisplayName(platformName)}`}
+          >
+            <ExternalLink size={13} />
+          </a>
+        )}
         <button
           type="button"
           onClick={(e) => {
@@ -3320,15 +3412,10 @@ const NewListings = () => {
               verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
             });
           }}
-          className="flex flex-col items-center justify-center cursor-pointer group hover:scale-105 transition-all select-none"
+          className="w-7 h-7 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
           title="Marketplace options"
         >
-          <div className="w-8 h-8 rounded-full border border-slate-100 bg-white group-hover:border-indigo-200 flex items-center justify-center shadow-xs shrink-0 transition-colors">
-            <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
-          </div>
-          <span className="text-[10px] font-black mt-1 select-none flex items-center gap-0.5 text-slate-600 group-hover:text-indigo-600">
-            Options <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-          </span>
+          <MoreVertical size={13} />
         </button>
 
         {renderPortalDropdown()}
@@ -3839,9 +3926,19 @@ const NewListings = () => {
                   Clear Filters
                 </Button>
               ) : (
-                <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/create-ebay-listing')}>
-                  Create a Listing
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleOpenImportModal}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer"
+                  >
+                    <Download size={14} />
+                    <span>Import from Channels</span>
+                  </button>
+                  <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={() => navigate('/create-ebay-listing')}>
+                    Create a Listing
+                  </Button>
+                </div>
               )}
             />
           ) : (
@@ -4243,6 +4340,8 @@ const NewListings = () => {
             <div className="md:hidden divide-y divide-slate-100">
               {paginatedChannelProducts.map((product, index) => {
                 const details = getProductDetails(product);
+                const itemKey = getChannelItemKey(product, index);
+                const isCardSelected = selectedListingIds.includes(itemKey);
                 const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
                 const channelIcon = selectedChannel === 'ebay' 
                   ? '/ebay.png' 
@@ -4256,13 +4355,22 @@ const NewListings = () => {
                 const badgeStatus = isMarketplaceStatus
                   ? details.status
                   : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
+                const channelItem = buildChannelDropdownItem(product, details, selectedChannel);
+                const liveUrl = getListingUrl(channelItem, selectedChannel, details.liveId);
+
                 return (
-                  <div key={product._id || `${details.liveId}-${index}`} className="p-4 space-y-3">
+                  <div key={itemKey} className={`p-4 space-y-3 transition-colors ${isCardSelected ? 'bg-indigo-50/40' : ''}`}>
                     <div className="flex items-start gap-3">
-                      <input type="checkbox" onClick={(e) => e.stopPropagation()} className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" />
+                      <input 
+                        type="checkbox" 
+                        checked={isCardSelected}
+                        onChange={(e) => handleToggleSelectItem(itemKey, e)}
+                        onClick={(e) => e.stopPropagation()} 
+                        className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" 
+                      />
                       <div 
                         className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer group select-none"
-                        onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
+                        onClick={() => handleOpenPreview(channelItem, selectedChannel)}
                         title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
                       >
                         <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 group-hover:scale-105 transition-transform">
@@ -4290,12 +4398,26 @@ const NewListings = () => {
 
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                       <StatusBadge status={badgeStatus} />
-                      {renderCrosslistingCell(
-                        buildChannelDropdownItem(product, details, selectedChannel),
-                        selectedChannel,
-                        details.liveId,
-                        channelIcon
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {liveUrl && liveUrl !== '#' && (
+                          <a
+                            href={liveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                          >
+                            <span>Open</span>
+                            <ExternalLink size={10} />
+                          </a>
+                        )}
+                        {renderCrosslistingCell(
+                          channelItem,
+                          selectedChannel,
+                          details.liveId,
+                          channelIcon
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -4307,10 +4429,16 @@ const NewListings = () => {
               <table className="w-full text-left border-collapse">
 
                 {/* Headers */}
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr className="border-b border-slate-100">
+                <thead className="bg-slate-50/80 border-b border-slate-100">
+                  <tr className="border-b border-slate-100 select-none">
                     <th className="px-6 py-4 w-12 text-center">
-                      <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                      <input 
+                        type="checkbox" 
+                        checked={isAllSelected}
+                        onChange={handleToggleSelectAll}
+                        title={isAllSelected ? "Deselect all on this page" : "Select all on this page"}
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
+                      />
                     </th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Product</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
@@ -4323,9 +4451,11 @@ const NewListings = () => {
                 </thead>
 
                 {/* Rows */}
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-100">
                   {paginatedChannelProducts.map((product, index) => {
                     const details = getProductDetails(product);
+                    const itemKey = getChannelItemKey(product, index);
+                    const isRowSelected = selectedListingIds.includes(itemKey);
                     const isMarketplaceStatus = ['ebay', 'etsy', 'poshmark', 'depop', 'mercari'].includes(selectedChannel);
                     const channelIcon = selectedChannel === 'ebay' 
                       ? '/ebay.png' 
@@ -4339,18 +4469,26 @@ const NewListings = () => {
                     const badgeStatus = isMarketplaceStatus
                       ? details.status
                       : ((details.status === 'live' || details.status === 'published' || details.status === 'active') ? 'live' : 'draft');
+                    const channelItem = buildChannelDropdownItem(product, details, selectedChannel);
+
                     return (
-                      <tr key={product._id || `${details.liveId}-${index}`} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={itemKey} className={`transition-colors ${isRowSelected ? 'bg-indigo-50/60 hover:bg-indigo-50/80' : 'hover:bg-slate-50/60'}`}>
 
                         {/* Checkbox */}
                         <td className="px-6 py-4 text-center">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
+                          <input 
+                            type="checkbox" 
+                            checked={isRowSelected}
+                            onChange={(e) => handleToggleSelectItem(itemKey, e)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
+                          />
                         </td>
 
                         {/* Product info */}
                         <td 
                           className="px-6 py-4 max-w-sm cursor-pointer group select-none"
-                          onClick={() => handleOpenPreview(buildChannelDropdownItem(product, details, selectedChannel), selectedChannel)}
+                          onClick={() => handleOpenPreview(channelItem, selectedChannel)}
                           title={`Click to preview ${getChannelDisplayName(selectedChannel)} product`}
                         >
                           <div className="flex items-center gap-4">
@@ -4401,7 +4539,7 @@ const NewListings = () => {
                         <td className="px-6 py-4 text-center">
                           <div className="flex justify-center">
                             {renderCrosslistingCell(
-                              buildChannelDropdownItem(product, details, selectedChannel),
+                              channelItem,
                               selectedChannel,
                               details.liveId,
                               channelIcon
@@ -4771,18 +4909,33 @@ const NewListings = () => {
                 {selectedListingIds.length}
               </span>
               <span className="text-xs font-bold text-slate-200">
-                {selectedListingIds.length === 1 ? 'listing selected' : 'listings selected'}
+                {activeTab === 'channel'
+                  ? (selectedListingIds.length === 1 ? 'product selected' : 'products selected')
+                  : (selectedListingIds.length === 1 ? 'listing selected' : 'listings selected')}
               </span>
             </div>
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
+              {activeTab === 'channel' && (
+                <button
+                  type="button"
+                  onClick={handleOpenImportModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all cursor-pointer shadow-md shadow-indigo-950/40"
+                  title="Import selected products to Local Database"
+                >
+                  <Download size={13} className="shrink-0" />
+                  <span className="hidden sm:inline">Import Selected</span>
+                  <span className="sm:hidden">Import</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 disabled={bulkDelisting || bulkDeleting}
                 onClick={handleBulkDelist}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-                title="Delist selected listings from all connected marketplaces"
+                title={activeTab === 'channel' ? `Delist selected items from ${getChannelDisplayName(selectedChannel)}` : "Delist selected listings from all connected marketplaces"}
               >
                 <XCircle size={14} className="text-amber-400 shrink-0" />
                 <span className="hidden sm:inline">{bulkDelisting ? 'Delisting...' : 'Delist Selected'}</span>
@@ -4794,7 +4947,7 @@ const NewListings = () => {
                 disabled={bulkDeleting || bulkDelisting}
                 onClick={handleBulkDelete}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all cursor-pointer shadow-md shadow-rose-950/40 disabled:opacity-50"
-                title="Permanently delete selected listings from database"
+                title={activeTab === 'channel' ? `Delete selected items from ${getChannelDisplayName(selectedChannel)}` : "Permanently delete selected listings from database"}
               >
                 <Trash2 size={14} className="shrink-0" />
                 <span>{bulkDeleting ? 'Deleting...' : 'Delete Selected'}</span>
