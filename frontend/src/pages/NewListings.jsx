@@ -2547,7 +2547,7 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-center justify-between gap-2 min-w-[155px] max-w-[195px] select-none cursor-grab active:cursor-grabbing ${
+            className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-stretch justify-between gap-2.5 w-[165px] min-h-[96px] h-[96px] select-none cursor-grab active:cursor-grabbing ${
               isListed 
                 ? 'border-slate-200/90 hover:border-emerald-300' 
                 : isDraft 
@@ -2588,92 +2588,96 @@ const NewListings = () => {
             </button>
 
             {/* Left Side: Status pill + Price + Open Link */}
-            <div className="flex flex-col items-start gap-1 flex-1 min-w-0 pr-1">
-              {/* Status Pill Badge */}
-              {isListed && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 shrink-0 animate-pulse"></span>
-                  Listed
-                </span>
-              )}
-              {isDraft && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 shrink-0"></span>
-                  Draft
-                </span>
-              )}
-              {isFailed && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 shrink-0"></span>
-                  Error
-                </span>
-              )}
-              {isDelisted && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1.5 shrink-0"></span>
-                  Delisted
-                </span>
-              )}
+            <div className="flex flex-col justify-between flex-1 min-w-0 pr-1 py-0.5">
+              <div>
+                {/* Status Pill Badge */}
+                {isListed && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 shrink-0 animate-pulse"></span>
+                    Listed
+                  </span>
+                )}
+                {isDraft && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 shrink-0"></span>
+                    Draft
+                  </span>
+                )}
+                {isFailed && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 shrink-0"></span>
+                    Error
+                  </span>
+                )}
+                {isDelisted && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1.5 shrink-0"></span>
+                    Delisted
+                  </span>
+                )}
 
-              {/* Price */}
-              <span className="text-xs font-black text-slate-900 tracking-tight mt-0.5">
-                {formattedPrice}
-              </span>
+                {/* Price */}
+                <div className="text-sm font-black text-slate-900 tracking-tight mt-1.5">
+                  {formattedPrice}
+                </div>
+              </div>
 
               {/* Action / Link */}
-              {liveUrl && liveUrl !== '#' && isListed ? (
-                <a
-                  href={liveUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors mt-0.5 group-hover/card:underline"
-                >
-                  <span>Open</span>
-                  <ExternalLink size={10} className="stroke-[2.5]" />
-                </a>
-              ) : isDraft ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenCrosslisting(platformSpecificItem || item, platformName);
-                  }}
-                  className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline mt-0.5 cursor-pointer"
-                >
-                  Edit Draft
-                </button>
-              ) : isFailed ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRelistItemDirect(item, platformName);
-                  }}
-                  className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 mt-0.5 cursor-pointer"
-                >
-                  <RefreshCw size={9} /> Retry
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRelistItemDirect(item, platformName);
-                  }}
-                  className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-0.5 mt-0.5 cursor-pointer"
-                >
-                  <RefreshCw size={9} /> Relist
-                </button>
-              )}
+              <div>
+                {liveUrl && liveUrl !== '#' && isListed ? (
+                  <a
+                    href={liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors group-hover/card:underline"
+                  >
+                    <span>Open</span>
+                    <ExternalLink size={10} className="stroke-[2.5]" />
+                  </a>
+                ) : isDraft ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenCrosslisting(platformSpecificItem || item, platformName);
+                    }}
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline cursor-pointer"
+                  >
+                    Edit Draft
+                  </button>
+                ) : isFailed ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRelistItemDirect(item, platformName);
+                    }}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <RefreshCw size={9} /> Retry
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRelistItemDirect(item, platformName);
+                    }}
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <RefreshCw size={9} /> Relist
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Right Side: Marketplace Image Thumbnail */}
-            <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform">
+            <div className="w-[58px] h-[78px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform">
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
               ) : (
-                <ImageOff size={14} className="text-slate-300" />
+                <ImageOff size={16} className="text-slate-300" />
               )}
             </div>
 
@@ -2682,7 +2686,7 @@ const NewListings = () => {
           </div>
         );
       } else {
-        // Not Listed Matrix Card (Dashed Placeholder)
+        // Not Listed Matrix Card (Dashed Placeholder matching Image 2)
         return (
           <div
             onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
@@ -2736,29 +2740,24 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border border-dashed border-slate-200/90 rounded-2xl p-2.5 bg-slate-50/40 hover:bg-indigo-50/40 hover:border-indigo-300 transition-all cursor-pointer group flex items-center justify-between gap-2 min-w-[155px] max-w-[195px] select-none ${
+            className={`relative border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-2xl p-2.5 bg-slate-50/40 hover:bg-teal-50/20 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[165px] min-h-[96px] h-[96px] select-none ${
               isDropTarget
                 ? isHovered
-                  ? 'scale-105 ring-2 ring-indigo-500 rounded-2xl bg-indigo-50/90 shadow-md'
-                  : 'ring-2 ring-dashed ring-indigo-400 rounded-2xl bg-indigo-50/40 animate-pulse'
+                  ? 'scale-105 ring-2 ring-teal-500 rounded-2xl bg-teal-50/90 shadow-md'
+                  : 'ring-2 ring-dashed ring-teal-400 rounded-2xl bg-teal-50/40 animate-pulse'
                 : 'hover:scale-[1.02]'
             }`}
             title={isDropTarget ? "Drop here to merge channel into this item!" : `Click to list on ${getChannelDisplayName(platformName)}`}
           >
-            <div className="flex flex-col items-start gap-1 flex-1 min-w-0">
-              <span className={`text-[10px] font-extrabold select-none transition-colors ${
-                isDropTarget ? 'text-indigo-600 font-black' : 'text-slate-400 group-hover:text-indigo-600'
-              }`}>
-                {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : 'Not Listed'}
-              </span>
-              <span className="text-[11px] font-bold text-slate-500 group-hover:text-indigo-650 flex items-center gap-1 transition-colors">
-                <Plus size={11} className="stroke-[3] text-indigo-500 shrink-0" /> List item
-              </span>
-            </div>
-
-            <div className="w-10 h-10 rounded-xl border border-dashed border-slate-200 bg-white flex items-center justify-center shrink-0 shadow-2xs group-hover:border-indigo-300 group-hover:bg-white transition-colors">
-              <img src={logoSrc} alt={platformName} className="w-5 h-5 object-contain opacity-40 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all" />
-            </div>
+            <Plus size={24} className="stroke-[2.5] text-teal-700 group-hover:scale-110 transition-transform mb-1 shrink-0" />
+            <span className="text-[12px] font-bold text-teal-800 leading-snug select-none">
+              {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : (
+                <>
+                  List on<br />
+                  {getChannelDisplayName(platformName)}
+                </>
+              )}
+            </span>
           </div>
         );
       }
@@ -3344,32 +3343,32 @@ const NewListings = () => {
                       <th className="px-5 py-4 w-12 text-center">
                         <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                       </th>
-                      <th className="px-6 py-4 text-xs font-black text-slate-500 tracking-wider">Item</th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[170px]">
+                      <th className="px-6 py-4 text-xs font-black text-slate-500 tracking-wider min-w-[280px]">Item</th>
+                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/ebay.png" className="w-4 h-4 object-contain" alt="" />
                           <span>eBay</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[170px]">
+                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/poshmark.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Poshmark</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[170px]">
+                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/mercari.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Mercari</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[170px]">
+                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/etsy.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Etsy</span>
                         </div>
                       </th>
-                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[170px]">
+                      <th className="px-3 py-4 text-xs font-black text-slate-700 tracking-wider text-left min-w-[180px]">
                         <div className="flex items-center gap-1.5">
                           <img src="/amazon.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Amazon</span>
@@ -3391,10 +3390,10 @@ const NewListings = () => {
                           </td>
 
                           {/* Item */}
-                          <td className="px-6 py-4 max-w-sm align-middle">
+                          <td className="px-6 py-4 min-w-[280px] max-w-[340px] align-middle">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-14 h-14 bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
+                                className="w-[68px] h-[88px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
                                 onClick={() => handleOpenPreview(item, 'ebay')}
                                 title="Click to preview listing"
                               >
@@ -3412,7 +3411,7 @@ const NewListings = () => {
                                 >
                                   {item.title}
                                 </p>
-                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-1.5 text-[11px] font-semibold text-slate-400">
+                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-2 text-[11px] font-semibold text-slate-400">
                                   {/* SKU with inline edit */}
                                   <div className="flex items-center gap-1">
                                     <span className="text-slate-400 font-bold">SKU:</span>
@@ -3472,19 +3471,19 @@ const NewListings = () => {
                           </td>
 
                           {/* 5 Crosslisting Platform Matrix Cards */}
-                          <td className="px-2.5 py-3 align-middle">
+                          <td className="px-3 py-3.5 align-middle">
                             {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                           </td>
-                          <td className="px-2.5 py-3 align-middle">
+                          <td className="px-3 py-3.5 align-middle">
                             {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                           </td>
-                          <td className="px-2.5 py-3 align-middle">
+                          <td className="px-3 py-3.5 align-middle">
                             {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                           </td>
-                          <td className="px-2.5 py-3 align-middle">
+                          <td className="px-3 py-3.5 align-middle">
                             {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                           </td>
-                          <td className="px-2.5 py-3 align-middle">
+                          <td className="px-3 py-3.5 align-middle">
                             {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                           </td>
 
