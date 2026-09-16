@@ -62,12 +62,32 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       results.foundListing = true;
       console.log(`[Auto-Delist] Matched Master Listing: "${masterListing.title}" (ID: ${masterListing._id}, SKU: ${masterListing.sku})`);
 
-      // Update Local Database master listing to Sold / Delisted
-      masterListing.status = 'delisted';
+      // Update Local Database master listing to Sold
+      masterListing.status = 'sold';
       masterListing.quantity = 0;
       masterListing.soldOn = normPlatform;
+      masterListing.soldPlatform = normPlatform;
       masterListing.soldAt = new Date();
       masterListing.errorMessage = `Sold on ${normPlatform.toUpperCase()}${orderId ? ` (Order #${orderId})` : ''}`;
+
+      // Set platform status on the channel where it was sold
+      if (normPlatform === 'poshmark') {
+        masterListing.poshmarkStatus = 'sold';
+        if (masterListing.platformData?.poshmark) masterListing.platformData.poshmark.status = 'sold';
+      } else if (normPlatform === 'ebay') {
+        masterListing.ebayStatus = 'sold';
+        if (masterListing.platformData?.ebay) masterListing.platformData.ebay.status = 'sold';
+      } else if (normPlatform === 'mercari') {
+        masterListing.mercariStatus = 'sold';
+        if (masterListing.platformData?.mercari) masterListing.platformData.mercari.status = 'sold';
+      } else if (normPlatform === 'etsy') {
+        masterListing.etsyStatus = 'sold';
+        if (masterListing.platformData?.etsy) masterListing.platformData.etsy.status = 'sold';
+      } else if (normPlatform === 'depop') {
+        masterListing.depopStatus = 'sold';
+        if (masterListing.platformData?.depop) masterListing.platformData.depop.status = 'sold';
+      }
+      
       await masterListing.save();
       results.updatedMasterListing = true;
 
@@ -80,6 +100,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
             const mercRes = await deactivateMercariListing(masterListing.mercariListingId, user.mercariAccount);
             masterListing.mercariStatus = 'delisted';
+            if (masterListing.platformData?.mercari) masterListing.platformData.mercari.status = 'delisted';
             await masterListing.save();
             results.delistActions.mercari = { success: true, status: 'delisted', id: masterListing.mercariListingId };
             console.log(`[Auto-Delist] Successfully deactivated Mercari listing: ${masterListing.mercariListingId}`);
@@ -99,6 +120,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
             await deletePoshmarkListing(masterListing.poshmarkListingId, user.poshmarkAccount);
             masterListing.poshmarkStatus = 'delisted';
+            if (masterListing.platformData?.poshmark) masterListing.platformData.poshmark.status = 'delisted';
             await masterListing.save();
             results.delistActions.poshmark = { success: true, status: 'delisted', id: masterListing.poshmarkListingId };
             console.log(`[Auto-Delist] Successfully delisted Poshmark listing: ${masterListing.poshmarkListingId}`);
@@ -118,6 +140,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           if (user.depopAccount?.connected) {
             await deleteDepopListing(masterListing.depopListingId, user.depopAccount);
             masterListing.depopStatus = 'delisted';
+            if (masterListing.platformData?.depop) masterListing.platformData.depop.status = 'delisted';
             await masterListing.save();
             results.delistActions.depop = { success: true, status: 'delisted', id: masterListing.depopListingId };
             console.log(`[Auto-Delist] Successfully deleted Depop listing: ${masterListing.depopListingId}`);
@@ -139,6 +162,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             if (shopId) {
               await updateEtsyListingState(userId, shopId, masterListing.etsyListingId, 'inactive');
               masterListing.etsyStatus = 'delisted';
+              if (masterListing.platformData?.etsy) masterListing.platformData.etsy.status = 'delisted';
               await masterListing.save();
               results.delistActions.etsy = { success: true, status: 'inactive', id: masterListing.etsyListingId };
               console.log(`[Auto-Delist] Successfully deactivated Etsy listing: ${masterListing.etsyListingId}`);
@@ -152,24 +176,64 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
         }
       }
 
-      // EBAY Auto-Delist (Quantity to 0 or end offer)
-      if (normPlatform !== 'ebay' && masterListing.ebayListingId && (masterListing.ebayStatus === 'published' || masterListing.platform === 'ebay')) {
-        console.log(`[Auto-Delist] Triggering eBay inventory zeroing for SKU: ${masterListing.sku}...`);
+      // EBAY Auto-Delist
+      if (normPlatform !== 'ebay' && (masterListing.ebayListingId || masterListing.sku || masterListing.platform === 'ebay')) {
+        console.log(`[Auto-Delist] Triggering eBay delist for Item ID: ${masterListing.ebayListingId} / SKU: ${masterListing.sku}...`);
         try {
           const ebayToken = await ebayService.getValidEbayToken(userId);
-          if (ebayToken && masterListing.sku) {
-            await ebayService.createOrReplaceInventoryItem(ebayToken, masterListing.sku, {
-              availability: {
-                shipToLocationAvailability: { quantity: 0 }
+          if (ebayToken) {
+            let delistedSuccess = false;
+            
+            // 1. Trading API EndItem by ItemID
+            if (masterListing.ebayListingId) {
+              try {
+                const endRes = await ebayService.endTradingItem(ebayToken, masterListing.ebayListingId, 'NotAvailable');
+                if (endRes.success) {
+                  delistedSuccess = true;
+                  console.log(`[Auto-Delist] Successfully ended eBay item via Trading API: ${masterListing.ebayListingId}`);
+                }
+              } catch (endErr) {
+                console.warn(`[Auto-Delist] Trading API EndItem attempt failed:`, endErr.message);
               }
-            });
+            }
+
+            // 2. Offer / Inventory API delisting
+            const ebaySku = masterListing.sku || masterListing.platformData?.ebay?.sku;
+            if (ebaySku) {
+              try {
+                const offers = await ebayService.getOffers(ebayToken, ebaySku);
+                if (offers && offers.length > 0) {
+                  for (const offer of offers) {
+                    if (offer.status === 'PUBLISHED') {
+                      await ebayService.withdrawOffer(ebayToken, offer.offerId);
+                      delistedSuccess = true;
+                      console.log(`[Auto-Delist] Successfully withdrew eBay offer: ${offer.offerId}`);
+                    }
+                  }
+                }
+                await ebayService.createOrReplaceInventoryItem(ebayToken, ebaySku, {
+                  availability: {
+                    shipToLocationAvailability: { quantity: 0 }
+                  }
+                });
+                delistedSuccess = true;
+              } catch (invErr) {
+                console.warn(`[Auto-Delist] Inventory zeroing attempt failed:`, invErr.message);
+              }
+            }
+
             masterListing.ebayStatus = 'delisted';
+            if (masterListing.platformData?.ebay) {
+              masterListing.platformData.ebay.status = 'delisted';
+            }
             await masterListing.save();
-            results.delistActions.ebay = { success: true, status: 'zeroed_quantity', sku: masterListing.sku };
-            console.log(`[Auto-Delist] Successfully zeroed eBay quantity for SKU: ${masterListing.sku}`);
+            results.delistActions.ebay = { success: true, status: 'delisted', id: masterListing.ebayListingId };
+            console.log(`[Auto-Delist] eBay status marked as delisted for ${masterListing._id}`);
+          } else {
+            results.delistActions.ebay = { success: false, reason: 'eBay token unavailable' };
           }
         } catch (ebayErr) {
-          console.error(`[Auto-Delist] eBay inventory zeroing failed:`, ebayErr.message);
+          console.error(`[Auto-Delist] eBay delist failed:`, ebayErr.message);
           results.delistActions.ebay = { success: false, error: ebayErr.message };
         }
       }

@@ -2400,26 +2400,41 @@ const NewListings = () => {
     let isDraft = false;
     let isDelisted = false;
     let isFailed = false;
+    let isSold = false;
 
-    if (rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted') {
+    const itemStatusLower = item.status?.toLowerCase();
+    const isMasterSold = itemStatusLower === 'sold' || item.soldOn || item.soldPlatform || (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
+    const isSoldPlatform = isMasterSold && (
+      rawPlatformStatus === 'sold' ||
+      item.soldOn === platformName ||
+      item.soldPlatform === platformName ||
+      (item.errorMessage && item.errorMessage.toLowerCase().includes(platformName.toLowerCase()))
+    );
+
+    if (rawPlatformStatus === 'sold' || isSoldPlatform) {
+      isSold = true;
+    } else if (rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted') {
       // Explicitly Not Listed on this platform
       isListed = false;
       isDraft = false;
       isDelisted = false;
       isFailed = false;
+      isSold = false;
+    } else if (rawPlatformStatus === 'delisted' || (isMasterSold && (item[`${platformName}ListingId`] || platformSpecificItem))) {
+      isDelisted = true;
     } else if (rawPlatformStatus === 'published' || rawPlatformStatus === 'active') {
       isListed = true;
     } else if (rawPlatformStatus === 'draft') {
       isDraft = true;
-    } else if (rawPlatformStatus === 'delisted') {
-      isDelisted = true;
     } else if (rawPlatformStatus === 'failed') {
       isFailed = true;
     } else if (!rawPlatformStatus) {
       // Fallbacks only if rawPlatformStatus is undefined
       const specificStatus = platformSpecificItem?.status?.toLowerCase();
       if (specificStatus && specificStatus !== 'none' && specificStatus !== 'unlisted') {
-        if (specificStatus === 'published' || specificStatus === 'active') {
+        if (specificStatus === 'sold') {
+          isSold = true;
+        } else if (specificStatus === 'published' || specificStatus === 'active') {
           isListed = true;
         } else if (specificStatus === 'draft') {
           isDraft = true;
@@ -2429,14 +2444,15 @@ const NewListings = () => {
           isFailed = true;
         }
       } else if (item.platform === platformName) {
-        const itemStatus = item.status?.toLowerCase();
-        if (itemStatus === 'active' || itemStatus === 'published') {
+        if (itemStatusLower === 'sold') {
+          isSold = true;
+        } else if (itemStatusLower === 'active' || itemStatusLower === 'published') {
           isListed = true;
-        } else if (itemStatus === 'draft') {
+        } else if (itemStatusLower === 'draft') {
           isDraft = true;
-        } else if (itemStatus === 'delisted') {
+        } else if (itemStatusLower === 'delisted') {
           isDelisted = true;
-        } else if (itemStatus === 'failed') {
+        } else if (itemStatusLower === 'failed') {
           isFailed = true;
         }
       }
@@ -2603,7 +2619,7 @@ const NewListings = () => {
     // 1. LOCAL DATABASE TAB: MATRIX CARD LAYOUT
     // ==========================================
     if (activeTab === 'local') {
-      if (isListed || isDelisted || isDraft || isFailed) {
+      if (isListed || isDelisted || isDraft || isFailed || isSold) {
         return (
           <div
             draggable={true}
@@ -2623,13 +2639,15 @@ const NewListings = () => {
               setDragOverTarget(null);
             }}
             className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-stretch justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${
-              isListed 
-                ? 'border-slate-200/90 hover:border-emerald-300' 
-                : isDraft 
-                  ? 'border-amber-200/80 bg-amber-50/20 hover:border-amber-400' 
-                  : isFailed 
-                    ? 'border-rose-200/80 bg-rose-50/20 hover:border-rose-400' 
-                    : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-400'
+              isSold
+                ? 'border-purple-200/90 bg-purple-50/20 hover:border-purple-400'
+                : isListed 
+                  ? 'border-slate-200/90 hover:border-emerald-300' 
+                  : isDraft 
+                    ? 'border-amber-200/80 bg-amber-50/20 hover:border-amber-400' 
+                    : isFailed 
+                      ? 'border-rose-200/80 bg-rose-50/20 hover:border-rose-400' 
+                      : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-400'
             } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
             {/* Left Side: Status pill + 3-dots on top, Price in middle, Open Link at bottom */}
@@ -2637,25 +2655,31 @@ const NewListings = () => {
               <div>
                 {/* Top Row: Status badge on left, 3-dots trigger on right */}
                 <div className="flex items-center justify-between gap-1 w-full">
-                  {isListed && (
+                  {isSold && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200/80 leading-none shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 mr-1 shrink-0"></span>
+                      Sold
+                    </span>
+                  )}
+                  {!isSold && isListed && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 shrink-0 animate-pulse"></span>
                       Listed
                     </span>
                   )}
-                  {isDraft && (
+                  {!isSold && isDraft && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 shrink-0"></span>
                       Draft
                     </span>
                   )}
-                  {isFailed && (
+                  {!isSold && isFailed && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 shrink-0"></span>
                       Error
                     </span>
                   )}
-                  {isDelisted && (
+                  {!isSold && isDelisted && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1 shrink-0"></span>
                       Delisted
@@ -2712,6 +2736,8 @@ const NewListings = () => {
                     <span>Open</span>
                     <ExternalLink size={10} className="stroke-[2.5]" />
                   </a>
+                ) : isSold ? (
+                  <span className="text-[10px] font-bold text-purple-700">Sold Out</span>
                 ) : isDraft ? (
                   <button
                     type="button"
@@ -3412,41 +3438,41 @@ const NewListings = () => {
 
               {/* DESKTOP TABLE VIEW */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse table-fixed">
 
                   {/* Headers */}
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none">
-                      <th className="px-4 py-4 w-10 text-center">
+                      <th className="px-3 py-4 w-12 text-center">
                         <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                       </th>
-                      <th className="px-4 py-4 text-xs font-black text-slate-500 tracking-wider min-w-[260px]">Item</th>
-                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="px-4 py-4 text-xs font-black text-slate-500 tracking-wider w-[31%]">Item</th>
+                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                        <div className="flex items-center justify-center gap-1.5">
                           <img src="/ebay.png" className="w-4 h-4 object-contain" alt="" />
                           <span>eBay</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                        <div className="flex items-center justify-center gap-1.5">
                           <img src="/poshmark.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Poshmark</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                        <div className="flex items-center justify-center gap-1.5">
                           <img src="/mercari.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Mercari</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                        <div className="flex items-center justify-center gap-1.5">
                           <img src="/etsy.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Etsy</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-4 text-xs font-black text-slate-700 tracking-wider text-left w-[178px] min-w-[178px] max-w-[178px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                        <div className="flex items-center justify-center gap-1.5">
                           <img src="/amazon.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Amazon</span>
                         </div>
@@ -3462,12 +3488,12 @@ const NewListings = () => {
                         <tr key={item._id} className="hover:bg-slate-50/70 transition-colors">
 
                           {/* Checkbox */}
-                          <td className="px-4 py-4 text-center align-middle">
+                          <td className="px-3 py-3 text-center align-middle w-12">
                             <input type="checkbox" className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
                           </td>
 
                           {/* Item */}
-                          <td className="px-4 py-4 min-w-[260px] max-w-[340px] align-middle">
+                          <td className="px-4 py-3 align-middle w-[31%]">
                             <div className="flex items-start gap-3.5">
                               <div 
                                 className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform"
@@ -3571,20 +3597,30 @@ const NewListings = () => {
                           </td>
 
                           {/* 5 Crosslisting Platform Matrix Cards */}
-                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
-                            {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                            </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
-                            {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                            </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
-                            {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                            </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
-                            {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                            </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle w-[178px] min-w-[178px] max-w-[178px]">
-                            {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                            <div className="flex justify-center">
+                              {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                            </div>
                           </td>
 
                         </tr>

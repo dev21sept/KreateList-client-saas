@@ -969,6 +969,10 @@ async function getTradingItemDetails(token, itemId) {
         if (specifics['Size'] && specifics['Size'].length > 0) size = specifics['Size'][0];
         if (specifics['Color'] && specifics['Color'].length > 0) color = specifics['Color'][0];
 
+        const listingStatus = $('Item > SellingStatus > ListingStatus').text() || $('ListingStatus').text() || 'Active';
+        const quantity = parseInt($('Item > Quantity').text() || '1', 10);
+        const quantitySold = parseInt($('Item > SellingStatus > QuantitySold').text() || '0', 10);
+
         return {
             itemId,
             title,
@@ -982,10 +986,116 @@ async function getTradingItemDetails(token, itemId) {
             itemSpecifics: specifics,
             brand,
             size,
-            color
+            color,
+            listingStatus,
+            quantity,
+            quantitySold
         };
     } catch (error) {
         console.error(`Error fetching GetItem details for ${itemId}:`, error.response?.data || error.message);
+        return null;
+    }
+}
+
+/**
+ * Ends a listing on eBay via Trading API (EndItem / EndFixedPriceItem)
+ * endingReason: 'NotAvailable' | 'Sold' | 'Incorrect' | 'LostOrBroken' | 'OtherListingBreach'
+ */
+async function endTradingItem(token, itemId, endingReason = 'NotAvailable') {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<EndItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${token}</eBayAuthToken>
+  </RequesterCredentials>
+  <ItemID>${itemId}</ItemID>
+  <EndingReason>${endingReason}</EndingReason>
+</EndItemRequest>`;
+
+    try {
+        const response = await axios.post(TRADING_API_URL, xml, {
+            headers: {
+                'X-EBAY-API-SITEID': '0',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                'X-EBAY-API-CALL-NAME': 'EndItem',
+                'X-EBAY-API-IAF-TOKEN': token,
+                'Content-Type': 'text/xml'
+            }
+        });
+
+        const $ = cheerio.load(response.data, { xmlMode: true });
+        const ack = $('Ack').text();
+        const errors = $('Errors > LongMessage').text() || $('Errors > ShortMessage').text();
+        const endTime = $('EndTime').text();
+
+        if (ack === 'Success' || ack === 'Warning' || errors.includes('already been closed') || errors.includes('not active')) {
+            console.log(`[eBay Trading API] Successfully ended item ${itemId}, Ack=${ack}, EndTime: ${endTime}`);
+            return { success: true, ack, endTime };
+        } else {
+            console.warn(`[eBay Trading API] EndItem returned Ack=${ack}: ${errors}`);
+            
+            // Fallback: Try EndFixedPriceItem
+            try {
+                const fpXml = `<?xml version="1.0" encoding="utf-8"?>
+<EndFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${token}</eBayAuthToken>
+  </RequesterCredentials>
+  <ItemID>${itemId}</ItemID>
+  <EndingReason>${endingReason}</EndingReason>
+</EndFixedPriceItemRequest>`;
+
+                const fpRes = await axios.post(TRADING_API_URL, fpXml, {
+                    headers: {
+                        'X-EBAY-API-SITEID': '0',
+                        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+                        'X-EBAY-API-CALL-NAME': 'EndFixedPriceItem',
+                        'X-EBAY-API-IAF-TOKEN': token,
+                        'Content-Type': 'text/xml'
+                    }
+                });
+                const $fp = cheerio.load(fpRes.data, { xmlMode: true });
+                const fpAck = $fp('Ack').text();
+                const fpErrors = $fp('Errors > LongMessage').text() || $fp('Errors > ShortMessage').text();
+                if (fpAck === 'Success' || fpAck === 'Warning' || fpErrors.includes('already been closed') || fpErrors.includes('not active')) {
+                    console.log(`[eBay Trading API] Successfully ended fixed price item ${itemId}`);
+                    return { success: true, ack: fpAck };
+                }
+            } catch (fpErr) {
+                console.error(`[eBay Trading API] EndFixedPriceItem fallback error:`, fpErr.message);
+            }
+
+            return { success: false, ack, error: errors };
+        }
+    } catch (error) {
+        console.error(`Error ending Trading API item ${itemId}:`, error.response?.data || error.message);
+        throw error;
+    }
+}
+
+/**
+ * Gets a valid user token from DB (auto-refreshes if needed)
+ */
+async function getValidEbayToken(userId) {
+    try {
+        const User = require('../models/User');
+        const user = await User.findById(userId);
+        if (!user || !user.ebayAccount || !user.ebayAccount.refreshToken) {
+            return null;
+        }
+
+        let accessToken = user.ebayAccount.accessToken;
+        let expiresAt = user.ebayAccount.tokenExpires;
+
+        if (!expiresAt || Date.now() > new Date(expiresAt).getTime() - 300000) {
+            const newAccessToken = await refreshUserToken(user.ebayAccount.refreshToken);
+            accessToken = newAccessToken;
+            user.ebayAccount.accessToken = newAccessToken;
+            user.ebayAccount.tokenExpires = new Date(Date.now() + 7200 * 1000);
+            await user.save();
+        }
+        return accessToken;
+    } catch (error) {
+        console.error('Fatal eBay Token Error in ebayService:', error.message);
         return null;
     }
 }
@@ -995,6 +1105,7 @@ module.exports = {
     getUserConsentUrl,
     getUserToken,
     refreshUserToken,
+    getValidEbayToken,
     createImageFromUrl,
     createImageFromFile,
     uploadPicture,
@@ -1021,6 +1132,7 @@ module.exports = {
     getTradingListings,
     getTradingActiveListings,
     getTradingItemDetails,
+    endTradingItem,
     getCategoryConditions,
     updateShippingFulfillment,
     getUserProfile,

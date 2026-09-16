@@ -1565,10 +1565,24 @@ exports.verifyListingLive = async (req, res) => {
           if (token) {
             const { getTradingItemDetails } = require('../services/ebayService');
             const itemDetails = await getTradingItemDetails(token, ebayId);
-            if (itemDetails && itemDetails.title) {
-              isLive = true;
-              listing.ebayListingId = ebayId;
-              listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
+            if (itemDetails) {
+              const statusStr = (itemDetails.listingStatus || '').toLowerCase();
+              if (statusStr === 'active') {
+                isLive = true;
+                listing.ebayListingId = ebayId;
+                listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
+              } else if (statusStr === 'ended' || statusStr === 'completed') {
+                isLive = false;
+                listing.ebayStatus = 'delisted';
+                if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+                await listing.save();
+                return res.status(200).json({
+                  success: true,
+                  isLive: false,
+                  status: 'delisted',
+                  message: `Listing ${ebayId} on eBay is already closed/ended.`
+                });
+              }
             }
           }
         } catch (tErr) {
@@ -1958,22 +1972,39 @@ exports.delistListing = async (req, res) => {
         throw new Error('eBay account is not connected or session expired.');
       }
       
-      const sku = listing.sku;
-      const { getOffers, withdrawOffer } = require('../services/ebayService');
-      const offers = await getOffers(token, sku);
-      
-      if (offers && offers.length > 0) {
-        for (const offer of offers) {
-          if (offer.status === 'PUBLISHED') {
-            console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
-            await withdrawOffer(token, offer.offerId);
+      // 1. End Item via Trading API
+      try {
+        const { endTradingItem } = require('../services/ebayService');
+        await endTradingItem(token, listing.ebayListingId, 'NotAvailable');
+      } catch (endErr) {
+        console.warn(`[Delist Listing] Trading EndItem attempt:`, endErr.message);
+      }
+
+      // 2. Withdraw Offer / Zero Quantity if SKU exists
+      const sku = listing.sku || listing.platformData?.ebay?.sku;
+      if (sku) {
+        try {
+          const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
+          const offers = await getOffers(token, sku);
+          if (offers && offers.length > 0) {
+            for (const offer of offers) {
+              if (offer.status === 'PUBLISHED') {
+                console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
+                await withdrawOffer(token, offer.offerId);
+              }
+            }
           }
+          await createOrReplaceInventoryItem(token, sku, {
+            availability: { shipToLocationAvailability: { quantity: 0 } }
+          });
+        } catch (skuErr) {
+          console.warn(`[Delist Listing] SKU offer withdraw attempt:`, skuErr.message);
         }
-      } else {
-        console.warn(`[Delist Listing] No active eBay offers found for SKU ${sku}. Presuming already ended.`);
       }
       
       listing.ebayStatus = 'delisted';
+      if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+      await listing.save();
       
     } else if (platformLower === 'poshmark') {
       if (!listing.poshmarkListingId) {
