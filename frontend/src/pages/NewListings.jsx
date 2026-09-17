@@ -811,7 +811,7 @@ const NewListings = () => {
   const fetchSoldOrders = async () => {
     setSoldLoading(true);
     try {
-      const res = await orderService.getAll();
+      const res = await orderService.getAll({ onlyMaster: true });
       if (res.data?.success) {
         setSoldOrders(res.data.data || []);
         if (res.data.stats) {

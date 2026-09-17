@@ -173,7 +173,7 @@ export const externalImportService = {
 };
 
 export const orderService = {
-  getAll: () => API.get('/orders'),
+  getAll: (params) => API.get('/orders', { params }),
   sync: () => API.post('/orders/sync'),
   update: (id, data) => API.put(`/orders/${id}`, data),
   delete: (id) => API.delete(`/orders/${id}`),

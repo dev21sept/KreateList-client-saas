@@ -9,16 +9,58 @@ const { syncPoshmarkOrders } = require('../services/poshmarkOrderService');
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
-    const orders = await Order.find({ user: userId })
+    const query = { user: userId };
+
+    if (req.query.onlyMaster === 'true') {
+      query.listingId = { $ne: null };
+    }
+
+    const orders = await Order.find(query)
       .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
       .sort({ createdDate: -1 });
+
+    let allSoldRecords = [...orders];
+
+    // If onlyMaster is true, also include any Master Listings marked 'sold' that may not have an Order document yet
+    if (req.query.onlyMaster === 'true') {
+      const Listing = require('../models/Listing');
+      const linkedListingIds = orders.map(o => o.listingId?._id?.toString()).filter(Boolean);
+
+      const unlinkedSoldListings = await Listing.find({
+        user: userId,
+        status: 'sold',
+        _id: { $nin: linkedListingIds }
+      });
+
+      unlinkedSoldListings.forEach(l => {
+        allSoldRecords.push({
+          _id: l._id,
+          orderId: l.soldOrderId || `SOLD-${l._id.toString().substring(0, 8)}`,
+          platform: l.soldPlatform || l.soldOn || l.platform || 'ebay',
+          totalAmount: parseFloat(l.soldPrice || l.price || 0),
+          createdDate: l.soldAt || l.updatedAt || l.createdAt,
+          createdAt: l.soldAt || l.updatedAt || l.createdAt,
+          listingId: l,
+          delistActions: l.autoDelistLog || {},
+          lineItems: [{
+            title: l.title,
+            sku: l.sku,
+            thumbnail: l.thumbnail || (l.images && l.images[0]),
+            price: parseFloat(l.soldPrice || l.price || 0),
+            quantity: 1
+          }]
+        });
+      });
+
+      allSoldRecords.sort((a, b) => new Date(b.createdDate || b.createdAt) - new Date(a.createdDate || a.createdAt));
+    }
 
     // Calculate quick stats
     let totalRevenue = 0;
     let totalDelistedProtections = 0;
     const platformBreakdown = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
 
-    orders.forEach(o => {
+    allSoldRecords.forEach(o => {
       const amt = Number(o.totalAmount || 0);
       if (!isNaN(amt)) totalRevenue += amt;
       const plat = (o.platform || 'ebay').toLowerCase();
@@ -27,25 +69,29 @@ exports.getOrders = async (req, res) => {
       // Count delist actions
       if (o.delistActions && typeof o.delistActions === 'object') {
         Object.keys(o.delistActions).forEach(p => {
-          if (o.delistActions[p]?.success) totalDelistedProtections++;
+          if (o.delistActions[p]?.success || o.delistActions[p]?.status === 'delisted' || o.delistActions[p]?.status === 'inactive') {
+            totalDelistedProtections++;
+          }
         });
       } else if (o.listingId?.autoDelistLog && typeof o.listingId.autoDelistLog === 'object') {
         Object.keys(o.listingId.autoDelistLog).forEach(p => {
-          if (o.listingId.autoDelistLog[p]?.success) totalDelistedProtections++;
+          if (o.listingId.autoDelistLog[p]?.success || o.listingId.autoDelistLog[p]?.status === 'delisted' || o.listingId.autoDelistLog[p]?.status === 'inactive') {
+            totalDelistedProtections++;
+          }
         });
       }
     });
 
     return res.status(200).json({
       success: true,
-      count: orders.length,
+      count: allSoldRecords.length,
       stats: {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
-        totalSold: orders.length,
+        totalSold: allSoldRecords.length,
         totalDelistedProtections,
         platformBreakdown
       },
-      data: orders
+      data: allSoldRecords
     });
   } catch (error) {
     console.error('Error fetching orders:', error.message);
