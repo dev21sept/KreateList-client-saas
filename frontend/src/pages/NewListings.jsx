@@ -439,6 +439,7 @@ const NewListings = () => {
   const [soldSortOption, setSoldSortOption] = useState('newest');
   const [soldCurrentPage, setSoldCurrentPage] = useState(1);
   const [soldItemsPerPage, setSoldItemsPerPage] = useState(10);
+  const [lastSoldSyncTime, setLastSoldSyncTime] = useState(() => new Date());
 
   // Preview & Edit system states
   const [previewListing, setPreviewListing] = useState(null);
@@ -817,6 +818,7 @@ const NewListings = () => {
         if (res.data.stats) {
           setSoldStats(res.data.stats);
         }
+        setLastSoldSyncTime(new Date());
       }
     } catch (error) {
       console.error('Error loading sold orders:', error);
@@ -831,6 +833,7 @@ const NewListings = () => {
       const res = await orderService.sync();
       if (res.data?.success) {
         toast.success(res.data.message || 'Sales synchronized successfully!');
+        setLastSoldSyncTime(new Date());
         await Promise.all([fetchSoldOrders(), fetchListings()]);
       } else {
         toast.error(res.data?.message || 'Failed to sync sales.');
@@ -3815,17 +3818,6 @@ const NewListings = () => {
             </>
           )}
 
-          {activeTab === 'sold' && (
-            <button
-              onClick={handleManualSoldSync}
-              disabled={soldSyncing}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={soldSyncing ? "animate-spin" : ""} />
-              <span>{soldSyncing ? 'Checking Sales...' : 'Sync Sales Now'}</span>
-            </button>
-          )}
-
           {/* Smart Merge Button (Universal) */}
           <button
             onClick={handleOpenLocalMergeModal}
@@ -3850,162 +3842,17 @@ const NewListings = () => {
 
       {/* SOLD TRACKER CONTROLS OR LOCAL/CHANNEL CONTROLS */}
       {activeTab === 'sold' ? (
-        <div className="space-y-4">
-          {/* Top 24/7 Automation & Live Sync Banner */}
-          <div className="bg-gradient-to-br from-purple-950 via-slate-950 to-indigo-950 text-white p-5 sm:p-6 rounded-3xl border border-purple-900/50 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1.5 z-10 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  24/7 Automated Sold Sync & Multi-Platform Auto-Delist Active
-                </span>
-                <span className="text-[10px] font-bold text-purple-300">Checks every 10 min</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <Flame size={18} className="text-purple-400" />
-                <span>Sold Tracker & Multi-Channel Protection</span>
-              </h2>
-              <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                When an item sells on eBay or any connected channel, it is automatically tracked below and instantly delisted from all your other active marketplaces to eliminate double-selling.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 z-10 shrink-0 w-full md:w-auto">
-              <button
-                onClick={handleManualSoldSync}
-                disabled={soldSyncing}
-                className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw size={14} className={soldSyncing ? 'animate-spin' : ''} />
-                <span>{soldSyncing ? 'Syncing Sales...' : 'Sync Sales Now'}</span>
-              </button>
-            </div>
-
-            <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
-          </div>
-
-          {/* 3 Metric Highlight Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
-                <Flame size={20} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Items Sold</p>
-                <p className="text-lg font-black text-slate-900 mt-0.5">{soldOrders.length} <span className="text-xs font-semibold text-slate-400">Items</span></p>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                <DollarSign size={20} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Sales Volume</p>
-                <p className="text-lg font-black text-slate-900 mt-0.5">${(soldStats?.totalRevenue || 0).toFixed(2)}</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                <ShieldCheck size={20} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Double-Sale Protected</p>
-                <p className="text-lg font-black text-slate-900 mt-0.5">{soldStats?.totalDelistedProtections || 0} <span className="text-xs font-semibold text-slate-400">Auto-Delisted</span></p>
-              </div>
-            </div>
-          </div>
-
-          {/* Sold Tracker Filters & Search Bar */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
-              {/* Platform Filter Tabs */}
-              <div className="flex items-center gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
-                {[
-                  { key: 'all', label: 'All Channels', count: soldOrders.length },
-                  { key: 'ebay', label: 'eBay', count: soldOrders.filter(o => (o.platform || 'ebay') === 'ebay').length, icon: '/ebay.png' },
-                  { key: 'poshmark', label: 'Poshmark', count: soldOrders.filter(o => o.platform === 'poshmark').length, icon: '/poshmark.png' },
-                  { key: 'mercari', label: 'Mercari', count: soldOrders.filter(o => o.platform === 'mercari').length, icon: '/mercari.png' },
-                  { key: 'etsy', label: 'Etsy', count: soldOrders.filter(o => o.platform === 'etsy').length, icon: '/etsy.png' },
-                  { key: 'amazon', label: 'Amazon', count: soldOrders.filter(o => o.platform === 'amazon').length, icon: '/amazon.png' },
-                ].map((tab) => {
-                  const isActive = soldPlatformFilter === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setSoldPlatformFilter(tab.key)}
-                      className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
-                        isActive
-                          ? 'text-purple-700 font-extrabold'
-                          : 'text-slate-500 hover:text-slate-800 font-bold'
-                      }`}
-                    >
-                      {tab.icon && <img src={tab.icon} className="w-3.5 h-3.5 object-contain" alt="" />}
-                      <span>{tab.label}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                          isActive
-                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeSoldListingTabIndicator"
-                          className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full"
-                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right Controls: Sort dropdown */}
-              <div className="flex items-center gap-2.5 shrink-0 self-end xl:self-auto">
-                <div className="relative">
-                  <select
-                    value={soldSortOption}
-                    onChange={(e) => setSoldSortOption(e.target.value)}
-                    className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
-                  >
-                    <option value="newest">Sold Date (Newest First)</option>
-                    <option value="oldest">Sold Date (Oldest First)</option>
-                    <option value="price-desc">Sold Price (High - Low)</option>
-                    <option value="price-asc">Sold Price (Low - High)</option>
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronDown size={14} />
-                  </div>
-                </div>
-
-                {(soldSearchTerm || soldPlatformFilter !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setSoldSearchTerm('');
-                      setSoldPlatformFilter('all');
-                    }}
-                    className="text-xs font-extrabold text-purple-600 hover:text-purple-700 hover:underline px-1.5 transition-all cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* Search Bar */}
-            <div className="relative w-full">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={soldSearchTerm}
                 onChange={(e) => setSoldSearchTerm(e.target.value)}
                 placeholder="Search sold items by title, SKU, buyer username, or Order ID..."
-                className="w-full pl-11 pr-10 py-2.5 bg-slate-50/80 border border-slate-150 focus:bg-white rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all placeholder:text-slate-400 shadow-2xs"
+                className="w-full pl-11 pr-10 py-2.5 bg-slate-50/80 border border-slate-200 focus:bg-white rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all placeholder:text-slate-400 shadow-2xs"
               />
               {soldSearchTerm && (
                 <button
@@ -4016,6 +3863,89 @@ const NewListings = () => {
                   <X size={14} />
                 </button>
               )}
+            </div>
+
+            {/* Marketplace Filter & Sort */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Marketplace Filter Dropdown */}
+              <div className="relative">
+                <select
+                  value={soldPlatformFilter}
+                  onChange={(e) => setSoldPlatformFilter(e.target.value)}
+                  className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                >
+                  <option value="all">All Marketplaces ({soldOrders.length})</option>
+                  <option value="ebay">eBay ({soldOrders.filter(o => (o.platform || 'ebay') === 'ebay').length})</option>
+                  <option value="poshmark">Poshmark ({soldOrders.filter(o => o.platform === 'poshmark').length})</option>
+                  <option value="mercari">Mercari ({soldOrders.filter(o => o.platform === 'mercari').length})</option>
+                  <option value="etsy">Etsy ({soldOrders.filter(o => o.platform === 'etsy').length})</option>
+                  <option value="amazon">Amazon ({soldOrders.filter(o => o.platform === 'amazon').length})</option>
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+
+              {/* Sort dropdown */}
+              <div className="relative">
+                <select
+                  value={soldSortOption}
+                  onChange={(e) => setSoldSortOption(e.target.value)}
+                  className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                >
+                  <option value="newest">Sold Date (Newest First)</option>
+                  <option value="oldest">Sold Date (Oldest First)</option>
+                  <option value="price-desc">Sold Price (High - Low)</option>
+                  <option value="price-asc">Sold Price (Low - High)</option>
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+
+              {(soldSearchTerm || soldPlatformFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setSoldSearchTerm('');
+                    setSoldPlatformFilter('all');
+                  }}
+                  className="text-xs font-extrabold text-purple-600 hover:text-purple-700 hover:underline px-1.5 transition-all cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Sync Time Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                24/7 Auto-Delist Active
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-bold">Last Synced:</span>
+                <span className="font-bold text-slate-700 font-mono">
+                  {lastSoldSyncTime ? lastSoldSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}
+                </span>
+              </div>
+              <span className="text-slate-300">•</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-bold">Next Sync:</span>
+                <span className="font-bold text-slate-700">Every 10 min (Automatic)</span>
+              </div>
+              <button
+                onClick={handleManualSoldSync}
+                disabled={soldSyncing}
+                title="Refresh sold orders"
+                className="p-1 text-slate-400 hover:text-purple-600 rounded-lg hover:bg-purple-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={soldSyncing ? "animate-spin text-purple-600" : ""} />
+              </button>
             </div>
           </div>
         </div>
