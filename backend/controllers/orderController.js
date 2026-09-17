@@ -9,11 +9,42 @@ const { syncPoshmarkOrders } = require('../services/poshmarkOrderService');
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
-    const orders = await Order.find({ user: userId }).sort({ createdDate: -1 });
+    const orders = await Order.find({ user: userId })
+      .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
+      .sort({ createdDate: -1 });
+
+    // Calculate quick stats
+    let totalRevenue = 0;
+    let totalDelistedProtections = 0;
+    const platformBreakdown = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
+
+    orders.forEach(o => {
+      const amt = Number(o.totalAmount || 0);
+      if (!isNaN(amt)) totalRevenue += amt;
+      const plat = (o.platform || 'ebay').toLowerCase();
+      if (platformBreakdown[plat] !== undefined) platformBreakdown[plat]++;
+
+      // Count delist actions
+      if (o.delistActions && typeof o.delistActions === 'object') {
+        Object.keys(o.delistActions).forEach(p => {
+          if (o.delistActions[p]?.success) totalDelistedProtections++;
+        });
+      } else if (o.listingId?.autoDelistLog && typeof o.listingId.autoDelistLog === 'object') {
+        Object.keys(o.listingId.autoDelistLog).forEach(p => {
+          if (o.listingId.autoDelistLog[p]?.success) totalDelistedProtections++;
+        });
+      }
+    });
 
     return res.status(200).json({
       success: true,
       count: orders.length,
+      stats: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalSold: orders.length,
+        totalDelistedProtections,
+        platformBreakdown
+      },
       data: orders
     });
   } catch (error) {

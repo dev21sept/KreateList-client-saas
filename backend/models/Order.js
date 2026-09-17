@@ -32,10 +32,15 @@ const orderSchema = new mongoose.Schema({
   shippingStep: mongoose.Schema.Types.Mixed,
   platform: {
     type: String,
-    enum: ['ebay', 'depop', 'poshmark', 'etsy', 'mercari'],
+    enum: ['ebay', 'depop', 'poshmark', 'etsy', 'mercari', 'amazon'],
     default: 'ebay'
   },
   orderUrl: String,
+  listingId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Listing'
+  },
+  delistActions: mongoose.Schema.Types.Mixed,
   updated_at: {
     type: Date,
     default: Date.now

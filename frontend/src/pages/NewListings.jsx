@@ -33,9 +33,15 @@ import {
   Zap,
   Sparkles,
   Layers,
-  ArrowLeft
+  ArrowLeft,
+  DollarSign,
+  Clock,
+  ShieldCheck,
+  Flame,
+  Tag,
+  ArrowUpRight
 } from 'lucide-react';
-import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService } from '../services/api';
+import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService, orderService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import CrosslistingModal from '../components/CrosslistingModal';
@@ -423,6 +429,17 @@ const NewListings = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
+  // Sold Tracker states
+  const [soldOrders, setSoldOrders] = useState([]);
+  const [soldStats, setSoldStats] = useState(null);
+  const [soldLoading, setSoldLoading] = useState(false);
+  const [soldSyncing, setSoldSyncing] = useState(false);
+  const [soldSearchTerm, setSoldSearchTerm] = useState('');
+  const [soldPlatformFilter, setSoldPlatformFilter] = useState('all');
+  const [soldSortOption, setSoldSortOption] = useState('newest');
+  const [soldCurrentPage, setSoldCurrentPage] = useState(1);
+  const [soldItemsPerPage, setSoldItemsPerPage] = useState(10);
+
   // Preview & Edit system states
   const [previewListing, setPreviewListing] = useState(null);
   const [previewPlatform, setPreviewPlatform] = useState('ebay');
@@ -791,6 +808,41 @@ const NewListings = () => {
     }
   };
 
+  const fetchSoldOrders = async () => {
+    setSoldLoading(true);
+    try {
+      const res = await orderService.getAll();
+      if (res.data?.success) {
+        setSoldOrders(res.data.data || []);
+        if (res.data.stats) {
+          setSoldStats(res.data.stats);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading sold orders:', error);
+    } finally {
+      setSoldLoading(false);
+    }
+  };
+
+  const handleManualSoldSync = async () => {
+    setSoldSyncing(true);
+    try {
+      const res = await orderService.sync();
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Sales synchronized successfully!');
+        await Promise.all([fetchSoldOrders(), fetchListings()]);
+      } else {
+        toast.error(res.data?.message || 'Failed to sync sales.');
+      }
+    } catch (err) {
+      console.error('Error syncing sales:', err);
+      toast.error(err.response?.data?.message || 'Failed to sync sales.');
+    } finally {
+      setSoldSyncing(false);
+    }
+  };
+
   const handleSyncInventory = async () => {
     setSyncing(true);
     try {
@@ -897,6 +949,7 @@ const NewListings = () => {
 
   useEffect(() => {
     fetchListings();
+    fetchSoldOrders();
 
     const handleUpdate = () => {
       if (handleUpdateRef.current) {
@@ -906,6 +959,12 @@ const NewListings = () => {
     window.addEventListener('elister-listings-update', handleUpdate);
     return () => window.removeEventListener('elister-listings-update', handleUpdate);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'sold') {
+      fetchSoldOrders();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (previewListing && previewListing.images && previewListing.images.length > 0) {
@@ -1800,6 +1859,38 @@ const NewListings = () => {
     });
   }, [channelProducts, searchTerm, channelStatusFilter, channelSortOption, selectedChannel]);
 
+  // Filter & Sort Sold Tracker Orders
+  const filteredAndSortedSoldOrders = React.useMemo(() => {
+    let list = [...soldOrders];
+
+    if (soldPlatformFilter !== 'all') {
+      list = list.filter(o => (o.platform || 'ebay').toLowerCase() === soldPlatformFilter.toLowerCase());
+    }
+
+    if (soldSearchTerm.trim()) {
+      const q = soldSearchTerm.toLowerCase();
+      list = list.filter(o => {
+        const titleMatch = o.lineItems?.some(li => li.title?.toLowerCase().includes(q)) || o.listingId?.title?.toLowerCase().includes(q);
+        const skuMatch = o.lineItems?.some(li => li.sku?.toLowerCase().includes(q)) || o.listingId?.sku?.toLowerCase().includes(q);
+        const orderIdMatch = String(o.orderId || '').toLowerCase().includes(q) || String(o.ebayOrderId || '').toLowerCase().includes(q);
+        const buyerMatch = String(o.buyerUsername || '').toLowerCase().includes(q);
+        return titleMatch || skuMatch || orderIdMatch || buyerMatch;
+      });
+    }
+
+    list.sort((a, b) => {
+      const dateA = new Date(a.createdDate || a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdDate || b.createdAt || 0).getTime();
+      if (soldSortOption === 'newest') return dateB - dateA;
+      if (soldSortOption === 'oldest') return dateA - dateB;
+      if (soldSortOption === 'price-desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
+      if (soldSortOption === 'price-asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
+      return dateB - dateA;
+    });
+
+    return list;
+  }, [soldOrders, soldPlatformFilter, soldSearchTerm, soldSortOption]);
+
   // Pagination Calculations
   // Local
   const totalPages = Math.ceil(sortedListings.length / itemsPerPage) || 1;
@@ -1815,12 +1906,19 @@ const NewListings = () => {
   const endChannelIndex = Math.min(startChannelIndex + itemsPerPage, filteredAndSortedChannelProducts.length);
   const paginatedChannelProducts = filteredAndSortedChannelProducts.slice(startChannelIndex, endChannelIndex);
 
+  // Sold
+  const totalSoldPages = Math.ceil(filteredAndSortedSoldOrders.length / soldItemsPerPage) || 1;
+  const activeSoldPage = Math.min(soldCurrentPage, totalSoldPages);
+  const startSoldIndex = (activeSoldPage - 1) * soldItemsPerPage;
+  const endSoldIndex = Math.min(startSoldIndex + soldItemsPerPage, filteredAndSortedSoldOrders.length);
+  const paginatedSoldOrders = filteredAndSortedSoldOrders.slice(startSoldIndex, endSoldIndex);
+
   // Generalised Pagination Bounds for UI display
-  const displayedTotalPages = activeTab === 'local' ? totalPages : totalChannelPages;
-  const displayedActivePage = activeTab === 'local' ? activePage : activeChannelPage;
-  const displayedStartIndex = activeTab === 'local' ? startIndex : startChannelIndex;
-  const displayedEndIndex = activeTab === 'local' ? endIndex : endChannelIndex;
-  const displayedTotalCount = activeTab === 'local' ? sortedListings.length : filteredAndSortedChannelProducts.length;
+  const displayedTotalPages = activeTab === 'local' ? totalPages : (activeTab === 'channel' ? totalChannelPages : totalSoldPages);
+  const displayedActivePage = activeTab === 'local' ? activePage : (activeTab === 'channel' ? activeChannelPage : activeSoldPage);
+  const displayedStartIndex = activeTab === 'local' ? startIndex : (activeTab === 'channel' ? startChannelIndex : startSoldIndex);
+  const displayedEndIndex = activeTab === 'local' ? endIndex : (activeTab === 'channel' ? endChannelIndex : endSoldIndex);
+  const displayedTotalCount = activeTab === 'local' ? sortedListings.length : (activeTab === 'channel' ? filteredAndSortedChannelProducts.length : filteredAndSortedSoldOrders.length);
 
   // Multi-select Bulk Actions State
   const [selectedListingIds, setSelectedListingIds] = useState([]);
@@ -3635,7 +3733,7 @@ const NewListings = () => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
             }}
-            className={`flex-1 lg:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'local'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -3648,13 +3746,35 @@ const NewListings = () => {
               setActiveTab('channel');
               localStorage.setItem('elister_active_listings_tab', 'channel');
             }}
-            className={`flex-1 lg:flex-none px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'channel'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             All Platform Inventory
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('sold');
+              localStorage.setItem('elister_active_listings_tab', 'sold');
+              fetchSoldOrders();
+            }}
+            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'sold'
+                ? 'bg-white text-purple-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Flame size={13} className={activeTab === 'sold' ? "text-purple-600" : "text-slate-400"} />
+            <span>Sold Tracker</span>
+            {soldOrders.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'sold' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {soldOrders.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -3695,7 +3815,18 @@ const NewListings = () => {
             </>
           )}
 
-          {/* Smart Merge Button (Universal: Available in both tabs) */}
+          {activeTab === 'sold' && (
+            <button
+              onClick={handleManualSoldSync}
+              disabled={soldSyncing}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={soldSyncing ? "animate-spin" : ""} />
+              <span>{soldSyncing ? 'Checking Sales...' : 'Sync Sales Now'}</span>
+            </button>
+          )}
+
+          {/* Smart Merge Button (Universal) */}
           <button
             onClick={handleOpenLocalMergeModal}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
@@ -3705,7 +3836,7 @@ const NewListings = () => {
             <span>Smart Merge</span>
           </button>
 
-          {/* Sync Platforms Button (Universal: Available in both tabs) */}
+          {/* Sync Platforms Button (Universal) */}
           <button
             onClick={handleOpenImportModal}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
@@ -3717,8 +3848,178 @@ const NewListings = () => {
         </div>
       </div>
 
-      {/* LOCAL DATABASE CONTROLS: 7 STATUS TABS + SORT/INVERT/FILTER + FULL-WIDTH SEARCH */}
-      {activeTab === 'local' ? (
+      {/* SOLD TRACKER CONTROLS OR LOCAL/CHANNEL CONTROLS */}
+      {activeTab === 'sold' ? (
+        <div className="space-y-4">
+          {/* Top 24/7 Automation & Live Sync Banner */}
+          <div className="bg-gradient-to-br from-purple-950 via-slate-950 to-indigo-950 text-white p-5 sm:p-6 rounded-3xl border border-purple-900/50 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1.5 z-10 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  24/7 Automated Sold Sync & Multi-Platform Auto-Delist Active
+                </span>
+                <span className="text-[10px] font-bold text-purple-300">Checks every 10 min</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <Flame size={18} className="text-purple-400" />
+                <span>Sold Tracker & Multi-Channel Protection</span>
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                When an item sells on eBay or any connected channel, it is automatically tracked below and instantly delisted from all your other active marketplaces to eliminate double-selling.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 z-10 shrink-0 w-full md:w-auto">
+              <button
+                onClick={handleManualSoldSync}
+                disabled={soldSyncing}
+                className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={soldSyncing ? 'animate-spin' : ''} />
+                <span>{soldSyncing ? 'Syncing Sales...' : 'Sync Sales Now'}</span>
+              </button>
+            </div>
+
+            <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+          </div>
+
+          {/* 3 Metric Highlight Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                <Flame size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Items Sold</p>
+                <p className="text-lg font-black text-slate-900 mt-0.5">{soldOrders.length} <span className="text-xs font-semibold text-slate-400">Items</span></p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Sales Volume</p>
+                <p className="text-lg font-black text-slate-900 mt-0.5">${(soldStats?.totalRevenue || 0).toFixed(2)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Double-Sale Protected</p>
+                <p className="text-lg font-black text-slate-900 mt-0.5">{soldStats?.totalDelistedProtections || 0} <span className="text-xs font-semibold text-slate-400">Auto-Delisted</span></p>
+              </div>
+            </div>
+          </div>
+
+          {/* Sold Tracker Filters & Search Bar */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+              {/* Platform Filter Tabs */}
+              <div className="flex items-center gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
+                {[
+                  { key: 'all', label: 'All Channels', count: soldOrders.length },
+                  { key: 'ebay', label: 'eBay', count: soldOrders.filter(o => (o.platform || 'ebay') === 'ebay').length, icon: '/ebay.png' },
+                  { key: 'poshmark', label: 'Poshmark', count: soldOrders.filter(o => o.platform === 'poshmark').length, icon: '/poshmark.png' },
+                  { key: 'mercari', label: 'Mercari', count: soldOrders.filter(o => o.platform === 'mercari').length, icon: '/mercari.png' },
+                  { key: 'etsy', label: 'Etsy', count: soldOrders.filter(o => o.platform === 'etsy').length, icon: '/etsy.png' },
+                  { key: 'amazon', label: 'Amazon', count: soldOrders.filter(o => o.platform === 'amazon').length, icon: '/amazon.png' },
+                ].map((tab) => {
+                  const isActive = soldPlatformFilter === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setSoldPlatformFilter(tab.key)}
+                      className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
+                        isActive
+                          ? 'text-purple-700 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-800 font-bold'
+                      }`}
+                    >
+                      {tab.icon && <img src={tab.icon} className="w-3.5 h-3.5 object-contain" alt="" />}
+                      <span>{tab.label}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
+                          isActive
+                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeSoldListingTabIndicator"
+                          className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full"
+                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right Controls: Sort dropdown */}
+              <div className="flex items-center gap-2.5 shrink-0 self-end xl:self-auto">
+                <div className="relative">
+                  <select
+                    value={soldSortOption}
+                    onChange={(e) => setSoldSortOption(e.target.value)}
+                    className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  >
+                    <option value="newest">Sold Date (Newest First)</option>
+                    <option value="oldest">Sold Date (Oldest First)</option>
+                    <option value="price-desc">Sold Price (High - Low)</option>
+                    <option value="price-asc">Sold Price (Low - High)</option>
+                  </select>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <ChevronDown size={14} />
+                  </div>
+                </div>
+
+                {(soldSearchTerm || soldPlatformFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSoldSearchTerm('');
+                      setSoldPlatformFilter('all');
+                    }}
+                    className="text-xs font-extrabold text-purple-600 hover:text-purple-700 hover:underline px-1.5 transition-all cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={soldSearchTerm}
+                onChange={(e) => setSoldSearchTerm(e.target.value)}
+                placeholder="Search sold items by title, SKU, buyer username, or Order ID..."
+                className="w-full pl-11 pr-10 py-2.5 bg-slate-50/80 border border-slate-150 focus:bg-white rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all placeholder:text-slate-400 shadow-2xs"
+              />
+              {soldSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSoldSearchTerm('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'local' ? (
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           
           {/* Top Row: Horizontal Status Tabs on Left, Sort / Direction / Filter on Right */}
@@ -4374,6 +4675,251 @@ const NewListings = () => {
               </div>
             </>
           )
+        ) : activeTab === 'sold' ? (
+          soldLoading ? (
+            <LoadingState label="Loading sold items and auto-delist logs..." />
+          ) : paginatedSoldOrders.length === 0 ? (
+            <EmptyState
+              icon={<Flame size={24} className="text-purple-500" />}
+              title={soldSearchTerm || soldPlatformFilter !== 'all' ? "No sold items match your filters" : "No sold items recorded yet"}
+              description={
+                soldSearchTerm || soldPlatformFilter !== 'all'
+                  ? "Try changing your search term or platform filter."
+                  : "When an item sells on eBay, Poshmark, Mercari, or Etsy, it will appear here automatically with exact sale time and cross-platform auto-delist status."
+              }
+              action={
+                soldSearchTerm || soldPlatformFilter !== 'all' ? (
+                  <Button variant="secondary" size="sm" onClick={() => { setSoldSearchTerm(''); setSoldPlatformFilter('all'); }}>
+                    Clear Filters
+                  </Button>
+                ) : (
+                  <Button size="sm" icon={<RefreshCw size={14} className={soldSyncing ? 'animate-spin' : ''} />} onClick={handleManualSoldSync} disabled={soldSyncing}>
+                    {soldSyncing ? 'Checking Marketplace Sales...' : 'Sync Sales Now'}
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <>
+              {/* MOBILE SOLD CARD VIEW */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {paginatedSoldOrders.map((order) => {
+                  const firstItem = (order.lineItems && order.lineItems[0]) || {};
+                  const thumb = firstItem.thumbnail || order.listingId?.thumbnail || (order.listingId?.images && order.listingId.images[0]);
+                  const title = firstItem.title || order.listingId?.title || 'Sold Item';
+                  const sku = firstItem.sku || order.listingId?.sku || '-';
+                  const platformName = (order.platform || 'ebay').toLowerCase();
+                  const platformLogo = platformName === 'ebay' ? '/ebay.png' : (platformName === 'poshmark' ? '/poshmark.png' : (platformName === 'mercari' ? '/mercari.png' : (platformName === 'etsy' ? '/etsy.png' : '/amazon.png')));
+                  const price = order.totalAmount !== undefined ? order.totalAmount : (firstItem.price || 0);
+                  const delistLog = order.delistActions || order.listingId?.autoDelistLog || {};
+                  const delistedPlatforms = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+
+                  return (
+                    <div key={order._id || order.orderId} className="p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 relative">
+                          {thumb ? (
+                            <img src={thumb} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <ImageOff size={16} className="text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">{title}</p>
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-[10px] font-bold text-slate-400">
+                            <span className="font-mono text-slate-500">SKU: {sku}</span>
+                            <span>•</span>
+                            <span className="text-purple-700 font-extrabold text-xs">${Number(price).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl text-xs">
+                        <div className="flex items-center gap-2">
+                          <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
+                          <span className="font-bold text-slate-700 capitalize">{platformName}</span>
+                          <span className="text-[10px] font-mono text-slate-400">#{order.orderId}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {formatTimeAgo(order.createdDate || order.paidDate || order.createdAt)}
+                        </span>
+                      </div>
+
+                      {delistedPlatforms.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto-Delisted:</span>
+                          {delistedPlatforms.map(p => (
+                            <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200 capitalize">
+                              ✓ {p}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP SOLD TABLE VIEW */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50/80 border-b border-slate-100">
+                    <tr className="border-b border-slate-100 select-none text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <th className="px-6 py-4">Product</th>
+                      <th className="px-6 py-4">Sold On & Order ID</th>
+                      <th className="px-6 py-4">Sold Price</th>
+                      <th className="px-6 py-4">Sale Date & Time</th>
+                      <th className="px-6 py-4">Auto-Delist Protection</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedSoldOrders.map((order) => {
+                      const firstItem = (order.lineItems && order.lineItems[0]) || {};
+                      const thumb = firstItem.thumbnail || order.listingId?.thumbnail || (order.listingId?.images && order.listingId.images[0]);
+                      const title = firstItem.title || order.listingId?.title || 'Sold Item';
+                      const sku = firstItem.sku || order.listingId?.sku || '-';
+                      const platformName = (order.platform || 'ebay').toLowerCase();
+                      const platformLogo = platformName === 'ebay' ? '/ebay.png' : (platformName === 'poshmark' ? '/poshmark.png' : (platformName === 'mercari' ? '/mercari.png' : (platformName === 'etsy' ? '/etsy.png' : '/amazon.png')));
+                      const price = order.totalAmount !== undefined ? order.totalAmount : (firstItem.price || 0);
+                      const rawDate = order.createdDate || order.paidDate || order.createdAt;
+                      const dateObj = rawDate ? new Date(rawDate) : null;
+                      const formattedDate = dateObj && !isNaN(dateObj.getTime())
+                        ? dateObj.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+                        : 'Recently';
+                      
+                      const delistLog = order.delistActions || order.listingId?.autoDelistLog || {};
+                      const delistedPlatforms = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+
+                      return (
+                        <tr key={order._id || order.orderId} className="hover:bg-slate-50/60 transition-colors">
+                          {/* Product Info */}
+                          <td className="px-6 py-4 max-w-sm">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
+                                {thumb ? (
+                                  <img src={thumb} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <ImageOff size={16} className="text-slate-300" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed block" title={title}>
+                                  {title}
+                                </span>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {getDisplaySku(sku)}
+                                  </span>
+                                  {firstItem.quantity > 1 && (
+                                    <span className="text-[10px] text-slate-400 font-bold">Qty: {firstItem.quantity}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Sold Platform & Order */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80 w-fit">
+                                <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
+                                <span className="text-xs font-black text-slate-800 capitalize">{platformName}</span>
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400 font-bold block">
+                                Order #{order.orderId}
+                              </span>
+                              {order.buyerUsername && (
+                                <span className="text-[10px] text-slate-400">Buyer: <strong className="text-slate-600">@{order.buyerUsername}</strong></span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Sold Price */}
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-black text-purple-700 block">
+                              ${Number(price).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gross Total</span>
+                          </td>
+
+                          {/* Sale Date & Time */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                <Clock size={12} className="text-slate-400" />
+                                {formattedDate}
+                              </span>
+                              <span className="text-[10px] font-medium text-slate-400">
+                                {formatTimeAgo(rawDate)}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Auto-Delist Protection Badges */}
+                          <td className="px-6 py-4">
+                            {delistedPlatforms.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                                  <ShieldCheck size={12} /> Auto-Delisted & Synced
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {delistedPlatforms.map(p => (
+                                    <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200/80 capitalize">
+                                      ✓ {p}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500">
+                                Single Platform Item
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-600 mr-1.5"></span>
+                              Sold Out
+                            </span>
+                          </td>
+
+                          {/* Action */}
+                          <td className="px-6 py-4 text-center">
+                            {order.orderUrl ? (
+                              <a
+                                href={order.orderUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs font-bold transition-colors cursor-pointer border border-slate-200/70"
+                              >
+                                <span>View</span>
+                                <ExternalLink size={12} />
+                              </a>
+                            ) : order.listingId ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPreview(order.listingId, platformName)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs font-bold transition-colors cursor-pointer border border-slate-200/70"
+                              >
+                                <Eye size={12} />
+                                <span>Preview</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-300 text-xs">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )
         ) : !isChannelConnected() ? (
           <EmptyState
             icon={<AlertCircle size={20} className="text-amber-500" />}
@@ -4630,14 +5176,20 @@ const NewListings = () => {
         {/* Bottom Pagination */}
         <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs font-extrabold text-slate-400 select-none order-2 sm:order-1">
-            Showing {displayedTotalCount === 0 ? 0 : displayedStartIndex + 1} to {displayedEndIndex} of {displayedTotalCount.toLocaleString()} {activeTab === 'local' ? 'listings' : 'live products'}
+            Showing {displayedTotalCount === 0 ? 0 : displayedStartIndex + 1} to {displayedEndIndex} of {displayedTotalCount.toLocaleString()} {activeTab === 'local' ? 'listings' : (activeTab === 'sold' ? 'sold items' : 'live products')}
           </p>
 
           <div className="flex items-center gap-4 sm:gap-6 order-1 sm:order-2">
             <div className="flex items-center gap-1">
               <IconButton
                 aria-label="Previous page"
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                onClick={() => {
+                  if (activeTab === 'sold') {
+                    setSoldCurrentPage(prev => Math.max(prev - 1, 1));
+                  } else {
+                    setCurrentPage(prev => Math.max(prev - 1, 1));
+                  }
+                }}
                 disabled={displayedActivePage === 1}
                 size="sm"
               >
@@ -4656,7 +5208,13 @@ const NewListings = () => {
                 return (
                   <button
                     key={page}
-                    onClick={() => setCurrentPage(page)}
+                    onClick={() => {
+                      if (activeTab === 'sold') {
+                        setSoldCurrentPage(page);
+                      } else {
+                        setCurrentPage(page);
+                      }
+                    }}
                     className={`w-8 h-8 flex items-center justify-center rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
                       isCurrent
                         ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
@@ -4670,7 +5228,13 @@ const NewListings = () => {
 
               <IconButton
                 aria-label="Next page"
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, displayedTotalPages))}
+                onClick={() => {
+                  if (activeTab === 'sold') {
+                    setSoldCurrentPage(prev => Math.min(prev + 1, displayedTotalPages));
+                  } else {
+                    setCurrentPage(prev => Math.min(prev + 1, displayedTotalPages));
+                  }
+                }}
                 disabled={displayedActivePage === displayedTotalPages}
                 size="sm"
               >
@@ -4681,10 +5245,16 @@ const NewListings = () => {
             {/* page count indicator */}
             <div className="relative flex items-center">
               <select
-                value={itemsPerPage}
+                value={activeTab === 'sold' ? soldItemsPerPage : itemsPerPage}
                 onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
+                  const val = Number(e.target.value);
+                  if (activeTab === 'sold') {
+                    setSoldItemsPerPage(val);
+                    setSoldCurrentPage(1);
+                  } else {
+                    setItemsPerPage(val);
+                    setCurrentPage(1);
+                  }
                 }}
                 className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-border hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
               >

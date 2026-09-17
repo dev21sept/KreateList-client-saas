@@ -34,7 +34,7 @@ const listingSchema = new mongoose.Schema({
   thumbnail: String,
   status: {
     type: String,
-    enum: ['draft', 'scheduled', 'published', 'failed', 'delisted'],
+    enum: ['draft', 'scheduled', 'published', 'failed', 'delisted', 'sold'],
     default: 'draft'
   },
   ebayListingId: String,
@@ -155,34 +155,40 @@ const listingSchema = new mongoose.Schema({
   },
   ebayStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
   poshmarkStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
   depopStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
   etsyStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
   mercariStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
   amazonStatus: {
     type: String,
-    enum: ['draft', 'published', 'failed', 'none', 'delisted'],
+    enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
     default: 'none'
   },
+  soldOn: String,
+  soldPlatform: String,
+  soldAt: Date,
+  soldPrice: String,
+  soldOrderId: String,
+  autoDelistLog: [mongoose.Schema.Types.Mixed],
   platformData: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

@@ -237,6 +237,28 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           results.delistActions.ebay = { success: false, error: ebayErr.message };
         }
       }
+
+      // Save delistActions to master listing
+      masterListing.autoDelistLog = results.delistActions;
+      masterListing.markModified('autoDelistLog');
+      masterListing.markModified('platformData');
+      await masterListing.save();
+
+      // Also attach to Order record for Sold Tracker display
+      if (orderId) {
+        try {
+          const Order = require('../models/Order');
+          await Order.findOneAndUpdate(
+            { user: userId, orderId: String(orderId) },
+            {
+              listingId: masterListing._id,
+              delistActions: results.delistActions
+            }
+          );
+        } catch (ordErr) {
+          console.warn('[Auto-Delist] Failed to update Order record:', ordErr.message);
+        }
+      }
     }
 
     // 3. Mark Channel Inventory (Product model cache) as inactive across all channels
