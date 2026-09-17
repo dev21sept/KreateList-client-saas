@@ -45,7 +45,6 @@ const PricingPage = () => {
       perfectFor: ['Growing stores', 'Full-time resellers', 'Multi-account sellers'],
       features: [
         '3,000 AI Listings',
-        '5 eBay Accounts',
         'Advanced AI Optimization',
         'Bulk Listing Tools',
         'Inventory Sync',

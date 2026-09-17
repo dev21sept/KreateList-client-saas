@@ -57,7 +57,7 @@ const TermsConditions = () => {
                 <span className="font-bold text-slate-900">2. Pricing & Subscription Plans:</span> I have understood the pricing model and agree to pay the subscription price prior to using the platform. Elister By Kreatelist Infotech Private Limited operates on a monthly or yearly subscription basis (with a 5% discount on annual billing):
                 <ul className="list-disc pl-5 mt-3 space-y-2 text-slate-500 marker:text-slate-300">
                   <li><strong className="font-bold text-slate-700">BASIC Plan ($79/mo):</strong> Includes up to 500 AI Listings per month and support for 1 eBay Account.</li>
-                  <li><strong className="font-bold text-slate-700">PRO Plan ($149/mo):</strong> Includes up to 3,000 AI Listings per month and support for 5 eBay Accounts.</li>
+                  <li><strong className="font-bold text-slate-700">PRO Plan ($149/mo):</strong> Includes up to 3,000 AI Listings per month.</li>
                   <li><strong className="font-bold text-slate-700">ENTERPRISE Plan ($299/mo):</strong> Includes up to 10,000 AI Listings per month and support for Unlimited eBay Accounts.</li>
                 </ul>
               </li>
