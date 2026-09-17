@@ -32,7 +32,7 @@ const STATUS_MAP = {
   draft: { label: 'Draft', variant: 'neutral' },
   scheduled: { label: 'Scheduled', variant: 'warning' },
   pending: { label: 'Pending', variant: 'warning' },
-  delisted: { label: 'Delisted', variant: 'warning' },
+  delisted: { label: 'Delisted', variant: 'neutral' },
   sold: { label: 'Sold', variant: 'brand' },
   ended: { label: 'Ended', variant: 'neutral' },
   failed: { label: 'Failed', variant: 'danger' },

@@ -3115,9 +3115,9 @@ const NewListings = () => {
             <button
               type="button"
               onClick={() => handleDelistItem(item, platformName)}
-              className="w-full px-3.5 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 hover:text-amber-700 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
+              className="w-full px-3.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition-colors cursor-pointer text-left border-t border-slate-100"
             >
-              <XCircle size={13} className="text-amber-500 shrink-0" />
+              <XCircle size={13} className="text-slate-400 shrink-0" />
               Delist Listing
             </button>
           )}
@@ -3190,106 +3190,136 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all group/card flex items-stretch justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${
+            className={`relative bg-white border rounded-2xl p-2 shadow-2xs hover:shadow-md transition-all group/card flex items-center justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${
               isSold
                 ? 'border-purple-200/90 bg-purple-50/20 hover:border-purple-400'
                 : isListed 
                   ? 'border-slate-200/90 hover:border-emerald-300' 
-                  : isDraft 
-                    ? 'border-amber-200/80 bg-amber-50/20 hover:border-amber-400' 
-                    : isFailed 
-                      ? 'border-rose-200/80 bg-rose-50/20 hover:border-rose-400' 
-                      : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-400'
+                  : isDelisted 
+                    ? 'border-slate-300/90 bg-slate-50/40 hover:border-slate-400' 
+                    : isDraft 
+                      ? 'border-amber-200/80 bg-amber-50/20 hover:border-amber-400' 
+                      : isFailed 
+                        ? 'border-rose-200/80 bg-rose-50/20 hover:border-rose-400' 
+                        : 'border-slate-200/90 hover:border-slate-300'
             } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
-            {/* Left Side: Status pill + 3-dots on top, Price in middle, Open Link at bottom */}
-            <div className="flex flex-col justify-between flex-1 min-w-0 pr-1 py-0.5">
-              <div>
-                {/* Top Row: Status badge on left, 3-dots trigger on right */}
-                <div className="flex items-center justify-between gap-1 w-full">
-                  {isSold && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200/80 leading-none shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 mr-1 shrink-0"></span>
-                      Sold
-                    </span>
-                  )}
-                  {!isSold && isListed && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 leading-none shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 shrink-0 animate-pulse"></span>
-                      Listed
-                    </span>
-                  )}
-                  {!isSold && isDraft && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 leading-none shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 shrink-0"></span>
-                      Draft
-                    </span>
-                  )}
-                  {!isSold && isFailed && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80 leading-none shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 shrink-0"></span>
-                      Error
-                    </span>
-                  )}
-                  {!isSold && isDelisted && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100/70 text-amber-800 border border-amber-300/80 leading-none shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1 shrink-0"></span>
-                      Delisted
-                    </span>
-                  )}
+            {/* Left Side: Marketplace Image Thumbnail (Taller Portrait) with Status Border & Badge */}
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenPreview(item, platformName);
+              }}
+              title={`Click to preview on ${getChannelDisplayName(platformName)}`}
+              className={`w-[74px] h-[92px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer relative ${
+                isSold
+                  ? 'border-2 border-purple-500 ring-1 ring-purple-400/20'
+                  : isListed
+                    ? 'border-2 border-emerald-500 ring-1 ring-emerald-400/20'
+                    : isDelisted
+                      ? 'border-2 border-slate-400 ring-1 ring-slate-400/20'
+                      : isDraft
+                        ? 'border-2 border-amber-400 ring-1 ring-amber-400/20'
+                        : isFailed
+                          ? 'border-2 border-rose-500 ring-1 ring-rose-400/20'
+                          : 'border border-slate-200'
+              }`}
+            >
+              {platformImg ? (
+                <img src={platformImg} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <ImageOff size={16} className="text-slate-300" />
+              )}
 
-                  {/* 3-Dots Dropdown Trigger - In left info section, clearly visible */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isDropdownOpen) {
-                        setActiveListedDropdown(null);
-                        return;
-                      }
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const openUpward = rect.bottom > window.innerHeight * 0.6;
-                      const menuWidth = 190;
-                      const left = Math.min(
-                        Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
-                        window.innerWidth - menuWidth - 8
-                      );
-                      setActiveListedDropdown({
-                        itemId: item._id,
-                        platform: platformName,
-                        openUpward,
-                        left,
-                        verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
-                      });
-                    }}
-                    className="w-5 h-5 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                    title="Marketplace options"
-                  >
-                    <MoreVertical size={13} />
-                  </button>
-                </div>
+              {/* Status Badge Overlaid on Image */}
+              <div className="absolute bottom-1 left-1 right-1 flex justify-center pointer-events-none">
+                {isSold && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-purple-700/90 text-white shadow-xs backdrop-blur-xs leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
+                    Sold
+                  </span>
+                )}
+                {!isSold && isListed && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0 animate-pulse"></span>
+                    Listed
+                  </span>
+                )}
+                {!isSold && isDelisted && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-slate-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
+                    Delisted
+                  </span>
+                )}
+                {!isSold && isDraft && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
+                    Draft
+                  </span>
+                )}
+                {!isSold && isFailed && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
+                    Error
+                  </span>
+                )}
+              </div>
+            </div>
 
-                {/* Price */}
-                <div className="text-sm font-extrabold text-slate-900 tracking-tight mt-1.5">
-                  {formattedPrice}
-                </div>
+            {/* Right Side: 3-dots on top right, Price in center, Open Link at bottom */}
+            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-0.5">
+              {/* Top: 3-dots trigger aligned to top right */}
+              <div className="w-full flex justify-end">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isDropdownOpen) {
+                      setActiveListedDropdown(null);
+                      return;
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const openUpward = rect.bottom > window.innerHeight * 0.6;
+                    const menuWidth = 190;
+                    const left = Math.min(
+                      Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                      window.innerWidth - menuWidth - 8
+                    );
+                    setActiveListedDropdown({
+                      itemId: item._id,
+                      platform: platformName,
+                      openUpward,
+                      left,
+                      verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                    });
+                  }}
+                  className="w-5 h-5 -mr-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  title="Marketplace options"
+                >
+                  <MoreVertical size={13} />
+                </button>
               </div>
 
-              {/* Action / Link */}
-              <div>
+              {/* Center: Clean Price (light/medium weight, elegant typography) */}
+              <div className="text-[13px] font-semibold text-slate-700 tracking-tight text-center my-auto">
+                {formattedPrice}
+              </div>
+
+              {/* Bottom: Action / Link */}
+              <div className="w-full text-center">
                 {liveUrl && liveUrl !== '#' && isListed ? (
                   <a
                     href={liveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors group-hover/card:underline"
+                    className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors group-hover/card:underline"
                   >
                     <span>Open</span>
-                    <ExternalLink size={10} className="stroke-[2.5]" />
+                    <ExternalLink size={10} className="stroke-[2]" />
                   </a>
                 ) : isSold ? (
-                  <span className="text-[10px] font-bold text-purple-700">Sold Out</span>
+                  <span className="text-[10px] font-medium text-purple-700">Sold Out</span>
                 ) : isDraft ? (
                   <button
                     type="button"
@@ -3297,7 +3327,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleOpenCrosslisting(platformSpecificItem || item, platformName);
                     }}
-                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline cursor-pointer"
+                    className="text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:underline cursor-pointer"
                   >
                     Edit Draft
                   </button>
@@ -3308,7 +3338,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleRelistItemDirect(item, platformName);
                     }}
-                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    className="text-[10px] font-medium text-rose-600 hover:text-rose-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                   >
                     <RefreshCw size={9} /> Retry
                   </button>
@@ -3319,7 +3349,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleRelistItemDirect(item, platformName);
                     }}
-                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    className="text-[10px] font-medium text-slate-600 hover:text-slate-900 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                   >
                     <RefreshCw size={9} /> Relist
                   </button>
@@ -3327,28 +3357,12 @@ const NewListings = () => {
               </div>
             </div>
 
-            {/* Right Side: Marketplace Image Thumbnail (Taller Portrait) */}
-            <div 
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenPreview(item, platformName);
-              }}
-              title={`Click to preview on ${getChannelDisplayName(platformName)}`}
-              className="w-[68px] h-[92px] rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer hover:border-indigo-300 hover:shadow-md"
-            >
-              {platformImg ? (
-                <img src={platformImg} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <ImageOff size={16} className="text-slate-300" />
-              )}
-            </div>
-
             {/* Dropdown Portal */}
             {renderPortalDropdown()}
           </div>
         );
       } else {
-        // Not Listed Matrix Card (Dashed Placeholder matching Image 2)
+        // Not Listed Matrix Card (Dashed Placeholder matching brand theme)
         return (
           <div
             onClick={() => handleOpenCrosslisting(platformSpecificItem || item, platformName)}
@@ -3402,17 +3416,17 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-2xl p-2.5 bg-slate-50/40 hover:bg-teal-50/20 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] min-h-[108px] h-[108px] select-none ${
+            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2.5 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] min-h-[108px] h-[108px] select-none ${
               isDropTarget
                 ? isHovered
-                  ? 'scale-105 ring-2 ring-teal-500 rounded-2xl bg-teal-50/90 shadow-md'
-                  : 'ring-2 ring-dashed ring-teal-400 rounded-2xl bg-teal-50/40 animate-pulse'
+                  ? 'scale-105 ring-2 ring-indigo-500 rounded-2xl bg-indigo-100/80 shadow-md'
+                  : 'ring-2 ring-dashed ring-indigo-400 rounded-2xl bg-indigo-50/60 animate-pulse'
                 : 'hover:scale-[1.02]'
             }`}
             title={isDropTarget ? "Drop here to merge channel into this item!" : `Click to list on ${getChannelDisplayName(platformName)}`}
           >
-            <Plus size={26} className="stroke-[2.5] text-teal-700 group-hover:scale-110 transition-transform mb-1 shrink-0" />
-            <span className="text-[12px] font-bold text-teal-800 leading-snug select-none">
+            <Plus size={24} className="stroke-[2.5] text-indigo-600 group-hover:scale-110 transition-transform mb-1 shrink-0" />
+            <span className="text-[11px] font-bold text-indigo-700 leading-snug select-none">
               {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : (
                 <>
                   List on<br />
@@ -3482,7 +3496,7 @@ const NewListings = () => {
                 Draft <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </span>
             ) : isDelisted ? (
-              <span className="text-[10px] font-black text-amber-600 flex items-center gap-0.5">
+              <span className="text-[10px] font-black text-slate-500 flex items-center gap-0.5">
                 Delisted <ChevronDown size={10} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </span>
             ) : (
@@ -3950,9 +3964,7 @@ const NewListings = () => {
                           className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" 
                         />
                         <div 
-                          className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 cursor-pointer relative"
-                          onClick={() => handleOpenPreview(item, 'ebay')}
-                          title="Click to preview listing"
+                          className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 relative"
                         >
                           {item.thumbnail || (item.images && item.images.length > 0) ? (
                             <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
@@ -3963,8 +3975,7 @@ const NewListings = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-1.5">
                             <p 
-                              className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
-                              onClick={() => handleOpenPreview(item, 'ebay')}
+                              className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2 flex-1"
                             >
                               {item.title}
                             </p>
@@ -4114,9 +4125,7 @@ const NewListings = () => {
                           <td className="px-4 py-3 align-middle w-[31%]">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 cursor-pointer group-hover:scale-105 transition-transform relative"
-                                onClick={() => handleOpenPreview(item, 'ebay')}
-                                title="Click to preview listing"
+                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 relative"
                               >
                                 {item.thumbnail || (item.images && item.images.length > 0) ? (
                                   <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
@@ -4127,8 +4136,7 @@ const NewListings = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between gap-1.5">
                                   <p 
-                                    onClick={() => handleOpenPreview(item, 'ebay')}
-                                    className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer flex-1"
+                                    className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 flex-1"
                                     title={item.title}
                                   >
                                     {item.title}
@@ -5000,9 +5008,27 @@ const NewListings = () => {
         const displayCategory = platData.category || (previewListing.platform === activePlat ? previewListing.category : '-');
         const displayCondition = platData.condition || platData.selectedCondition || (previewListing.platform === activePlat ? (previewListing.selectedCondition || previewListing.condition) : '');
         const displaySku = getDisplaySku(platData.sku || previewListing.sku || '');
-        const displaySpecifics = activePlat === 'ebay' 
-          ? (platData.itemSpecifics || (previewListing.platform === 'ebay' ? previewListing.itemSpecifics : {})) 
-          : {};
+        let displaySpecifics = {};
+        if (activePlat === 'ebay') {
+          if (platData.itemSpecifics && typeof platData.itemSpecifics === 'object' && Object.keys(platData.itemSpecifics).length > 0) {
+            displaySpecifics = { ...platData.itemSpecifics };
+          } else if (previewListing.itemSpecifics && typeof previewListing.itemSpecifics === 'object' && Object.keys(previewListing.itemSpecifics).length > 0) {
+            displaySpecifics = { ...previewListing.itemSpecifics };
+          } else if (previewListing.platformData?.ebay?.itemSpecifics && typeof previewListing.platformData.ebay.itemSpecifics === 'object') {
+            displaySpecifics = { ...previewListing.platformData.ebay.itemSpecifics };
+          }
+          
+          if (!displaySpecifics['Brand'] && (platData.brand || previewListing.brand)) displaySpecifics['Brand'] = platData.brand || previewListing.brand;
+          if (!displaySpecifics['Size'] && (platData.size || previewListing.size)) displaySpecifics['Size'] = platData.size || previewListing.size;
+          if (!displaySpecifics['Color'] && (platData.color || previewListing.color)) displaySpecifics['Color'] = platData.color || previewListing.color;
+          if (!displaySpecifics['Material'] && (platData.material || previewListing.material)) displaySpecifics['Material'] = platData.material || previewListing.material;
+          if (!displaySpecifics['Department'] && (platData.department || previewListing.department || platData.gender || previewListing.gender)) displaySpecifics['Department'] = platData.department || previewListing.department || platData.gender || previewListing.gender;
+          if (!displaySpecifics['Style'] && (platData.style || previewListing.style || platData.fit || previewListing.fit)) displaySpecifics['Style'] = platData.style || previewListing.style || platData.fit || previewListing.fit;
+          if (!displaySpecifics['Condition'] && displayCondition) displaySpecifics['Condition'] = displayCondition;
+          if (!displaySpecifics['Condition Description'] && (platData.conditionDescription || previewListing.conditionDescription || previewListing.conditionNote)) {
+            displaySpecifics['Condition Description'] = platData.conditionDescription || previewListing.conditionDescription || previewListing.conditionNote;
+          }
+        }
         const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
         const displayLiveId = getPlatformLiveId(previewListing, activePlat);
         const displayUrl = platData.url || previewListing[`${activePlat}Url`];
@@ -5075,63 +5101,6 @@ const NewListings = () => {
                       No Images Uploaded
                     </div>
                   )}
-
-                  {/* Platform Preview Selector Card */}
-                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                        Platform Preview Selector
-                      </span>
-                      <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                        Viewing: {activePlat.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-semibold leading-tight">
-                      Click any platform to view that marketplace's specific data:
-                    </p>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {[
-                        { id: 'ebay', name: 'eBay', logo: '/ebay.png' },
-                        { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png' },
-                        { id: 'mercari', name: 'Mercari', logo: '/mercari.png' },
-                        /* { id: 'depop', name: 'Depop', logo: '/depop.png' }, */
-                        { id: 'etsy', name: 'Etsy', logo: '/etsy.png' },
-                        { id: 'amazon', name: 'Amazon', logo: '/amazon.png' },
-                      ].map((p) => {
-                        const isSelected = activePlat === p.id;
-                        const pData = previewListing.platformData?.[p.id] || (previewListing.listingsMap?.[p.id]);
-                        const isListed = !!(
-                          previewListing[`${p.id}ListingId`] ||
-                          pData?.liveId ||
-                          previewListing[`${p.id}Status`] === 'published' ||
-                          (previewListing.platform === p.id && (previewListing.status === 'published' || previewListing.status === 'active'))
-                        );
-
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setPreviewPlatform(p.id)}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer select-none ${
-                              isSelected
-                                ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20'
-                                : 'bg-white/70 hover:bg-white border-slate-200 hover:border-slate-300 opacity-80 hover:opacity-100'
-                            }`}
-                          >
-                            <img src={p.logo} alt={p.name} className="w-5 h-5 object-contain" />
-                            <span className={`text-[10px] font-bold mt-1 ${isSelected ? 'text-indigo-600 font-black' : 'text-slate-600'}`}>
-                              {p.name}
-                            </span>
-                            <span className={`text-[8px] font-extrabold px-1 rounded mt-0.5 ${
-                              isListed ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-400 bg-slate-100'
-                            }`}>
-                              {isListed ? 'Active' : 'Unlisted'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
                   {/* Logistics */}
                   {(previewListing.packageWeight || previewListing.packageDimensions) && (
@@ -5334,9 +5303,64 @@ const NewListings = () => {
                   Close
                 </Button>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline-block">Marketplaces:</span>
-                  {renderModalFooter()}
+                <div className="flex items-center gap-2.5">
+                  {/* Live Link Button if available */}
+                  {displayUrl && (
+                    <a
+                      href={displayUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors inline-flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <span>Open Live Listing</span>
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
+
+                  {/* Smart Dynamic Action Button */}
+                  {(displayStatus === 'published' || displayStatus === 'active' || (displayLiveId && displayLiveId !== '-')) ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setPreviewListing(null);
+                        await handleDelistItem(previewListing, activePlat);
+                      }}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <XCircle size={14} className="text-slate-500" />
+                      <span>Delist from {getChannelDisplayName(activePlat)}</span>
+                    </button>
+                  ) : displayStatus === 'delisted' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedListing(previewListing);
+                        setSelectedPlatform(activePlat);
+                        setIsEditMode(true);
+                        setModalOpen(true);
+                        setPreviewListing(null);
+                      }}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw size={14} />
+                      <span>Relist on {getChannelDisplayName(activePlat)}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedListing(previewListing);
+                        setSelectedPlatform(activePlat);
+                        setIsEditMode(false);
+                        setModalOpen(true);
+                        setPreviewListing(null);
+                      }}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      <span>List on {getChannelDisplayName(activePlat)}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
