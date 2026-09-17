@@ -4652,7 +4652,16 @@ const NewListings = () => {
                   const platformLogo = platformName === 'ebay' ? '/ebay.png' : (platformName === 'poshmark' ? '/poshmark.png' : (platformName === 'mercari' ? '/mercari.png' : (platformName === 'etsy' ? '/etsy.png' : '/amazon.png')));
                   const price = order.totalAmount !== undefined ? order.totalAmount : (firstItem.price || 0);
                   const delistLog = order.delistActions || order.listingId?.autoDelistLog || {};
-                  const delistedPlatforms = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+                  const directDelisted = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+                  const allPlatforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon', 'depop'];
+                  const listingDelisted = order.listingId ? allPlatforms.filter(p => {
+                    if (p === platformName) return false;
+                    const pStatus = order.listingId[`${p}Status`]?.toLowerCase();
+                    const pDataStatus = order.listingId.platformData?.[p]?.status?.toLowerCase();
+                    const pMapStatus = order.listingId.listingsMap?.[p]?.status?.toLowerCase();
+                    return (pStatus === 'delisted' || pDataStatus === 'delisted' || pMapStatus === 'delisted');
+                  }) : [];
+                  const delistedPlatforms = Array.from(new Set([...directDelisted, ...listingDelisted]));
 
                   return (
                     <div key={order._id || order.orderId} className="p-4 space-y-3">
@@ -4685,14 +4694,23 @@ const NewListings = () => {
                         </span>
                       </div>
 
-                      {delistedPlatforms.length > 0 && (
+                      {delistedPlatforms.length > 0 ? (
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto-Delisted:</span>
-                          {delistedPlatforms.map(p => (
-                            <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200 capitalize">
-                              ✓ {p}
-                            </span>
-                          ))}
+                          {delistedPlatforms.map(p => {
+                            const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
+                            return (
+                              <span key={p} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xl text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs">
+                                <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                <span>{getChannelDisplayName(p)}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 pt-1 text-[10px] font-bold text-slate-500">
+                          <img src={platformLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                          <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
                         </div>
                       )}
                     </div>
@@ -4730,7 +4748,16 @@ const NewListings = () => {
                         : 'Recently';
                       
                       const delistLog = order.delistActions || order.listingId?.autoDelistLog || {};
-                      const delistedPlatforms = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+                      const directDelisted = Object.keys(delistLog).filter(p => delistLog[p]?.success || delistLog[p]?.status === 'delisted' || delistLog[p]?.status === 'inactive');
+                      const allPlatforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon', 'depop'];
+                      const listingDelisted = order.listingId ? allPlatforms.filter(p => {
+                        if (p === platformName) return false;
+                        const pStatus = order.listingId[`${p}Status`]?.toLowerCase();
+                        const pDataStatus = order.listingId.platformData?.[p]?.status?.toLowerCase();
+                        const pMapStatus = order.listingId.listingsMap?.[p]?.status?.toLowerCase();
+                        return (pStatus === 'delisted' || pDataStatus === 'delisted' || pMapStatus === 'delisted');
+                      }) : [];
+                      const delistedPlatforms = Array.from(new Set([...directDelisted, ...listingDelisted]));
 
                       return (
                         <tr key={order._id || order.orderId} className="hover:bg-slate-50/60 transition-colors">
@@ -4797,25 +4824,31 @@ const NewListings = () => {
                             </div>
                           </td>
 
-                          {/* Auto-Delist Protection Badges */}
+                          {/* Auto-Delist Protection Badges (Logo + Platform Name) */}
                           <td className="px-6 py-4">
                             {delistedPlatforms.length > 0 ? (
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5">
                                 <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">
                                   <ShieldCheck size={12} /> Auto-Delisted & Synced
                                 </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {delistedPlatforms.map(p => (
-                                    <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200/80 capitalize">
-                                      ✓ {p}
-                                    </span>
-                                  ))}
+                                <div className="flex flex-wrap gap-1.5">
+                                  {delistedPlatforms.map(p => {
+                                    const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
+                                    return (
+                                      <span key={p} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black bg-slate-100 hover:bg-slate-150 border border-slate-200/90 text-slate-800 shadow-2xs">
+                                        <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                        <span>{getChannelDisplayName(p)}</span>
+                                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded border border-emerald-200/50">Delisted</span>
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500">
-                                Single Platform Item
-                              </span>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-bold">
+                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
+                              </div>
                             )}
                           </td>
 
