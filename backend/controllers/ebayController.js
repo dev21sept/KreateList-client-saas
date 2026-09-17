@@ -370,7 +370,8 @@ exports.syncOrders = async (req, res) => {
               sku: item.sku,
               listingId: item.lineItemId,
               title: item.title,
-              orderId: o.orderId
+              orderId: o.orderId,
+              orderDate: o.creationDate
             }).catch(e => console.error('[eBay Order Sync] Auto-delist hook error:', e.message));
           }
         } catch (hookErr) {

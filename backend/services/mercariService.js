@@ -1807,7 +1807,8 @@ async function syncMercariOrders(credentials = {}, userId = null) {
               sku: item.sku || `M-${item.id}`,
               listingId: item.id,
               title: item.name,
-              orderId
+              orderId,
+              orderDate: createdDate
             }).catch(e => console.error('[Mercari Order Sync] Auto-delist hook error:', e.message));
           } catch (hookErr) {
             console.warn('[Mercari Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);

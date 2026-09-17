@@ -19,7 +19,7 @@ const ebayService = require('./ebayService');
  * @param {string} [params.orderId] Order ID associated with the sale
  * @returns {Promise<Object>} Summary of delist actions taken
  */
-async function handleItemSold({ userId, soldPlatform, sku, listingId, title, orderId }) {
+async function handleItemSold({ userId, soldPlatform, sku, listingId, title, orderId, orderDate }) {
   const normPlatform = String(soldPlatform || '').toLowerCase().trim();
   const results = {
     foundListing: false,
@@ -103,6 +103,16 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
     }
 
     if (masterListing) {
+      // Guard: If this order was created before the master listing was imported/created in Master DB, skip marking it as sold
+      if (orderDate && masterListing.createdAt) {
+        const oTime = new Date(orderDate).getTime();
+        const lTime = new Date(masterListing.createdAt).getTime();
+        if (oTime < (lTime - 10 * 60 * 1000)) {
+          console.log(`[Auto-Delist] Order #${orderId} date (${new Date(oTime).toISOString()}) is before listing import date (${new Date(lTime).toISOString()}). Skipping auto-delist to protect active listing.`);
+          return results;
+        }
+      }
+
       results.foundListing = true;
       console.log(`[Auto-Delist] Matched Master Listing: "${masterListing.title}" (ID: ${masterListing._id}, SKU: ${masterListing.sku})`);
 
@@ -111,7 +121,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       masterListing.quantity = 0;
       masterListing.soldOn = normPlatform;
       masterListing.soldPlatform = normPlatform;
-      masterListing.soldAt = new Date();
+      masterListing.soldAt = orderDate ? new Date(orderDate) : new Date();
       masterListing.errorMessage = `Sold on ${normPlatform.toUpperCase()}${orderId ? ` (Order #${orderId})` : ''}`;
 
       // Set platform status on the channel where it was sold

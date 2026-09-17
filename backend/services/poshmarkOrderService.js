@@ -328,7 +328,8 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
               sku: item.sku,
               listingId: item.lineItemId,
               title: item.title,
-              orderId: String(orderId)
+              orderId: String(orderId),
+              orderDate: createdDate
             }).catch(e => console.error('[Poshmark Order Sync] Auto-delist hook error:', e.message));
           }
         } catch (hookErr) {
