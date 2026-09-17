@@ -31,7 +31,41 @@ exports.requireActiveSubscription = async (req, res, next) => {
       });
     }
 
-    // Enforce monthly listing limit based on plan
+    next();
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.requireWithinListingLimit = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Bypass subscription checks for admin users
+    if (req.user.role === 'admin') {
+      return next();
+    }
+
+    const sub = req.user.subscription;
+    if (!sub || sub.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Active subscription required. Please purchase a subscription plan to unlock this feature.'
+      });
+    }
+
+    if (sub.expiresAt && new Date(sub.expiresAt) < new Date()) {
+      req.user.subscription.status = 'inactive';
+      await req.user.save();
+      return res.status(403).json({
+        success: false,
+        message: 'Your subscription has expired. Please renew your subscription to continue.'
+      });
+    }
+
+    // Enforce monthly listing limit based on plan (excluding external channel imported listings)
     const plan = sub.plan || 'free';
     const planLimits = {
       free: 0,
@@ -42,10 +76,11 @@ exports.requireActiveSubscription = async (req, res, next) => {
 
     const limit = planLimits[plan.toLowerCase()] || 0;
 
-    // Count active listings created by the user
+    // Count active listings created by the user (exclude imported channel items)
     const listingsCount = await Listing.countDocuments({
       user: req.user.id,
-      status: 'published'
+      status: 'published',
+      source: { $ne: 'channel_import' }
     });
 
     if (listingsCount >= limit) {
@@ -102,9 +137,10 @@ exports.requireWithinFetchLimit = async (req, res, next) => {
 
     const limit = planLimits[plan.toLowerCase()] || 0;
 
-    // Count total listings created/fetched by the user in the database
+    // Count total AI listings created/fetched by the user in the database (exclude external imported items)
     const fetchesCount = await Listing.countDocuments({
-      user: req.user.id
+      user: req.user.id,
+      source: { $ne: 'channel_import' }
     });
 
     if (fetchesCount >= limit) {

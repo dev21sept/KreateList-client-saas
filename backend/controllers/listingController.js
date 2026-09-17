@@ -2978,10 +2978,65 @@ exports.getActiveChannelImportPreview = async (req, res) => {
       return b.channelCount - a.channelCount;
     });
 
+    // Calculate match & platform breakdown metrics
+    let match5 = 0;
+    let match4 = 0;
+    let match3 = 0;
+    let match2 = 0;
+    let single = 0;
+    let alreadyInLocalCount = 0;
+    let newToImportCount = 0;
+    let unlinkedChannelsTotal = 0;
+
+    const platformCounts = {
+      ebay: 0,
+      poshmark: 0,
+      mercari: 0,
+      etsy: 0,
+      amazon: 0
+    };
+
+    activeProducts.forEach(prod => {
+      const src = (prod.source || 'ebay').toLowerCase();
+      if (platformCounts[src] !== undefined) {
+        platformCounts[src]++;
+      }
+    });
+
+    groups.forEach(g => {
+      if (g.alreadyInLocal) {
+        alreadyInLocalCount++;
+      } else {
+        newToImportCount++;
+      }
+      unlinkedChannelsTotal += (g.unlinkedChannelCount || 0);
+
+      if (g.channelCount >= 5) match5++;
+      else if (g.channelCount === 4) match4++;
+      else if (g.channelCount === 3) match3++;
+      else if (g.channelCount === 2) match2++;
+      else single++;
+    });
+
+    const breakdown = {
+      totalActiveProducts: activeProducts.length,
+      groupedCount: groups.length,
+      match5,
+      match4,
+      match3,
+      match2,
+      single,
+      alreadyInLocalCount,
+      newToImportCount,
+      unlinkedChannelsTotal,
+      platformCounts
+    };
+
     res.status(200).json({
       success: true,
       totalActiveProducts: activeProducts.length,
       groupedCount: groups.length,
+      breakdown,
       groups: groups
     });
   } catch (err) {
@@ -3139,6 +3194,7 @@ exports.importActiveChannelsToLocal = async (req, res) => {
           itemSpecifics: primaryPlatform === 'ebay' ? (primaryChannel.itemSpecifics || item.itemSpecifics || {}) : (item.itemSpecifics || {}),
           status: 'published',
           platform: primaryPlatform,
+          source: 'channel_import',
           ebayStatus: 'none',
           poshmarkStatus: 'none',
           mercariStatus: 'none',

@@ -29,7 +29,11 @@ import {
   GitMerge,
   MoreVertical,
   Star,
-  ArrowUpDown
+  ArrowUpDown,
+  Zap,
+  Sparkles,
+  Layers,
+  ArrowLeft
 } from 'lucide-react';
 import api, { listingService, ebayService, externalImportService, etsyService, mercariService, amazonService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -667,8 +671,10 @@ const NewListings = () => {
   const [selectedListing, setSelectedListing] = useState(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
 
-  // Smart Import Modal States
+  // Smart Sync & Import Modal States
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importViewMode, setImportViewMode] = useState('overview'); // 'overview' | 'custom'
+  const [importBreakdown, setImportBreakdown] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importSubmitting, setImportSubmitting] = useState(false);
   const [importGroups, setImportGroups] = useState([]);
@@ -2031,26 +2037,29 @@ const NewListings = () => {
     }
   };
 
-  // Smart Import Modal Handlers
+  // Smart Sync & Import Modal Handlers
   const handleOpenImportModal = async () => {
     setImportModalOpen(true);
+    setImportViewMode('overview');
     setImportLoading(true);
     setImportSearchTerm('');
+    setImportFilterTab('all');
     try {
       const res = await listingService.getActiveChannelPreview();
       if (res.data.success) {
         const groups = res.data.groups || [];
         setImportGroups(groups);
+        setImportBreakdown(res.data.breakdown || null);
 
         const initialGroupIds = {};
         const initialPlatforms = {};
 
         groups.forEach((grp) => {
-          initialGroupIds[grp.groupId] = false;
+          initialGroupIds[grp.groupId] = !grp.alreadyInLocal;
           initialPlatforms[grp.groupId] = {};
-          ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy'].forEach((plat) => {
+          ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].forEach((plat) => {
             if (grp.channels?.[plat]) {
-              initialPlatforms[grp.groupId][plat] = false;
+              initialPlatforms[grp.groupId][plat] = !grp.channels[plat].alreadyInLocal;
             }
           });
         });
@@ -2289,6 +2298,61 @@ const NewListings = () => {
     } catch (err) {
       console.error('Error importing active channels:', err);
       toast.error(err.response?.data?.message || 'Failed to import items.');
+    } finally {
+      setImportSubmitting(false);
+    }
+  };
+
+  const handleExecuteImportAll = async () => {
+    const unlinkedGroups = importGroups.filter(g => !g.alreadyInLocal);
+    if (unlinkedGroups.length === 0) {
+      toast.info('All active channel listings are already synced to your Local Database!');
+      return;
+    }
+
+    const selectedPayload = [];
+    for (const group of unlinkedGroups) {
+      const activeSelectedChannels = {};
+      let hasAny = false;
+
+      for (const plat of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon']) {
+        if (group.channels?.[plat] && !group.channels[plat].alreadyInLocal) {
+          activeSelectedChannels[plat] = {
+            ...group.channels[plat],
+            selected: true
+          };
+          hasAny = true;
+        }
+      }
+
+      if (hasAny) {
+        selectedPayload.push({
+          ...group,
+          channels: activeSelectedChannels
+        });
+      }
+    }
+
+    if (selectedPayload.length === 0) {
+      toast.info('No new active channel listings found to sync.');
+      return;
+    }
+
+    setImportSubmitting(true);
+    try {
+      const res = await listingService.importActiveChannels({ items: selectedPayload });
+      if (res.data.success) {
+        toast.success(res.data.message || `Successfully synced & merged ${selectedPayload.length} items to Local Database!`);
+        setImportModalOpen(false);
+        await fetchListings();
+        setActiveTab('local');
+        localStorage.setItem('elister_active_listings_tab', 'local');
+      } else {
+        toast.error(res.data.message || 'Failed to sync items.');
+      }
+    } catch (err) {
+      console.error('Error syncing active channels:', err);
+      toast.error(err.response?.data?.message || 'Failed to sync items.');
     } finally {
       setImportSubmitting(false);
     }
@@ -3641,14 +3705,14 @@ const NewListings = () => {
             <span>Smart Merge</span>
           </button>
 
-          {/* Import to Local Button (Universal: Available in both tabs) */}
+          {/* Sync Platforms Button (Universal: Available in both tabs) */}
           <button
             onClick={handleOpenImportModal}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
-            title="Import live items from connected channels into database"
+            title="Sync & merge live active items from connected channels into database"
           >
-            <Download size={14} />
-            <span>Import to Local</span>
+            <RefreshCw size={14} className={importLoading ? "animate-spin" : ""} />
+            <span>Sync</span>
           </button>
         </div>
       </div>
@@ -5368,453 +5432,712 @@ const NewListings = () => {
         );
       })()}
 
-      {/* Smart Import to Local Modal */}
-      {importModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
+      {/* Smart Sync & Auto-Merge Modal */}
+      {importModalOpen && (() => {
+        const computedBreakdown = importBreakdown || (() => {
+          let match5 = 0, match4 = 0, match3 = 0, match2 = 0, single = 0;
+          let alreadyInLocalCount = 0, newToImportCount = 0, unlinkedChannelsTotal = 0;
+          let totalActiveProducts = 0;
+          const platformCounts = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0 };
 
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 shrink-0">
-                  <Download size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-black text-slate-900">Import to Local Database</h2>
-                    <span className="px-2.5 py-0.5 text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                      Active Only
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                    Match and merge active products across all channels into your Master Local Database.
-                  </p>
-                </div>
-              </div>
+          importGroups.forEach(g => {
+            if (g.alreadyInLocal) alreadyInLocalCount++;
+            else newToImportCount++;
+            unlinkedChannelsTotal += (g.unlinkedChannelCount || 0);
 
-              {/* Header Right Actions */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Filter Tabs */}
-                <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
-                  <button
-                    onClick={() => setImportFilterTab('all')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                      importFilterTab === 'all'
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    All ({importGroups.length})
-                  </button>
-                  <button
-                    onClick={() => setImportFilterTab('multi')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                      importFilterTab === 'multi'
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Multi-Channel ({importGroups.filter(g => g.channelCount > 1).length})
-                  </button>
-                  <button
-                    onClick={() => setImportFilterTab('single')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                      importFilterTab === 'single'
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Single Channel ({importGroups.filter(g => g.channelCount === 1).length})
-                  </button>
-                  <button
-                    onClick={() => setImportFilterTab('not_in_local')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                      importFilterTab === 'not_in_local'
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Not in DB ({importGroups.filter(g => !g.alreadyInLocal).length})
-                  </button>
-                  <button
-                    onClick={() => setImportFilterTab('in_local')}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
-                      importFilterTab === 'in_local'
-                        ? 'bg-white text-indigo-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    In Local DB ({importGroups.filter(g => g.alreadyInLocal).length})
-                  </button>
-                </div>
+            if (g.channelCount >= 5) match5++;
+            else if (g.channelCount === 4) match4++;
+            else if (g.channelCount === 3) match3++;
+            else if (g.channelCount === 2) match2++;
+            else single++;
 
-                {/* Search in modal */}
-                <div className="relative w-full sm:w-56">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={importSearchTerm}
-                    onChange={(e) => setImportSearchTerm(e.target.value)}
-                    placeholder="Search title, SKU..."
-                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-                  />
-                  {importSearchTerm && (
-                    <button
-                      onClick={() => setImportSearchTerm('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].forEach(p => {
+              if (g.channels?.[p]) {
+                platformCounts[p]++;
+                totalActiveProducts++;
+              }
+            });
+          });
+
+          return {
+            totalActiveProducts,
+            groupedCount: importGroups.length,
+            match5, match4, match3, match2, single,
+            alreadyInLocalCount,
+            newToImportCount,
+            unlinkedChannelsTotal,
+            platformCounts
+          };
+        })();
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-[94vw] max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
+
+              {/* OVERVIEW MODE: 1-CLICK AUTO-SYNC & MATCH BREAKDOWN */}
+              {importViewMode === 'overview' ? (
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {/* Overview Modal Header */}
+                  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 shrink-0">
+                        <RefreshCw size={20} className={importLoading ? "animate-spin" : ""} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base sm:text-lg font-black text-slate-900">Sync Platforms & Auto-Merge</h2>
+                          <span className="px-2.5 py-0.5 text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded-full flex items-center gap-1">
+                            <Zap size={10} className="fill-indigo-600" />
+                            1-Click Auto Sync
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                          Auto-scan active listings across all connected marketplaces and merge matching products into your Local Database.
+                        </p>
+                      </div>
+                    </div>
+
+                    <IconButton
+                      aria-label="Close"
+                      onClick={() => setImportModalOpen(false)}
                     >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
+                      <X size={16} />
+                    </IconButton>
+                  </div>
 
-                <IconButton
-                  aria-label="Close"
-                  onClick={() => setImportModalOpen(false)}
-                >
-                  <X size={16} />
-                </IconButton>
-              </div>
-            </div>
+                  {/* Overview Modal Body */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+                    {importLoading ? (
+                      <div className="flex flex-col items-center justify-center py-24 space-y-3">
+                        <RefreshCw size={32} className="text-indigo-600 animate-spin" />
+                        <p className="text-sm font-black text-slate-800">Scanning & matching active channel listings...</p>
+                        <p className="text-xs text-slate-400 font-medium">Checking eBay, Poshmark, Mercari, Etsy, and Amazon</p>
+                      </div>
+                    ) : importGroups.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <Package size={40} className="text-slate-300 mb-3" />
+                        <h3 className="text-base font-extrabold text-slate-800">No Active Channel Listings Found</h3>
+                        <p className="text-xs text-slate-500 max-w-md mt-1">
+                          Make sure you have active listings synced in your channel inventory (eBay, Poshmark, Mercari, Etsy, Amazon).
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Top Summary Stats Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Active Channel Listings</span>
+                              <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600"><CheckCircle2 size={14} /></span>
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 mt-2">{computedBreakdown.totalActiveProducts}</p>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Found across connected marketplaces</p>
+                          </div>
 
-            {/* Quick Selection Actions Toolbar */}
-            <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
-                <button
-                  type="button"
-                  onClick={() => handleSelectByCriteria('all')}
-                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer"
-                >
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectByCriteria('multi')}
-                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 shadow-2xs transition-all cursor-pointer"
-                >
-                  Select Multi-Channel Only
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectByCriteria('single')}
-                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs transition-all cursor-pointer"
-                >
-                  Select Single Only
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectByCriteria('none')}
-                  className="px-3 py-1 text-[11px] font-extrabold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-all cursor-pointer"
-                >
-                  Deselect All
-                </button>
-              </div>
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Unique Master Products</span>
+                              <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><Boxes size={14} /></span>
+                            </div>
+                            <p className="text-2xl font-black text-indigo-600 mt-2">{computedBreakdown.groupedCount}</p>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Grouped by SKU, Image & Title</p>
+                          </div>
 
-              <div className="text-[11px] text-slate-500 font-bold">
-                Showing <span className="text-slate-800 font-extrabold">{filteredImportGroups.length}</span> items
-              </div>
-            </div>
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Ready to Sync & Merge</span>
+                              <span className="p-1.5 rounded-lg bg-violet-50 text-violet-600"><Zap size={14} /></span>
+                            </div>
+                            <p className="text-2xl font-black text-violet-700 mt-2">{computedBreakdown.newToImportCount}</p>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">{computedBreakdown.alreadyInLocalCount} already in database</p>
+                          </div>
+                        </div>
 
-            {/* Modal Body / Table */}
-            <div className="flex-1 overflow-y-auto min-h-[350px] p-4 sm:p-6 bg-slate-50/40">
-              {importLoading ? (
-                <div className="flex flex-col items-center justify-center py-24 space-y-3">
-                  <RefreshCw size={28} className="text-indigo-600 animate-spin" />
-                  <p className="text-xs font-black text-slate-700">Scanning & matching active channel listings...</p>
-                  <p className="text-[11px] text-slate-400 font-medium">Checking eBay, Poshmark, Mercari, Depop, and Etsy</p>
-                </div>
-              ) : filteredImportGroups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <Package size={36} className="text-slate-300 mb-2" />
-                  <h3 className="text-sm font-extrabold text-slate-700">No active channel items found</h3>
-                  <p className="text-xs text-slate-400 max-w-md mt-1">
-                    {importSearchTerm ? 'No items match your search term.' : 'Make sure you have active listings synced in your channel inventory (eBay, Poshmark, Mercari, Depop, Etsy).'}
-                  </p>
+                        {/* Cross-Platform Match Breakdown Card */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                <span>Cross-Platform Matching Breakdown</span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Auto-Detected</span>
+                              </h3>
+                              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                How your active listings are matched across marketplaces:
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                            {/* 5 Platforms */}
+                            <div className="p-3.5 rounded-xl border border-indigo-200/80 bg-indigo-50/30 flex flex-col justify-between">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-indigo-900">5 Platforms</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-2xs">
+                                  {computedBreakdown.match5}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-indigo-700/80 font-semibold mt-2">All 5 Marketplaces</p>
+                            </div>
+
+                            {/* 4 Platforms */}
+                            <div className="p-3.5 rounded-xl border border-blue-200/80 bg-blue-50/30 flex flex-col justify-between">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-blue-900">4 Platforms</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-blue-600 text-white shadow-2xs">
+                                  {computedBreakdown.match4}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-blue-700/80 font-semibold mt-2">4 Marketplaces Match</p>
+                            </div>
+
+                            {/* 3 Platforms */}
+                            <div className="p-3.5 rounded-xl border border-emerald-200/80 bg-emerald-50/30 flex flex-col justify-between">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-emerald-900">3 Platforms</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
+                                  {computedBreakdown.match3}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-emerald-700/80 font-semibold mt-2">3 Marketplaces Match</p>
+                            </div>
+
+                            {/* 2 Platforms */}
+                            <div className="p-3.5 rounded-xl border border-amber-200/80 bg-amber-50/30 flex flex-col justify-between">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-amber-900">2 Platforms</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-amber-600 text-white shadow-2xs">
+                                  {computedBreakdown.match2}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-amber-700/80 font-semibold mt-2">2 Marketplaces Match</p>
+                            </div>
+
+                            {/* Single Platform */}
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-slate-800">Single Channel</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-slate-700 text-white shadow-2xs">
+                                  {computedBreakdown.single}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-semibold mt-2">Unique to 1 Marketplace</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Marketplace Active Inventory Badges */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Connected Marketplaces Active Items</h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                            {[
+                              { name: 'eBay', key: 'ebay', logo: '/ebay.png' },
+                              { name: 'Poshmark', key: 'poshmark', logo: '/poshmark.png' },
+                              { name: 'Mercari', key: 'mercari', logo: '/mercari.png' },
+                              { name: 'Etsy', key: 'etsy', logo: '/etsy.png' },
+                              { name: 'Amazon', key: 'amazon', logo: '/amazon.png' },
+                            ].map(m => (
+                              <div key={m.key} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60">
+                                <div className="flex items-center gap-2">
+                                  <img src={m.logo} alt={m.name} className="w-5 h-5 object-contain" />
+                                  <span className="text-xs font-bold text-slate-700">{m.name}</span>
+                                </div>
+                                <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200/80">
+                                  {computedBreakdown.platformCounts?.[m.key] || 0}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Overview Modal Footer */}
+                  <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setImportViewMode('custom')}
+                        disabled={importLoading || importGroups.length === 0}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black border border-slate-200/80 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <SlidersHorizontal size={14} className="text-indigo-600" />
+                        <span>Review & Custom Select</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setImportModalOpen(false)}
+                        disabled={importSubmitting}
+                        className="w-full sm:w-auto"
+                      >
+                        Cancel
+                      </Button>
+
+                      <button
+                        onClick={handleExecuteImportAll}
+                        disabled={importSubmitting || importLoading || computedBreakdown.newToImportCount === 0}
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+                      >
+                        {importSubmitting ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Syncing to Local...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={14} className="fill-white" />
+                            <span>1-Click Auto Sync & Merge All ({computedBreakdown.newToImportCount} Items)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      {/* Table Header with Platform Logos */}
-                      <thead className="bg-slate-50/90 border-b border-slate-100">
-                        <tr>
-                          <th className="px-4 py-3.5 w-12 text-center">
-                            <input
-                              type="checkbox"
-                              checked={
-                                filteredImportGroups.filter(g => !g.alreadyInLocal).length > 0 &&
-                                filteredImportGroups.filter(g => !g.alreadyInLocal).every((grp) => selectedGroupIds[grp.groupId])
-                              }
-                              onChange={handleToggleSelectAllImport}
-                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
-                              title="Select / Deselect Unimported Items"
-                            />
-                          </th>
-                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[280px]">
-                            Product (Master)
-                          </th>
-                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                            SKU & Price
-                          </th>
+                /* CUSTOM / ADVANCED SELECTION MODE */
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {/* Custom Mode Header */}
+                  <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white shrink-0">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setImportViewMode('overview')}
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 text-xs font-bold"
+                        title="Back to Overview"
+                      >
+                        <ArrowLeft size={16} />
+                        <span className="hidden sm:inline">Overview</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base sm:text-lg font-black text-slate-900">Custom Selection</h2>
+                          <span className="px-2.5 py-0.5 text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                            Active Only
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                          Select specific items or individual platform channels to import into Local Database.
+                        </p>
+                      </div>
+                    </div>
 
-                          {/* Platform Columns with Logos */}
-                          <th className="px-3 py-3 text-center w-28 border-l border-slate-100">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">eBay</span>
-                            </div>
-                          </th>
-                          <th className="px-3 py-3 text-center w-28">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">Poshmark</span>
-                            </div>
-                          </th>
-                          <th className="px-3 py-3 text-center w-28">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">Mercari</span>
-                            </div>
-                          </th>
-                          {/* <th className="px-3 py-3 text-center w-28">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/depop.png" alt="Depop" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">Depop</span>
-                            </div>
-                          </th> */}
-                          <th className="px-3 py-3 text-center w-28">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">Etsy</span>
-                            </div>
-                          </th>
-                          <th className="px-3 py-3 text-center w-28 border-r border-slate-100">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
-                              <span className="text-[10px] font-black text-slate-600">Amazon</span>
-                            </div>
-                          </th>
+                    {/* Header Right Actions */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Filter Tabs */}
+                      <div className="flex bg-slate-100 p-1 rounded-xl gap-1 overflow-x-auto">
+                        <button
+                          onClick={() => setImportFilterTab('all')}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                            importFilterTab === 'all'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          All ({importGroups.length})
+                        </button>
+                        <button
+                          onClick={() => setImportFilterTab('multi')}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                            importFilterTab === 'multi'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Multi-Channel ({importGroups.filter(g => g.channelCount > 1).length})
+                        </button>
+                        <button
+                          onClick={() => setImportFilterTab('single')}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                            importFilterTab === 'single'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Single Channel ({importGroups.filter(g => g.channelCount === 1).length})
+                        </button>
+                        <button
+                          onClick={() => setImportFilterTab('not_in_local')}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                            importFilterTab === 'not_in_local'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Not in DB ({importGroups.filter(g => !g.alreadyInLocal).length})
+                        </button>
+                        <button
+                          onClick={() => setImportFilterTab('in_local')}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                            importFilterTab === 'in_local'
+                              ? 'bg-white text-indigo-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          In Local DB ({importGroups.filter(g => g.alreadyInLocal).length})
+                        </button>
+                      </div>
 
-                          <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">
-                            Match Status
-                          </th>
-                        </tr>
-                      </thead>
+                      {/* Search in modal */}
+                      <div className="relative w-full sm:w-56">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={importSearchTerm}
+                          onChange={(e) => setImportSearchTerm(e.target.value)}
+                          placeholder="Search title, SKU..."
+                          className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                        />
+                        {importSearchTerm && (
+                          <button
+                            onClick={() => setImportSearchTerm('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
 
-                      {/* Table Rows */}
-                      <tbody className="divide-y divide-slate-100 text-xs">
-                        {filteredImportGroups.map((group) => {
-                          const isRowChecked = !group.alreadyInLocal && !!selectedGroupIds[group.groupId];
-                          const groupPlats = selectedPlatforms[group.groupId] || {};
+                      <IconButton
+                        aria-label="Close"
+                        onClick={() => setImportModalOpen(false)}
+                      >
+                        <X size={16} />
+                      </IconButton>
+                    </div>
+                  </div>
 
-                          return (
-                            <tr
-                              key={group.groupId}
-                              className={`transition-colors ${
-                                group.alreadyInLocal
-                                  ? 'bg-slate-50/50 opacity-60'
-                                  : isRowChecked
-                                  ? 'bg-indigo-50/20 hover:bg-indigo-50/40'
-                                  : 'hover:bg-slate-50/60 opacity-80'
-                              }`}
-                            >
-                              {/* Row Checkbox */}
-                              <td className="px-4 py-3.5 text-center">
-                                {group.alreadyInLocal ? (
+                  {/* Quick Selection Actions Toolbar */}
+                  <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectByCriteria('all')}
+                        className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectByCriteria('multi')}
+                        className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 shadow-2xs transition-all cursor-pointer"
+                      >
+                        Select Multi-Channel Only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectByCriteria('single')}
+                        className="px-3 py-1 text-[11px] font-extrabold rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                      >
+                        Select Single Only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectByCriteria('none')}
+                        className="px-3 py-1 text-[11px] font-extrabold rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-all cursor-pointer"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 font-bold">
+                      Showing <span className="text-slate-800 font-extrabold">{filteredImportGroups.length}</span> items
+                    </div>
+                  </div>
+
+                  {/* Modal Body / Table */}
+                  <div className="flex-1 overflow-y-auto min-h-[350px] p-4 sm:p-6 bg-slate-50/40">
+                    {filteredImportGroups.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <Package size={36} className="text-slate-300 mb-2" />
+                        <h3 className="text-sm font-extrabold text-slate-700">No active channel items found</h3>
+                        <p className="text-xs text-slate-400 max-w-md mt-1">
+                          {importSearchTerm ? 'No items match your search term.' : 'Make sure you have active listings synced in your channel inventory (eBay, Poshmark, Mercari, Etsy, Amazon).'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            {/* Table Header with Platform Logos */}
+                            <thead className="bg-slate-50/90 border-b border-slate-100">
+                              <tr>
+                                <th className="px-4 py-3.5 w-12 text-center">
                                   <input
                                     type="checkbox"
-                                    checked={false}
-                                    disabled={true}
-                                    className="w-4 h-4 text-slate-300 border-slate-200 rounded cursor-not-allowed bg-slate-100"
-                                    title="Already in Local Database"
-                                  />
-                                ) : (
-                                  <input
-                                    type="checkbox"
-                                    checked={isRowChecked}
-                                    onChange={() => handleToggleGroupRow(group.groupId)}
+                                    checked={
+                                      filteredImportGroups.filter(g => !g.alreadyInLocal).length > 0 &&
+                                      filteredImportGroups.filter(g => !g.alreadyInLocal).every((grp) => selectedGroupIds[grp.groupId])
+                                    }
+                                    onChange={handleToggleSelectAllImport}
                                     className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                    title="Select / Deselect Unimported Items"
                                   />
-                                )}
-                              </td>
+                                </th>
+                                <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[280px]">
+                                  Product (Master)
+                                </th>
+                                <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                  SKU & Price
+                                </th>
 
-                              {/* Product Info */}
-                              <td className="px-4 py-3.5">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
-                                    {group.thumbnail || (group.images && group.images[0]) ? (
-                                      <img
-                                        src={group.thumbnail || group.images[0]}
-                                        className="w-full h-full object-cover"
-                                        alt=""
-                                        onError={(e) => { e.currentTarget.src = NO_IMAGE_PLACEHOLDER; }}
-                                      />
-                                    ) : (
-                                      <ImageOff size={16} className="text-slate-300" />
-                                    )}
+                                {/* Platform Columns with Logos */}
+                                <th className="px-3 py-3 text-center w-28 border-l border-slate-100">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                                    <span className="text-[10px] font-black text-slate-600">eBay</span>
                                   </div>
-                                  <div className="min-w-0 max-w-sm lg:max-w-md">
-                                    <p className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-snug">
-                                      {group.title}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      {group.brand && (
-                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                          {group.brand}
-                                        </span>
-                                      )}
-                                      {group.size && (
-                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                          Size: {group.size}
-                                        </span>
-                                      )}
-                                    </div>
+                                </th>
+                                <th className="px-3 py-3 text-center w-28">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                                    <span className="text-[10px] font-black text-slate-600">Poshmark</span>
                                   </div>
-                                </div>
-                              </td>
+                                </th>
+                                <th className="px-3 py-3 text-center w-28">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                                    <span className="text-[10px] font-black text-slate-600">Mercari</span>
+                                  </div>
+                                </th>
+                                <th className="px-3 py-3 text-center w-28">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                                    <span className="text-[10px] font-black text-slate-600">Etsy</span>
+                                  </div>
+                                </th>
+                                <th className="px-3 py-3 text-center w-28 border-r border-slate-100">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                                    <span className="text-[10px] font-black text-slate-600">Amazon</span>
+                                  </div>
+                                </th>
 
-                              {/* SKU & Price */}
-                              <td className="px-4 py-3.5">
-                                <div className="space-y-0.5">
-                                  <span className="font-mono text-[11px] font-bold text-slate-600 block">
-                                    {getDisplaySku(group.sku) || '-'}
-                                  </span>
-                                  <span className="font-extrabold text-slate-800 text-xs block">
-                                    ${Number(group.price || 0).toFixed(2)}
-                                  </span>
-                                </div>
-                              </td>
+                                <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">
+                                  Match Status
+                                </th>
+                              </tr>
+                            </thead>
 
-                              {/* Platform Columns */}
-                              {['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].map((plat) => {
-                                const chData = group.channels?.[plat];
-                                const isAlreadyInLocal = !!chData?.alreadyInLocal;
-                                const isPlatChecked = !isAlreadyInLocal && !!groupPlats[plat];
-
-                                if (!chData) {
-                                  return (
-                                    <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
-                                      <span className="text-slate-300 font-bold text-xs">—</span>
-                                    </td>
-                                  );
-                                }
+                            {/* Table Rows */}
+                            <tbody className="divide-y divide-slate-100 text-xs">
+                              {filteredImportGroups.map((group) => {
+                                const isRowChecked = !group.alreadyInLocal && !!selectedGroupIds[group.groupId];
+                                const groupPlats = selectedPlatforms[group.groupId] || {};
 
                                 return (
-                                  <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
-                                    <div className="inline-flex flex-col items-center gap-1">
-                                      <label className={`flex items-center gap-1.5 p-1.5 rounded-lg border transition-colors ${
-                                        isAlreadyInLocal
-                                          ? 'bg-slate-50/80 border-slate-100 opacity-60 cursor-not-allowed'
-                                          : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 cursor-pointer select-none'
-                                      }`}>
+                                  <tr
+                                    key={group.groupId}
+                                    className={`transition-colors ${
+                                      group.alreadyInLocal
+                                        ? 'bg-slate-50/50 opacity-60'
+                                        : isRowChecked
+                                        ? 'bg-indigo-50/20 hover:bg-indigo-50/40'
+                                        : 'hover:bg-slate-50/60 opacity-80'
+                                    }`}
+                                  >
+                                    {/* Row Checkbox */}
+                                    <td className="px-4 py-3.5 text-center">
+                                      {group.alreadyInLocal ? (
                                         <input
                                           type="checkbox"
-                                          checked={isAlreadyInLocal ? false : isPlatChecked}
-                                          disabled={isAlreadyInLocal}
-                                          onChange={() => !isAlreadyInLocal && handleTogglePlatform(group.groupId, plat)}
-                                          className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 disabled:cursor-not-allowed cursor-pointer"
+                                          checked={false}
+                                          disabled={true}
+                                          className="w-4 h-4 text-slate-300 border-slate-200 rounded cursor-not-allowed bg-slate-100"
+                                          title="Already in Local Database"
                                         />
-                                        {isAlreadyInLocal ? (
-                                          <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                            In DB
+                                      ) : (
+                                        <input
+                                          type="checkbox"
+                                          checked={isRowChecked}
+                                          onChange={() => handleToggleGroupRow(group.groupId)}
+                                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                      )}
+                                    </td>
+
+                                    {/* Product Info */}
+                                    <td className="px-4 py-3.5">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
+                                          {group.thumbnail || (group.images && group.images[0]) ? (
+                                            <img
+                                              src={group.thumbnail || group.images[0]}
+                                              className="w-full h-full object-cover"
+                                              alt=""
+                                              onError={(e) => { e.currentTarget.src = NO_IMAGE_PLACEHOLDER; }}
+                                            />
+                                          ) : (
+                                            <ImageOff size={16} className="text-slate-300" />
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 max-w-sm lg:max-w-md">
+                                          <p className="font-extrabold text-slate-800 text-xs line-clamp-2 leading-snug">
+                                            {group.title}
+                                          </p>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            {group.brand && (
+                                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                {group.brand}
+                                              </span>
+                                            )}
+                                            {group.size && (
+                                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                Size: {group.size}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    {/* SKU & Price */}
+                                    <td className="px-4 py-3.5">
+                                      <div className="space-y-0.5">
+                                        <span className="font-mono text-[11px] font-bold text-slate-600 block">
+                                          {getDisplaySku(group.sku) || '-'}
+                                        </span>
+                                        <span className="font-extrabold text-slate-800 text-xs block">
+                                          ${Number(group.price || 0).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    {/* Platform Columns */}
+                                    {['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy', 'amazon'].map((plat) => {
+                                      const chData = group.channels?.[plat];
+                                      const isAlreadyInLocal = !!chData?.alreadyInLocal;
+                                      const isPlatChecked = !isAlreadyInLocal && !!groupPlats[plat];
+
+                                      if (!chData) {
+                                        return (
+                                          <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                            <span className="text-slate-300 font-bold text-xs">—</span>
+                                          </td>
+                                        );
+                                      }
+
+                                      return (
+                                        <td key={plat} className="px-3 py-3 text-center border-l first:border-l-0 border-slate-100">
+                                          <div className="inline-flex flex-col items-center gap-1">
+                                            <label className={`flex items-center gap-1.5 p-1.5 rounded-lg border transition-colors ${
+                                              isAlreadyInLocal
+                                                ? 'bg-slate-50/80 border-slate-100 opacity-60 cursor-not-allowed'
+                                                : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 cursor-pointer select-none'
+                                            }`}>
+                                              <input
+                                                type="checkbox"
+                                                checked={isAlreadyInLocal ? false : isPlatChecked}
+                                                disabled={isAlreadyInLocal}
+                                                onChange={() => !isAlreadyInLocal && handleTogglePlatform(group.groupId, plat)}
+                                                className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 disabled:cursor-not-allowed cursor-pointer"
+                                              />
+                                              {isAlreadyInLocal ? (
+                                                <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                                  In DB
+                                                </span>
+                                              ) : (
+                                                <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                  Active
+                                                </span>
+                                              )}
+                                            </label>
+                                            {chData.liveId && (
+                                              <span className="text-[9px] font-mono text-slate-400 truncate max-w-[85px]" title={chData.liveId}>
+                                                {chData.liveId}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+
+                                    {/* Match Status */}
+                                    <td className="px-4 py-3.5 text-center">
+                                      <div className="inline-flex flex-col items-center gap-1">
+                                        {group.channelCount > 1 ? (
+                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap">
+                                            {group.channelCount} Channels Merged
                                           </span>
                                         ) : (
-                                          <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                                            Active
+                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                                            Single Channel
                                           </span>
                                         )}
-                                      </label>
-                                      {chData.liveId && (
-                                        <span className="text-[9px] font-mono text-slate-400 truncate max-w-[85px]" title={chData.liveId}>
-                                          {chData.liveId}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
+
+                                        {group.alreadyInLocal ? (
+                                          <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 whitespace-nowrap">
+                                            Already in Local DB
+                                          </span>
+                                        ) : group.partiallyInLocal ? (
+                                          <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">
+                                            {group.unlinkedChannelCount || 1} {group.unlinkedChannelCount === 1 ? 'Channel' : 'Channels'} to Link
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </td>
+                                  </tr>
                                 );
                               })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                              {/* Match Status */}
-                              <td className="px-4 py-3.5 text-center">
-                                <div className="inline-flex flex-col items-center gap-1">
-                                  {group.channelCount > 1 ? (
-                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap">
-                                      {group.channelCount} Channels Merged
-                                    </span>
-                                  ) : (
-                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
-                                      Single Channel
-                                    </span>
-                                  )}
+                  {/* Custom Mode Footer */}
+                  <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                    <div className="text-xs text-slate-500 font-bold">
+                      {(() => {
+                        const counts = getSelectedImportCounts();
+                        return (
+                          <span>
+                            Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} master products</span> ({counts.channelCount} channel listings)
+                          </span>
+                        );
+                      })()}
+                    </div>
 
-                                  {group.alreadyInLocal ? (
-                                    <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 whitespace-nowrap">
-                                      Already in Local DB
-                                    </span>
-                                  ) : group.partiallyInLocal ? (
-                                    <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">
-                                      {group.unlinkedChannelCount || 1} {group.unlinkedChannelCount === 1 ? 'Channel' : 'Channels'} to Link
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setImportViewMode('overview')}
+                        className="w-full sm:w-auto"
+                      >
+                        ← Back to Overview
+                      </Button>
+                      <button
+                        onClick={handleExecuteImport}
+                        disabled={importSubmitting || getSelectedImportCounts().groupCount === 0}
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+                      >
+                        {importSubmitting ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Importing to Local...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={14} />
+                            <span>Import Selected to Local Database</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
+
             </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-xs text-slate-500 font-bold">
-                {(() => {
-                  const counts = getSelectedImportCounts();
-                  return (
-                    <span>
-                      Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} master products</span> ({counts.channelCount} channel listings)
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setImportModalOpen(false)}
-                  disabled={importSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-                <button
-                  onClick={handleExecuteImport}
-                  disabled={importSubmitting || getSelectedImportCounts().groupCount === 0}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
-                >
-                  {importSubmitting ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      <span>Importing to Local...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={14} />
-                      <span>Import Selected to Local Database</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Smart Local Merge Modal */}
       {localMergeModalOpen && (
