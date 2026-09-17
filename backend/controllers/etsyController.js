@@ -193,7 +193,8 @@ exports.syncEtsyInventory = async (req, res) => {
     const userId = req.user.id;
     const user = await User.findById(userId);
     if (!user || !user.etsyAccount || !user.etsyAccount.connected) {
-      return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
+      if (res) return res.status(400).json({ success: false, message: 'Etsy account not connected.' });
+      return { success: false, message: 'Etsy account not connected.' };
     }
 
     const shopId = user.etsyAccount.shopId;
@@ -279,10 +280,16 @@ exports.syncEtsyInventory = async (req, res) => {
       totalSynced++;
     }
 
-    res.status(200).json({ success: true, message: 'Etsy inventory sync complete.', count: totalSynced });
+    if (res) {
+      return res.status(200).json({ success: true, message: 'Etsy inventory sync complete.', count: totalSynced });
+    }
+    return { success: true, count: totalSynced };
   } catch (err) {
     console.error('Etsy Sync Inventory Error:', err.message);
-    res.status(500).json({ success: false, message: err.message });
+    if (res) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    throw err;
   }
 };
 
