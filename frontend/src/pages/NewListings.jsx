@@ -4634,6 +4634,16 @@ const NewListings = () => {
 
                                   {/* Last Updated (Real time) */}
                                   <span>Last updated: {formatTimeAgo(realUpdatedTime)}</span>
+
+                                  {item.status === 'sold' && (
+                                    <>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600 mr-1.5"></span>
+                                        Sold Out {(item.soldPlatform || item.soldOn || item.platform) ? `(${getChannelDisplayName(item.soldPlatform || item.soldOn || item.platform)})` : ''}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
