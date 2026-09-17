@@ -307,6 +307,7 @@ exports.etsyFetchListing = async (req, res) => {
 
         const currentUsage = await Listing.countDocuments({
             user: req.user.id,
+            source: { $ne: 'channel_import' },
             createdAt: { $gte: startOfMonth }
         });
 
@@ -736,6 +737,7 @@ exports.etsyAnalyzeListing = async (req, res) => {
 
         const currentUsage = await Listing.countDocuments({
             user: req.user.id,
+            source: { $ne: 'channel_import' },
             createdAt: { $gte: startOfMonth }
         });
 

@@ -225,15 +225,17 @@ exports.getMe = async (req, res) => {
 
     const Listing = require('../models/Listing');
     
-    // Count active listings created by the user
+    // Count active AI listings created by the user (exclude channel_import)
     const listingsCount = await Listing.countDocuments({
       user: req.user.id,
-      status: 'published'
+      status: 'published',
+      source: { $ne: 'channel_import' }
     });
 
-    // Count total listings created/fetched by the user in the database
+    // Count total AI listings created/fetched by the user in the database (exclude channel_import)
     const fetchesCount = await Listing.countDocuments({
-      user: req.user.id
+      user: req.user.id,
+      source: { $ne: 'channel_import' }
     });
 
     const plan = user.subscription?.plan || 'free';
