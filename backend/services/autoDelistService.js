@@ -35,27 +35,71 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
     }
 
     // 1. Locate Master Listing in Listing Collection
-    const queryConditions = [];
-    if (sku) {
-      queryConditions.push({ sku: sku.trim() });
-    }
-    if (listingId) {
-      queryConditions.push({ ebayListingId: listingId });
-      queryConditions.push({ mercariListingId: listingId });
-      queryConditions.push({ poshmarkListingId: listingId });
-      queryConditions.push({ depopListingId: listingId });
-      queryConditions.push({ etsyListingId: listingId });
-    }
-    if (title) {
-      queryConditions.push({ title: title.trim() });
-    }
-
     let masterListing = null;
-    if (queryConditions.length > 0) {
+
+    // Priority 1: Direct Marketplace Listing ID
+    if (listingId && String(listingId).trim()) {
+      const cleanId = String(listingId).trim();
       masterListing = await Listing.findOne({
         user: userId,
-        $or: queryConditions
+        $or: [
+          { ebayListingId: cleanId },
+          { mercariListingId: cleanId },
+          { poshmarkListingId: cleanId },
+          { depopListingId: cleanId },
+          { etsyListingId: cleanId },
+          { 'platformData.ebay.liveId': cleanId },
+          { 'platformData.poshmark.liveId': cleanId },
+          { 'platformData.mercari.liveId': cleanId }
+        ]
       });
+    }
+
+    // Priority 2: Exact Title
+    if (!masterListing && title && String(title).trim()) {
+      masterListing = await Listing.findOne({
+        user: userId,
+        title: String(title).trim()
+      });
+    }
+
+    // Priority 3: SKU (with title validation if multiple listings share same SKU/date)
+    if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None') {
+      const cleanSku = String(sku).trim();
+      const candidates = await Listing.find({
+        user: userId,
+        sku: cleanSku
+      });
+
+      if (candidates.length === 1) {
+        // If title is available, verify it's not a completely different category/item
+        if (title) {
+          const orderWords = String(title).toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          const candTitle = (candidates[0].title || '').toLowerCase();
+          const overlap = orderWords.filter(w => candTitle.includes(w)).length;
+          if (overlap >= 1 || orderWords.length === 0) {
+            masterListing = candidates[0];
+          }
+        } else {
+          masterListing = candidates[0];
+        }
+      } else if (candidates.length > 1 && title) {
+        // Find best title match among candidates sharing same SKU
+        const orderWords = String(title).toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        let bestMatch = null;
+        let maxOverlap = 0;
+        for (const cand of candidates) {
+          const candTitle = (cand.title || '').toLowerCase();
+          const overlap = orderWords.filter(w => candTitle.includes(w)).length;
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            bestMatch = cand;
+          }
+        }
+        if (maxOverlap >= 1) {
+          masterListing = bestMatch;
+        }
+      }
     }
 
     if (masterListing) {
