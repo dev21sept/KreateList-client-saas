@@ -3819,7 +3819,7 @@ const NewListings = () => {
                 <select
                   value={soldPlatformFilter}
                   onChange={(e) => setSoldPlatformFilter(e.target.value)}
-                  className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
                 >
                   <option value="all">All Marketplaces ({soldOrders.length})</option>
                   <option value="ebay">eBay ({soldOrders.filter(o => (o.platform || 'ebay') === 'ebay').length})</option>
@@ -3838,12 +3838,12 @@ const NewListings = () => {
                 <select
                   value={soldSortOption}
                   onChange={(e) => setSoldSortOption(e.target.value)}
-                  className="pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
                 >
-                  <option value="newest">Sold Date (Newest First)</option>
-                  <option value="oldest">Sold Date (Oldest First)</option>
-                  <option value="price-desc">Sold Price (High - Low)</option>
-                  <option value="price-asc">Sold Price (Low - High)</option>
+                  <option value="newest">Sold Date (Newest)</option>
+                  <option value="oldest">Sold Date (Oldest)</option>
+                  <option value="price-desc">Price (High - Low)</option>
+                  <option value="price-asc">Price (Low - High)</option>
                 </select>
                 <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                   <ChevronDown size={14} />
@@ -3856,7 +3856,7 @@ const NewListings = () => {
                     setSoldSearchTerm('');
                     setSoldPlatformFilter('all');
                   }}
-                  className="text-xs font-extrabold text-purple-600 hover:text-purple-700 hover:underline px-1.5 transition-all cursor-pointer"
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer"
                 >
                   Clear
                 </button>
@@ -3864,36 +3864,20 @@ const NewListings = () => {
             </div>
           </div>
 
-          {/* Sync Time Status Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                24/7 Auto-Delist Active
-              </span>
-            </div>
-            
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-bold">Last Synced:</span>
-                <span className="font-bold text-slate-700 font-mono">
-                  {lastSoldSyncTime ? lastSoldSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}
-                </span>
-              </div>
-              <span className="text-slate-300">•</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-bold">Next Sync:</span>
-                <span className="font-bold text-slate-700">Every 10 min (Automatic)</span>
-              </div>
-              <button
-                onClick={handleManualSoldSync}
-                disabled={soldSyncing}
-                title="Refresh sold orders"
-                className="p-1 text-slate-400 hover:text-purple-600 rounded-lg hover:bg-purple-50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw size={13} className={soldSyncing ? "animate-spin text-purple-600" : ""} />
-              </button>
-            </div>
+          {/* Sync Time Status (Small, directly aligned underneath search bar) */}
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 pl-1 pt-0.5">
+            <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastSoldSyncTime ? lastSoldSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
+            <span>•</span>
+            <span>Next sync: <strong className="font-semibold text-slate-600">Every 10 min</strong></span>
+            <button
+              onClick={handleManualSoldSync}
+              disabled={soldSyncing}
+              title="Refresh sold orders"
+              className="p-0.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1 ml-1"
+            >
+              <RefreshCw size={11} className={soldSyncing ? "animate-spin text-indigo-600" : ""} />
+              {soldSyncing && <span className="text-[10px] text-indigo-600 font-bold">Syncing...</span>}
+            </button>
           </div>
         </div>
       ) : activeTab === 'local' ? (
@@ -4621,11 +4605,10 @@ const NewListings = () => {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">{title}</p>
-                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-[11px] font-medium text-slate-400">
-                            <span className="font-mono text-slate-500">SKU: {getDisplaySku(sku)}</span>
-                            <span>•</span>
-                            <span className="text-purple-700 font-extrabold text-xs">${Number(price).toFixed(2)}</span>
+                          <p className="font-bold text-slate-800 text-xs leading-relaxed line-clamp-2">{title}</p>
+                          <div className="flex items-center justify-between gap-2 mt-1 text-xs">
+                            <span className="font-mono text-slate-500 text-[11px]">SKU: {getDisplaySku(sku)}</span>
+                            <span className="font-bold text-slate-800 text-xs">${Number(price).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -4662,13 +4645,13 @@ const NewListings = () => {
 
               {/* DESKTOP SOLD TABLE VIEW */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse table-fixed">
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      <th className="px-6 py-4">Product</th>
-                      <th className="px-6 py-4">Sold On & Order ID</th>
-                      <th className="px-6 py-4">Sale Date & Time</th>
-                      <th className="px-6 py-4">Auto-Delist Protection</th>
+                      <th className="px-5 py-4 w-[36%]">Product</th>
+                      <th className="px-5 py-4 w-[22%]">Sold On & Order ID</th>
+                      <th className="px-5 py-4 w-[22%]">Sale Date & Time</th>
+                      <th className="px-5 py-4 w-[20%]">Auto-Delist Protection</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -4701,8 +4684,8 @@ const NewListings = () => {
                       return (
                         <tr key={order._id || order.orderId} className="hover:bg-slate-50/60 transition-colors">
                           {/* Product Info */}
-                          <td className="px-6 py-4 max-w-sm">
-                            <div className="flex items-center gap-3.5">
+                          <td className="px-5 py-4 w-[36%] align-middle">
+                            <div className="flex items-center gap-3">
                               <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100">
                                 {thumb ? (
                                   <img src={thumb} className="w-full h-full object-cover" alt="" />
@@ -4711,32 +4694,26 @@ const NewListings = () => {
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed block" title={title}>
+                                <span className="font-bold text-slate-800 text-xs line-clamp-1 leading-snug block" title={title}>
                                   {title}
                                 </span>
-                                <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-                                  <span className="font-mono text-slate-500 font-medium">
+                                <div className="flex items-center justify-between gap-2 mt-1 text-xs">
+                                  <span className="font-mono text-slate-500 text-[11px] truncate">
                                     SKU: {getDisplaySku(sku)}
+                                    {firstItem.quantity > 1 && ` • Qty ${firstItem.quantity}`}
                                   </span>
-                                  <span className="text-slate-300">•</span>
-                                  <span className="text-purple-700 font-extrabold">
+                                  <span className="font-bold text-slate-800 text-xs shrink-0">
                                     ${Number(price).toFixed(2)}
                                   </span>
-                                  {firstItem.quantity > 1 && (
-                                    <>
-                                      <span className="text-slate-300">•</span>
-                                      <span className="text-slate-400 font-bold">Qty: {firstItem.quantity}</span>
-                                    </>
-                                  )}
                                 </div>
                               </div>
                             </div>
                           </td>
 
                           {/* Sold Platform & Order */}
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
+                          <td className="px-5 py-4 w-[22%] align-middle">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
                                 <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
                                 <span className="text-xs font-bold text-slate-800 capitalize">{platformName}</span>
                               </div>
@@ -4744,16 +4721,16 @@ const NewListings = () => {
                                 Order #{order.orderId}
                               </span>
                               {order.buyerUsername && (
-                                <span className="text-[10px] text-slate-400">Buyer: <strong className="text-slate-600">@{order.buyerUsername}</strong></span>
+                                <span className="text-[10px] text-slate-400">Buyer: <strong className="text-slate-600 font-medium">@{order.buyerUsername}</strong></span>
                               )}
                             </div>
                           </td>
 
                           {/* Sale Date & Time */}
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4 w-[22%] align-middle">
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                <Clock size={12} className="text-slate-400" />
+                              <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                                <Clock size={12} className="text-slate-400 shrink-0" />
                                 {formattedDate}
                               </span>
                               <span className="text-[10px] font-medium text-slate-400">
@@ -4763,9 +4740,9 @@ const NewListings = () => {
                           </td>
 
                           {/* Auto-Delist Protection (Clean Logo + Platform Name) */}
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4 w-[20%] align-middle">
                             {delistedPlatforms.length > 0 ? (
-                              <div className="flex flex-wrap items-center gap-2.5">
+                              <div className="flex flex-wrap items-center gap-2">
                                 {delistedPlatforms.map(p => {
                                   const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
                                   return (
@@ -4778,7 +4755,7 @@ const NewListings = () => {
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain opacity-70" alt="" />
+                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain opacity-60" alt="" />
                                 <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
                               </div>
                             )}
