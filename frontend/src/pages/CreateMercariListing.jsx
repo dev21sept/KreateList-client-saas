@@ -57,6 +57,19 @@ const MERCARI_CONDITIONS = [
   { id: "poor", label: "Poor", description: "Heavy wear, obvious flaws or functionality issues." }
 ];
 
+const mapMercariCondition = (condition) => {
+  if (!condition) return 'good';
+  const c = String(condition).toLowerCase();
+  if (c.includes('new with tag') || c === 'new' || c === '1000' || c === 'brand_new') return 'new';
+  if (c.includes('like new') || c.includes('without tag') || c === '1500' || c === 'like_new') return 'like_new';
+  if (c.includes('good') || c.includes('very good') || c.includes('pre-owned') || c.includes('preowned') || c === '3000' || c === '4000') return 'good';
+  if (c.includes('fair') || c.includes('acceptable') || c === '5000' || c === '6000') return 'fair';
+  if (c.includes('poor') || c.includes('flaw') || c.includes('parts') || c === '7000') return 'poor';
+  if (['new', 'like_new', 'good', 'fair', 'poor'].includes(c)) return c;
+  return 'good';
+};
+
+
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
