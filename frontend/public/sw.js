@@ -1,4 +1,4 @@
-const CACHE_NAME = "elister-cache-v1";
+const CACHE_NAME = "elister-cache-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -9,10 +9,20 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Basic network-first fetch handler for PWA requirements
+  // Never intercept non-GET requests, API requests, or cross-origin requests
+  if (
+    event.request.method !== "GET" ||
+    event.request.url.includes("/api/") ||
+    event.request.url.includes("api.elister.ai")
+  ) {
+    return;
+  }
+
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
+    fetch(event.request).catch(async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      return new Response("Offline", { status: 503, statusText: "Service Unavailable" });
     })
   );
 });

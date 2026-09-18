@@ -3373,51 +3373,53 @@ const NewListings = () => {
               )}
             </div>
 
-            {/* 3-dots Menu Button at Top-Right Corner */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isDropdownOpen) {
-                  setActiveListedDropdown(null);
-                  return;
-                }
-                const rect = e.currentTarget.getBoundingClientRect();
-                const openUpward = rect.bottom > window.innerHeight * 0.6;
-                const menuWidth = 190;
-                const left = Math.min(
-                  Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
-                  window.innerWidth - menuWidth - 8
-                );
-                setActiveListedDropdown({
-                  itemId: item._id,
-                  platform: platformName,
-                  openUpward,
-                  left,
-                  verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
-                });
-              }}
-              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer z-10"
-              title="Marketplace options"
-            >
-              <MoreVertical size={13} className="stroke-[2.2]" />
-            </button>
+            {/* Right Side: Status on Top Left + 3-dots on Top Right, Price in Center, Action at Bottom */}
+            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-0.5">
+              {/* Top Row: Clean Status on Left, 3-dots Menu Button on Right */}
+              <div className="w-full flex items-center justify-between gap-1">
+                <div className="min-w-0 truncate">
+                  {isSold ? (
+                    <span className="text-[11px] font-extrabold text-purple-700 leading-none">Sold</span>
+                  ) : isListed ? (
+                    <span className="text-[11px] font-extrabold text-emerald-600 leading-none">Listed</span>
+                  ) : isDelisted ? (
+                    <span className="text-[11px] font-extrabold text-slate-500 leading-none">Delisted</span>
+                  ) : isDraft ? (
+                    <span className="text-[11px] font-extrabold text-amber-600 leading-none">Draft</span>
+                  ) : isFailed ? (
+                    <span className="text-[11px] font-extrabold text-rose-600 leading-none">Error</span>
+                  ) : null}
+                </div>
 
-            {/* Right Side: Centered Status on Top, Price in Center, Action/Open at Bottom */}
-            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-1 text-center">
-              {/* Top: Status Text (Centered, No Dot) */}
-              <div className="w-full text-center truncate">
-                {isSold ? (
-                  <span className="text-[11px] font-extrabold text-purple-700 leading-none">Sold</span>
-                ) : isListed ? (
-                  <span className="text-[11px] font-extrabold text-emerald-600 leading-none">Listed</span>
-                ) : isDelisted ? (
-                  <span className="text-[11px] font-extrabold text-slate-500 leading-none">Delisted</span>
-                ) : isDraft ? (
-                  <span className="text-[11px] font-extrabold text-amber-600 leading-none">Draft</span>
-                ) : isFailed ? (
-                  <span className="text-[11px] font-extrabold text-rose-600 leading-none">Error</span>
-                ) : null}
+                {/* 3-dots Menu Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isDropdownOpen) {
+                      setActiveListedDropdown(null);
+                      return;
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const openUpward = rect.bottom > window.innerHeight * 0.6;
+                    const menuWidth = 190;
+                    const left = Math.min(
+                      Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                      window.innerWidth - menuWidth - 8
+                    );
+                    setActiveListedDropdown({
+                      itemId: item._id,
+                      platform: platformName,
+                      openUpward,
+                      left,
+                      verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                    });
+                  }}
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  title="Marketplace options"
+                >
+                  <MoreVertical size={13} className="stroke-[2.2]" />
+                </button>
               </div>
 
               {/* Center: Clean Price */}
@@ -3902,20 +3904,14 @@ const NewListings = () => {
                     key={tab.key}
                     type="button"
                     onClick={() => setStatusFilter(tab.key)}
-                    className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
+                    className={`flex items-center gap-1.5 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
                       isActive
                         ? 'text-indigo-600 font-extrabold'
                         : 'text-slate-500 hover:text-slate-800 font-bold'
                     }`}
                   >
                     <span>{tab.label}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                        isActive
-                          ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/70'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
+                    <span className={`text-[11px] font-bold ${isActive ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
                       {tab.count.toLocaleString()}
                     </span>
                     {isActive && (
@@ -4042,20 +4038,14 @@ const NewListings = () => {
                     key={tab.key}
                     type="button"
                     onClick={() => setChannelStatusFilter(tab.key)}
-                    className={`flex items-center gap-2 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
+                    className={`flex items-center gap-1.5 pb-3 pt-1 text-xs transition-all cursor-pointer whitespace-nowrap relative ${
                       isActive
                         ? 'text-indigo-600 font-extrabold'
                         : 'text-slate-500 hover:text-slate-800 font-bold'
                     }`}
                   >
                     <span>{tab.label}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                        isActive
-                          ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/70'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
+                    <span className={`text-[11px] font-bold ${isActive ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
                       {tab.count.toLocaleString()}
                     </span>
                     {isActive && (
