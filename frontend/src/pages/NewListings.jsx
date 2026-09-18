@@ -4606,9 +4606,8 @@ const NewListings = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-slate-800 text-xs leading-relaxed line-clamp-2">{title}</p>
-                          <div className="flex items-center justify-between gap-2 mt-1 text-xs">
+                          <div className="mt-1">
                             <span className="font-mono text-slate-500 text-[11px]">SKU: {getDisplaySku(sku)}</span>
-                            <span className="font-bold text-slate-800 text-xs">${Number(price).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -4617,6 +4616,7 @@ const NewListings = () => {
                         <div className="flex items-center gap-2">
                           <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
                           <span className="font-bold text-slate-700 capitalize">{platformName}</span>
+                          <span className="font-extrabold text-slate-900 text-xs">${Number(price).toFixed(2)}</span>
                           <span className="text-[10px] font-mono text-slate-400">#{order.orderId}</span>
                         </div>
                         <span className="text-[10px] font-medium text-slate-500">
@@ -4697,13 +4697,10 @@ const NewListings = () => {
                                 <span className="font-bold text-slate-800 text-xs line-clamp-1 leading-snug block" title={title}>
                                   {title}
                                 </span>
-                                <div className="flex items-center justify-between gap-2 mt-1 text-xs">
-                                  <span className="font-mono text-slate-500 text-[11px] truncate">
+                                <div className="mt-1">
+                                  <span className="font-mono text-slate-500 text-[11px] block">
                                     SKU: {getDisplaySku(sku)}
                                     {firstItem.quantity > 1 && ` • Qty ${firstItem.quantity}`}
-                                  </span>
-                                  <span className="font-bold text-slate-800 text-xs shrink-0">
-                                    ${Number(price).toFixed(2)}
                                   </span>
                                 </div>
                               </div>
@@ -4713,9 +4710,10 @@ const NewListings = () => {
                           {/* Sold Platform & Order */}
                           <td className="px-5 py-4 w-[22%] align-middle">
                             <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-2">
                                 <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
                                 <span className="text-xs font-bold text-slate-800 capitalize">{platformName}</span>
+                                <span className="text-xs font-extrabold text-slate-900">${Number(price).toFixed(2)}</span>
                               </div>
                               <span className="text-[11px] font-mono text-slate-400 font-medium block">
                                 Order #{order.orderId}
