@@ -3373,72 +3373,55 @@ const NewListings = () => {
               )}
             </div>
 
-            {/* Right Side: Status on Top, Price in Center, Action/Open at Bottom, 3-dots visible */}
-            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-0.5">
-              {/* Top Row: Status Badge on Left + 3-dots button on Right */}
-              <div className="w-full flex items-center justify-between gap-1">
-                <div className="min-w-0 truncate">
-                  {isSold ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0"></span>
-                      <span className="truncate">Sold</span>
-                    </span>
-                  ) : isListed ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                      <span className="truncate">Listed</span>
-                    </span>
-                  ) : isDelisted ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
-                      <span className="truncate">Delisted</span>
-                    </span>
-                  ) : isDraft ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                      <span className="truncate">Draft</span>
-                    </span>
-                  ) : isFailed ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                      <span className="truncate">Error</span>
-                    </span>
-                  ) : null}
-                </div>
+            {/* 3-dots Menu Button at Top-Right Corner */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isDropdownOpen) {
+                  setActiveListedDropdown(null);
+                  return;
+                }
+                const rect = e.currentTarget.getBoundingClientRect();
+                const openUpward = rect.bottom > window.innerHeight * 0.6;
+                const menuWidth = 190;
+                const left = Math.min(
+                  Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
+                  window.innerWidth - menuWidth - 8
+                );
+                setActiveListedDropdown({
+                  itemId: item._id,
+                  platform: platformName,
+                  openUpward,
+                  left,
+                  verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
+                });
+              }}
+              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer z-10"
+              title="Marketplace options"
+            >
+              <MoreVertical size={13} className="stroke-[2.2]" />
+            </button>
 
-                {/* 3-dots Menu Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isDropdownOpen) {
-                      setActiveListedDropdown(null);
-                      return;
-                    }
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const openUpward = rect.bottom > window.innerHeight * 0.6;
-                    const menuWidth = 190;
-                    const left = Math.min(
-                      Math.max(rect.left + rect.width / 2 - menuWidth / 2, 8),
-                      window.innerWidth - menuWidth - 8
-                    );
-                    setActiveListedDropdown({
-                      itemId: item._id,
-                      platform: platformName,
-                      openUpward,
-                      left,
-                      verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
-                    });
-                  }}
-                  className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                  title="Marketplace options"
-                >
-                  <MoreVertical size={13} className="stroke-[2.2]" />
-                </button>
+            {/* Right Side: Centered Status on Top, Price in Center, Action/Open at Bottom */}
+            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-1 text-center">
+              {/* Top: Status Text (Centered, No Dot) */}
+              <div className="w-full text-center truncate">
+                {isSold ? (
+                  <span className="text-[11px] font-extrabold text-purple-700 leading-none">Sold</span>
+                ) : isListed ? (
+                  <span className="text-[11px] font-extrabold text-emerald-600 leading-none">Listed</span>
+                ) : isDelisted ? (
+                  <span className="text-[11px] font-extrabold text-slate-500 leading-none">Delisted</span>
+                ) : isDraft ? (
+                  <span className="text-[11px] font-extrabold text-amber-600 leading-none">Draft</span>
+                ) : isFailed ? (
+                  <span className="text-[11px] font-extrabold text-rose-600 leading-none">Error</span>
+                ) : null}
               </div>
 
-              {/* Center: Clean Price (Placed directly below status) */}
-              <div className="text-[13px] font-bold text-slate-800 tracking-tight text-center my-auto">
+              {/* Center: Clean Price */}
+              <div className="text-[13px] font-extrabold text-slate-800 tracking-tight text-center my-auto">
                 {formattedPrice}
               </div>
 
@@ -3450,13 +3433,13 @@ const NewListings = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors group-hover/card:underline"
+                    className="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors group-hover/card:underline"
                   >
                     <span>Open</span>
-                    <ExternalLink size={10} className="stroke-[2]" />
+                    <ExternalLink size={10} className="stroke-[2.2]" />
                   </a>
                 ) : isSold ? (
-                  <span className="text-[10px] font-medium text-purple-700">Sold Out</span>
+                  <span className="text-[10px] font-bold text-purple-700">Sold Out</span>
                 ) : isDraft ? (
                   <button
                     type="button"
@@ -3464,7 +3447,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleOpenCrosslisting(platformSpecificItem || item, platformName);
                     }}
-                    className="text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 hover:underline cursor-pointer"
                   >
                     Edit Draft
                   </button>
@@ -3475,7 +3458,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleRelistItemDirect(item, platformName);
                     }}
-                    className="text-[10px] font-medium text-rose-600 hover:text-rose-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                   >
                     <RefreshCw size={9} /> Retry
                   </button>
@@ -3486,7 +3469,7 @@ const NewListings = () => {
                       e.stopPropagation();
                       handleRelistItemDirect(item, platformName);
                     }}
-                    className="text-[10px] font-medium text-slate-600 hover:text-slate-900 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                    className="text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                   >
                     <RefreshCw size={9} /> Relist
                   </button>
