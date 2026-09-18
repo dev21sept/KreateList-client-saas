@@ -3,6 +3,7 @@ const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const { 
+  extractMercariAuth,
   scrapeMercariCloset, 
   publishToMercari, 
   deactivateMercariListing, 
@@ -67,10 +68,14 @@ exports.mercariConnect = async (req, res) => {
       }
     }
 
+    const auth = extractMercariAuth({ sessionCookie: sessionCookie.trim(), userId: finalUserId });
+    const sellerId = auth.sellerId || (finalUserId ? Number(finalUserId) : undefined);
+
     user.mercariAccount = {
       connected: true,
       username: finalUsername,
-      userId: finalUserId,
+      userId: finalUserId || (sellerId ? String(sellerId) : ''),
+      sellerId: sellerId,
       sessionCookie: sessionCookie.trim(),
       connectedAt: new Date()
     };

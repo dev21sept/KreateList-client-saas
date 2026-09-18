@@ -56,7 +56,7 @@ async function dismissMercariModals(page) {
  */
 function extractMercariAuth(credentials = {}) {
   let token = null;
-  let sellerId = credentials.userId ? Number(credentials.userId) : null;
+  let sellerId = credentials.sellerId || credentials.userId ? Number(credentials.sellerId || credentials.userId) : null;
 
   if (credentials.sessionCookie) {
     const pairs = credentials.sessionCookie.split(';').map(c => c.trim()).filter(Boolean);
@@ -78,11 +78,8 @@ function extractMercariAuth(credentials = {}) {
     try {
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
       if (payload?.data?.userId && !sellerId) sellerId = Number(payload.data.userId);
+      if (payload?.userId && !sellerId) sellerId = Number(payload.userId);
     } catch (e) {}
-  }
-
-  if (!sellerId) {
-    sellerId = 555256503;
   }
 
   return { token, sellerId };
@@ -175,7 +172,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
 
     console.log(`[Mercari Scraper] Querying Mercari GraphQL API for closet inventory...`);
     const allScrapedListings = await page.evaluate(async (token, passedSellerId) => {
-      const statuses = ['on_sale', 'stop'];
+      const statuses = ['on_sale', 'stop', 'sold_out'];
       const hash = '88c1f24f1ee3617c5e4b04f33d4f9aec7357e55cb94fea8affc78571df6368f3';
 
       let decodedId = null;
@@ -183,10 +180,11 @@ async function scrapeMercariCloset(username, credentials = {}) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload?.data?.userId) decodedId = Number(payload.data.userId);
+          if (payload?.userId) decodedId = Number(payload.userId);
         } catch (e) {}
       }
 
-      const candidateIds = Array.from(new Set([passedSellerId, 555256503, decodedId].map(Number).filter(Boolean)));
+      const candidateIds = Array.from(new Set([passedSellerId, decodedId].map(Number).filter(Boolean)));
       const results = [];
       const seenIds = new Set();
 
@@ -206,54 +204,58 @@ async function scrapeMercariCloset(username, credentials = {}) {
                 includeTotalCount: true
               }
             };
-          const ext = {
-            persistedQuery: {
-              version: 1,
-              sha256Hash: hash
-            }
-          };
-          const url = `/v1/api?operationName=userItemsQuery&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify(ext))}`;
-          
-          try {
-            const h = {
-              'accept': '*/*',
-              'apollo-require-preflight': 'true'
-            };
-            if (token) h['authorization'] = `Bearer ${token}`;
-
-            const res = await fetch(url, { headers: h, credentials: 'include' });
-            if (!res.ok) break;
-            const json = await res.json();
-            const list = json.data?.userItems?.items || [];
-            if (list.length === 0) break;
-            
-            for (const it of list) {
-              if (!seenIds.has(it.id)) {
-                seenIds.add(it.id);
-                const rawPrice = it.price || 0;
-                const formattedPrice = (typeof rawPrice === 'number' && rawPrice > 100)
-                  ? (rawPrice / 100).toFixed(2)
-                  : String(rawPrice);
-
-                results.push({
-                  mercariListingId: it.id,
-                  mercariUrl: `https://www.mercari.com/item/${it.id}/`,
-                  title: it.name,
-                  price: formattedPrice,
-                  images: (it.photos || []).map(p => typeof p === 'string' ? p : (p.thumbnail || p.url || '')).filter(Boolean),
-                  status: status === 'on_sale' ? 'active' : 'inactive'
-                });
+            const ext = {
+              persistedQuery: {
+                version: 1,
+                sha256Hash: hash
               }
-            }
+            };
+            const url = `/v1/api?operationName=userItemsQuery&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify(ext))}`;
+            
+            try {
+              const h = {
+                'accept': '*/*',
+                'apollo-require-preflight': 'true'
+              };
+              if (token) h['authorization'] = `Bearer ${token}`;
 
-            if (list.length < 20) break;
-            pageNum++;
-          } catch (e) {
-            break;
+              const res = await fetch(url, { headers: h, credentials: 'include' });
+              if (!res.ok) break;
+              const json = await res.json();
+              const list = json.data?.userItems?.items || [];
+              if (list.length === 0) break;
+              
+              for (const it of list) {
+                if (!seenIds.has(it.id)) {
+                  seenIds.add(it.id);
+                  const rawPrice = it.price || 0;
+                  const formattedPrice = (typeof rawPrice === 'number' && rawPrice > 100)
+                    ? (rawPrice / 100).toFixed(2)
+                    : String(rawPrice);
+
+                  let generalStatus = 'inactive';
+                  if (status === 'on_sale') generalStatus = 'active';
+                  else if (status === 'sold_out' || status === 'trading') generalStatus = 'sold';
+
+                  results.push({
+                    mercariListingId: it.id,
+                    mercariUrl: `https://www.mercari.com/item/${it.id}/`,
+                    title: it.name,
+                    price: formattedPrice,
+                    images: (it.photos || []).map(p => typeof p === 'string' ? p : (p.thumbnail || p.url || '')).filter(Boolean),
+                    status: generalStatus
+                  });
+                }
+              }
+
+              if (list.length < 20) break;
+              pageNum++;
+            } catch (e) {
+              break;
+            }
           }
         }
       }
-    }
 
       return results;
     }, token, sellerId);
@@ -1157,7 +1159,17 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
     await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await new Promise(r => setTimeout(r, 1500));
 
-    const checkResult = await page.evaluate(async (targetId, token, sellerId) => {
+    const checkResult = await page.evaluate(async (targetId, token, passedSellerId) => {
+      let decodedId = null;
+      if (token && token.includes('.')) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload?.data?.userId) decodedId = Number(payload.data.userId);
+          if (payload?.userId) decodedId = Number(payload.userId);
+        } catch (e) {}
+      }
+      const effectiveSellerId = passedSellerId || decodedId;
+
       // 1. First check sellFetchItemsDetails directly by itemId (fastest: 1 API call)
       try {
         const detailHash = 'd7b31ddc8e3a5adc4b0ff122fbb5afed17341dfd7f75407b460a4309d15cbf4d';
@@ -1186,77 +1198,103 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
               }
             };
           }
+
+          // Check for GoneException reason (stop / sold_out / deleted)
+          const metaReason = json.errors?.[0]?.extensions?.exception?.meta?.reason;
+          if (metaReason) {
+            if (metaReason === 'stop' || metaReason === 'draft') {
+              return {
+                found: true,
+                rawStatus: metaReason,
+                status: 'inactive',
+                mercariStatus: 'delisted',
+                isLive: false,
+                item: { id: targetId }
+              };
+            } else if (metaReason === 'sold_out' || metaReason === 'trading') {
+              return {
+                found: true,
+                rawStatus: metaReason,
+                status: 'sold',
+                mercariStatus: 'sold',
+                isLive: false,
+                item: { id: targetId }
+              };
+            }
+          }
         }
       } catch (e) {}
 
       // 2. Search across userItemsQuery statuses with early exit
-      const hash = '88c1f24f1ee3617c5e4b04f33d4f9aec7357e55cb94fea8affc78571df6368f3';
-      const statuses = ['on_sale', 'stop', 'draft', 'sold_out', 'trading'];
+      if (effectiveSellerId) {
+        const hash = '88c1f24f1ee3617c5e4b04f33d4f9aec7357e55cb94fea8affc78571df6368f3';
+        const statuses = ['on_sale', 'stop', 'sold_out', 'draft', 'trading'];
 
-      for (const status of statuses) {
-        let pageNum = 1;
-        let hasNextPage = true;
+        for (const status of statuses) {
+          let pageNum = 1;
+          let hasNextPage = true;
 
-        while (hasNextPage && pageNum <= 10) {
-          const vars = {
-            userItemsInput: {
-              sellerId: Number(sellerId),
-              status,
-              keyword: "",
-              sortBy: "updated",
-              sortType: "desc",
-              page: pageNum,
-              includeTotalCount: true
-            }
-          };
-          const ext = {
-            persistedQuery: {
-              version: 1,
-              sha256Hash: hash
-            }
-          };
-          const url = `/v1/api?operationName=userItemsQuery&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify(ext))}`;
-          
-          try {
-            const h = {
-              'accept': '*/*',
-              'apollo-require-preflight': 'true'
+          while (hasNextPage && pageNum <= 10) {
+            const vars = {
+              userItemsInput: {
+                sellerId: Number(effectiveSellerId),
+                status,
+                keyword: "",
+                sortBy: "updated",
+                sortType: "desc",
+                page: pageNum,
+                includeTotalCount: true
+              }
             };
-            if (token) h['authorization'] = `Bearer ${token}`;
-
-            const res = await fetch(url, { headers: h, credentials: 'include' });
-            if (!res.ok) break;
-            const json = await res.json();
-            const items = json.data?.userItems?.items || [];
-            if (items.length === 0) break;
+            const ext = {
+              persistedQuery: {
+                version: 1,
+                sha256Hash: hash
+              }
+            };
+            const url = `/v1/api?operationName=userItemsQuery&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify(ext))}`;
             
-            const matched = items.find(it => it.id === targetId);
-            if (matched) {
-              const isLive = status === 'on_sale';
-              const mercariStatus = status === 'on_sale' ? 'published' : (status === 'stop' ? 'delisted' : (status === 'draft' ? 'delisted' : 'sold'));
-              const generalStatus = status === 'on_sale' ? 'active' : (status === 'stop' ? 'inactive' : (status === 'draft' ? 'inactive' : 'sold'));
-              return {
-                found: true,
-                rawStatus: status,
-                status: generalStatus,
-                mercariStatus,
-                isLive,
-                item: {
-                  id: matched.id,
-                  name: matched.name,
-                  price: matched.price,
-                  photos: matched.photos
-                }
+            try {
+              const h = {
+                'accept': '*/*',
+                'apollo-require-preflight': 'true'
               };
-            }
+              if (token) h['authorization'] = `Bearer ${token}`;
 
-            if (!json.data?.userItems?.pageInfo?.hasNextPage || items.length < 20) {
-              hasNextPage = false;
-            } else {
-              pageNum++;
+              const res = await fetch(url, { headers: h, credentials: 'include' });
+              if (!res.ok) break;
+              const json = await res.json();
+              const items = json.data?.userItems?.items || [];
+              if (items.length === 0) break;
+              
+              const matched = items.find(it => it.id === targetId);
+              if (matched) {
+                const isLive = status === 'on_sale';
+                const mercariStatus = status === 'on_sale' ? 'published' : (status === 'stop' ? 'delisted' : (status === 'draft' ? 'delisted' : 'sold'));
+                const generalStatus = status === 'on_sale' ? 'active' : (status === 'stop' ? 'inactive' : (status === 'draft' ? 'inactive' : 'sold'));
+                return {
+                  found: true,
+                  rawStatus: status,
+                  status: generalStatus,
+                  mercariStatus,
+                  isLive,
+                  item: {
+                    id: matched.id,
+                    name: matched.name,
+                    price: matched.price,
+                    photos: matched.photos
+                  }
+                };
+              }
+
+              if (!json.data?.userItems?.pageInfo?.hasNextPage || items.length < 20) {
+                hasNextPage = false;
+              } else {
+                pageNum++;
+              }
+            } catch (e) {
+              break;
             }
-          } catch (e) {
-            break;
           }
         }
       }
@@ -1669,10 +1707,11 @@ async function syncMercariOrders(credentials = {}, userId = null) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload?.data?.userId) decodedId = Number(payload.data.userId);
+          if (payload?.userId) decodedId = Number(payload.userId);
         } catch (e) {}
       }
 
-      const candidateIds = Array.from(new Set([passedSellerId, 555256503, decodedId].map(Number).filter(Boolean)));
+      const candidateIds = Array.from(new Set([passedSellerId, decodedId].map(Number).filter(Boolean)));
       const orderStatuses = ['trading', 'sold_out'];
       const rawOrders = [];
       const seenIds = new Set();
@@ -1838,6 +1877,7 @@ async function syncMercariOrders(credentials = {}, userId = null) {
 }
 
 module.exports = {
+  extractMercariAuth,
   scrapeMercariCloset,
   publishToMercari,
   deactivateMercariListing,
