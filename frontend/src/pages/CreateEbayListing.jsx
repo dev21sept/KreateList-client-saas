@@ -251,7 +251,10 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
     selectedAspects: {},
     sku: '',
     selectedModel: 'gpt-4o-mini',
-    packageWeight: { lbs: '', oz: '' },
+    packageWeight: { lbs: 1, oz: 0 },
+    packageDimensions: { length: 10, width: 8, height: 2 },
+    fulfillmentPolicyId: '',
+    paymentPolicyId: '',
     returnPolicyId: '',
     locationKey: ''
   });
@@ -313,17 +316,26 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
       try {
         const response = await ebayService.getPolicies();
         if (response.data?.success) {
-          setEbayPolicies({
-            fulfillment: (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name })),
-            payment: (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name })),
-            returns: (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name })),
-            locations: (response.data.data.locations || []).map(l => ({
-              id: l.merchantLocationKey,
-              label: l.name 
-                ? `${l.name}${l.location?.address?.city ? ` (${l.location.address.city})` : ''}` 
-                : l.merchantLocationKey
-            }))
-          });
+          const fulfillment = (response.data.data.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name }));
+          const payment = (response.data.data.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name }));
+          const returns = (response.data.data.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name }));
+          const locations = (response.data.data.locations || []).map(l => ({
+            id: l.merchantLocationKey,
+            label: l.name 
+              ? `${l.name}${l.location?.address?.city ? ` (${l.location.address.city})` : ''}` 
+              : l.merchantLocationKey
+          }));
+
+          setEbayPolicies({ fulfillment, payment, returns, locations });
+
+          // Auto-select default/first policies if not set yet
+          setFormData(prev => ({
+            ...prev,
+            fulfillmentPolicyId: prev.fulfillmentPolicyId || (fulfillment[0]?.id || ''),
+            paymentPolicyId: prev.paymentPolicyId || (payment[0]?.id || ''),
+            returnPolicyId: prev.returnPolicyId || (returns[0]?.id || ''),
+            locationKey: prev.locationKey || (locations[0]?.id || '')
+          }));
         }
       } catch (error) {
         console.error("Error fetching eBay policies in CreateEbayListing:", error);
@@ -394,6 +406,12 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         conditionNote: ebData.conditionNote || initialListing.conditionNote || prev.conditionNote,
         selectedAspects: mergedAspects,
         sku: ebData.sku || initialListing.sku || prev.sku,
+        packageWeight: ebData.packageWeight || initialListing.packageWeight || prev.packageWeight || { lbs: 1, oz: 0 },
+        packageDimensions: ebData.packageDimensions || initialListing.packageDimensions || prev.packageDimensions || { length: 10, width: 8, height: 2 },
+        fulfillmentPolicyId: ebData.fulfillmentPolicyId || initialListing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
+        paymentPolicyId: ebData.paymentPolicyId || initialListing.paymentPolicyId || prev.paymentPolicyId,
+        returnPolicyId: ebData.returnPolicyId || initialListing.returnPolicyId || prev.returnPolicyId,
+        locationKey: ebData.locationKey || initialListing.locationKey || prev.locationKey
       }));
 
       if (catId) {

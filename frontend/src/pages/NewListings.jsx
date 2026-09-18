@@ -3355,7 +3355,7 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
+            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2.5 w-[172px] shrink-0 min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
             {/* Left Side: Clean Marketplace Image Thumbnail (No colored border, No overlaid badge) */}
             <div 
@@ -3536,7 +3536,7 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2.5 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] min-h-[108px] h-[108px] select-none ${
+            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2.5 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] shrink-0 min-h-[108px] h-[108px] select-none ${
               isDropTarget
                 ? isHovered
                   ? 'scale-105 ring-2 ring-indigo-500 rounded-2xl bg-indigo-100/80 shadow-md'
@@ -4253,12 +4253,11 @@ const NewListings = () => {
                         <StatusBadge status={item.status} />
                       </div>
 
-                      <div className="flex items-center gap-4 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1">
+                      <div className="flex items-center gap-3 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                         {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                         {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                        {/* {renderCrosslistingCell(item, 'depop', item.depopListingId, '/depop.png')} */}
-                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                         {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                         {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                       </div>
                     </div>
@@ -4267,8 +4266,8 @@ const NewListings = () => {
               </div>
 
               {/* DESKTOP TABLE VIEW */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse table-fixed">
+              <div className="hidden md:block overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="min-w-[1180px] w-full text-left border-collapse table-fixed">
 
                   {/* Headers */}
                   <thead className="bg-slate-50/80 border-b border-slate-100">
