@@ -4628,7 +4628,7 @@ const NewListings = () => {
                   const delistedPlatforms = Array.from(new Set([...directDelisted, ...listingDelisted]));
 
                   return (
-                    <div key={order._id || order.orderId} className="p-4 space-y-3">
+                    <div key={order._id || order.orderId} className="p-4 space-y-2.5">
                       <div className="flex items-start gap-3">
                         <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 relative">
                           {thumb ? (
@@ -4639,44 +4639,39 @@ const NewListings = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-extrabold text-slate-800 text-xs leading-relaxed line-clamp-2">{title}</p>
-                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-[10px] font-bold text-slate-400">
-                            <span className="font-mono text-slate-500">SKU: {sku}</span>
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-[11px] font-medium text-slate-400">
+                            <span className="font-mono text-slate-500">SKU: {getDisplaySku(sku)}</span>
                             <span>•</span>
                             <span className="text-purple-700 font-extrabold text-xs">${Number(price).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl text-xs">
+                      <div className="flex items-center justify-between text-xs pt-1">
                         <div className="flex items-center gap-2">
                           <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
                           <span className="font-bold text-slate-700 capitalize">{platformName}</span>
                           <span className="text-[10px] font-mono text-slate-400">#{order.orderId}</span>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500">
+                        <span className="text-[10px] font-medium text-slate-500">
                           {formatTimeAgo(order.createdDate || order.paidDate || order.createdAt)}
                         </span>
                       </div>
 
                       {delistedPlatforms.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto-Delisted:</span>
+                        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                          <span className="text-[10px] font-semibold text-slate-400">Auto-Delisted:</span>
                           {delistedPlatforms.map(p => {
                             const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
                             return (
-                              <span key={p} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xl text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs">
+                              <div key={p} className="flex items-center gap-1.5 font-medium text-slate-700">
                                 <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
                                 <span>{getChannelDisplayName(p)}</span>
-                              </span>
+                              </div>
                             );
                           })}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 pt-1 text-[10px] font-bold text-slate-500">
-                          <img src={platformLogo} className="w-3.5 h-3.5 object-contain" alt="" />
-                          <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
-                        </div>
-                      )}
+                      ) : null}
                     </div>
                   );
                 })}
@@ -4689,11 +4684,8 @@ const NewListings = () => {
                     <tr className="border-b border-slate-100 select-none text-[10px] font-black text-slate-400 uppercase tracking-wider">
                       <th className="px-6 py-4">Product</th>
                       <th className="px-6 py-4">Sold On & Order ID</th>
-                      <th className="px-6 py-4">Sold Price</th>
                       <th className="px-6 py-4">Sale Date & Time</th>
                       <th className="px-6 py-4">Auto-Delist Protection</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -4739,12 +4731,19 @@ const NewListings = () => {
                                 <span className="font-extrabold text-slate-800 text-xs line-clamp-1 leading-relaxed block" title={title}>
                                   {title}
                                 </span>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                    {getDisplaySku(sku)}
+                                <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                                  <span className="font-mono text-slate-500 font-medium">
+                                    SKU: {getDisplaySku(sku)}
+                                  </span>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="text-purple-700 font-extrabold">
+                                    ${Number(price).toFixed(2)}
                                   </span>
                                   {firstItem.quantity > 1 && (
-                                    <span className="text-[10px] text-slate-400 font-bold">Qty: {firstItem.quantity}</span>
+                                    <>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="text-slate-400 font-bold">Qty: {firstItem.quantity}</span>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -4754,11 +4753,11 @@ const NewListings = () => {
                           {/* Sold Platform & Order */}
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80 w-fit">
+                              <div className="flex items-center gap-2">
                                 <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
-                                <span className="text-xs font-black text-slate-800 capitalize">{platformName}</span>
+                                <span className="text-xs font-bold text-slate-800 capitalize">{platformName}</span>
                               </div>
-                              <span className="text-[10px] font-mono text-slate-400 font-bold block">
+                              <span className="text-[11px] font-mono text-slate-400 font-medium block">
                                 Order #{order.orderId}
                               </span>
                               {order.buyerUsername && (
@@ -4767,18 +4766,10 @@ const NewListings = () => {
                             </div>
                           </td>
 
-                          {/* Sold Price */}
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-black text-purple-700 block">
-                              ${Number(price).toFixed(2)}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gross Total</span>
-                          </td>
-
                           {/* Sale Date & Time */}
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                 <Clock size={12} className="text-slate-400" />
                                 {formattedDate}
                               </span>
@@ -4788,65 +4779,25 @@ const NewListings = () => {
                             </div>
                           </td>
 
-                          {/* Auto-Delist Protection Badges (Logo + Platform Name) */}
+                          {/* Auto-Delist Protection (Clean Logo + Platform Name) */}
                           <td className="px-6 py-4">
                             {delistedPlatforms.length > 0 ? (
-                              <div className="flex flex-col gap-1.5">
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">
-                                  <ShieldCheck size={12} /> Auto-Delisted & Synced
-                                </span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {delistedPlatforms.map(p => {
-                                    const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
-                                    return (
-                                      <span key={p} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black bg-slate-100 hover:bg-slate-150 border border-slate-200/90 text-slate-800 shadow-2xs">
-                                        <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
-                                        <span>{getChannelDisplayName(p)}</span>
-                                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded border border-emerald-200/50">Delisted</span>
-                                      </span>
-                                    );
-                                  })}
-                                </div>
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                {delistedPlatforms.map(p => {
+                                  const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
+                                  return (
+                                    <div key={p} className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                                      <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                      <span>{getChannelDisplayName(p)}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-bold">
-                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain opacity-70" alt="" />
                                 <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
                               </div>
-                            )}
-                          </td>
-
-                          {/* Status */}
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-purple-600 mr-1.5"></span>
-                              Sold Out
-                            </span>
-                          </td>
-
-                          {/* Action */}
-                          <td className="px-6 py-4 text-center">
-                            {order.orderUrl ? (
-                              <a
-                                href={order.orderUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs font-bold transition-colors cursor-pointer border border-slate-200/70"
-                              >
-                                <span>View</span>
-                                <ExternalLink size={12} />
-                              </a>
-                            ) : order.listingId ? (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPreview(order.listingId, platformName)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs font-bold transition-colors cursor-pointer border border-slate-200/70"
-                              >
-                                <Eye size={12} />
-                                <span>Preview</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-300 text-xs">-</span>
                             )}
                           </td>
                         </tr>
