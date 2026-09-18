@@ -3355,86 +3355,58 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border rounded-2xl p-2 shadow-2xs hover:shadow-md transition-all group/card flex items-center justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${
-              isSold
-                ? 'border-purple-200/90 bg-purple-50/20 hover:border-purple-400'
-                : isListed 
-                  ? 'border-slate-200/90 hover:border-emerald-300' 
-                  : isDelisted 
-                    ? 'border-slate-300/90 bg-slate-50/40 hover:border-slate-400' 
-                    : isDraft 
-                      ? 'border-amber-200/80 bg-amber-50/20 hover:border-amber-400' 
-                      : isFailed 
-                        ? 'border-rose-200/80 bg-rose-50/20 hover:border-rose-400' 
-                        : 'border-slate-200/90 hover:border-slate-300'
-            } ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
+            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2.5 w-[172px] min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
-            {/* Left Side: Marketplace Image Thumbnail (Taller Portrait) with Status Border & Badge */}
+            {/* Left Side: Clean Marketplace Image Thumbnail (No colored border, No overlaid badge) */}
             <div 
               onClick={(e) => {
                 e.stopPropagation();
                 handleOpenPreview(item, platformName);
               }}
               title={`Click to preview on ${getChannelDisplayName(platformName)}`}
-              className={`w-[74px] h-[92px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer relative ${
-                isSold
-                  ? 'border-2 border-purple-500 ring-1 ring-purple-400/20'
-                  : isListed
-                    ? 'border-2 border-emerald-500 ring-1 ring-emerald-400/20'
-                    : isDelisted
-                      ? 'border-2 border-slate-400 ring-1 ring-slate-400/20'
-                      : isDraft
-                        ? 'border-2 border-amber-400 ring-1 ring-amber-400/20'
-                        : isFailed
-                          ? 'border-2 border-rose-500 ring-1 ring-rose-400/20'
-                          : 'border border-slate-200'
-              }`}
+              className="w-[72px] h-[90px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center border border-slate-200/80 shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer"
             >
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
               ) : (
                 <ImageOff size={16} className="text-slate-300" />
               )}
-
-              {/* Status Badge Overlaid on Image */}
-              <div className="absolute bottom-1 left-1 right-1 flex justify-center pointer-events-none">
-                {isSold && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-purple-700/90 text-white shadow-xs backdrop-blur-xs leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
-                    Sold
-                  </span>
-                )}
-                {!isSold && isListed && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0 animate-pulse"></span>
-                    Listed
-                  </span>
-                )}
-                {!isSold && isDelisted && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-slate-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
-                    Delisted
-                  </span>
-                )}
-                {!isSold && isDraft && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
-                    Draft
-                  </span>
-                )}
-                {!isSold && isFailed && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600/90 text-white shadow-xs backdrop-blur-xs leading-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white mr-1 shrink-0"></span>
-                    Error
-                  </span>
-                )}
-              </div>
             </div>
 
-            {/* Right Side: 3-dots on top right, Price in center, Open Link at bottom */}
+            {/* Right Side: Status on Top, Price in Center, Action/Open at Bottom, 3-dots visible */}
             <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-0.5">
-              {/* Top: 3-dots trigger aligned to top right */}
-              <div className="w-full flex justify-end">
+              {/* Top Row: Status Badge on Left + 3-dots button on Right */}
+              <div className="w-full flex items-center justify-between gap-1">
+                <div className="min-w-0 truncate">
+                  {isSold ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0"></span>
+                      <span className="truncate">Sold</span>
+                    </span>
+                  ) : isListed ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                      <span className="truncate">Listed</span>
+                    </span>
+                  ) : isDelisted ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                      <span className="truncate">Delisted</span>
+                    </span>
+                  ) : isDraft ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                      <span className="truncate">Draft</span>
+                    </span>
+                  ) : isFailed ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 leading-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                      <span className="truncate">Error</span>
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* 3-dots Menu Button */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -3458,15 +3430,15 @@ const NewListings = () => {
                       verticalOffset: openUpward ? window.innerHeight - rect.top + 4 : rect.bottom + 4,
                     });
                   }}
-                  className="w-5 h-5 -mr-0.5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                   title="Marketplace options"
                 >
-                  <MoreVertical size={13} />
+                  <MoreVertical size={13} className="stroke-[2.2]" />
                 </button>
               </div>
 
-              {/* Center: Clean Price (light/medium weight, elegant typography) */}
-              <div className="text-[13px] font-semibold text-slate-700 tracking-tight text-center my-auto">
+              {/* Center: Clean Price (Placed directly below status) */}
+              <div className="text-[13px] font-bold text-slate-800 tracking-tight text-center my-auto">
                 {formattedPrice}
               </div>
 
