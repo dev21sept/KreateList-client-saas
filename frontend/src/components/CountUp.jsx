@@ -3,18 +3,19 @@ import { useInView } from 'framer-motion';
 
 /**
  * Lightweight scroll-triggered count-up. Purely presentational — animates a
- * numeric display from 0 to `value` once it enters the viewport. Renders the
+ * numeric display from 0 to `value` or `end` once it enters the viewport. Renders the
  * final value immediately (no animation) when `disabled` is true, e.g. for
  * prefers-reduced-motion users.
  */
-const CountUp = ({ value, suffix = '', decimals = 0, duration = 1.2, disabled = false }) => {
+const CountUp = ({ value, end, suffix = '', decimals = 0, duration = 1.2, disabled = false }) => {
+  const target = Number(value ?? end ?? 0);
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-40px' });
-  const [display, setDisplay] = useState(disabled ? value : 0);
+  const [display, setDisplay] = useState(disabled ? target : 0);
 
   useEffect(() => {
     if (disabled) {
-      setDisplay(value);
+      setDisplay(target);
       return;
     }
     if (!isInView) return;
@@ -24,20 +25,22 @@ const CountUp = ({ value, suffix = '', decimals = 0, duration = 1.2, disabled = 
     const animate = (now) => {
       const progress = Math.min((now - start) / (duration * 1000), 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(value * eased);
+      setDisplay(target * eased);
       if (progress < 1) {
         raf = requestAnimationFrame(animate);
       } else {
-        setDisplay(value);
+        setDisplay(target);
       }
     };
     raf = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(raf);
-  }, [isInView, value, duration, disabled]);
+  }, [isInView, target, duration, disabled]);
+
+  const num = typeof display === 'number' && !isNaN(display) ? display : 0;
 
   return (
     <span ref={ref}>
-      {display.toFixed(decimals)}
+      {num.toFixed(decimals)}
       {suffix}
     </span>
   );

@@ -876,28 +876,28 @@ const Home = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
           <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="text-3xl sm:text-4xl font-extrabold text-indigo-600 mb-1">
-              <CountUp end={100} duration={1.5} />k+
+              <CountUp value={100} duration={1.5} />k+
             </div>
             <div className="text-xs sm:text-sm font-semibold text-slate-600">Listings Synced</div>
           </div>
 
           <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="text-3xl sm:text-4xl font-extrabold text-emerald-600 mb-1">
-              &lt;<CountUp end={60} duration={1.5} />s
+              &lt;<CountUp value={60} duration={1.5} />s
             </div>
             <div className="text-xs sm:text-sm font-semibold text-slate-600">Auto-Delist Speed</div>
           </div>
 
           <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="text-3xl sm:text-4xl font-extrabold text-violet-600 mb-1">
-              <CountUp end={99} duration={1.5} />.9%
+              <CountUp value={99} duration={1.5} />.9%
             </div>
             <div className="text-xs sm:text-sm font-semibold text-slate-600">Double-Sale Prevention</div>
           </div>
 
           <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="text-3xl sm:text-4xl font-extrabold text-blue-600 mb-1">
-              <CountUp end={10} duration={1.5} />x
+              <CountUp value={10} duration={1.5} />x
             </div>
             <div className="text-xs sm:text-sm font-semibold text-slate-600">Faster Listing Workflow</div>
           </div>
