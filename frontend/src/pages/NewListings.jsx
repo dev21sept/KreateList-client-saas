@@ -3763,21 +3763,13 @@ const NewListings = () => {
               localStorage.setItem('elister_active_listings_tab', 'sold');
               fetchSoldOrders();
             }}
-            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeTab === 'sold'
-                ? 'bg-white text-purple-700 shadow-sm'
+                ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Flame size={13} className={activeTab === 'sold' ? "text-purple-600" : "text-slate-400"} />
-            <span>Sold Tracker</span>
-            {soldOrders.length > 0 && (
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                activeTab === 'sold' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-600'
-              }`}>
-                {soldOrders.length}
-              </span>
-            )}
+            Sold Tracker
           </button>
         </div>
 
