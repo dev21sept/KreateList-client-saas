@@ -151,6 +151,7 @@ async function runBackgroundSyncCycle() {
   try {
     const users = await User.find({
       $or: [
+        { 'ebayAccount.connected': true },
         { 'ebay.connected': true },
         { 'poshmarkAccount.connected': true },
         { 'mercariAccount.connected': true },
@@ -166,8 +167,10 @@ async function runBackgroundSyncCycle() {
         console.log(`[Background Sales Worker] Syncing sales for: ${user.email} (ID: ${user._id})`);
 
         // 1. eBay Sync
-        if (user.ebay?.connected && user.ebay?.accessToken) {
+        const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
+        if (isEbayConnected) {
           try {
+            console.log(`[Background Sales Worker] Syncing eBay orders for ${user.email}...`);
             await syncEbayOrders({ user: { id: user._id.toString() } }, null);
           } catch (ebayErr) {
             console.warn(`[Background Sales Worker] eBay sales sync error for ${user.email}:`, ebayErr.message);
@@ -220,6 +223,7 @@ async function runBackgroundInventorySyncCycle() {
   try {
     const users = await User.find({
       $or: [
+        { 'ebayAccount.connected': true },
         { 'ebay.connected': true },
         { 'poshmarkAccount.connected': true },
         { 'mercariAccount.connected': true },
@@ -237,7 +241,8 @@ async function runBackgroundInventorySyncCycle() {
         console.log(`[Background Inventory Worker] Syncing inventory for user: ${user.email}`);
 
         // 1. eBay Inventory Sync
-        if (user.ebay?.connected && user.ebay?.accessToken) {
+        const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
+        if (isEbayConnected) {
           try {
             console.log(`[Background Inventory Worker] Syncing eBay inventory for ${user.email}...`);
             await syncEbayInventory({ user: { id: userId } }, null);

@@ -279,9 +279,12 @@ exports.handleCallback = exports.ebayCallback;
 // @access  Private
 exports.syncOrders = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id || req.user._id?.toString();
     let token = await getValidToken(userId);
-    if (!token) return res.status(401).json({ success: false, error: 'No valid token' });
+    if (!token) {
+      if (res) return res.status(401).json({ success: false, error: 'No valid token' });
+      return { success: false, error: 'No valid token' };
+    }
 
     console.log(`--- STARTING EBAY ORDERS SYNC FOR USER: ${userId} ---`);
     const data = await ebayService.getOrders(token);
@@ -402,9 +405,12 @@ exports.syncOrders = async (req, res) => {
 // @access  Private
 exports.syncInventory = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id || req.user._id?.toString();
     let token = await getValidToken(userId);
-    if (!token) return res.status(401).json({ success: false, error: 'No valid token' });
+    if (!token) {
+      if (res) return res.status(401).json({ success: false, error: 'No valid token' });
+      return { success: false, error: 'No valid token' };
+    }
 
     console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
 
