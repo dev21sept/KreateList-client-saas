@@ -29,11 +29,19 @@ async function recheckMasterListingStatuses(userId) {
       // 1. Check eBay status
       if (listing.ebayListingId) {
         const ebayProd = await Product.findOne({ user: userId, ebayListingId: listing.ebayListingId, source: 'ebay' });
-        if (ebayProd && ebayProd.status === 'inactive') {
-          if (listing.ebayStatus === 'published' || listing.ebayStatus === 'active') {
-            listing.ebayStatus = 'delisted';
-            if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
-            changed = true;
+        if (ebayProd) {
+          if (ebayProd.status === 'inactive') {
+            if (listing.ebayStatus === 'published' || listing.ebayStatus === 'active') {
+              listing.ebayStatus = 'delisted';
+              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+              changed = true;
+            }
+          } else if (ebayProd.status === 'active') {
+            if (listing.ebayStatus !== 'published') {
+              listing.ebayStatus = 'published';
+              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
+              changed = true;
+            }
           }
         }
       }
@@ -41,11 +49,20 @@ async function recheckMasterListingStatuses(userId) {
       // 2. Check Poshmark status
       if (listing.poshmarkListingId) {
         const poshProd = await Product.findOne({ user: userId, poshmarkListingId: listing.poshmarkListingId, source: 'poshmark' });
-        if (poshProd && (poshProd.status === 'inactive' || poshProd.status === 'sold')) {
-          if (listing.poshmarkStatus === 'published' || listing.poshmarkStatus === 'active') {
-            listing.poshmarkStatus = poshProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.platformData?.poshmark) listing.platformData.poshmark.status = listing.poshmarkStatus;
-            changed = true;
+        if (poshProd) {
+          if (poshProd.status === 'inactive' || poshProd.status === 'sold') {
+            const targetStat = poshProd.status === 'sold' ? 'sold' : 'delisted';
+            if (listing.poshmarkStatus !== targetStat) {
+              listing.poshmarkStatus = targetStat;
+              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = targetStat;
+              changed = true;
+            }
+          } else if (poshProd.status === 'active') {
+            if (listing.poshmarkStatus !== 'published') {
+              listing.poshmarkStatus = 'published';
+              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'published';
+              changed = true;
+            }
           }
         }
       }
@@ -53,11 +70,20 @@ async function recheckMasterListingStatuses(userId) {
       // 3. Check Mercari status
       if (listing.mercariListingId) {
         const mercProd = await Product.findOne({ user: userId, mercariListingId: listing.mercariListingId, source: 'mercari' });
-        if (mercProd && (mercProd.status === 'inactive' || mercProd.status === 'sold')) {
-          if (listing.mercariStatus === 'published' || listing.mercariStatus === 'active') {
-            listing.mercariStatus = mercProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.platformData?.mercari) listing.platformData.mercari.status = listing.mercariStatus;
-            changed = true;
+        if (mercProd) {
+          if (mercProd.status === 'inactive' || mercProd.status === 'sold') {
+            const targetStat = mercProd.status === 'sold' ? 'sold' : 'delisted';
+            if (listing.mercariStatus !== targetStat) {
+              listing.mercariStatus = targetStat;
+              if (listing.platformData?.mercari) listing.platformData.mercari.status = targetStat;
+              changed = true;
+            }
+          } else if (mercProd.status === 'active') {
+            if (listing.mercariStatus !== 'published') {
+              listing.mercariStatus = 'published';
+              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'published';
+              changed = true;
+            }
           }
         }
       }
@@ -65,13 +91,34 @@ async function recheckMasterListingStatuses(userId) {
       // 4. Check Etsy status
       if (listing.etsyListingId) {
         const etsyProd = await Product.findOne({ user: userId, etsyListingId: listing.etsyListingId, source: 'etsy' });
-        if (etsyProd && etsyProd.status === 'inactive') {
-          if (listing.etsyStatus === 'published' || listing.etsyStatus === 'active') {
-            listing.etsyStatus = 'delisted';
-            if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
-            changed = true;
+        if (etsyProd) {
+          if (etsyProd.status === 'inactive') {
+            if (listing.etsyStatus === 'published' || listing.etsyStatus === 'active') {
+              listing.etsyStatus = 'delisted';
+              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
+              changed = true;
+            }
+          } else if (etsyProd.status === 'active') {
+            if (listing.etsyStatus !== 'published') {
+              listing.etsyStatus = 'published';
+              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'published';
+              changed = true;
+            }
           }
         }
+      }
+
+      // 5. Restore Master Listing to published if any connected channel is active
+      const hasActiveChannel = [listing.ebayStatus, listing.poshmarkStatus, listing.mercariStatus, listing.etsyStatus, listing.depopStatus].some(s => s === 'published' || s === 'active');
+      if (hasActiveChannel && listing.status === 'sold') {
+        listing.status = 'published';
+        listing.quantity = 1;
+        listing.soldOn = null;
+        listing.soldOrderId = null;
+        listing.soldAt = null;
+        listing.soldPlatform = null;
+        listing.errorMessage = null;
+        changed = true;
       }
 
       if (changed) {

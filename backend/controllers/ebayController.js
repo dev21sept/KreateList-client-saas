@@ -326,6 +326,7 @@ exports.syncOrders = async (req, res) => {
 
         lineItems.push({
           lineItemId: li.lineItemId,
+          legacyItemId: li.legacyItemId,
           title: li.title,
           sku: li.sku,
           quantity: li.quantity,
@@ -368,7 +369,7 @@ exports.syncOrders = async (req, res) => {
               userId,
               soldPlatform: 'ebay',
               sku: item.sku,
-              listingId: item.lineItemId,
+              listingId: item.legacyItemId || item.lineItemId,
               title: item.title,
               orderId: o.orderId,
               orderDate: o.creationDate

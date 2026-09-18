@@ -55,6 +55,35 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
     }
 
+    // Helper for title keyword tokenization
+    const getSignificantTokens = (t) => {
+      if (!t) return [];
+      const stopWords = new Set([
+        'mens', 'men', 'womens', 'women', 'shirt', 'pants', 'pant', 'jacket', 'coat', 'sweater',
+        'shoes', 'boots', 'size', 'with', 'and', 'the', 'for', 'good', 'preowned', 'cotton',
+        'vintage', 'black', 'white', 'blue', 'gray', 'grey', 'brown', 'red', 'green', 'yellow',
+        'used', 'new', 'condition', 'long', 'sleeve', 'short', 'front', 'back', 'neck', 'fit'
+      ]);
+      return String(t)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopWords.has(w));
+    };
+
+    const areTitlesSimilar = (t1, t2) => {
+      if (!t1 || !t2) return false;
+      const tok1 = getSignificantTokens(t1);
+      const tok2 = getSignificantTokens(t2);
+      if (tok1.length === 0 || tok2.length === 0) {
+        return t1.trim().toLowerCase() === t2.trim().toLowerCase();
+      }
+      const set2 = new Set(tok2);
+      const common = tok1.filter(w => set2.has(w));
+      const minLen = Math.min(tok1.length, tok2.length);
+      return common.length >= 2 || (common.length >= 1 && minLen <= 2) || (common.length / minLen >= 0.5);
+    };
+
     // Priority 2: Exact Title
     if (!masterListing && title && String(title).trim()) {
       masterListing = await Listing.findOne({
@@ -63,7 +92,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
     }
 
-    // Priority 3: SKU (with title validation if multiple listings share same SKU/date)
+    // Priority 3: SKU (with strict title similarity to prevent false matches across reused SKUs)
     if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None') {
       const cleanSku = String(sku).trim();
       const candidates = await Listing.find({
@@ -72,41 +101,32 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
 
       if (candidates.length === 1) {
-        // If title is available, verify it's not a completely different category/item
         if (title) {
-          const orderWords = String(title).toLowerCase().split(/\s+/).filter(w => w.length > 3);
-          const candTitle = (candidates[0].title || '').toLowerCase();
-          const overlap = orderWords.filter(w => candTitle.includes(w)).length;
-          if (overlap >= 1 || orderWords.length === 0) {
+          if (areTitlesSimilar(title, candidates[0].title)) {
             masterListing = candidates[0];
+          } else {
+            console.log(`[Auto-Delist] SKU "${cleanSku}" matches listing #${candidates[0]._id} but titles are dissimilar ("${title}" vs "${candidates[0].title}"). Skipping.`);
           }
         } else {
           masterListing = candidates[0];
         }
       } else if (candidates.length > 1 && title) {
-        // Find best title match among candidates sharing same SKU
-        const orderWords = String(title).toLowerCase().split(/\s+/).filter(w => w.length > 3);
         let bestMatch = null;
-        let maxOverlap = 0;
         for (const cand of candidates) {
-          const candTitle = (cand.title || '').toLowerCase();
-          const overlap = orderWords.filter(w => candTitle.includes(w)).length;
-          if (overlap > maxOverlap) {
-            maxOverlap = overlap;
+          if (areTitlesSimilar(title, cand.title)) {
             bestMatch = cand;
+            break;
           }
         }
-        if (maxOverlap >= 1) {
-          masterListing = bestMatch;
-        }
+        masterListing = bestMatch;
       }
     }
 
     if (masterListing) {
       // Guard: If this order was created before the master listing was imported/created in Master DB, skip marking it as sold
-      if (orderDate && masterListing.createdAt) {
+      if (orderDate && (masterListing.createdAt || masterListing.updatedAt)) {
         const oTime = new Date(orderDate).getTime();
-        const lTime = new Date(masterListing.createdAt).getTime();
+        const lTime = new Date(masterListing.createdAt || masterListing.updatedAt).getTime();
         if (oTime < (lTime - 10 * 60 * 1000)) {
           console.log(`[Auto-Delist] Order #${orderId} date (${new Date(oTime).toISOString()}) is before listing import date (${new Date(lTime).toISOString()}). Skipping auto-delist to protect active listing.`);
           return results;
