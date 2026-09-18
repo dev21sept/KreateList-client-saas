@@ -4,7 +4,8 @@ dotenv.config({ path: __dirname + '/../.env' });
 const Listing = require('../models/Listing');
 
 async function main() {
-  await mongoose.connect(process.env.MONGODB_URI);
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  await mongoose.connect(uri);
   console.log('Connected to DB');
 
   const item = await Listing.findOne({ sku: /9-5-26/i });
