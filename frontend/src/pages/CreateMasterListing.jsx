@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   ImageIcon,
@@ -17,19 +17,92 @@ import {
   ArrowLeft,
   ArrowRight,
   ShoppingBag,
-  RefreshCw
+  RefreshCw,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  Globe,
+  SlidersHorizontal,
+  Package,
+  ShieldCheck,
+  ExternalLink,
+  Plus
 } from 'lucide-react';
-import { ruleService, aiService, listingService, etsyService } from '../services/api';
+import { 
+  ruleService, 
+  aiService, 
+  listingService, 
+  ebayService, 
+  etsyService, 
+  mercariService, 
+  poshmarkService, 
+  amazonService,
+  externalImportService 
+} from '../services/api';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { useNotification } from '../context/NotificationContext';
 import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
+import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
+import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
+import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 
-const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
+const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
+
+const POPULAR_BRANDS = [
+  { id: 4578, name: "Nike" },
+  { id: 54, name: "Adidas" },
+  { id: 3370, name: "Jordan" },
+  { id: 115, name: "Air Jordan" },
+  { id: 3778, name: "Levi's" },
+  { id: 5487, name: "ROCKMOUNT" },
+  { id: 27436, name: "Rockmount Ranchwear" },
+  { id: 969, name: "Carhartt" },
+  { id: 4867, name: "Patagonia" },
+  { id: 5212, name: "Polo Ralph Lauren" },
+  { id: 5971, name: "The North Face" },
+  { id: 6223, name: "Under Armour" }
+];
+
+const PLATFORMS_CONFIG = [
+  { id: 'ebay', name: 'eBay', logo: '/ebay.png', color: '#0064D2' },
+  { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png', color: '#8A2534' },
+  { id: 'mercari', name: 'Mercari', logo: '/mercari.png', color: '#FF2A4D' },
+  { id: 'etsy', name: 'Etsy', logo: '/etsy.png', color: '#F1641E' },
+  { id: 'amazon', name: 'Amazon', logo: '/amazon.png', color: '#FF9900' }
+];
+
+const MASTER_CONDITIONS = [
+  { id: "new", label: "New (with tags / box)", description: "Brand new, unused, unopened with tags/original packaging." },
+  { id: "like_new", label: "Like New (Mint)", description: "Mint condition pre-owned, looks and feels brand new." },
+  { id: "good", label: "Good (Gently Used)", description: "Gently used, minor signs of wear but in great shape." },
+  { id: "fair", label: "Fair (Visible Wear)", description: "Noticeable wear, cosmetic marks or blemishes." }
+];
+
+const MERCARI_CONDITIONS = [
+  { id: "new", label: "New (with tags)" },
+  { id: "like_new", label: "Like New" },
+  { id: "good", label: "Good" },
+  { id: "fair", label: "Fair" },
+  { id: "poor", label: "Poor" }
+];
+
+const POSHMARK_DEPARTMENTS = [
+  { id: 'Women', label: 'Women' },
+  { id: 'Men', label: 'Men' },
+  { id: 'Kids', label: 'Kids' },
+  { id: 'Home', label: 'Home' },
+  { id: 'Pets', label: 'Pets' }
+];
+
+const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false, className = '' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const wrapperRef = React.useRef(null);
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -39,68 +112,81 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt) => {
-    const label = String(opt?.label || '').toLowerCase();
-    const desc = String(opt?.description || '').toLowerCase();
-    const q = searchTerm.toLowerCase();
-    return label.includes(q) || desc.includes(q);
-  });
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((opt) => {
+      const label = String(opt?.label || opt?.name || '').toLowerCase();
+      const desc = String(opt?.description || '').toLowerCase();
+      return label.includes(q) || desc.includes(q);
+    });
+  }, [options, searchTerm]);
 
   return (
-    <div className="relative w-full" ref={wrapperRef}>
+    <div className={`relative w-full ${className}`} ref={wrapperRef}>
       <button
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-12 px-4 bg-white border ${
+        className={`w-full h-11 px-3.5 bg-white border ${
           error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
-        } rounded-2xl text-left flex items-center justify-between text-sm font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
+        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
       >
         <span className="truncate">{value || placeholder}</span>
-        <span className="flex items-center gap-1.5 shrink-0">
+        <span className="flex items-center gap-1 shrink-0 ml-1.5">
           {value && !disabled && (
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                onSelect({ id: '', label: '' });
+                onSelect({ id: '', label: '', name: '' });
                 setSearchTerm('');
               }}
-              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+              className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </span>
       </button>
 
       {isOpen && !disabled && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="p-3 bg-slate-50 border-b border-slate-100">
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="p-2.5 bg-slate-50 border-b border-slate-100">
             <input
               autoFocus
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search..."
-              className="w-full h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-indigo-500"
+              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold outline-none focus:border-indigo-500"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto">
-            {filteredOptions.length > 0 ? filteredOptions.map((opt) => (
-              <button
-                key={opt.id || opt.label}
-                type="button"
-                onClick={() => {
-                  onSelect(opt);
-                  setIsOpen(false);
-                  setSearchTerm('');
-                }}
-                className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-indigo-600 hover:text-white transition-colors text-xs font-bold text-slate-700"
-              >
-                {opt.label}
-              </button>
-            )) : (
-              <div className="p-4 text-sm text-slate-400 text-center">No results found</div>
+          <div className="max-h-56 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <button
+                  key={opt.id || opt.label || opt.name}
+                  type="button"
+                  onClick={() => {
+                    onSelect(opt);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-xs font-bold ${
+                    value === (opt.label || opt.name) ? 'bg-indigo-50/70 text-indigo-600' : 'text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{opt.label || opt.name}</span>
+                    {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                  </div>
+                  {opt.description && (
+                    <p className="text-[10px] text-slate-400 font-normal mt-0.5">{opt.description}</p>
+                  )}
+                </button>
+              ))
+            ) : (
+              <div className="p-3.5 text-xs text-slate-400 text-center">No options found</div>
             )}
           </div>
         </div>
@@ -109,293 +195,357 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
   );
 };
 
-const ChevronDown = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
-    <polyline points="6 9 12 15 18 9" />
-  </svg>
-);
-
-const MASTER_CONDITIONS = [
-  { id: "new", label: "New", description: "Brand new, unused, unopened, or with original tags." },
-  { id: "like_new", label: "Like New", description: "Mint condition pre-owned, no visible signs of wear." },
-  { id: "good", label: "Good", description: "Gently used, shows minor signs of wear but still in good shape." },
-  { id: "fair", label: "Fair", description: "Obvious wear or minor blemishes." }
-];
-
-const CreateMasterListing = ({ platform = 'ebay' }) => {
+const CreateMasterListing = ({ 
+  isModal = false, 
+  editId: propEditId = null, 
+  initialListing = null, 
+  initialPlatform = null,
+  isEditMode: propIsEditMode = false,
+  onClose = null, 
+  onSyncSuccess = null 
+}) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
-  const [targetPlatform, setTargetPlatform] = useState(platform);
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit');
-  const [hasScanned, setHasScanned] = useState(editId ? true : false);
+  const editId = propEditId || searchParams.get('edit');
+  const isEditMode = propIsEditMode || Boolean(editId);
+
+  // Selected Target Platforms state (eBay, Poshmark, Mercari, Etsy, Amazon)
+  const [selectedPlatforms, setSelectedPlatforms] = useState(() => {
+    if (initialPlatform) return [initialPlatform];
+    if (initialListing?.platform) return [initialListing.platform];
+    return ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+  });
+
+  const [hasScanned, setHasScanned] = useState(Boolean(editId || initialListing));
   const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
+  const [isConvertingImages, setIsConvertingImages] = useState(false);
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
+
+  // Platform Specific Extra States
+  const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
+  const [ebayAspects, setEbayAspects] = useState([]);
+  const [shippingProfiles, setShippingProfiles] = useState([]);
+  const [etsyProperties, setEtsyProperties] = useState([]);
+
+  // Mercari Brand Autocomplete State
+  const [mercariBrandQuery, setMercariBrandQuery] = useState('');
+  const [mercariBrandSuggestions, setMercariBrandSuggestions] = useState([]);
+  const [isMercariBrandOpen, setIsMercariBrandOpen] = useState(false);
+  const mercariBrandRef = useRef(null);
+
+  // Unified Form Data State
   const [formData, setFormData] = useState({
+    // Master Fields
     images: [],
     selectedRule: '',
-    selectedCondition: '',
-    conditionId: '',
+    selectedCondition: 'Good (Gently Used)',
+    conditionId: 'good',
     title: '',
-    category: '',
-    categoryId: '',
     price: '',
-    description: '',
-    conditionNote: '',
+    originalPrice: '',
     sku: '',
     brand: '',
     size: '',
     color: '',
+    quantity: '1',
+    description: '',
     selectedModel: 'gpt-4o-mini',
-    packageWeight: { lbs: '', oz: '' },
+    packageWeight: { lbs: 1, oz: 0 },
+    packageDimensions: { length: 10, width: 8, height: 2 },
+
+    // eBay Specific
+    ebayCategory: '',
+    ebayCategoryId: '',
+    ebayCondition: 'Pre-owned - Good',
+    ebayAspects: {},
+    fulfillmentPolicyId: '',
+    paymentPolicyId: '',
+    returnPolicyId: '',
+    locationKey: '',
+
+    // Poshmark Specific
+    poshmarkDepartment: 'Women',
+    poshmarkCategory: '',
+    poshmarkSubcategory: '',
+    poshmarkSize: '',
+    poshmarkCondition: 'Good',
+    poshmarkStyleTags: '',
+
+    // Mercari Specific
+    mercariCategory: '',
+    mercariCategoryId: '',
+    mercariBrand: '',
+    mercariBrandId: '',
+    mercariCondition: 'good',
+    mercariShippingPayer: 'seller',
+
+    // Etsy Specific
+    etsyCategory: '',
+    etsyCategoryId: '',
     who_made: 'i_did',
     when_made: '2020_2026',
     is_supply: 'false',
     renewal: 'manual',
-    styleTag: '',
-    material: '',
-    quantity: '1',
     shipping_profile_id: '',
     etsyAttributes: {},
+    material: '',
+    styleTag: '',
+
+    // Amazon Specific
+    amazonAsin: '',
+    amazonStandardProductId: { idType: 'UPC', value: '' },
+    amazonProductType: '',
+    amazonCondition: 'Used - Good'
   });
-  const [shippingProfiles, setShippingProfiles] = useState([]);
-  const [etsyProperties, setEtsyProperties] = useState([]);
-  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
-  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
-  const [isConvertingImages, setIsConvertingImages] = useState(false);
-  const [loadedImages, setLoadedImages] = useState({});
-  const [etsyUrlInput, setEtsyUrlInput] = useState('');
 
   const modelOptions = useMemo(() => [
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient OpenAI model' },
-    { id: 'gpt-4o', label: 'GPT-4o (OpenAI)', description: 'High-accuracy, multi-modal OpenAI model' },
-    { id: 'gpt-4-turbo', label: 'GPT-4 Turbo (OpenAI)', description: 'Legacy high-performance OpenAI model' },
-    { id: 'gemini-1.5-flash', label: '1.5 Flash (AI Studio)', description: 'Vibrant, fast Google AI Studio model' },
-    { id: 'gemini-1.5-pro', label: '1.5 Pro (AI Studio)', description: 'Highly intelligent Google AI Studio model' },
-    { id: 'gemini-2.0-flash', label: '2.0 Flash (AI Studio)', description: 'Latest ultra-fast Google AI Studio model' }
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)', description: 'Fast, cost-efficient model' },
+    { id: 'gpt-4o', label: 'GPT-4o (OpenAI)', description: 'High-accuracy multi-modal model' },
+    { id: 'gpt-4-turbo', label: 'GPT-4 Turbo (OpenAI)', description: 'Legacy high-performance model' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Google)', description: 'Ultra-fast Google AI model' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Google)', description: 'Intelligent Google AI model' },
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)', description: 'Latest ultra-fast Google AI model' }
   ], []);
 
+  // Fetch Rules & Initial Setup
   useEffect(() => {
-    const fetchRules = async () => {
+    const fetchInitialData = async () => {
       try {
-        const response = await ruleService.getAll();
-        if (response.data.success) {
-          setRules(response.data.data);
-          const defaultRule = response.data.data.find(r => r.isDefault) || response.data.data[0];
-          if (defaultRule && !editId) {
+        const rulesRes = await ruleService.getAll();
+        if (rulesRes.data?.success) {
+          setRules(rulesRes.data.data);
+          const defaultRule = rulesRes.data.data.find(r => r.isDefault) || rulesRes.data.data[0];
+          if (defaultRule && !editId && !initialListing) {
             setFormData(prev => ({
               ...prev,
               selectedRule: defaultRule._id || defaultRule.id
             }));
           }
         }
-      } catch (error) {
-        console.error("Error fetching rules:", error);
+      } catch (err) {
+        console.error("Failed to fetch rules:", err);
       }
-    };
-    fetchRules();
-  }, [editId]);
 
-  useEffect(() => {
-    const fetchShippingProfiles = async () => {
+      // Fetch eBay Policies
       try {
-        const response = await etsyService.getShippingProfiles();
-        if (response.data?.success) {
-          setShippingProfiles(response.data.data);
+        const policiesRes = await ebayService.getPolicies();
+        if (policiesRes.data?.success) {
+          const pData = policiesRes.data.data || {};
+          setEbayPolicies(pData);
+          setFormData(prev => ({
+            ...prev,
+            fulfillmentPolicyId: prev.fulfillmentPolicyId || pData.fulfillment?.[0]?.fulfillmentPolicyId || '',
+            paymentPolicyId: prev.paymentPolicyId || pData.payment?.[0]?.paymentPolicyId || '',
+            returnPolicyId: prev.returnPolicyId || pData.returns?.[0]?.returnPolicyId || '',
+            locationKey: prev.locationKey || pData.locations?.[0]?.merchantLocationKey || ''
+          }));
         }
       } catch (err) {
-        console.error("Failed to fetch Etsy shipping profiles:", err);
+        console.warn("Could not fetch eBay policies:", err);
       }
-    };
-    fetchShippingProfiles();
-  }, []);
 
-  // Clear or re-resolve category ID on platform switch
-  useEffect(() => {
-    if (formData.category) {
-      setFormData(prev => ({ ...prev, categoryId: '' }));
-    }
-  }, [targetPlatform]);
-
-  // Auto-resolve Etsy category ID from text
-  useEffect(() => {
-    if (targetPlatform === 'etsy' && formData.category && !formData.categoryId) {
-      console.log("Auto-resolving Etsy category ID for path:", formData.category);
-      toast.info("Auto-resolving category ID for " + formData.category);
-      etsyService.resolveCategory(formData.category)
-        .then(res => {
-          if (res.data?.success && res.data.data) {
-            console.log("Auto-resolved category successfully:", res.data.data);
-            toast.success("Category resolved: " + res.data.data.fullName + " (ID: " + res.data.data.id + ")");
+      // Fetch Etsy Shipping Profiles
+      try {
+        const profilesRes = await etsyService.getShippingProfiles();
+        if (profilesRes.data?.success) {
+          setShippingProfiles(profilesRes.data.data || []);
+          if (profilesRes.data.data?.length > 0 && !formData.shipping_profile_id) {
             setFormData(prev => ({
               ...prev,
-              categoryId: res.data.data.id
+              shipping_profile_id: prev.shipping_profile_id || profilesRes.data.data[0].shipping_profile_id
             }));
-          } else {
-            toast.warning("Failed to resolve category ID: " + (res.data?.message || 'No match found'));
-          }
-        })
-        .catch(err => {
-          console.error("Error auto-resolving Etsy category:", err);
-          toast.error("Auto-resolve error: " + (err.response?.data?.message || err.message));
-        });
-    }
-  }, [targetPlatform, formData.category, formData.categoryId]);
-
-  // Fetch Etsy category properties
-  useEffect(() => {
-    if (targetPlatform === 'etsy' && formData.categoryId) {
-      console.log("Fetching Etsy properties for category:", formData.categoryId);
-      toast.info("Fetching Etsy properties for category " + formData.categoryId);
-      etsyService.getCategoryProperties(formData.categoryId)
-        .then(res => {
-          if (res.data?.success) {
-            console.log("Etsy properties fetched successfully:", res.data.data?.length, "properties");
-            toast.success("Loaded " + (res.data.data?.length || 0) + " Etsy properties!");
-            setEtsyProperties(res.data.data || []);
-          } else {
-            toast.warning("Failed to fetch Etsy properties: " + (res.data?.message || 'Unknown response'));
-          }
-        })
-        .catch(err => {
-          console.error("Error fetching Etsy properties:", err);
-          toast.error("Fetch properties error: " + (err.response?.data?.message || err.message));
-        });
-    } else {
-      setEtsyProperties([]);
-    }
-  }, [targetPlatform, formData.categoryId]);
-
-  // Synchronize standard fields (color, size, material) into etsyAttributes map
-  useEffect(() => {
-    if (targetPlatform === 'etsy' && etsyProperties.length > 0) {
-      setFormData(prev => {
-        let updated = false;
-        const nextAttrs = { ...prev.etsyAttributes };
-
-        // 1. Sync Color (Property 200)
-        const colorProp = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
-        if (colorProp && prev.color) {
-          const valOptions = [];
-          if (colorProp.possible_values) {
-            colorProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
-          }
-          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === prev.color.toLowerCase().trim());
-          const targetVal = matchedOpt ? [matchedOpt.id] : [prev.color.trim()];
-          if (JSON.stringify(nextAttrs[200]) !== JSON.stringify(targetVal)) {
-            nextAttrs[200] = targetVal;
-            updated = true;
           }
         }
+      } catch (err) {
+        console.warn("Could not fetch Etsy shipping profiles:", err);
+      }
+    };
 
-        // 2. Sync Size (Property 100)
-        const sizeProp = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
-        if (sizeProp && prev.size) {
-          const valOptions = [];
-          if (sizeProp.possible_values) {
-            sizeProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
-          }
-          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === prev.size.toLowerCase().trim());
-          const targetVal = matchedOpt ? [matchedOpt.id] : [prev.size.trim()];
-          if (JSON.stringify(nextAttrs[100]) !== JSON.stringify(targetVal)) {
-            nextAttrs[100] = targetVal;
-            updated = true;
-          }
-        }
-
-        // 3. Sync Material (Property 148789511893)
-        const materialProp = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
-        if (materialProp && prev.material) {
-          const valOptions = [];
-          if (materialProp.possible_values) {
-            materialProp.possible_values.forEach(v => valOptions.push({ id: String(v.value_id), label: v.name }));
-          }
-          const firstMat = prev.material.split(',')[0].trim();
-          const matchedOpt = valOptions.find(o => o.label.toLowerCase() === firstMat.toLowerCase());
-          const targetVal = matchedOpt ? [matchedOpt.id] : [firstMat];
-          if (JSON.stringify(nextAttrs[148789511893]) !== JSON.stringify(targetVal)) {
-            nextAttrs[148789511893] = targetVal;
-            updated = true;
-          }
-        }
-
-        if (updated) {
-          return { ...prev, etsyAttributes: nextAttrs };
-        }
-        return prev;
-      });
-    }
-  }, [targetPlatform, etsyProperties, formData.color, formData.size, formData.material]);
-
-  useEffect(() => {
-    if (editId) {
-      const fetchListing = async () => {
-        try {
-          setLoading(true);
-          const response = await listingService.getOne(editId);
-          if (response.data.success) {
-            const listing = response.data.data;
-            setTargetPlatform(listing.platform || platform);
-            setFormData({
-              images: (listing.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:')),
-              selectedRule: listing.selectedRule || '',
-              selectedCondition: listing.selectedCondition || '',
-              conditionId: listing.conditionId || '',
-              title: listing.title || '',
-              category: listing.category || '',
-              categoryId: listing.categoryId || '',
-              price: listing.price || '',
-              description: listing.description || '',
-              conditionNote: listing.conditionNote || '',
-              sku: listing.sku || '',
-              brand: listing.brand || '',
-              size: listing.size || '',
-              color: listing.color || '',
-              selectedModel: listing.selectedModel || 'gpt-4o-mini',
-              packageWeight: listing.packageWeight || { lbs: '', oz: '' },
-              who_made: listing.etsyWhoMade || 'i_did',
-              when_made: listing.etsyWhenMade || '2020_2026',
-              is_supply: String(listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false'),
-              renewal: listing.etsyRenewal || 'manual',
-              styleTag: listing.styleTag || '',
-              material: listing.material || '',
-              quantity: String(listing.quantity || '1'),
-              shipping_profile_id: listing.etsyShippingProfileId || '',
-              etsyAttributes: listing.etsyAttributes || {},
-            });
-            setHasScanned(true);
-          }
-        } catch (error) {
-          console.error("Error fetching listing:", error);
-          toast.error("Failed to load listing details.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchListing();
-    }
+    fetchInitialData();
   }, [editId]);
 
-  const handleRefreshShippingProfiles = async () => {
-    try {
-      toast.info("Fetching shipping profiles from Etsy...");
-      const response = await etsyService.getShippingProfiles();
-      if (response.data?.success) {
-        setShippingProfiles(response.data.data);
-        toast.success("Shipping profiles updated!");
-      } else {
-        toast.error("Failed to fetch shipping profiles.");
+  // Load initial listing or fetch from API if editId is provided
+  useEffect(() => {
+    const populateListingData = (listing) => {
+      if (!listing) return;
+      const ebData = listing.platformData?.ebay || {};
+      const pmData = listing.platformData?.poshmark || {};
+      const mcData = listing.platformData?.mercari || {};
+      const etData = listing.platformData?.etsy || {};
+      const amData = listing.platformData?.amazon || {};
+
+      // Determine active platforms
+      const activePlats = new Set();
+      PLATFORMS_CONFIG.forEach(p => {
+        if (
+          listing.platform === p.id ||
+          listing[`${p.id}Status`] === 'published' ||
+          listing[`${p.id}ListingId`] ||
+          listing.platformData?.[p.id] ||
+          (listing.listingsMap && listing.listingsMap[p.id])
+        ) {
+          activePlats.add(p.id);
+        }
+      });
+      if (initialPlatform) activePlats.add(initialPlatform);
+      if (activePlats.size > 0) {
+        setSelectedPlatforms(Array.from(activePlats));
       }
-    } catch (err) {
-      console.error("Failed to fetch Etsy shipping profiles:", err);
-      toast.error("Error loading shipping profiles.");
+
+      setFormData(prev => ({
+        ...prev,
+        images: (listing.images && listing.images.length > 0) ? listing.images : (listing.thumbnail ? [listing.thumbnail] : []),
+        selectedRule: listing.selectedRule || prev.selectedRule,
+        selectedCondition: listing.selectedCondition || prev.selectedCondition,
+        conditionId: listing.conditionId || prev.conditionId,
+        title: listing.title || prev.title,
+        price: listing.price !== undefined ? String(listing.price) : prev.price,
+        originalPrice: listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.originalPrice,
+        sku: listing.sku || prev.sku,
+        brand: listing.brand || ebData.brand || mcData.brand || prev.brand,
+        size: listing.size || ebData.size || mcData.size || pmData.size || prev.size,
+        color: listing.color || ebData.color || mcData.color || prev.color,
+        quantity: String(listing.quantity || '1'),
+        description: listing.description || prev.description,
+        selectedModel: listing.selectedModel || prev.selectedModel,
+        packageWeight: listing.packageWeight || ebData.packageWeight || prev.packageWeight,
+        packageDimensions: listing.packageDimensions || ebData.packageDimensions || prev.packageDimensions,
+
+        // eBay
+        ebayCategory: ebData.category || listing.category || prev.ebayCategory,
+        ebayCategoryId: ebData.categoryId || listing.categoryId || prev.ebayCategoryId,
+        ebayCondition: ebData.selectedCondition || ebData.condition || listing.selectedCondition || prev.ebayCondition,
+        ebayAspects: ebData.itemSpecifics || listing.itemSpecifics || prev.ebayAspects,
+        fulfillmentPolicyId: ebData.fulfillmentPolicyId || listing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
+        paymentPolicyId: ebData.paymentPolicyId || listing.paymentPolicyId || prev.paymentPolicyId,
+        returnPolicyId: ebData.returnPolicyId || listing.returnPolicyId || prev.returnPolicyId,
+        locationKey: ebData.locationKey || listing.locationKey || prev.locationKey,
+
+        // Poshmark
+        poshmarkDepartment: pmData.departmentId || listing.departmentId || prev.poshmarkDepartment,
+        poshmarkCategory: pmData.category || listing.category || prev.poshmarkCategory,
+        poshmarkSubcategory: pmData.subcategoryIds?.[0] || listing.subcategoryIds?.[0] || prev.poshmarkSubcategory,
+        poshmarkSize: pmData.size || listing.size || prev.poshmarkSize,
+        poshmarkCondition: pmData.condition || listing.selectedCondition || prev.poshmarkCondition,
+        poshmarkStyleTags: pmData.styleTag || listing.styleTag || prev.poshmarkStyleTags,
+
+        // Mercari
+        mercariCategory: mcData.category || listing.category || prev.mercariCategory,
+        mercariCategoryId: mcData.categoryId || listing.categoryId || prev.mercariCategoryId,
+        mercariBrand: mcData.brand || listing.brand || prev.mercariBrand,
+        mercariBrandId: mcData.brandId || listing.brandId || prev.mercariBrandId,
+        mercariCondition: mcData.condition || prev.mercariCondition,
+        mercariShippingPayer: mcData.shippingPayer || listing.shippingPayer || prev.mercariShippingPayer,
+
+        // Etsy
+        etsyCategory: etData.category || listing.category || prev.etsyCategory,
+        etsyCategoryId: etData.categoryId || listing.categoryId || prev.etsyCategoryId,
+        who_made: etData.who_made || listing.etsyWhoMade || prev.who_made,
+        when_made: etData.when_made || listing.etsyWhenMade || prev.when_made,
+        is_supply: String(etData.is_supply !== undefined ? etData.is_supply : (listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false')),
+        renewal: etData.renewal || listing.etsyRenewal || prev.renewal,
+        shipping_profile_id: etData.shipping_profile_id || listing.etsyShippingProfileId || prev.shipping_profile_id,
+        etsyAttributes: etData.etsyAttributes || listing.etsyAttributes || prev.etsyAttributes,
+        material: etData.material || listing.material || prev.material,
+        styleTag: etData.styleTag || listing.styleTag || prev.styleTag,
+
+        // Amazon
+        amazonAsin: amData.asin || listing.amazonAsin || prev.amazonAsin,
+        amazonStandardProductId: amData.standardProductId || listing.amazonStandardProductId || prev.amazonStandardProductId,
+        amazonProductType: amData.productType || listing.amazonProductType || prev.amazonProductType,
+        amazonCondition: amData.condition || listing.amazonCondition || prev.amazonCondition
+      }));
+
+      setHasScanned(true);
+    };
+
+    if (initialListing) {
+      populateListingData(initialListing);
+    } else if (editId) {
+      setLoading(true);
+      listingService.getOne(editId)
+        .then(res => {
+          if (res.data?.success) {
+            populateListingData(res.data.data);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load listing for editing:", err);
+          toast.error("Failed to load listing details.");
+        })
+        .finally(() => setLoading(false));
     }
+  }, [initialListing, editId]);
+
+  // Fetch eBay Category Aspects when Category ID changes
+  useEffect(() => {
+    if (formData.ebayCategoryId) {
+      ebayService.getCategoryAspects(formData.ebayCategoryId)
+        .then(res => {
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            setEbayAspects(res.data.data);
+          }
+        })
+        .catch(err => console.warn("Could not fetch eBay aspects:", err));
+    }
+  }, [formData.ebayCategoryId]);
+
+  // Fetch Etsy Category Properties when Etsy Category ID changes
+  useEffect(() => {
+    if (formData.etsyCategoryId) {
+      etsyService.getCategoryProperties(formData.etsyCategoryId)
+        .then(res => {
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            setEtsyProperties(res.data.data);
+          }
+        })
+        .catch(err => console.warn("Could not fetch Etsy properties:", err));
+    }
+  }, [formData.etsyCategoryId]);
+
+  // Mercari Category Options from Tree
+  const mercariCategoryOptions = useMemo(() => {
+    const list = [];
+    const traverse = (node, path = '') => {
+      if (!node) return;
+      const currentPath = path ? `${path} > ${node.name}` : node.name;
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => traverse(child, currentPath));
+      } else {
+        list.push({ id: String(node.id), label: currentPath });
+      }
+    };
+    if (Array.isArray(MERCARI_CATEGORY_TREE)) {
+      MERCARI_CATEGORY_TREE.forEach(root => traverse(root));
+    }
+    return list;
+  }, []);
+
+  // Toggle platform selection
+  const handleTogglePlatform = (platformId) => {
+    setSelectedPlatforms(prev => {
+      if (prev.includes(platformId)) {
+        if (prev.length === 1) {
+          toast.warning("At least one platform must be selected.");
+          return prev;
+        }
+        return prev.filter(p => p !== platformId);
+      } else {
+        return [...prev, platformId];
+      }
+    });
   };
 
+  // Image Upload Handler
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
-    setFiles([...files, ...uploadedFiles]);
+    if (uploadedFiles.length === 0) return;
+    setFiles(prev => [...prev, ...uploadedFiles]);
     setIsConvertingImages(true);
     try {
       const base64Images = await Promise.all(
@@ -410,17 +560,56 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     }
   };
 
+  const handleReorderImages = (sourceIndex, targetIndex) => {
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
+    const newImages = [...formData.images];
+    const [movedImg] = newImages.splice(sourceIndex, 1);
+    newImages.splice(targetIndex, 0, movedImg);
+    setFormData(prev => ({ ...prev, images: newImages }));
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
+
+  const deleteImage = (index) => {
+    const newImages = formData.images.filter((_, idx) => idx !== index);
+    setFormData(prev => ({ ...prev, images: newImages }));
+  };
+
+  const moveImage = (index, direction) => {
+    const newImages = [...formData.images];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newImages.length) return;
+    [newImages[index], newImages[targetIndex]] = [newImages[targetIndex], newImages[index]];
+    setFormData(prev => ({ ...prev, images: newImages }));
+  };
+
+  // Mercari Brand Search
+  const handleMercariBrandSearch = async (val) => {
+    setMercariBrandQuery(val);
+    setFormData(prev => ({ ...prev, mercariBrand: val, brand: prev.brand || val }));
+    if (!val || val.length < 2) {
+      setMercariBrandSuggestions(POPULAR_BRANDS);
+      return;
+    }
+    try {
+      const res = await mercariService.suggestBrands(val);
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setMercariBrandSuggestions(res.data.data);
+      }
+    } catch (e) {
+      const filtered = POPULAR_BRANDS.filter(b => b.name.toLowerCase().includes(val.toLowerCase()));
+      setMercariBrandSuggestions(filtered);
+    }
+  };
+
+  // AI Scan & Prefill Handler
   const startAIFetch = async () => {
     if (formData.images.length === 0) {
-      toast.warning("Please upload at least one image.");
+      toast.warning("Please upload at least one image first.");
       return;
     }
     if (!formData.selectedRule) {
       toast.warning("Please select an AI Rule.");
-      return;
-    }
-    if (!formData.selectedCondition) {
-      toast.warning("Please select a Condition.");
       return;
     }
 
@@ -430,139 +619,286 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
 
     try {
-      const response = targetPlatform === 'etsy'
-        ? await aiService.etsyAnalyze({
-            images: formData.images,
-            title_sequence: selectedRuleObj?.title_sequence || [],
-            description_prompt: selectedRuleObj?.description_prompt || '',
-            description_template: selectedRuleObj?.description_template || '',
-            condition_name: formData.selectedCondition,
-            model: formData.selectedModel || 'gpt-4o-mini',
-            existing_title: formData.title || ''
-          })
-        : await aiService.analyze({
-            images: formData.images,
-            platform: 'ebay',
-            title_sequence: selectedRuleObj?.title_sequence || [],
-            description_prompt: selectedRuleObj?.description_prompt || '',
-            description_template: selectedRuleObj?.description_template || '',
-            condition_note: selectedRuleObj?.condition_note || '',
-            condition_name: formData.selectedCondition,
-            model: formData.selectedModel || 'gpt-4o-mini',
-            existing_title: formData.title || ''
-          });
+      toast.info("AI is analyzing images and extracting product specifics...");
+      const response = await aiService.analyze({
+        images: formData.images,
+        platform: 'ebay',
+        title_sequence: selectedRuleObj?.title_sequence || [],
+        description_prompt: selectedRuleObj?.description_prompt || '',
+        description_template: selectedRuleObj?.description_template || '',
+        condition_note: selectedRuleObj?.condition_note || '',
+        condition_name: formData.selectedCondition,
+        model: formData.selectedModel || 'gpt-4o-mini',
+        existing_title: formData.title || ''
+      });
 
-      if (response.data.success) {
-        const result = response.data.data;
-        if (targetPlatform === 'etsy') {
-          setFormData(prev => ({
-            ...prev,
-            title: prev.title || result.title,
-            price: result.price,
-            description: result.description,
-            conditionNote: selectedRuleObj?.condition_note || '',
-            category: result.category,
-            categoryId: result.categoryId,
-            sku: result.sku || '',
-            brand: result.brand || '',
-            size: result.size || '',
-            color: result.color || '',
-            images: result.images || prev.images,
-            who_made: result.who_made || 'i_did',
-            when_made: result.when_made || '2020_2026',
-            is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
-            renewal: result.renewal || 'manual',
-            styleTag: result.styleTag || '',
-            material: result.material || '',
-            quantity: String(result.quantity || '1'),
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            title: prev.title || result.title,
-            price: result.price,
-            description: result.description,
-            conditionNote: selectedRuleObj?.condition_note || '',
-            category: result.category_name || result.category,
-            categoryId: result.category_id,
-            sku: result.sku || '',
-            brand: result.brand || '',
-            size: result.size || '',
-            color: result.color || '',
-            images: result.images || prev.images,
-            packageWeight: selectedRuleObj?.packageWeight || { lbs: '', oz: '' },
-            who_made: result.who_made || 'i_did',
-            when_made: result.when_made || '2020_2026',
-            is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
-            renewal: result.renewal || 'manual',
-          }));
-        }
-        toast.success("AI Scan complete! Preview or save listing below.");
+      if (response.data?.success) {
+        const res = response.data.data;
+        const genSku = res.sku || formData.sku || `KL${Date.now().toString().slice(-6)}`;
+        
+        // Auto-extract and map aspects
+        const rawAspects = res.itemSpecifics || {};
+        if (res.brand && !rawAspects['Brand']) rawAspects['Brand'] = [res.brand];
+        if (res.color && !rawAspects['Color']) rawAspects['Color'] = [res.color];
+        if (res.size && !rawAspects['Size']) rawAspects['Size'] = [res.size];
+
+        setFormData(prev => ({
+          ...prev,
+          title: res.title || prev.title,
+          price: res.price !== undefined ? String(res.price) : (prev.price || '29.99'),
+          originalPrice: res.originalPrice !== undefined ? String(res.originalPrice) : (prev.originalPrice || '59.99'),
+          description: res.description || prev.description,
+          sku: genSku,
+          brand: res.brand || prev.brand,
+          size: res.size || prev.size,
+          color: res.color || prev.color,
+          
+          // eBay
+          ebayCategory: res.category_name || res.category || prev.ebayCategory,
+          ebayCategoryId: res.category_id || res.categoryId || prev.ebayCategoryId,
+          ebayAspects: { ...prev.ebayAspects, ...rawAspects },
+          
+          // Mercari
+          mercariBrand: res.brand || prev.mercariBrand,
+          mercariCategory: res.category_name || res.category || prev.mercariCategory,
+          
+          // Poshmark
+          poshmarkCategory: res.category_name || res.category || prev.poshmarkCategory,
+          poshmarkSize: res.size || prev.poshmarkSize,
+          
+          // Etsy
+          etsyCategory: res.category_name || res.category || prev.etsyCategory,
+          etsyCategoryId: res.category_id || res.categoryId || prev.etsyCategoryId,
+        }));
+
+        toast.success("AI Scan complete! Product prefilled across all platforms.");
       }
     } catch (error) {
       console.error("AI Scan Error:", error);
-      toast.error("Failed to analyze image with AI.");
+      toast.error("Failed to analyze images with AI.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEtsyFetch = async () => {
-    if (!etsyUrlInput) {
-      toast.warning("Please enter an Etsy listing URL.");
-      return;
-    }
-    if (!formData.selectedRule) {
-      toast.warning("Please select an AI Rule.");
-      return;
-    }
+  // Build unified payload for Database Save / Update
+  const buildListingPayload = (targetStatus = 'draft') => {
+    return {
+      title: formData.title || 'Untitled Product',
+      description: formData.description || '',
+      price: formData.price || '0.00',
+      originalPrice: formData.originalPrice || '',
+      sku: formData.sku || `KL${Date.now().toString().slice(-6)}`,
+      brand: formData.brand || '',
+      size: formData.size || '',
+      color: formData.color || '',
+      quantity: parseInt(formData.quantity) || 1,
+      category: formData.ebayCategory || formData.mercariCategory || formData.etsyCategory || formData.poshmarkCategory || 'General',
+      categoryId: formData.ebayCategoryId || formData.mercariCategoryId || formData.etsyCategoryId || '',
+      images: formData.images,
+      thumbnail: formData.images[0] || '',
+      status: targetStatus,
+      selectedRule: formData.selectedRule,
+      selectedCondition: formData.selectedCondition,
+      conditionId: formData.conditionId,
+      selectedModel: formData.selectedModel,
+      packageWeight: formData.packageWeight,
+      packageDimensions: formData.packageDimensions,
 
+      // Top level fields for backwards compatibility
+      fulfillmentPolicyId: formData.fulfillmentPolicyId,
+      paymentPolicyId: formData.paymentPolicyId,
+      returnPolicyId: formData.returnPolicyId,
+      locationKey: formData.locationKey,
+      itemSpecifics: formData.ebayAspects,
+      etsyWhoMade: formData.who_made,
+      etsyWhenMade: formData.when_made,
+      etsyIsSupply: formData.is_supply === 'true',
+      etsyRenewal: formData.renewal,
+      etsyShippingProfileId: formData.shipping_profile_id,
+      etsyAttributes: formData.etsyAttributes,
+      material: formData.material,
+      styleTag: formData.styleTag || formData.poshmarkStyleTags,
+
+      // Structured platformData container
+      platformData: {
+        ebay: {
+          title: formData.title,
+          price: formData.price,
+          category: formData.ebayCategory,
+          categoryId: formData.ebayCategoryId,
+          selectedCondition: formData.ebayCondition,
+          itemSpecifics: formData.ebayAspects,
+          fulfillmentPolicyId: formData.fulfillmentPolicyId,
+          paymentPolicyId: formData.paymentPolicyId,
+          returnPolicyId: formData.returnPolicyId,
+          locationKey: formData.locationKey,
+          packageWeight: formData.packageWeight,
+          packageDimensions: formData.packageDimensions,
+          images: formData.images
+        },
+        poshmark: {
+          title: formData.title,
+          price: formData.price,
+          originalPrice: formData.originalPrice,
+          departmentId: formData.poshmarkDepartment,
+          category: formData.poshmarkCategory,
+          subcategoryIds: formData.poshmarkSubcategory ? [formData.poshmarkSubcategory] : [],
+          size: formData.poshmarkSize || formData.size,
+          condition: formData.poshmarkCondition,
+          styleTag: formData.poshmarkStyleTags,
+          images: formData.images
+        },
+        mercari: {
+          title: formData.title,
+          price: formData.price,
+          category: formData.mercariCategory,
+          categoryId: formData.mercariCategoryId,
+          brand: formData.mercariBrand || formData.brand,
+          brandId: formData.mercariBrandId,
+          condition: formData.mercariCondition,
+          shippingPayer: formData.mercariShippingPayer,
+          images: formData.images
+        },
+        etsy: {
+          title: formData.title,
+          price: formData.price,
+          category: formData.etsyCategory,
+          categoryId: formData.etsyCategoryId,
+          who_made: formData.who_made,
+          when_made: formData.when_made,
+          is_supply: formData.is_supply === 'true',
+          renewal: formData.renewal,
+          shipping_profile_id: formData.shipping_profile_id,
+          etsyAttributes: formData.etsyAttributes,
+          material: formData.material,
+          images: formData.images
+        },
+        amazon: {
+          title: formData.title,
+          price: formData.price,
+          asin: formData.amazonAsin,
+          standardProductId: formData.amazonStandardProductId,
+          productType: formData.amazonProductType,
+          condition: formData.amazonCondition,
+          images: formData.images
+        }
+      }
+    };
+  };
+
+  // Save Draft Handler
+  const handleSaveDraft = async () => {
+    if (!formData.title) {
+      toast.warning("Please enter a Listing Title.");
+      return;
+    }
     setLoading(true);
-    setHasScanned(true);
-
-    const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
+    const payload = buildListingPayload('draft');
 
     try {
-      const response = await aiService.etsyFetch({
-        url: etsyUrlInput,
-        title_sequence: selectedRuleObj?.title_sequence || [],
-        description_prompt: selectedRuleObj?.description_prompt || '',
-        description_template: selectedRuleObj?.description_template || '',
-        condition_name: formData.selectedCondition || 'Pre-owned',
-        model: formData.selectedModel || 'gpt-4o-mini',
-        platform: targetPlatform,
-        gender: 'Unisex'
-      });
+      const activeId = editId || initialListing?._id || initialListing?.id;
+      const res = activeId 
+        ? await listingService.update(activeId, payload)
+        : await listingService.create(payload);
 
-      if (response.data.success) {
-        const result = response.data.data;
-        setFormData(prev => ({
-          ...prev,
-          title: result.title,
-          price: result.price,
-          description: result.description,
-          conditionNote: selectedRuleObj?.condition_note || '',
-          category: result.category,
-          sku: result.sku || '',
-          brand: result.brand || '',
-          size: result.size || '',
-          color: result.color || '',
-          images: result.images || [],
-          who_made: result.who_made || 'i_did',
-          when_made: result.when_made || '2020_2026',
-          is_supply: String(result.is_supply !== undefined ? result.is_supply : 'false'),
-          renewal: result.renewal || 'manual',
-          styleTag: result.styleTag || '',
-          material: result.material || '',
-          quantity: String(result.quantity || '1'),
-        }));
-        toast.success("Etsy AI Fetch complete! Preview or save listing below.");
+      if (res.data?.success) {
+        toast.success(isEditMode ? "Master Listing updated successfully!" : "Master Listing saved as Draft!");
+        if (onSyncSuccess) onSyncSuccess();
+        if (isModal && onClose) {
+          onClose();
+        } else {
+          navigate('/listings');
+        }
       }
-    } catch (error) {
-      console.error("Etsy AI Fetch Error:", error);
-      toast.error(error.response?.data?.error || "Failed to fetch Etsy listing using AI.");
+    } catch (err) {
+      console.error("Save Draft Error:", err);
+      toast.error(err.response?.data?.message || "Failed to save draft.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Publish / Update on Selected Platforms Handler
+  const handlePublishOrUpdateAll = async () => {
+    if (!formData.title) {
+      toast.warning("Please enter a Listing Title.");
+      return;
+    }
+    if (formData.images.length === 0) {
+      toast.warning("Please upload at least one image.");
+      return;
+    }
+    if (selectedPlatforms.length === 0) {
+      toast.warning("Please select at least one target platform.");
+      return;
+    }
+
+    setPublishing(true);
+    const payload = buildListingPayload('published');
+
+    try {
+      const activeId = editId || initialListing?._id || initialListing?.id;
+      toast.info("Saving master record to database...");
+      
+      const res = activeId 
+        ? await listingService.update(activeId, payload)
+        : await listingService.create(payload);
+
+      const savedListing = res.data?.data;
+      const targetListingId = activeId || savedListing?._id || savedListing?.id;
+
+      if (!targetListingId) {
+        throw new Error("Could not obtain listing ID for multi-platform sync.");
+      }
+
+      // Sync/Publish across each selected platform
+      toast.info(`Syncing across ${selectedPlatforms.length} platforms (${selectedPlatforms.map(p => p.toUpperCase()).join(', ')})...`);
+
+      const syncResults = await Promise.allSettled(
+        selectedPlatforms.map(async (plat) => {
+          if (plat === 'ebay') {
+            return await listingService.publish(targetListingId);
+          } else if (plat === 'etsy') {
+            return await etsyService.publish(targetListingId, payload.platformData.etsy);
+          } else if (plat === 'poshmark') {
+            return await externalImportService.publish(targetListingId, { platform: 'poshmark', ...payload.platformData.poshmark });
+          } else if (plat === 'mercari') {
+            return await externalImportService.publish(targetListingId, { platform: 'mercari', ...payload.platformData.mercari });
+          } else if (plat === 'amazon') {
+            return await amazonService.publish(targetListingId, payload.platformData.amazon);
+          }
+        })
+      );
+
+      let successCount = 0;
+      syncResults.forEach((result, idx) => {
+        const plat = selectedPlatforms[idx];
+        if (result.status === 'fulfilled' && (result.value?.data?.success || result.value?.status === 200)) {
+          successCount++;
+          toast.success(`✓ Successfully synced on ${plat.toUpperCase()}`);
+        } else {
+          const errMsg = result.reason?.response?.data?.message || result.value?.data?.message || "Sync error";
+          console.warn(`Sync failed for ${plat}:`, errMsg);
+          toast.warning(`${plat.toUpperCase()} sync note: ${errMsg}`);
+        }
+      });
+
+      if (successCount > 0) {
+        toast.success(`✨ Master Listing successfully updated across ${successCount}/${selectedPlatforms.length} platforms!`);
+      }
+
+      if (onSyncSuccess) onSyncSuccess();
+      if (isModal && onClose) {
+        onClose();
+      } else {
+        navigate('/listings');
+      }
+    } catch (err) {
+      console.error("Multi-platform publish error:", err);
+      toast.error(err.response?.data?.message || "Failed to publish on platforms.");
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -573,199 +909,103 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
 
   const conditionOptions = useMemo(() => MASTER_CONDITIONS.map(c => ({
     id: c.id,
-    label: c.label
+    label: c.label,
+    description: c.description
   })), []);
 
-  const handleReorderImages = (sourceIndex, targetIndex) => {
-    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return;
-    const newImages = [...formData.images];
-    const [movedImg] = newImages.splice(sourceIndex, 1);
-    newImages.splice(targetIndex, 0, movedImg);
-
-    if (Array.isArray(files) && files.length === formData.images.length) {
-      const newFiles = [...files];
-      const [movedFile] = newFiles.splice(sourceIndex, 1);
-      newFiles.splice(targetIndex, 0, movedFile);
-      setFiles(newFiles);
-    }
-
-    setFormData(prev => ({ ...prev, images: newImages }));
-    setDraggedImgIdx(null);
-    setDragOverImgIdx(null);
-  };
-
-  const deleteImage = (index) => {
-    const newImages = formData.images.filter((_, idx) => idx !== index);
-    const newFiles = files.filter((_, idx) => idx !== index);
-    setFormData(prev => ({ ...prev, images: newImages }));
-    setFiles(newFiles);
-  };
-
-  const moveImage = (index, direction) => {
-    const newImages = [...formData.images];
-    const newFiles = [...files];
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    
-    if (targetIndex < 0 || targetIndex >= newImages.length) return;
-    
-    [newImages[index], newImages[targetIndex]] = [newImages[targetIndex], newImages[index]];
-    if (newFiles.length === newImages.length) {
-      [newFiles[index], newFiles[targetIndex]] = [newFiles[targetIndex], newFiles[index]];
-      setFiles(newFiles);
-    }
-    
-    setFormData(prev => ({ ...prev, images: newImages }));
-  };
-
-  const handleSaveDraft = async () => {
-    setLoading(true);
-    const listingData = {
-      title: formData.title,
-      description: formData.description,
-      price: formData.price,
-      sku: formData.sku,
-      category: formData.category,
-      categoryId: formData.categoryId,
-      images: formData.images,
-      selectedRule: formData.selectedRule,
-      selectedCondition: formData.selectedCondition,
-      conditionId: formData.conditionId,
-      selectedModel: formData.selectedModel || 'gpt-4o-mini',
-      packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
-      brand: formData.brand,
-      size: formData.size,
-      color: formData.color,
-      status: 'draft',
-      platform: targetPlatform,
-      etsyWhoMade: formData.who_made,
-      etsyWhenMade: formData.when_made,
-      etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
-      etsyRenewal: formData.renewal,
-      etsyShippingProfileId: formData.shipping_profile_id,
-      etsyAttributes: formData.etsyAttributes,
-      styleTag: formData.styleTag,
-      material: formData.material,
-      quantity: parseInt(formData.quantity) || 1
-    };
-
-    try {
-      const response = editId
-        ? await listingService.update(editId, listingData)
-        : await listingService.create(listingData);
-      if (response.data.success) {
-        toast.success(editId ? 'Listing updated successfully!' : 'Listing saved successfully!');
-        navigate('/listings');
-      }
-    } catch (error) {
-      console.error("Error saving listing:", error);
-      toast.error(error.response?.data?.message || "Failed to save listing.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveAndPublish = async () => {
-    if (targetPlatform === 'etsy' && !formData.shipping_profile_id) {
-      toast.error("Please select an Etsy Delivery Profile before listing.");
-      return;
-    }
-    setLoading(true);
-    const listingData = {
-      title: formData.title,
-      description: formData.description,
-      price: formData.price,
-      sku: formData.sku,
-      category: formData.category,
-      categoryId: formData.categoryId,
-      images: formData.images,
-      selectedRule: formData.selectedRule,
-      selectedCondition: formData.selectedCondition,
-      conditionId: formData.conditionId,
-      selectedModel: formData.selectedModel || 'gpt-4o-mini',
-      packageWeight: formData.packageWeight || { lbs: 0, oz: 0 },
-      brand: formData.brand,
-      size: formData.size,
-      color: formData.color,
-      status: 'draft',
-      platform: targetPlatform,
-      etsyWhoMade: formData.who_made,
-      etsyWhenMade: formData.when_made,
-      etsyIsSupply: formData.is_supply === 'true' || formData.is_supply === true,
-      etsyRenewal: formData.renewal,
-      etsyShippingProfileId: formData.shipping_profile_id,
-      etsyAttributes: formData.etsyAttributes,
-      styleTag: formData.styleTag,
-      material: formData.material,
-      quantity: parseInt(formData.quantity) || 1
-    };
-
-    try {
-      const response = editId
-        ? await listingService.update(editId, listingData)
-        : await listingService.create(listingData);
-      
-      if (response.data.success) {
-        const createdListing = response.data.data;
-        const activeListingId = editId || createdListing._id || createdListing.id;
-        
-        toast.info(`Saved locally. Publishing to ${targetPlatform}...`);
-        
-        if (targetPlatform === 'etsy') {
-          const publishRes = await etsyService.publish(activeListingId);
-          if (publishRes.data?.success) {
-            toast.success('Listing successfully published to Etsy!');
-          }
-        }
-        
-        navigate('/listings');
-      }
-    } catch (error) {
-      console.error("Error saving and listing:", error);
-      toast.error(error.response?.data?.message || "Failed to save or list.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="max-w-[95%] mx-auto space-y-8 px-4 py-6">
-      <div style={{ display: 'none' }}>
-        {formData.images.map((img, idx) => (
-          <img 
-            key={`preload-${idx}`}
-            src={img}
-            onLoad={() => setLoadedImages(prev => ({ ...prev, [idx]: true }))}
-          />
-        ))}
-      </div>
-
-      <div className="flex justify-between items-start gap-4">
-        <div>
-          <Badge variant="brand" className="mb-2.5">{editId ? 'Edit Mode' : 'AI Powered'}</Badge>
-          <h1 className="text-2xl font-black text-slate-900">
-            {editId ? 'Edit Product Listing' : targetPlatform === 'etsy' ? 'Create Etsy Product Listing' : 'Create Master Product Listing'}
-          </h1>
-          <p className="text-slate-400 text-xs font-semibold mt-1.5">
-            {targetPlatform === 'etsy' ? 'Prefill Etsy Listing Details and Images using AI Scan' : 'Prefill All Marketplace Listings from Image Scan'}
-          </p>
+    <div className={`w-full ${isModal ? 'h-full flex flex-col' : 'max-w-[96vw] xl:max-w-[1440px] mx-auto py-6 px-4 space-y-6'}`}>
+      
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-150 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+            <Layers size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                {isEditMode ? 'Edit Master Cross-Listing' : 'Create Master Cross-Listing'}
+              </h1>
+              <Badge variant={isEditMode ? 'warning' : 'brand'}>
+                {isEditMode ? 'Update Mode' : 'AI Unified'}
+              </Badge>
+            </div>
+            <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+              Prefill, customize, and synchronize product data across all connected marketplaces in one place.
+            </p>
+          </div>
         </div>
+
+        {isModal && onClose && (
+          <IconButton
+            aria-label="Close"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl"
+          >
+            <X size={18} />
+          </IconButton>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-5 space-y-6">
-
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <ImageIcon size={14} />
+      {/* Main Split Layout Grid */}
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 min-h-0 ${isModal ? 'overflow-hidden' : ''}`}>
+        
+        {/* ========================================================================= */}
+        {/* LEFT COLUMN (FIXED / STICKY): Platforms, Images & AI Scanning Box        */}
+        {/* ========================================================================= */}
+        <div className={`lg:col-span-5 space-y-5 ${isModal ? 'h-full overflow-y-auto pr-1' : 'sticky top-4 h-fit max-h-[calc(100vh-60px)] overflow-y-auto pr-1'}`}>
+          
+          {/* Target Platforms Multi-Select Badges */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Globe size={13} className="text-indigo-600" />
+                Target Platforms
+              </label>
+              <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                {selectedPlatforms.length} Selected
               </span>
-              <h2 className="text-sm font-black text-slate-900">Product Images</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {PLATFORMS_CONFIG.map((p) => {
+                const isSelected = selectedPlatforms.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleTogglePlatform(p.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black transition-all cursor-pointer select-none shadow-2xs ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50/60 text-indigo-900 ring-2 ring-indigo-500/15'
+                        : 'border-slate-200 bg-slate-50/70 text-slate-400 hover:border-slate-300 opacity-60'
+                    }`}
+                  >
+                    <img src={p.logo} alt={p.name} className={`w-4 h-4 object-contain ${!isSelected ? 'grayscale opacity-60' : ''}`} />
+                    <span>{p.name}</span>
+                    {isSelected && <Check size={12} className="text-indigo-600 ml-0.5" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Product Images Gallery */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-3.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon size={13} className="text-indigo-600" />
+                Product Photos
+              </label>
+              <span className="text-[10px] font-bold text-slate-400">
+                {formData.images.length}/12 Photos
+              </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               {formData.images.map((img, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   draggable={true}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', String(idx));
@@ -794,14 +1034,14 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   className={`relative aspect-square border rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing transition-all duration-150 ${
                     draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
                   } ${
-                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100'
+                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100 bg-slate-50'
                   }`}
-                  title="Drag and drop to reorder photos"
+                  title="Drag and drop to reorder"
                 >
                   <img src={img} className="w-full h-full object-cover pointer-events-none" alt="" />
 
-                  {/* Hover Actions */}
-                  <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                  {/* Hover Overlay Controls */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
                     {idx > 0 && (
                       <button
                         type="button"
@@ -809,10 +1049,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                           e.stopPropagation();
                           moveImage(idx, 'left');
                         }}
-                        className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
-                        title="Move left"
+                        className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        title="Move Left"
                       >
-                        <ArrowLeft size={12} />
+                        <ArrowLeft size={11} />
                       </button>
                     )}
                     <button
@@ -821,10 +1061,10 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                         e.stopPropagation();
                         deleteImage(idx);
                       }}
-                      className="p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
-                      title="Delete"
+                      className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      title="Delete Photo"
                     >
-                      <Trash2 size={12} />
+                      <Trash2 size={11} />
                     </button>
                     {idx < formData.images.length - 1 && (
                       <button
@@ -833,16 +1073,16 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                           e.stopPropagation();
                           moveImage(idx, 'right');
                         }}
-                        className="p-1.5 bg-slate-900/80 hover:bg-indigo-600 rounded-lg text-white transition-colors cursor-pointer text-xs"
-                        title="Move right"
+                        className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        title="Move Right"
                       >
-                        <ArrowRight size={12} />
+                        <ArrowRight size={11} />
                       </button>
                     )}
                   </div>
 
                   {idx === 0 && (
-                    <span className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-sm tracking-wider pointer-events-none">
+                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-xs pointer-events-none">
                       Cover
                     </span>
                   )}
@@ -850,429 +1090,298 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
               ))}
 
               {formData.images.length < 12 && (
-                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-2xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-50 hover:bg-indigo-50/40 transition-all group">
+                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl flex flex-col items-center justify-center gap-1 cursor-pointer bg-slate-50/70 hover:bg-indigo-50/30 transition-all group">
                   <Upload size={16} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                  <span className="text-[10px] font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider transition-colors">Upload</span>
-                  <input type="file" multiple onChange={handleImageUpload} className="hidden" />
+                  <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider">
+                    Upload
+                  </span>
+                  <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </label>
               )}
             </div>
+
+            {isConvertingImages && (
+              <div className="flex items-center gap-2 text-indigo-600 text-xs font-semibold animate-pulse pt-1">
+                <Loader2 size={13} className="animate-spin" /> Compressing & converting images...
+              </div>
+            )}
           </div>
 
-          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <Zap size={14} />
-              </span>
-              <h2 className="text-sm font-black text-slate-900">Scanning Parameters</h2>
+          {/* AI Scanner Settings Box */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2">
+              <Zap size={14} className="text-indigo-600" />
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">AI Scanner Settings</h3>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">AI Scan Rule</label>
+            <div className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Listing Rule</label>
                 <SearchableDropdown
                   value={rules.find(r => (r._id || r.id) === formData.selectedRule)?.name || ''}
                   options={ruleOptions}
                   onSelect={(opt) => setFormData(prev => ({ ...prev, selectedRule: opt.id }))}
+                  placeholder="Select prefill rule..."
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Condition</label>
-                <SearchableDropdown
-                  value={formData.selectedCondition}
-                  options={conditionOptions}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, selectedCondition: opt.label, conditionId: opt.id }))}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
+                  <SearchableDropdown
+                    value={formData.selectedCondition}
+                    options={conditionOptions}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedCondition: opt.label, conditionId: opt.id }))}
+                    placeholder="Select condition..."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Model</label>
+                  <SearchableDropdown
+                    value={modelOptions.find(m => m.id === formData.selectedModel)?.label || 'GPT-4o Mini'}
+                    options={modelOptions}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
+                    placeholder="Select model..."
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">AI Model</label>
-                <SearchableDropdown
-                  value={modelOptions.find(m => m.id === formData.selectedModel)?.label || ''}
-                  options={modelOptions}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
-                />
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-extrabold shadow-sm py-2.5"
+                  onClick={startAIFetch}
+                  loading={loading}
+                  disabled={loading || isConvertingImages || formData.images.length === 0}
+                  icon={<Sparkles size={15} />}
+                >
+                  {loading ? 'AI Scanning & Prefilling...' : 'Scan Image with AI'}
+                </Button>
               </div>
-
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                className="w-full"
-                onClick={startAIFetch}
-                loading={loading}
-                disabled={loading || isConvertingImages}
-                icon={<Sparkles size={16} />}
-              >
-                {loading ? 'AI Scanning Product...' : 'Scan Image with AI'}
-              </Button>
             </div>
           </div>
+
         </div>
 
-        <div className="lg:col-span-7 space-y-6">
-          {hasScanned ? (
-            <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <span className="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                  <List size={14} />
-                </span>
-                <h2 className="text-sm font-black text-slate-900">Listing Details</h2>
+        {/* ========================================================================= */}
+        {/* RIGHT COLUMN (SCROLLABLE): Form Cards with Platform Specifics & Logos     */}
+        {/* ========================================================================= */}
+        <div className={`lg:col-span-7 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
+          
+          {/* Card 1: Master / Universal Product Details */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+                  <Package size={16} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-slate-900">Master Product Details</h2>
+                  <p className="text-[10px] font-semibold text-slate-400">Core listing data shared across all platforms</p>
+                </div>
+              </div>
+              <Badge variant="neutral">Universal</Badge>
+            </div>
+
+            <div className="space-y-4">
+              {/* Title */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Title</label>
+                  <span className="text-[10px] font-bold text-slate-400">{formData.title.length}/80</span>
+                </div>
+                <input
+                  value={formData.title}
+                  maxLength={80}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Enter descriptive title (e.g. Nike Air Max 90 Running Shoes Black / White Size 10)..."
+                  className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                />
+              </div>
+
+              {/* Price, Original Price, SKU */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Selling Price ($)</label>
+                  <div className="relative">
+                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-emerald-700 outline-none focus:border-emerald-500 transition-all focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Original Price ($)</label>
+                  <div className="relative">
+                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.originalPrice}
+                      onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU / Custom Code</label>
+                  <input
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="e.g. KL-1002"
+                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  />
+                </div>
+              </div>
+
+              {/* Brand, Size, Color, Quantity */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
+                  <input
+                    value={formData.brand}
+                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value, mercariBrand: e.target.value }))}
+                    placeholder="e.g. Nike"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
+                  <input
+                    value={formData.size}
+                    onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value, poshmarkSize: e.target.value }))}
+                    placeholder="e.g. 10 / L"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
+                  <input
+                    value={formData.color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                    placeholder="e.g. Black"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product Description</label>
+                <textarea
+                  rows={5}
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Enter detailed item description..."
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 font-sans leading-relaxed"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: eBay Platform Specific Details */}
+          {selectedPlatforms.includes('ebay') && (
+            <div className="bg-white border border-blue-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-blue-50 pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/ebay.png" className="w-6 h-6 object-contain" alt="eBay" />
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">eBay Listing Details</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Category, Item Specifics & Business Policies</p>
+                  </div>
+                </div>
+                <Badge variant="primary">eBay</Badge>
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Listing Title</label>
-                  <input
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Price ($)</label>
-                    <div className="relative">
-                      <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        value={formData.price}
-                        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                        className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">SKU / Custom Label</label>
-                    <input
-                      value={formData.sku}
-                      onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">AI Suggest Category Path</label>
+                {/* eBay Category */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Category</label>
                   <CategorySearchDropdown
-                    value={formData.category}
-                    platform={targetPlatform}
+                    value={formData.ebayCategory}
+                    platform="ebay"
                     onSelect={(opt) => {
                       setFormData(prev => ({
                         ...prev,
-                        category: opt.fullName || opt.label,
-                        categoryId: opt.id
+                        ebayCategory: opt.fullName || opt.label,
+                        ebayCategoryId: opt.id
                       }));
                     }}
-                    placeholder="Search category path..."
+                    placeholder="Search eBay categories..."
                   />
+                  {formData.ebayCategoryId && (
+                    <span className="text-[10px] font-bold text-slate-400 block ml-1">Category ID: {formData.ebayCategoryId}</span>
+                  )}
                 </div>
 
-                {targetPlatform !== 'etsy' ? (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Brand</label>
-                      <input
-                        value={formData.brand}
-                        onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="Brand..."
-                      />
+                {/* eBay Dynamic Item Specifics Block */}
+                {ebayAspects.length > 0 && (
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider">eBay Item Specifics (Aspects)</label>
+                      <span className="text-[10px] font-semibold text-slate-400">{ebayAspects.length} aspects loaded</span>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Size</label>
-                      <input
-                        value={formData.size}
-                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="Size..."
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Color</label>
-                      <input
-                        value={formData.color}
-                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="Color..."
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Size</label>
-                      {etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size') ? (
-                        (() => {
-                          const prop = etsyProperties.find(p => p.property_id === 100 || p.name === 'TeeShirtSize' || p.display_name === 'Size');
-                          const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
-                          return (
-                            <SearchableDropdown
-                              value={formData.size}
-                              onSelect={(opt) => setFormData(prev => ({ ...prev, size: opt.label }))}
-                              options={valOptions}
-                              placeholder="Select Size..."
-                            />
-                          );
-                        })()
-                      ) : (
-                        <input
-                          value={formData.size}
-                          onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                          placeholder="Size..."
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Color</label>
-                      {etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color') ? (
-                        (() => {
-                          const prop = etsyProperties.find(p => p.property_id === 200 || p.name === 'Primary color');
-                          const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
-                          return (
-                            <SearchableDropdown
-                              value={formData.color}
-                              onSelect={(opt) => setFormData(prev => ({ ...prev, color: opt.label }))}
-                              options={valOptions}
-                              placeholder="Select Color..."
-                            />
-                          );
-                        })()
-                      ) : (
-                        <input
-                          value={formData.color}
-                          onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                          placeholder="Color..."
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={formData.quantity}
-                        onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="1"
-                      />
-                    </div>
-                  </div>
-                )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Materials</label>
-                    {etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi') ? (
-                      (() => {
-                        const prop = etsyProperties.find(p => p.property_id === 148789511893 || p.display_name === 'Materials' || p.name === 'Material multi');
-                        const valOptions = (prop.possible_values || []).map(v => ({ id: String(v.value_id), label: v.name }));
-                        return (
-                          <SearchableDropdown
-                            value={formData.material}
-                            onSelect={(opt) => setFormData(prev => ({ ...prev, material: opt.label }))}
-                            options={valOptions}
-                            placeholder="Select Material..."
-                          />
-                        );
-                      })()
-                    ) : (
-                      <input
-                        value={formData.material}
-                        onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                        placeholder="e.g. Chenille, Cotton (up to 4)"
-                      />
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Style Tags (Up to 13)</label>
-                    <input
-                      value={formData.styleTag}
-                      onChange={(e) => setFormData(prev => ({ ...prev, styleTag: e.target.value }))}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none"
-                      placeholder="e.g. vintage, cottagecore"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Who Made It?</label>
-                    <select
-                      value={formData.who_made || 'i_did'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
-                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                    >
-                      <option value="i_did">I did (Handmade)</option>
-                      <option value="collective">A member of my shop (Handmade)</option>
-                      <option value="someone_else">Another company or person (Vintage)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">What Is It?</label>
-                    <select
-                      value={formData.is_supply || 'false'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
-                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                    >
-                      <option value="false">A finished product</option>
-                      <option value="true">A supply or tool to make things</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">When Was It Made?</label>
-                    <select
-                      value={formData.when_made || '2020_2026'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
-                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                    >
-                      <option value="2020_2026">2020 - 2026</option>
-                      <option value="2010_2019">2010 - 2019</option>
-                      <option value="2007_2009">2007 - 2009</option>
-                      <option value="2000_2006">2000 - 2006</option>
-                      <option value="1990s">1990s (Vintage)</option>
-                      <option value="1980s">1980s (Vintage)</option>
-                      <option value="1970s">1970s (Vintage)</option>
-                      <option value="1960s">1960s (Vintage)</option>
-                      <option value="1950s">1950s (Vintage)</option>
-                      <option value="before_1950">Before 1950 (Vintage)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Renewal Options</label>
-                    <select
-                      value={formData.renewal || 'manual'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
-                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                    >
-                      <option value="automatic">Automatic</option>
-                      <option value="manual">Manual</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 mb-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Etsy Delivery Profile</label>
-                      <button 
-                        type="button" 
-                        onClick={handleRefreshShippingProfiles}
-                        className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <RefreshCw className="w-3 h-3 animate-spin-hover" /> Refresh Profiles
-                      </button>
-                    </div>
-                    <select
-                      value={formData.shipping_profile_id || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, shipping_profile_id: e.target.value }))}
-                      className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white cursor-pointer h-12"
-                    >
-                      <option value="">
-                        {shippingProfiles.length === 0 
-                          ? "-- No Shipping Profiles Found (Refresh or Create on Etsy) --" 
-                          : "-- Select Shipping Profile --"}
-                      </option>
-                      {shippingProfiles.map(profile => (
-                        <option key={profile.shipping_profile_id} value={profile.shipping_profile_id}>
-                          {profile.title} ({profile.processing_days_display_label || 'Calculated shipping'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Etsy Dynamic Category Properties */}
-                {targetPlatform === 'etsy' && etsyProperties.length > 0 && (
-                  <div className="border border-slate-100 p-6 rounded-3xl bg-slate-50/50 mb-4 space-y-4">
-                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                      <h4 className="text-sm font-black text-slate-900">Etsy Category Attributes</h4>
-                      <Badge variant="neutral">Taxonomy: {formData.categoryId || '-'}</Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2">
-                      {etsyProperties
-                        .filter(prop => {
-                          const isColor = prop.property_id === 200 || prop.name === 'Primary color';
-                          const isSize = prop.property_id === 100 || prop.name === 'TeeShirtSize' || prop.display_name === 'Size';
-                          const isMaterial = prop.property_id === 148789511893 || prop.display_name === 'Materials' || prop.name === 'Material multi';
-                          const isCustom = (prop.display_name || prop.name || '').toLowerCase().includes('custom property');
-                          return !isColor && !isSize && !isMaterial && !isCustom;
-                        })
-                        .map((prop) => {
-                        const propertyId = prop.property_id;
-                        const name = prop.display_name || prop.name;
-                        const isRequired = prop.is_required === true;
-                        
-                        const valOptions = [];
-                        if (prop.possible_values && prop.possible_values.length > 0) {
-                          prop.possible_values.forEach(v => {
-                            valOptions.push({ id: String(v.value_id), label: v.name });
-                          });
-                        }
-                        if (prop.scales && prop.scales.length > 0) {
-                          prop.scales.forEach(scale => {
-                            if (scale.values && scale.values.length > 0) {
-                              scale.values.forEach(v => {
-                                valOptions.push({ id: String(v.value_id), label: v.name });
-                              });
-                            }
-                          });
-                        }
-
-                        const currentValArray = formData.etsyAttributes?.[propertyId] || [];
-                        const currentVal = currentValArray[0] || '';
-                        const currentOpt = valOptions.find(opt => opt.id === String(currentVal));
-                        const displayVal = currentOpt ? currentOpt.label : currentVal;
-
-                        const hasError = false;
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
+                      {ebayAspects.slice(0, 12).map((asp) => {
+                        const name = asp.localizedAspectName;
+                        const isReq = asp.aspectConstraint?.aspectRequired;
+                        const currentVal = formData.ebayAspects?.[name]?.[0] || '';
+                        const possibleVals = (asp.aspectValues || []).map(v => ({ id: v.localizedValue, label: v.localizedValue }));
 
                         return (
-                          <div key={propertyId}>
-                            <label className="text-[9px] font-black uppercase tracking-wider block mb-1 text-slate-500">
-                              {name} {isRequired && <span className="text-rose-500">*</span>}
+                          <div key={name} className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block truncate">
+                              {name} {isReq && <span className="text-rose-500">*</span>}
                             </label>
-                            {valOptions.length > 0 ? (
+                            {possibleVals.length > 0 ? (
                               <SearchableDropdown
-                                value={displayVal}
+                                value={currentVal}
+                                options={possibleVals}
                                 onSelect={(opt) => {
                                   setFormData(prev => ({
                                     ...prev,
-                                    etsyAttributes: {
-                                      ...prev.etsyAttributes,
-                                      [propertyId]: [opt.id]
-                                    }
+                                    ebayAspects: { ...prev.ebayAspects, [name]: [opt.label] }
                                   }));
                                 }}
-                                options={valOptions}
                                 placeholder={`Select ${name}...`}
-                                error={hasError}
                               />
                             ) : (
                               <input
-                                type="text"
                                 value={currentVal}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setFormData(prev => ({
                                     ...prev,
-                                    etsyAttributes: {
-                                      ...prev.etsyAttributes,
-                                      [propertyId]: [val]
-                                    }
+                                    ebayAspects: { ...prev.ebayAspects, [name]: [val] }
                                   }));
                                 }}
-                                className="w-full px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none bg-white h-12"
                                 placeholder={`Enter ${name}...`}
+                                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
                               />
                             )}
                           </div>
@@ -1282,72 +1391,468 @@ const CreateMasterListing = ({ platform = 'ebay' }) => {
                   </div>
                 )}
 
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description</label>
-                  <textarea
-                    rows={8}
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:border-indigo-500 outline-none font-mono"
+                {/* eBay Business Policies & Package */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Shipping Policy</label>
+                    <SearchableDropdown
+                      value={ebayPolicies.fulfillment?.find(p => p.fulfillmentPolicyId === formData.fulfillmentPolicyId)?.name || 'Default Shipping'}
+                      options={(ebayPolicies.fulfillment || []).map(p => ({ id: p.fulfillmentPolicyId, label: p.name }))}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, fulfillmentPolicyId: opt.id }))}
+                      placeholder="Select shipping policy..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Payment Policy</label>
+                    <SearchableDropdown
+                      value={ebayPolicies.payment?.find(p => p.paymentPolicyId === formData.paymentPolicyId)?.name || 'Default Payment'}
+                      options={(ebayPolicies.payment || []).map(p => ({ id: p.paymentPolicyId, label: p.name }))}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, paymentPolicyId: opt.id }))}
+                      placeholder="Select payment policy..."
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Return Policy</label>
+                    <SearchableDropdown
+                      value={ebayPolicies.returns?.find(p => p.returnPolicyId === formData.returnPolicyId)?.name || 'Default Returns'}
+                      options={(ebayPolicies.returns || []).map(p => ({ id: p.returnPolicyId, label: p.name }))}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, returnPolicyId: opt.id }))}
+                      placeholder="Select return policy..."
+                    />
+                  </div>
+                </div>
+
+                {/* Weight & Dimensions */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Weight (Lbs)</label>
+                    <input
+                      type="number"
+                      value={formData.packageWeight.lbs}
+                      onChange={(e) => setFormData(prev => ({ ...prev, packageWeight: { ...prev.packageWeight, lbs: Number(e.target.value) } }))}
+                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Weight (Oz)</label>
+                    <input
+                      type="number"
+                      value={formData.packageWeight.oz}
+                      onChange={(e) => setFormData(prev => ({ ...prev, packageWeight: { ...prev.packageWeight, oz: Number(e.target.value) } }))}
+                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Dimensions (L x W)</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="L"
+                        value={formData.packageDimensions.length}
+                        onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, length: Number(e.target.value) } }))}
+                        className="w-1/2 h-10 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      />
+                      <input
+                        type="number"
+                        placeholder="W"
+                        value={formData.packageDimensions.width}
+                        onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, width: Number(e.target.value) } }))}
+                        className="w-1/2 h-10 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Height (H)</label>
+                    <input
+                      type="number"
+                      placeholder="H"
+                      value={formData.packageDimensions.height}
+                      onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, height: Number(e.target.value) } }))}
+                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Card 3: Poshmark Platform Specific Details */}
+          {selectedPlatforms.includes('poshmark') && (
+            <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-rose-50 pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/poshmark.png" className="w-6 h-6 object-contain" alt="Poshmark" />
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Poshmark Listing Details</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Department, Category, Size & Condition</p>
+                  </div>
+                </div>
+                <Badge variant="neutral">Poshmark</Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Department</label>
+                  <SearchableDropdown
+                    value={formData.poshmarkDepartment}
+                    options={POSHMARK_DEPARTMENTS}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkDepartment: opt.id }))}
                   />
                 </div>
 
-                <div className="flex items-center gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="lg"
-                    onClick={() => {
-                      if (isModal && onClose) {
-                        onClose();
-                      } else {
-                        navigate('/listings');
-                      }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="flex-1"
-                    onClick={handleSaveDraft}
-                    loading={loading}
-                    disabled={loading}
-                  >
-                    Save Master Listing
-                  </Button>
-                  {targetPlatform === 'etsy' && (
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="lg"
-                      className="flex-1"
-                      onClick={handleSaveAndPublish}
-                      loading={loading}
-                      disabled={loading}
-                      icon={<ShoppingBag size={14} />}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Size</label>
+                  <input
+                    value={formData.poshmarkSize || formData.size}
+                    onChange={(e) => setFormData(prev => ({ ...prev, poshmarkSize: e.target.value }))}
+                    placeholder="e.g. M / 8 / One Size"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
+                  <SearchableDropdown
+                    value={formData.poshmarkCondition}
+                    options={POSHMARK_CONDITIONS}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkCondition: opt.label || opt.id }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (Optional)</label>
+                <input
+                  value={formData.poshmarkStyleTags}
+                  onChange={(e) => setFormData(prev => ({ ...prev, poshmarkStyleTags: e.target.value }))}
+                  placeholder="e.g. Vintage, Streetwear, Casual..."
+                  className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Card 4: Mercari Platform Specific Details */}
+          {selectedPlatforms.includes('mercari') && (
+            <div className="bg-white border border-red-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/mercari.png" className="w-6 h-6 object-contain" alt="Mercari" />
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Mercari Listing Details</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Category Hierarchy, Brand ID & Shipping</p>
+                  </div>
+                </div>
+                <Badge variant="neutral">Mercari</Badge>
+              </div>
+
+              <div className="space-y-4">
+                {/* Mercari Category */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Category</label>
+                  <SearchableDropdown
+                    value={formData.mercariCategory}
+                    options={mercariCategoryOptions}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, mercariCategory: opt.label, mercariCategoryId: opt.id }))}
+                    placeholder="Select Mercari category hierarchy..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Brand Autocomplete */}
+                  <div className="space-y-1 relative" ref={mercariBrandRef}>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Brand</label>
+                    <input
+                      value={formData.mercariBrand || formData.brand}
+                      onChange={(e) => handleMercariBrandSearch(e.target.value)}
+                      onFocus={() => setIsMercariBrandOpen(true)}
+                      placeholder="Search brand (Nike, Adidas)..."
+                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                    />
+                    {isMercariBrandOpen && mercariBrandSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 shadow-xl rounded-xl z-[999] max-h-48 overflow-y-auto py-1">
+                        {mercariBrandSuggestions.map((b) => (
+                          <button
+                            key={b.id || b.name}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, mercariBrand: b.name, mercariBrandId: String(b.id || ''), brand: prev.brand || b.name }));
+                              setIsMercariBrandOpen(false);
+                            }}
+                            className="w-full px-3.5 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center justify-between"
+                          >
+                            <span>{b.name}</span>
+                            <span className="text-[9px] text-slate-400 font-mono">ID: {b.id}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
+                    <SearchableDropdown
+                      value={MERCARI_CONDITIONS.find(c => c.id === formData.mercariCondition)?.label || 'Good'}
+                      options={MERCARI_CONDITIONS}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, mercariCondition: opt.id }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Shipping Payer</label>
+                    <select
+                      value={formData.mercariShippingPayer}
+                      onChange={(e) => setFormData(prev => ({ ...prev, mercariShippingPayer: e.target.value }))}
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
                     >
-                      {loading ? 'Publishing to Etsy...' : 'Save & List on Etsy'}
-                    </Button>
-                  )}
+                      <option value="seller">Free Shipping (Seller Pays)</option>
+                      <option value="buyer">Buyer Pays (Prepaid Label)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl p-12 text-center flex flex-col items-center justify-center h-full min-h-[400px]">
-              <div className="w-14 h-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-4">
-                <Sparkles className="w-6 h-6 text-indigo-400 animate-pulse" />
+          )}
+
+          {/* Card 5: Etsy Platform Specific Details */}
+          {selectedPlatforms.includes('etsy') && (
+            <div className="bg-white border border-orange-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-orange-50 pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/etsy.png" className="w-6 h-6 object-contain" alt="Etsy" />
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Etsy Listing Details</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Taxonomy, Shipping Profile & Attributes</p>
+                  </div>
+                </div>
+                <Badge variant="neutral">Etsy</Badge>
               </div>
-              <h3 className="text-slate-800 font-black text-sm">Waiting for Scan</h3>
-              <p className="text-slate-400 text-xs font-semibold mt-2 max-w-sm">
-                Upload your product photos, choose a scanning parameter rule on the left, and trigger AI Scan to fill this page.
-              </p>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Category Path</label>
+                  <CategorySearchDropdown
+                    value={formData.etsyCategory}
+                    platform="etsy"
+                    onSelect={(opt) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        etsyCategory: opt.fullName || opt.label,
+                        etsyCategoryId: opt.id
+                      }));
+                    }}
+                    placeholder="Search Etsy taxonomy..."
+                  />
+                  {formData.etsyCategoryId && (
+                    <span className="text-[10px] font-bold text-slate-400 block ml-1">Taxonomy ID: {formData.etsyCategoryId}</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Who Made It?</label>
+                    <select
+                      value={formData.who_made}
+                      onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="i_did">I did (Handmade)</option>
+                      <option value="collective">A member of my shop</option>
+                      <option value="someone_else">Another company (Vintage)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">When Made?</label>
+                    <select
+                      value={formData.when_made}
+                      onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="2020_2026">2020 - 2026</option>
+                      <option value="2010_2019">2010 - 2019</option>
+                      <option value="2000_2009">2000 - 2009</option>
+                      <option value="1990s">1990s (Vintage)</option>
+                      <option value="1980s">1980s (Vintage)</option>
+                      <option value="before_1980">Before 1980 (Vintage)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">What is it?</label>
+                    <select
+                      value={formData.is_supply}
+                      onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="false">Finished Product</option>
+                      <option value="true">A Craft Supply / Tool</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Renewal</label>
+                    <select
+                      value={formData.renewal}
+                      onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="automatic">Automatic</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Etsy Delivery Profile */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Delivery Profile</label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        toast.info("Refreshing Etsy shipping profiles...");
+                        const res = await etsyService.getShippingProfiles();
+                        if (res.data?.success) {
+                          setShippingProfiles(res.data.data || []);
+                          toast.success("Profiles updated!");
+                        }
+                      }}
+                      className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw size={11} /> Refresh Profiles
+                    </button>
+                  </div>
+                  <SearchableDropdown
+                    value={shippingProfiles.find(p => String(p.shipping_profile_id) === String(formData.shipping_profile_id))?.title || ''}
+                    options={shippingProfiles.map(p => ({ id: String(p.shipping_profile_id), label: `${p.title} (${p.processing_days_display_label || 'Calculated'})` }))}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, shipping_profile_id: opt.id }))}
+                    placeholder="Select Etsy delivery profile..."
+                  />
+                </div>
+              </div>
             </div>
           )}
+
+          {/* Card 6: Amazon Platform Specific Details */}
+          {selectedPlatforms.includes('amazon') && (
+            <div className="bg-white border border-amber-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-amber-50 pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/amazon.png" className="w-6 h-6 object-contain" alt="Amazon" />
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Amazon Listing Details</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Standard Product ID (ASIN / UPC) & Condition</p>
+                  </div>
+                </div>
+                <Badge variant="neutral">Amazon</Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Identifier Type</label>
+                  <select
+                    value={formData.amazonStandardProductId?.idType || 'UPC'}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      amazonStandardProductId: { ...prev.amazonStandardProductId, idType: e.target.value }
+                    }))}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="ASIN">ASIN</option>
+                    <option value="UPC">UPC</option>
+                    <option value="EAN">EAN</option>
+                    <option value="GTIN">GTIN</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Standard Product ID / Value</label>
+                  <input
+                    value={formData.amazonStandardProductId?.value || ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      amazonStandardProductId: { ...prev.amazonStandardProductId, value: e.target.value }
+                    }))}
+                    placeholder="e.g. 012345678901 / B08XYZ..."
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Amazon Condition</label>
+                  <select
+                    value={formData.amazonCondition}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amazonCondition: e.target.value }))}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="New">New</option>
+                    <option value="Used - Like New">Used - Like New</option>
+                    <option value="Used - Very Good">Used - Very Good</option>
+                    <option value="Used - Good">Used - Good</option>
+                    <option value="Used - Acceptable">Used - Acceptable</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* BOTTOM STICKY ACTION BAR: Cancel, Save Draft, Publish/Update Multi-Platform */}
+      {/* ========================================================================= */}
+      <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-3.5 px-4 sm:px-6 -mx-4 sm:-mx-6 flex items-center justify-between gap-4 z-40 shadow-lg rounded-b-3xl">
+        <Button
+          type="button"
+          variant="ghost"
+          size="md"
+          onClick={() => {
+            if (isModal && onClose) {
+              onClose();
+            } else {
+              navigate('/listings');
+            }
+          }}
+          className="text-slate-500 hover:text-slate-800 font-bold text-xs"
+        >
+          Cancel
+        </Button>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={handleSaveDraft}
+            loading={loading && !publishing}
+            disabled={loading || publishing}
+            className="border-slate-300 hover:bg-slate-50 text-slate-700 font-extrabold text-xs"
+          >
+            Save Draft
+          </Button>
+
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handlePublishOrUpdateAll}
+            loading={publishing}
+            disabled={loading || publishing || selectedPlatforms.length === 0}
+            icon={<ShoppingBag size={14} />}
+            className="bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-xs shadow-md shadow-indigo-600/20 px-5"
+          >
+            {publishing 
+              ? `Syncing on ${selectedPlatforms.length} Platforms...` 
+              : isEditMode 
+                ? `Update on ${selectedPlatforms.length} Platforms` 
+                : `List on ${selectedPlatforms.length} Platforms`}
+          </Button>
+        </div>
+      </div>
+
     </div>
   );
 };
