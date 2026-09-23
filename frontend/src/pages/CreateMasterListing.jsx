@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Upload, 
+  ChevronLeft,
   ImageIcon, 
   DollarSign, 
   Zap, 
@@ -22,11 +23,11 @@ import {
   Package, 
   Plus, 
   Code, 
-  FileText,
-  Truck,
-  ShieldCheck,
-  Box,
-  Palette,
+  FileText, 
+  Truck, 
+  ShieldCheck, 
+  Box, 
+  Palette, 
   Info
 } from 'lucide-react';
 import { 
