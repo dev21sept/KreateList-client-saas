@@ -3891,12 +3891,12 @@ const NewListings = () => {
           </div>
         </div>
       ) : activeTab === 'local' ? (
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+        <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3.5">
           
           {/* Top Row: Horizontal Status Tabs on Left, Sort / Direction / Filter on Right */}
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 border-b border-slate-100 pb-3">
             {/* Status Tabs Navigation */}
-            <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
+            <div className="flex items-center gap-2 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3 pb-3">
               {[
                 { key: 'all', label: 'All Listings', count: localTabCounts.all },
                 { key: 'active', label: 'Active', count: localTabCounts.active },
@@ -3935,13 +3935,13 @@ const NewListings = () => {
             </div>
 
             {/* Right Controls: Sort dropdown, Invert Sort Direction, Filter Modal Trigger, Clear */}
-            <div className="flex items-center flex-wrap gap-2.5 shrink-0 self-end xl:self-auto">
+            <div className="flex items-center flex-wrap sm:flex-nowrap gap-2 shrink-0 justify-between sm:justify-end w-full xl:w-auto">
               {/* Sort Dropdown */}
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
-                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  className="w-full sm:w-auto pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
                   title="Sort Listings"
                 >
                   <option value="crosslisted-desc">Most Cross-Listed (5 → 1)</option>
@@ -3965,7 +3965,7 @@ const NewListings = () => {
                 type="button"
                 onClick={handleToggleSortDirection}
                 title="Invert / Toggle Sort Order"
-                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95"
+                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <ArrowUpDown size={14} />
               </button>
@@ -3978,7 +3978,7 @@ const NewListings = () => {
                   setTempSortOption(sortOption);
                   setFilterModalOpen(true);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 bg-white border rounded-xl text-xs font-extrabold text-slate-700 hover:border-indigo-300 transition-all cursor-pointer shadow-2xs ${
+                className={`flex items-center gap-1.5 px-3 py-2 bg-white border rounded-xl text-xs font-extrabold text-slate-700 hover:border-indigo-300 transition-all cursor-pointer shadow-2xs shrink-0 ${
                   (filterListedOn.length > 0 || filterNoListedOn.length > 0 || sortOption !== 'crosslisted-desc') ? 'border-indigo-500 ring-2 ring-indigo-500/10 text-indigo-600' : 'border-slate-200'
                 }`}
               >
@@ -3995,7 +3995,7 @@ const NewListings = () => {
               {hasActiveLocalFilters && (
                 <button
                   onClick={handleClearFilters}
-                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer"
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer shrink-0"
                 >
                   Clear
                 </button>
@@ -4027,12 +4027,12 @@ const NewListings = () => {
         </div>
       ) : (
         /* ALL PLATFORM INVENTORY CONTROLS: 5 STATUS TABS + SORT + FULL-WIDTH SEARCH */
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+        <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3.5">
           
           {/* Top Row: Horizontal Status Tabs on Left, Sort dropdown on Right */}
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 border-b border-slate-100 pb-3">
             {/* Status Tabs Navigation (NO Sold, NO Favorites) */}
-            <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3.5 pb-3.5">
+            <div className="flex items-center gap-2 sm:gap-4 md:gap-6 overflow-x-auto no-scrollbar -mb-3 pb-3">
               {[
                 { key: 'all', label: 'All Products', count: channelTabCounts.all },
                 { key: 'active', label: 'Active', count: channelTabCounts.active },
@@ -4069,16 +4069,16 @@ const NewListings = () => {
             </div>
 
             {/* Right Controls: Sort dropdown, Invert Sort Direction, Clear */}
-            <div className="flex items-center flex-wrap gap-2.5 shrink-0 self-end xl:self-auto">
+            <div className="flex items-center flex-wrap sm:flex-nowrap gap-2 shrink-0 justify-between sm:justify-end w-full xl:w-auto">
               {/* Sort Dropdown */}
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <select
                   value={channelSortOption}
                   onChange={(e) => {
                     setChannelSortOption(e.target.value);
                     localStorage.setItem('elister_channel_sort_option', e.target.value);
                   }}
-                  className="pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
+                  className="w-full sm:w-auto pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
                   title="Sort Channel Inventory"
                 >
                   <option value="newest">Last Updated (Newest)</option>
@@ -4098,7 +4098,7 @@ const NewListings = () => {
                 type="button"
                 onClick={handleToggleChannelSortDirection}
                 title="Invert / Toggle Sort Order"
-                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95"
+                className="p-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-600 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <ArrowUpDown size={14} />
               </button>
@@ -4107,7 +4107,7 @@ const NewListings = () => {
               {hasActiveChannelFilters && (
                 <button
                   onClick={handleClearFilters}
-                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer"
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 hover:underline px-1.5 transition-all cursor-pointer shrink-0"
                 >
                   Clear
                 </button>
@@ -4173,12 +4173,13 @@ const NewListings = () => {
             />
           ) : (
             <>
-              {/* MOBILE CARD VIEW */}
+              {/* MOBILE & TABLET CARD VIEW */}
               <div className="md:hidden divide-y divide-slate-100">
                 {paginatedListings.map((item) => {
                   const isCardSelected = selectedListingIds.includes(item._id);
+                  const realUpdatedTime = item.updatedAt || item.updated_at || item.createdAt || item.created_at || item.lastUpdated;
                   return (
-                    <div key={item._id} className={`p-4 space-y-3 transition-colors ${isCardSelected ? 'bg-indigo-50/40' : ''}`}>
+                    <div key={item._id} className={`p-4 space-y-3.5 transition-colors ${isCardSelected ? 'bg-indigo-50/40' : ''}`}>
                       <div className="flex items-start gap-3">
                         <input 
                           type="checkbox" 
@@ -4188,7 +4189,7 @@ const NewListings = () => {
                           className="w-4 h-4 mt-1.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer shrink-0" 
                         />
                         <div 
-                          className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 relative"
+                          className="w-14 h-18 bg-slate-50 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center border border-slate-100 relative"
                         >
                           {item.thumbnail || (item.images && item.images.length > 0) ? (
                             <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
@@ -4254,35 +4255,42 @@ const NewListings = () => {
                             <span className="text-slate-300">•</span>
                             <span>Qty <span className="text-slate-700 font-extrabold">{item.quantity || 1}</span></span>
                             <span className="text-slate-300">•</span>
-                            <span>{formatTimeAgo(item.updatedAt || item.updated_at || item.createdAt || item.created_at)}</span>
+                            <span>{formatTimeAgo(realUpdatedTime)}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div>
-                        <StatusBadge status={item.status} />
-                      </div>
-
-                      <div className="flex items-center gap-3 overflow-x-auto pt-2 border-t border-slate-100 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
-                        {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
-                        {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
-                        {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
-                        {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                      {/* Marketplace Cross-Listing Cards Tray */}
+                      <div className="pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                            Marketplace Channels
+                          </span>
+                          <span className="text-[10px] font-semibold text-indigo-600">
+                            Swipe horizontally →
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 -mx-1 px-1">
+                          {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
+                          {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
+                          {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
+                          {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
+                          {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* DESKTOP TABLE VIEW */}
-              <div className="hidden md:block overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <table className="min-w-[1180px] w-full text-left border-collapse table-fixed">
+              {/* DESKTOP & TABLET TABLE VIEW */}
+              <div className="hidden md:block overflow-x-auto overflow-y-hidden pb-1">
+                <table className="min-w-[1060px] w-full text-left border-collapse">
 
                   {/* Headers */}
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none">
-                      <th className="px-3 py-4 w-12 text-center">
+                      <th className="px-3 py-3.5 w-10 text-center">
                         <input 
                           type="checkbox" 
                           checked={isAllSelected}
@@ -4291,32 +4299,32 @@ const NewListings = () => {
                           className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
                         />
                       </th>
-                      <th className="px-4 py-4 text-xs font-black text-slate-500 tracking-wider w-[31%]">Item</th>
-                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                      <th className="px-4 py-3.5 text-xs font-black text-slate-500 tracking-wider min-w-[280px] w-[32%]">Item</th>
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
                           <img src="/ebay.png" className="w-4 h-4 object-contain" alt="" />
                           <span>eBay</span>
                         </div>
                       </th>
-                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
                           <img src="/poshmark.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Poshmark</span>
                         </div>
                       </th>
-                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
                           <img src="/mercari.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Mercari</span>
                         </div>
                       </th>
-                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
                           <img src="/etsy.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Etsy</span>
                         </div>
                       </th>
-                      <th className="px-1 py-4 text-xs font-black text-slate-700 tracking-wider text-center w-[13%]">
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
                           <img src="/amazon.png" className="w-4 h-4 object-contain" alt="" />
                           <span>Amazon</span>
@@ -4334,7 +4342,7 @@ const NewListings = () => {
                         <tr key={item._id} className={`transition-colors ${isRowSelected ? 'bg-indigo-50/60 hover:bg-indigo-50/80' : 'hover:bg-slate-50/70'}`}>
 
                           {/* Checkbox */}
-                          <td className="px-3 py-3 text-center align-middle w-12">
+                          <td className="px-3 py-3 text-center align-middle w-10">
                             <input 
                               type="checkbox" 
                               checked={isRowSelected}
@@ -4345,10 +4353,10 @@ const NewListings = () => {
                           </td>
 
                           {/* Item */}
-                          <td className="px-4 py-3 align-middle w-[31%]">
+                          <td className="px-4 py-3 align-middle min-w-[280px] w-[32%]">
                             <div className="flex items-start gap-3.5">
                               <div 
-                                className="w-[76px] h-[98px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 relative"
+                                className="w-[72px] h-[94px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 relative"
                               >
                                 {item.thumbnail || (item.images && item.images.length > 0) ? (
                                   <img src={item.thumbnail || item.images[0]} className="w-full h-full object-cover" alt="" />
@@ -4508,27 +4516,27 @@ const NewListings = () => {
                           </td>
 
                           {/* 5 Crosslisting Platform Matrix Cards */}
-                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-middle w-[13%] text-center">
+                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                             </div>
@@ -4641,14 +4649,14 @@ const NewListings = () => {
               </div>
 
               {/* DESKTOP SOLD TABLE VIEW */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse table-fixed">
+              <div className="hidden md:block overflow-x-auto overflow-y-hidden pb-1">
+                <table className="min-w-[850px] w-full text-left border-collapse">
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      <th className="px-5 py-4 w-[36%]">Product</th>
-                      <th className="px-5 py-4 w-[22%]">Sold On & Order ID</th>
-                      <th className="px-5 py-4 w-[22%]">Sale Date & Time</th>
-                      <th className="px-5 py-4 w-[20%]">Auto-Delist Protection</th>
+                      <th className="px-5 py-3.5 min-w-[280px] w-[36%]">Product</th>
+                      <th className="px-5 py-3.5 min-w-[170px] w-[22%]">Sold On & Order ID</th>
+                      <th className="px-5 py-3.5 min-w-[170px] w-[22%]">Sale Date & Time</th>
+                      <th className="px-5 py-3.5 min-w-[170px] w-[20%]">Auto-Delist Protection</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -4883,14 +4891,14 @@ const NewListings = () => {
               })}
             </div>
 
-            {/* DESKTOP TABLE VIEW */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            {/* DESKTOP & TABLET TABLE VIEW */}
+            <div className="hidden md:block overflow-x-auto overflow-y-hidden pb-1">
+              <table className="min-w-[900px] w-full text-left border-collapse">
 
                 {/* Headers */}
                 <thead className="bg-slate-50/80 border-b border-slate-100">
                   <tr className="border-b border-slate-100 select-none">
-                    <th className="px-6 py-4 w-12 text-center">
+                    <th className="px-4 py-3.5 w-10 text-center">
                       <input 
                         type="checkbox" 
                         checked={isAllSelected}
@@ -4899,13 +4907,13 @@ const NewListings = () => {
                         className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
                       />
                     </th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Live ID</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[260px]">Product</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[100px]">Status</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[110px]">Live ID</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[110px]">SKU</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[90px]">Price</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider min-w-[100px]">Date</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center min-w-[90px]">Actions</th>
                   </tr>
                 </thead>
 
