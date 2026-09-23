@@ -18,7 +18,7 @@ const {
 } = require('../constants/depopSizes');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { logActivity } = require('../utils/activityUtils');
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 
 function sanitizeTitle(titleStr) {
     if (!titleStr || typeof titleStr !== 'string') return '';

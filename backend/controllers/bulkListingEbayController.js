@@ -7,7 +7,7 @@ const User = require('../models/User');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { logActivity } = require('../utils/activityUtils');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
 
 async function compressImageIfBase64(imageInput) {

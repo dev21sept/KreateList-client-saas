@@ -3,7 +3,7 @@ const sharp = require('sharp');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 
 const AMAZON_PRODUCT_TYPES = [
   { id: 'SHIRT', name: 'Shirts & Tops', category: 'Clothing, Shoes & Jewelry > Men / Women > Tops' },
