@@ -82,6 +82,56 @@ const PLATFORMS_CONFIG = [
   { id: 'amazon', name: 'Amazon', logo: '/amazon.png' }
 ];
 
+const COUNTRIES_LIST = [
+  { id: 'US', label: 'United States' },
+  { id: 'CN', label: 'China' },
+  { id: 'VN', label: 'Vietnam' },
+  { id: 'IN', label: 'India' },
+  { id: 'MX', label: 'Mexico' },
+  { id: 'IT', label: 'Italy' },
+  { id: 'JP', label: 'Japan' },
+  { id: 'DE', label: 'Germany' },
+  { id: 'GB', label: 'United Kingdom' },
+  { id: 'CA', label: 'Canada' },
+  { id: 'FR', label: 'France' },
+  { id: 'KR', label: 'South Korea' },
+  { id: 'ID', label: 'Indonesia' },
+  { id: 'TH', label: 'Thailand' },
+  { id: 'BD', label: 'Bangladesh' },
+  { id: 'PK', label: 'Pakistan' },
+  { id: 'TR', label: 'Turkey' },
+  { id: 'BR', label: 'Brazil' },
+  { id: 'ES', label: 'Spain' },
+  { id: 'PT', label: 'Portugal' },
+  { id: 'TW', label: 'Taiwan' }
+];
+
+const CHARITY_ORGS = [
+  { id: 'direct_relief', label: 'Direct Relief' },
+  { id: 'red_cross', label: 'American Red Cross' },
+  { id: 'st_jude', label: "St. Jude Children's Research Hospital" },
+  { id: 'wwf', label: 'World Wildlife Fund' },
+  { id: 'feeding_america', label: 'Feeding America' },
+  { id: 'habitat', label: 'Habitat for Humanity' },
+  { id: 'doctors_without_borders', label: 'Doctors Without Borders' }
+];
+
+const PRODUCT_DOC_TYPES = [
+  { id: 'user_guide', label: 'User Guide' },
+  { id: 'certificate', label: 'Certificate of Authenticity' },
+  { id: 'warranty', label: 'Warranty' },
+  { id: 'manual', label: 'Manual' },
+  { id: 'safety_sheet', label: 'Safety Sheet' },
+  { id: 'declaration', label: 'Declaration of Conformity' }
+];
+
+const DEFAULT_COMMON_ASPECTS = [
+  'Brand', 'Size', 'Color', 'Style', 'Department', 'Type', 'Material', 
+  'Fit', 'Pattern', 'Season', 'Sleeve Length', 'Neckline', 'Occasion', 
+  'Features', 'Closure', 'Accents', 'Theme', 'Vintage', 'Country/Region of Manufacture', 
+  'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
+];
+
 const MASTER_CONDITIONS = [
   { id: "new", label: "New (with tags / box)", description: "Brand new, unused, unopened with tags/original packaging." },
   { id: "like_new", label: "Like New (Mint)", description: "Mint condition pre-owned, looks and feels brand new." },
