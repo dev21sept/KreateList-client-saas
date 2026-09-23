@@ -532,6 +532,7 @@ exports.searchPoshmarkCategories = async (req, res) => {
             return {
                 id: cat.id,
                 name: name,
+                label: cat.path,
                 path: path,
                 fullName: cat.path,
                 categoryId: cat.categoryId,

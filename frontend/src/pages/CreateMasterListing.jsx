@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   ImageIcon,
   DollarSign,
-  Info,
   Zap,
   Sparkles,
   Loader2,
   X,
   Tag,
-  List,
   Eye,
   Trash2,
   ArrowLeft,
@@ -20,13 +17,9 @@ import {
   RefreshCw,
   Check,
   ChevronDown,
-  ChevronUp,
   Layers,
   Globe,
-  SlidersHorizontal,
   Package,
-  ShieldCheck,
-  ExternalLink,
   Plus,
   Code,
   FileText
@@ -48,10 +41,8 @@ import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
-import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
-import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
@@ -179,8 +170,8 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span>{opt.label || opt.name}</span>
-                    {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                    <span className="leading-snug break-words">{opt.label || opt.name}</span>
+                    {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
                   </div>
                   {opt.description && (
                     <p className="text-[10px] text-slate-400 font-normal mt-0.5">{opt.description}</p>
@@ -235,7 +226,7 @@ const CreateMasterListing = ({
   const [shippingProfiles, setShippingProfiles] = useState([]);
   const [etsyProperties, setEtsyProperties] = useState([]);
 
-  // New Custom Aspect Input State
+  // New Custom Aspect Input State (for eBay)
   const [newAspectName, setNewAspectName] = useState('');
   const [newAspectValue, setNewAspectValue] = useState('');
   const [showAddAspect, setShowAddAspect] = useState(false);
@@ -246,16 +237,16 @@ const CreateMasterListing = ({
   const [isMercariBrandOpen, setIsMercariBrandOpen] = useState(false);
   const mercariBrandRef = useRef(null);
 
-  // Unified Form Data State
+  // Unified Form Data State with Master + Individual Platform Pricing & Specifics
   const [formData, setFormData] = useState({
-    // Master Fields
+    // Master Fields (Universal)
     images: [],
     selectedRule: '',
     selectedCondition: 'Good (Gently Used)',
     conditionId: 'good',
     title: '',
-    price: '',
-    originalPrice: '',
+    price: '', // Master Selling Price
+    originalPrice: '', // Master Original Price
     sku: '',
     brand: '',
     size: '',
@@ -269,6 +260,7 @@ const CreateMasterListing = ({
     // eBay Specific
     ebayCategory: '',
     ebayCategoryId: '',
+    ebayPrice: '',
     ebayCondition: 'Pre-owned - Good',
     ebayAspects: {},
     fulfillmentPolicyId: '',
@@ -279,6 +271,8 @@ const CreateMasterListing = ({
     // Poshmark Specific
     poshmarkDepartment: 'Women',
     poshmarkCategory: '',
+    poshmarkPrice: '',
+    poshmarkOriginalPrice: '',
     poshmarkSubcategory: '',
     poshmarkSize: '',
     poshmarkCondition: 'Good',
@@ -287,6 +281,7 @@ const CreateMasterListing = ({
     // Mercari Specific
     mercariCategory: '',
     mercariCategoryId: '',
+    mercariPrice: '',
     mercariBrand: '',
     mercariBrandId: '',
     mercariCondition: 'good',
@@ -295,6 +290,7 @@ const CreateMasterListing = ({
     // Etsy Specific
     etsyCategory: '',
     etsyCategoryId: '',
+    etsyPrice: '',
     who_made: 'i_did',
     when_made: '2020_2026',
     is_supply: 'false',
@@ -306,6 +302,7 @@ const CreateMasterListing = ({
 
     // Amazon Specific
     amazonAsin: '',
+    amazonPrice: '',
     amazonStandardProductId: { idType: 'UPC', value: '' },
     amazonProductType: '',
     amazonCondition: 'Used - Good'
@@ -405,7 +402,7 @@ const CreateMasterListing = ({
         setSelectedPlatforms(Array.from(activePlats));
       }
 
-      // Extract raw aspects / specifics
+      // Extract raw aspects / specifics for eBay
       let rawAspects = {};
       const srcAspects = ebData.itemSpecifics || listing.itemSpecifics || listing.selectedAspects || ebData.selectedAspects || listing.aspects || {};
       if (srcAspects && typeof srcAspects === 'object') {
@@ -431,7 +428,7 @@ const CreateMasterListing = ({
       if (bMaterial && !rawAspects['Material']) rawAspects['Material'] = [bMaterial];
       if (bDepartment && !rawAspects['Department']) rawAspects['Department'] = [bDepartment];
 
-      // Robust Description Resolver (checks master and each sub-platform)
+      // Robust Description Resolver
       const resolvedDesc = 
         listing.description || 
         ebData.description || 
@@ -446,8 +443,18 @@ const CreateMasterListing = ({
         listing.details?.description ||
         '';
 
+      const masterPrice = listing.price !== undefined && listing.price !== '' ? String(listing.price) : (ebData.price ? String(ebData.price) : '');
+      const ebPrice = ebData.price !== undefined && ebData.price !== '' ? String(ebData.price) : (listing.ebayPrice ? String(listing.ebayPrice) : '');
+      const pmPrice = pmData.price !== undefined && pmData.price !== '' ? String(pmData.price) : (listing.poshmarkPrice ? String(listing.poshmarkPrice) : '');
+      const mcPrice = mcData.price !== undefined && mcData.price !== '' ? String(mcData.price) : (listing.mercariPrice ? String(listing.mercariPrice) : '');
+      const etPrice = etData.price !== undefined && etData.price !== '' ? String(etData.price) : (listing.etsyPrice ? String(listing.etsyPrice) : '');
+      const amPrice = amData.price !== undefined && amData.price !== '' ? String(amData.price) : (listing.amazonPrice ? String(listing.amazonPrice) : '');
+
       const catId = ebData.categoryId || listing.categoryId || '';
-      const catName = ebData.category || listing.category || '';
+      const ebCategory = ebData.category || listing.ebayCategory || (listing.platform === 'ebay' ? listing.category : '') || '';
+      const pmCategory = pmData.category || listing.poshmarkCategory || (listing.platform === 'poshmark' ? listing.category : '') || '';
+      const mcCategory = mcData.category || listing.mercariCategory || (listing.platform === 'mercari' ? listing.category : '') || '';
+      const etCategory = etData.category || listing.etsyCategory || (listing.platform === 'etsy' ? listing.category : '') || '';
 
       setFormData(prev => ({
         ...prev,
@@ -456,7 +463,7 @@ const CreateMasterListing = ({
         selectedCondition: listing.selectedCondition || prev.selectedCondition,
         conditionId: listing.conditionId || prev.conditionId,
         title: listing.title || ebData.title || pmData.title || mcData.title || prev.title,
-        price: listing.price !== undefined && listing.price !== '' ? String(listing.price) : (ebData.price ? String(ebData.price) : prev.price),
+        price: masterPrice || prev.price,
         originalPrice: listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.originalPrice,
         sku: listing.sku || ebData.sku || mcData.sku || prev.sku,
         brand: bBrand || prev.brand,
@@ -469,8 +476,9 @@ const CreateMasterListing = ({
         packageDimensions: listing.packageDimensions || ebData.packageDimensions || prev.packageDimensions,
 
         // eBay
-        ebayCategory: catName || prev.ebayCategory,
+        ebayCategory: ebCategory || prev.ebayCategory,
         ebayCategoryId: catId || prev.ebayCategoryId,
+        ebayPrice: ebPrice || prev.ebayPrice,
         ebayCondition: ebData.selectedCondition || ebData.condition || listing.selectedCondition || prev.ebayCondition,
         ebayAspects: { ...prev.ebayAspects, ...rawAspects },
         fulfillmentPolicyId: ebData.fulfillmentPolicyId || listing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
@@ -480,23 +488,27 @@ const CreateMasterListing = ({
 
         // Poshmark
         poshmarkDepartment: pmData.departmentId || listing.departmentId || prev.poshmarkDepartment,
-        poshmarkCategory: pmData.category || listing.category || prev.poshmarkCategory,
+        poshmarkCategory: pmCategory || prev.poshmarkCategory,
+        poshmarkPrice: pmPrice || prev.poshmarkPrice,
+        poshmarkOriginalPrice: pmData.originalPrice !== undefined ? String(pmData.originalPrice) : prev.poshmarkOriginalPrice,
         poshmarkSubcategory: pmData.subcategoryIds?.[0] || listing.subcategoryIds?.[0] || prev.poshmarkSubcategory,
         poshmarkSize: pmData.size || listing.size || prev.poshmarkSize,
         poshmarkCondition: pmData.condition || listing.selectedCondition || prev.poshmarkCondition,
         poshmarkStyleTags: pmData.styleTag || listing.styleTag || prev.poshmarkStyleTags,
 
         // Mercari
-        mercariCategory: mcData.category || listing.category || prev.mercariCategory,
+        mercariCategory: mcCategory || prev.mercariCategory,
         mercariCategoryId: mcData.categoryId || listing.categoryId || prev.mercariCategoryId,
+        mercariPrice: mcPrice || prev.mercariPrice,
         mercariBrand: mcData.brand || bBrand || prev.mercariBrand,
         mercariBrandId: mcData.brandId || listing.brandId || prev.mercariBrandId,
         mercariCondition: mcData.condition || prev.mercariCondition,
         mercariShippingPayer: mcData.shippingPayer || listing.shippingPayer || prev.mercariShippingPayer,
 
         // Etsy
-        etsyCategory: etData.category || listing.category || prev.etsyCategory,
+        etsyCategory: etCategory || prev.etsyCategory,
         etsyCategoryId: etData.categoryId || listing.categoryId || prev.etsyCategoryId,
+        etsyPrice: etPrice || prev.etsyPrice,
         who_made: etData.who_made || listing.etsyWhoMade || prev.who_made,
         when_made: etData.when_made || listing.etsyWhenMade || prev.when_made,
         is_supply: String(etData.is_supply !== undefined ? etData.is_supply : (listing.etsyIsSupply !== undefined ? listing.etsyIsSupply : 'false')),
@@ -508,12 +520,13 @@ const CreateMasterListing = ({
 
         // Amazon
         amazonAsin: amData.asin || listing.amazonAsin || prev.amazonAsin,
+        amazonPrice: amPrice || prev.amazonPrice,
         amazonStandardProductId: amData.standardProductId || listing.amazonStandardProductId || prev.amazonStandardProductId,
         amazonProductType: amData.productType || listing.amazonProductType || prev.amazonProductType,
         amazonCondition: amData.condition || listing.amazonCondition || prev.amazonCondition
       }));
 
-      // Fetch or synthesize aspects so they appear immediately
+      // Fetch aspects if eBay category is present
       if (catId) {
         ebayService.getCategoryAspects(catId)
           .then(res => {
@@ -545,7 +558,7 @@ const CreateMasterListing = ({
     }
   }, [initialListing, editId]);
 
-  // Fetch eBay Category Aspects when Category ID changes
+  // Fetch eBay Category Aspects when eBay Category ID changes
   useEffect(() => {
     if (formData.ebayCategoryId) {
       ebayService.getCategoryAspects(formData.ebayCategoryId)
@@ -571,7 +584,7 @@ const CreateMasterListing = ({
     }
   }, [formData.etsyCategoryId]);
 
-  // Mercari Category Options from Tree
+  // Mercari Category Options from Tree (Full Paths)
   const mercariCategoryOptions = useMemo(() => {
     const list = [];
     const traverse = (node, path = '') => {
@@ -665,7 +678,7 @@ const CreateMasterListing = ({
     }
   };
 
-  // Handle Changing Individual Item Specific
+  // Handle Changing Individual eBay Item Specific
   const handleAspectChange = (aspectName, value) => {
     setFormData(prev => {
       const nextAspects = { ...prev.ebayAspects };
@@ -700,7 +713,7 @@ const CreateMasterListing = ({
     });
   };
 
-  // Handle Adding New Custom Aspect
+  // Handle Adding New Custom eBay Aspect
   const handleAddCustomAspect = () => {
     const trimmedName = newAspectName.trim();
     const trimmedValue = newAspectValue.trim();
@@ -715,7 +728,7 @@ const CreateMasterListing = ({
     toast.success(`Added item specific: ${trimmedName}`);
   };
 
-  // Handle Deleting an Aspect
+  // Handle Deleting an eBay Aspect
   const handleDeleteAspect = (aspectName) => {
     handleAspectChange(aspectName, '');
   };
@@ -754,16 +767,14 @@ const CreateMasterListing = ({
         const res = response.data.data;
         const genSku = res.sku || formData.sku || `KL${Date.now().toString().slice(-6)}`;
         
-        // Extract all raw item specifics from AI response (supports item_specifics and itemSpecifics)
+        // Extract all raw item specifics from AI response
         const rawSpecifics = res.item_specifics || res.itemSpecifics || res.selectedAspects || {};
         const mergedAspects = { ...formData.ebayAspects };
 
-        // Populate extracted specifics
         Object.entries(rawSpecifics).forEach(([k, v]) => {
           if (v) mergedAspects[k] = Array.isArray(v) ? v : [String(v)];
         });
 
-        // Ensure key aspects are present
         if (res.brand && !mergedAspects['Brand']) mergedAspects['Brand'] = [res.brand];
         if (res.color && !mergedAspects['Color']) mergedAspects['Color'] = [res.color];
         if (res.size && !mergedAspects['Size']) mergedAspects['Size'] = [res.size];
@@ -771,17 +782,18 @@ const CreateMasterListing = ({
         if (res.type && !mergedAspects['Type']) mergedAspects['Type'] = [res.type];
         if (res.department && !mergedAspects['Department']) mergedAspects['Department'] = [res.department];
 
-        // If official category aspects were returned in AI payload, save them
         if (res.aspects && Array.isArray(res.aspects) && res.aspects.length > 0) {
           setEbayAspects(res.aspects);
         }
 
-        const resolvedDescription = res.description || res.item_description || res.templatedDescription || prev.description;
+        const resolvedDescription = res.description || res.item_description || res.templatedDescription || formData.description;
+        const aiPrice = res.price !== undefined && res.price !== '' ? String(res.price) : (formData.price || '29.99');
+        const aiCategory = res.category_name || res.category || '';
 
         setFormData(prev => ({
           ...prev,
           title: res.title || prev.title,
-          price: res.price !== undefined && res.price !== '' ? String(res.price) : (prev.price || '29.99'),
+          price: aiPrice,
           originalPrice: res.originalPrice !== undefined ? String(res.originalPrice) : (prev.originalPrice || '59.99'),
           description: resolvedDescription || prev.description,
           sku: genSku,
@@ -791,22 +803,29 @@ const CreateMasterListing = ({
           material: res.material || prev.material,
           
           // eBay
-          ebayCategory: res.category_name || res.category || prev.ebayCategory,
+          ebayCategory: aiCategory || prev.ebayCategory,
           ebayCategoryId: res.category_id || res.categoryId || prev.ebayCategoryId,
+          ebayPrice: prev.ebayPrice || aiPrice,
           ebayAspects: mergedAspects,
           
           // Mercari
           mercariBrand: res.brand || prev.mercariBrand,
-          mercariCategory: res.category_name || res.category || prev.mercariCategory,
+          mercariCategory: aiCategory || prev.mercariCategory,
+          mercariPrice: prev.mercariPrice || aiPrice,
           
           // Poshmark
-          poshmarkCategory: res.category_name || res.category || prev.poshmarkCategory,
+          poshmarkCategory: aiCategory || prev.poshmarkCategory,
+          poshmarkPrice: prev.poshmarkPrice || aiPrice,
           poshmarkSize: res.size || prev.poshmarkSize,
           poshmarkDepartment: res.department || prev.poshmarkDepartment,
           
           // Etsy
-          etsyCategory: res.category_name || res.category || prev.etsyCategory,
+          etsyCategory: aiCategory || prev.etsyCategory,
           etsyCategoryId: res.category_id || res.categoryId || prev.etsyCategoryId,
+          etsyPrice: prev.etsyPrice || aiPrice,
+
+          // Amazon
+          amazonPrice: prev.amazonPrice || aiPrice
         }));
 
         toast.success("AI Scan complete! Product details, specifics & description populated.");
@@ -858,11 +877,11 @@ const CreateMasterListing = ({
       material: formData.material,
       styleTag: formData.styleTag || formData.poshmarkStyleTags,
 
-      // Structured platformData container
+      // Structured platformData container with per-platform prices & categories
       platformData: {
         ebay: {
           title: formData.title,
-          price: formData.price,
+          price: formData.ebayPrice || formData.price || '0.00',
           description: formData.description,
           category: formData.ebayCategory,
           categoryId: formData.ebayCategoryId,
@@ -878,9 +897,9 @@ const CreateMasterListing = ({
         },
         poshmark: {
           title: formData.title,
-          price: formData.price,
+          price: formData.poshmarkPrice || formData.price || '0.00',
           description: formData.description,
-          originalPrice: formData.originalPrice,
+          originalPrice: formData.poshmarkOriginalPrice || formData.originalPrice,
           departmentId: formData.poshmarkDepartment,
           category: formData.poshmarkCategory,
           subcategoryIds: formData.poshmarkSubcategory ? [formData.poshmarkSubcategory] : [],
@@ -891,7 +910,7 @@ const CreateMasterListing = ({
         },
         mercari: {
           title: formData.title,
-          price: formData.price,
+          price: formData.mercariPrice || formData.price || '0.00',
           description: formData.description,
           category: formData.mercariCategory,
           categoryId: formData.mercariCategoryId,
@@ -903,7 +922,7 @@ const CreateMasterListing = ({
         },
         etsy: {
           title: formData.title,
-          price: formData.price,
+          price: formData.etsyPrice || formData.price || '0.00',
           description: formData.description,
           category: formData.etsyCategory,
           categoryId: formData.etsyCategoryId,
@@ -918,7 +937,7 @@ const CreateMasterListing = ({
         },
         amazon: {
           title: formData.title,
-          price: formData.price,
+          price: formData.amazonPrice || formData.price || '0.00',
           description: formData.description,
           asin: formData.amazonAsin,
           standardProductId: formData.amazonStandardProductId,
@@ -1056,18 +1075,16 @@ const CreateMasterListing = ({
     description: c.description
   })), []);
 
-  // Combined List of All Visible Aspects (combines formData.ebayAspects with ebayAspects taxonomy)
-  const combinedAspectsList = useMemo(() => {
+  // Combined List of All eBay Aspects
+  const combinedEbayAspectsList = useMemo(() => {
     const list = [];
     const addedNames = new Set();
 
-    // 1. First add all aspects present in formData.ebayAspects
     if (formData.ebayAspects && typeof formData.ebayAspects === 'object') {
       Object.entries(formData.ebayAspects).forEach(([name, valArr]) => {
         const val = Array.isArray(valArr) ? valArr[0] : valArr;
         if (name && val !== undefined && val !== null && String(val).trim() !== '') {
           addedNames.add(name.toLowerCase());
-          // Check if we have taxonomy options for this aspect
           const matchTaxonomy = ebayAspects.find(a => a.localizedAspectName?.toLowerCase() === name.toLowerCase());
           const options = matchTaxonomy ? (matchTaxonomy.aspectValues || []).map(v => ({ id: v.localizedValue, label: v.localizedValue })) : [];
           list.push({
@@ -1081,7 +1098,6 @@ const CreateMasterListing = ({
       });
     }
 
-    // 2. Next add remaining suggested aspects from eBay taxonomy
     ebayAspects.forEach((asp) => {
       const name = asp.localizedAspectName;
       if (name && !addedNames.has(name.toLowerCase())) {
@@ -1113,14 +1129,14 @@ const CreateMasterListing = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                {isEditMode ? 'Edit Master Cross-Listing' : 'Create Master Cross-Listing'}
+                {isEditMode ? 'Edit Listing' : 'Create Multi-Platform Listing'}
               </h1>
               <Badge variant={isEditMode ? 'warning' : 'brand'}>
-                {isEditMode ? 'Update Mode' : 'AI Unified'}
+                {isEditMode ? 'Edit Mode' : 'AI Unified'}
               </Badge>
             </div>
             <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
-              Prefill, customize, and synchronize product data, specifics & description across all connected marketplaces in one place.
+              Customize categories, pricing, item specifics, and sync across connected marketplaces in one unified workspace.
             </p>
           </div>
         </div>
@@ -1149,10 +1165,10 @@ const CreateMasterListing = ({
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                 <Globe size={13} className="text-indigo-600" />
-                Target Platforms
+                Target Marketplaces
               </label>
               <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                {selectedPlatforms.length} Selected
+                {selectedPlatforms.length} Active
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1355,11 +1371,11 @@ const CreateMasterListing = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* RIGHT COLUMN (SCROLLABLE): Form Cards with Specifics, Desc & Platform Data */}
+        {/* RIGHT COLUMN (SCROLLABLE): Master Details & Platform-Specific Cards       */}
         {/* ========================================================================= */}
         <div className={`lg:col-span-7 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
           
-          {/* Card 1: Master / Universal Product Details */}
+          {/* Card 1: Master / Universal Product Details (Shared Data) */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div className="flex items-center gap-2.5">
@@ -1390,10 +1406,10 @@ const CreateMasterListing = ({
                 />
               </div>
 
-              {/* Price, Original Price, SKU */}
+              {/* Master Default Price, Original Price, SKU */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Selling Price ($)</label>
+                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Default Selling Price ($)</label>
                   <div className="relative">
                     <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600" />
                     <input
@@ -1486,7 +1502,7 @@ const CreateMasterListing = ({
                 </div>
               </div>
 
-              {/* Unified Description with HTML Preview & Source Code Toggle */}
+              {/* Description with HTML Preview & Source Code Toggle */}
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
@@ -1536,134 +1552,31 @@ const CreateMasterListing = ({
             </div>
           </div>
 
-          {/* Card 2: Item Specifics & Attributes (Universal & eBay) */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <Tag size={16} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">Item Specifics & Attributes</h3>
-                  <p className="text-[10px] font-semibold text-slate-400">Extracted product aspects, features and metadata</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddAspect(!showAddAspect)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[11px] font-black transition-all cursor-pointer"
-              >
-                <Plus size={13} /> Add Custom Aspect
-              </button>
-            </div>
-
-            {/* Add Custom Aspect Row */}
-            {showAddAspect && (
-              <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex flex-col sm:flex-row items-center gap-2.5 animate-in fade-in duration-150">
-                <input
-                  placeholder="Aspect Name (e.g. Closure, Theme)"
-                  value={newAspectName}
-                  onChange={(e) => setNewAspectName(e.target.value)}
-                  className="w-full sm:w-1/2 h-10 px-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                />
-                <input
-                  placeholder="Aspect Value (e.g. Lace Up, Vintage)"
-                  value={newAspectValue}
-                  onChange={(e) => setNewAspectValue(e.target.value)}
-                  className="w-full sm:w-1/2 h-10 px-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
-                />
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="primary"
-                    onClick={handleAddCustomAspect}
-                    className="flex-1 sm:flex-none"
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowAddAspect(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Aspects Grid */}
-            {combinedAspectsList.length === 0 ? (
-              <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1.5">
-                <p className="text-xs font-bold text-slate-600">No Item Specifics Added Yet</p>
-                <p className="text-[10px] font-semibold text-slate-400">Click "Scan Image with AI" on the left or "+ Add Custom Aspect" above to extract specifics automatically.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[380px] overflow-y-auto pr-1">
-                {combinedAspectsList.map((aspect) => {
-                  const currentVal = formData.ebayAspects?.[aspect.name]?.[0] || aspect.value || '';
-                  const hasOptions = aspect.options && aspect.options.length > 0;
-
-                  return (
-                    <div key={aspect.name} className="space-y-1 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/90 relative group">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider block truncate">
-                          {aspect.name}
-                          {aspect.isRequired && <span className="text-rose-500 ml-0.5">*</span>}
-                          {aspect.isRecommended && <span className="text-[8px] text-slate-400 font-bold ml-1">(Rec)</span>}
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAspect(aspect.name)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity cursor-pointer"
-                          title={`Delete ${aspect.name}`}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-
-                      {hasOptions ? (
-                        <SearchableDropdown
-                          value={currentVal}
-                          options={aspect.options}
-                          onSelect={(opt) => handleAspectChange(aspect.name, opt.label)}
-                          placeholder={`Select ${aspect.name}...`}
-                        />
-                      ) : (
-                        <input
-                          value={currentVal}
-                          onChange={(e) => handleAspectChange(aspect.name, e.target.value)}
-                          placeholder={`Enter ${aspect.name}...`}
-                          className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-500/20"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Card 3: eBay Platform Specific Details */}
+          {/* Card 2: eBay Platform Specific Details, Policies, Pricing & Item Specifics */}
           {selectedPlatforms.includes('ebay') && (
-            <div className="bg-white border border-blue-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
+            <div className="bg-white border border-blue-100 rounded-3xl p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-blue-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/ebay.png" className="w-6 h-6 object-contain" alt="eBay" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">eBay Listing Policies & Category</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">eBay category taxonomy, fulfillment, payment & return policies</p>
+                    <h3 className="text-sm font-black text-slate-900">eBay Listing Details, Policies & Item Specifics</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">eBay category hierarchy, price override, business policies & aspects</p>
                   </div>
                 </div>
                 <Badge variant="primary">eBay</Badge>
               </div>
 
               <div className="space-y-4">
-                {/* eBay Category */}
+                {/* eBay Category (Full Path) */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Category</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Full Category Path</label>
+                    {formData.ebayCategoryId && (
+                      <span className="text-[10px] font-bold text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded-md">
+                        ID: {formData.ebayCategoryId}
+                      </span>
+                    )}
+                  </div>
                   <CategorySearchDropdown
                     value={formData.ebayCategory}
                     platform="ebay"
@@ -1674,11 +1587,45 @@ const CreateMasterListing = ({
                         ebayCategoryId: opt.id
                       }));
                     }}
-                    placeholder="Search eBay categories..."
+                    placeholder="Search full eBay category path (e.g. Clothing > Men's Shoes > Athletic Shoes)..."
                   />
-                  {formData.ebayCategoryId && (
-                    <span className="text-[10px] font-bold text-slate-400 block ml-1">Category ID: {formData.ebayCategoryId}</span>
-                  )}
+                </div>
+
+                {/* eBay Price Override & Condition */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">
+                      eBay Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.ebayPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ebayPrice: e.target.value }))}
+                        placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-blue-700 outline-none focus:border-blue-500 transition-all focus:ring-2 focus:ring-blue-500/10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Condition</label>
+                    <SearchableDropdown
+                      value={formData.ebayCondition}
+                      options={[
+                        { id: 'Brand New', label: 'Brand New' },
+                        { id: 'Like New', label: 'Like New' },
+                        { id: 'Pre-owned - Excellent', label: 'Pre-owned - Excellent' },
+                        { id: 'Pre-owned - Good', label: 'Pre-owned - Good' },
+                        { id: 'Pre-owned - Fair', label: 'Pre-owned - Fair' },
+                        { id: 'For parts or not working', label: 'For parts or not working' }
+                      ]}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, ebayCondition: opt.label }))}
+                      placeholder="Select eBay condition..."
+                    />
+                  </div>
                 </div>
 
                 {/* eBay Business Policies */}
@@ -1764,93 +1711,281 @@ const CreateMasterListing = ({
                     />
                   </div>
                 </div>
+
+                {/* ========================================================================= */}
+                {/* eBay ITEM SPECIFICS & ATTRIBUTES (PLACED DIRECTLY INSIDE EBAY CARD)       */}
+                {/* ========================================================================= */}
+                <div className="pt-3 border-t border-slate-100 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Tag size={14} className="text-blue-600" />
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">eBay Item Specifics & Aspects</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddAspect(!showAddAspect)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] font-black transition-all cursor-pointer"
+                    >
+                      <Plus size={12} /> Add Custom Aspect
+                    </button>
+                  </div>
+
+                  {/* Add Custom Aspect Row */}
+                  {showAddAspect && (
+                    <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-2xl flex flex-col sm:flex-row items-center gap-2 animate-in fade-in duration-150">
+                      <input
+                        placeholder="Aspect Name (e.g. Closure, Theme)"
+                        value={newAspectName}
+                        onChange={(e) => setNewAspectName(e.target.value)}
+                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      />
+                      <input
+                        placeholder="Aspect Value (e.g. Lace Up, Vintage)"
+                        value={newAspectValue}
+                        onChange={(e) => setNewAspectValue(e.target.value)}
+                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      />
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          onClick={handleAddCustomAspect}
+                          className="flex-1 sm:flex-none py-1.5"
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowAddAspect(false)}
+                          className="py-1.5 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Aspects Grid */}
+                  {combinedEbayAspectsList.length === 0 ? (
+                    <div className="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                      <p className="text-xs font-bold text-slate-600">No eBay Item Specifics Extracted</p>
+                      <p className="text-[10px] font-semibold text-slate-400">Click "Scan Image with AI" on the left or "+ Add Custom Aspect" above.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[340px] overflow-y-auto pr-1">
+                      {combinedEbayAspectsList.map((aspect) => {
+                        const currentVal = formData.ebayAspects?.[aspect.name]?.[0] || aspect.value || '';
+                        const hasOptions = aspect.options && aspect.options.length > 0;
+
+                        return (
+                          <div key={aspect.name} className="space-y-1 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100 relative group">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider block truncate">
+                                {aspect.name}
+                                {aspect.isRequired && <span className="text-rose-500 ml-0.5">*</span>}
+                                {aspect.isRecommended && <span className="text-[8px] text-slate-400 font-bold ml-1">(Rec)</span>}
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAspect(aspect.name)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity cursor-pointer"
+                                title={`Delete ${aspect.name}`}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+
+                            {hasOptions ? (
+                              <SearchableDropdown
+                                value={currentVal}
+                                options={aspect.options}
+                                onSelect={(opt) => handleAspectChange(aspect.name, opt.label)}
+                                placeholder={`Select ${aspect.name}...`}
+                              />
+                            ) : (
+                              <input
+                                value={currentVal}
+                                onChange={(e) => handleAspectChange(aspect.name, e.target.value)}
+                                placeholder={`Enter ${aspect.name}...`}
+                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-500/20"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Card 4: Poshmark Platform Specific Details */}
+          {/* Card 3: Poshmark Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('poshmark') && (
             <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-rose-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/poshmark.png" className="w-6 h-6 object-contain" alt="Poshmark" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Poshmark Listing Details</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Department, Category, Size & Condition</p>
+                    <h3 className="text-sm font-black text-slate-900">Poshmark Listing Details & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Poshmark full category path, price override, department, size & style tags</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Poshmark</Badge>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Department</label>
-                  <SearchableDropdown
-                    value={formData.poshmarkDepartment}
-                    options={POSHMARK_DEPARTMENTS}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkDepartment: opt.id }))}
+              <div className="space-y-4">
+                {/* Poshmark Category (Full Path) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Full Category Path</label>
+                  <CategorySearchDropdown
+                    value={formData.poshmarkCategory}
+                    platform="poshmark"
+                    onSelect={(opt) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        poshmarkCategory: opt.fullName || opt.label,
+                        poshmarkDepartment: opt.departmentId || prev.poshmarkDepartment,
+                        poshmarkSubcategory: opt.subcategoryIds?.[0] || prev.poshmarkSubcategory
+                      }));
+                    }}
+                    placeholder="Search full Poshmark category path (e.g. Women > Tops > Sweaters)..."
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Size</label>
+                {/* Poshmark Price Override & Original Price */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest ml-1">
+                      Poshmark Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rose-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.poshmarkPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, poshmarkPrice: e.target.value }))}
+                        placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-rose-700 outline-none focus:border-rose-500 transition-all focus:ring-2 focus:ring-rose-500/10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Original Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.poshmarkOriginalPrice || formData.originalPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, poshmarkOriginalPrice: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Department, Size, Condition */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Department</label>
+                    <SearchableDropdown
+                      value={formData.poshmarkDepartment}
+                      options={POSHMARK_DEPARTMENTS}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkDepartment: opt.id }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Size</label>
+                    <input
+                      value={formData.poshmarkSize || formData.size}
+                      onChange={(e) => setFormData(prev => ({ ...prev, poshmarkSize: e.target.value }))}
+                      placeholder="e.g. M / 8 / One Size"
+                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
+                    <SearchableDropdown
+                      value={formData.poshmarkCondition}
+                      options={POSHMARK_CONDITIONS}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkCondition: opt.label || opt.id }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Style Tags */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (Optional)</label>
                   <input
-                    value={formData.poshmarkSize || formData.size}
-                    onChange={(e) => setFormData(prev => ({ ...prev, poshmarkSize: e.target.value }))}
-                    placeholder="e.g. M / 8 / One Size"
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                    value={formData.poshmarkStyleTags}
+                    onChange={(e) => setFormData(prev => ({ ...prev, poshmarkStyleTags: e.target.value }))}
+                    placeholder="e.g. Vintage, Streetwear, Casual..."
+                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
                   />
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
-                  <SearchableDropdown
-                    value={formData.poshmarkCondition}
-                    options={POSHMARK_CONDITIONS}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkCondition: opt.label || opt.id }))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (Optional)</label>
-                <input
-                  value={formData.poshmarkStyleTags}
-                  onChange={(e) => setFormData(prev => ({ ...prev, poshmarkStyleTags: e.target.value }))}
-                  placeholder="e.g. Vintage, Streetwear, Casual..."
-                  className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                />
               </div>
             </div>
           )}
 
-          {/* Card 5: Mercari Platform Specific Details */}
+          {/* Card 4: Mercari Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('mercari') && (
             <div className="bg-white border border-red-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-red-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/mercari.png" className="w-6 h-6 object-contain" alt="Mercari" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Mercari Listing Details</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Category Hierarchy, Brand ID & Shipping</p>
+                    <h3 className="text-sm font-black text-slate-900">Mercari Listing Details & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Full Category Tree Hierarchy, Mercari price override, Brand ID & Shipping</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Mercari</Badge>
               </div>
 
               <div className="space-y-4">
-                {/* Mercari Category */}
+                {/* Mercari Category (Full Hierarchy Tree) */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Category</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Full Category Hierarchy</label>
+                    {formData.mercariCategoryId && (
+                      <span className="text-[10px] font-bold text-red-600 font-mono bg-red-50 px-2 py-0.5 rounded-md">
+                        ID: {formData.mercariCategoryId}
+                      </span>
+                    )}
+                  </div>
                   <SearchableDropdown
                     value={formData.mercariCategory}
                     options={mercariCategoryOptions}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, mercariCategory: opt.label, mercariCategoryId: opt.id }))}
-                    placeholder="Select Mercari category hierarchy..."
+                    placeholder="Select full Mercari category hierarchy..."
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  {/* Mercari Price Override */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-red-600 uppercase tracking-widest ml-1">Mercari Price ($)</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-red-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.mercariPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, mercariPrice: e.target.value }))}
+                        placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-red-700 outline-none focus:border-red-500"
+                      />
+                    </div>
+                  </div>
+
                   {/* Brand Autocomplete */}
                   <div className="space-y-1 relative" ref={mercariBrandRef}>
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Brand</label>
@@ -1858,7 +1993,7 @@ const CreateMasterListing = ({
                       value={formData.mercariBrand || formData.brand}
                       onChange={(e) => handleMercariBrandSearch(e.target.value)}
                       onFocus={() => setIsMercariBrandOpen(true)}
-                      placeholder="Search brand (Nike, Adidas)..."
+                      placeholder="Search brand (Nike)..."
                       className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
                     />
                     {isMercariBrandOpen && mercariBrandSuggestions.length > 0 && (
@@ -1906,23 +2041,31 @@ const CreateMasterListing = ({
             </div>
           )}
 
-          {/* Card 6: Etsy Platform Specific Details */}
+          {/* Card 5: Etsy Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('etsy') && (
             <div className="bg-white border border-orange-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-orange-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/etsy.png" className="w-6 h-6 object-contain" alt="Etsy" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Etsy Listing Details</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Taxonomy, Shipping Profile & Attributes</p>
+                    <h3 className="text-sm font-black text-slate-900">Etsy Listing Details & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Full Etsy taxonomy path, Etsy price override, Shipping Profile & Attributes</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Etsy</Badge>
               </div>
 
               <div className="space-y-4">
+                {/* Etsy Category (Full Taxonomy Path) */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Category Path</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Full Taxonomy Category Path</label>
+                    {formData.etsyCategoryId && (
+                      <span className="text-[10px] font-bold text-orange-600 font-mono bg-orange-50 px-2 py-0.5 rounded-md">
+                        Taxonomy ID: {formData.etsyCategoryId}
+                      </span>
+                    )}
+                  </div>
                   <CategorySearchDropdown
                     value={formData.etsyCategory}
                     platform="etsy"
@@ -1933,11 +2076,55 @@ const CreateMasterListing = ({
                         etsyCategoryId: opt.id
                       }));
                     }}
-                    placeholder="Search Etsy taxonomy..."
+                    placeholder="Search full Etsy taxonomy path (e.g. Clothing > Men's Clothing > Jackets & Coats)..."
                   />
-                  {formData.etsyCategoryId && (
-                    <span className="text-[10px] font-bold text-slate-400 block ml-1">Taxonomy ID: {formData.etsyCategoryId}</span>
-                  )}
+                </div>
+
+                {/* Etsy Price Override & Shipping Profile */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest ml-1">
+                      Etsy Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-orange-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.etsyPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, etsyPrice: e.target.value }))}
+                        placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-orange-700 outline-none focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Etsy Delivery Profile */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Delivery Profile</label>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          toast.info("Refreshing Etsy shipping profiles...");
+                          const res = await etsyService.getShippingProfiles();
+                          if (res.data?.success) {
+                            setShippingProfiles(res.data.data || []);
+                            toast.success("Profiles updated!");
+                          }
+                        }}
+                        className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw size={11} /> Refresh Profiles
+                      </button>
+                    </div>
+                    <SearchableDropdown
+                      value={shippingProfiles.find(p => String(p.shipping_profile_id) === String(formData.shipping_profile_id))?.title || ''}
+                      options={shippingProfiles.map(p => ({ id: String(p.shipping_profile_id), label: `${p.title} (${p.processing_days_display_label || 'Calculated'})` }))}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, shipping_profile_id: opt.id }))}
+                      placeholder="Select Etsy delivery profile..."
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1994,95 +2181,99 @@ const CreateMasterListing = ({
                     </select>
                   </div>
                 </div>
-
-                {/* Etsy Delivery Profile */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Delivery Profile</label>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        toast.info("Refreshing Etsy shipping profiles...");
-                        const res = await etsyService.getShippingProfiles();
-                        if (res.data?.success) {
-                          setShippingProfiles(res.data.data || []);
-                          toast.success("Profiles updated!");
-                        }
-                      }}
-                      className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-                    >
-                      <RefreshCw size={11} /> Refresh Profiles
-                    </button>
-                  </div>
-                  <SearchableDropdown
-                    value={shippingProfiles.find(p => String(p.shipping_profile_id) === String(formData.shipping_profile_id))?.title || ''}
-                    options={shippingProfiles.map(p => ({ id: String(p.shipping_profile_id), label: `${p.title} (${p.processing_days_display_label || 'Calculated'})` }))}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, shipping_profile_id: opt.id }))}
-                    placeholder="Select Etsy delivery profile..."
-                  />
-                </div>
               </div>
             </div>
           )}
 
-          {/* Card 7: Amazon Platform Specific Details */}
+          {/* Card 6: Amazon Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('amazon') && (
             <div className="bg-white border border-amber-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-amber-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/amazon.png" className="w-6 h-6 object-contain" alt="Amazon" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Amazon Listing Details</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Standard Product ID (ASIN / UPC) & Condition</p>
+                    <h3 className="text-sm font-black text-slate-900">Amazon Listing Details & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Amazon category / product type, price override & Standard Product ID</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Amazon</Badge>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Identifier Type</label>
-                  <select
-                    value={formData.amazonStandardProductId?.idType || 'UPC'}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      amazonStandardProductId: { ...prev.amazonStandardProductId, idType: e.target.value }
-                    }))}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                  >
-                    <option value="ASIN">ASIN</option>
-                    <option value="UPC">UPC</option>
-                    <option value="EAN">EAN</option>
-                    <option value="GTIN">GTIN</option>
-                  </select>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Amazon Product Type / Category</label>
+                    <input
+                      value={formData.amazonProductType}
+                      onChange={(e) => setFormData(prev => ({ ...prev, amazonProductType: e.target.value }))}
+                      placeholder="e.g. APPAREL, SHOES, HANDBAG..."
+                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">
+                      Amazon Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.amazonPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, amazonPrice: e.target.value }))}
+                        placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-amber-700 outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Standard Product ID / Value</label>
-                  <input
-                    value={formData.amazonStandardProductId?.value || ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      amazonStandardProductId: { ...prev.amazonStandardProductId, value: e.target.value }
-                    }))}
-                    placeholder="e.g. 012345678901 / B08XYZ..."
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-indigo-500"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Identifier Type</label>
+                    <select
+                      value={formData.amazonStandardProductId?.idType || 'UPC'}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        amazonStandardProductId: { ...prev.amazonStandardProductId, idType: e.target.value }
+                      }))}
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="ASIN">ASIN</option>
+                      <option value="UPC">UPC</option>
+                      <option value="EAN">EAN</option>
+                      <option value="GTIN">GTIN</option>
+                    </select>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Amazon Condition</label>
-                  <select
-                    value={formData.amazonCondition}
-                    onChange={(e) => setFormData(prev => ({ ...prev, amazonCondition: e.target.value }))}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                  >
-                    <option value="New">New</option>
-                    <option value="Used - Like New">Used - Like New</option>
-                    <option value="Used - Very Good">Used - Very Good</option>
-                    <option value="Used - Good">Used - Good</option>
-                    <option value="Used - Acceptable">Used - Acceptable</option>
-                  </select>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product ID / Value</label>
+                    <input
+                      value={formData.amazonStandardProductId?.value || ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        amazonStandardProductId: { ...prev.amazonStandardProductId, value: e.target.value }
+                      }))}
+                      placeholder="e.g. 012345678901 / B08XYZ..."
+                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Amazon Condition</label>
+                    <select
+                      value={formData.amazonCondition}
+                      onChange={(e) => setFormData(prev => ({ ...prev, amazonCondition: e.target.value }))}
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="New">New</option>
+                      <option value="Used - Like New">Used - Like New</option>
+                      <option value="Used - Very Good">Used - Very Good</option>
+                      <option value="Used - Good">Used - Good</option>
+                      <option value="Used - Acceptable">Used - Acceptable</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>

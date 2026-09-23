@@ -1190,7 +1190,7 @@ exports.searchEtsyCategories = async (req, res) => {
             id: m.cat.id,
             name: m.cat.name,
             fullName: m.cat.fullName,
-            label: m.shortLabel
+            label: m.cat.fullName
         }));
 
         res.json(formatted);

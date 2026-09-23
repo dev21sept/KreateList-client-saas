@@ -38,18 +38,22 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
 
         if (response && response.data) {
           const rawData = response.data.success ? response.data.data : response.data;
-          const normalised = (rawData || []).map(opt => ({
-            id: opt.id || opt.categoryId || '',
-            label: opt.label || opt.name || opt.fullName || '',
-            fullName: opt.fullName || opt.label || opt.name || '',
-            brand_field_visibility: opt.brand_field_visibility,
-            size_field_visibility: opt.size_field_visibility,
-            color_field_visibility: opt.color_field_visibility,
-            isbn_field_visibility: opt.isbn_field_visibility,
-            author_field_visibility: opt.author_field_visibility,
-            book_title_field_visibility: opt.book_title_field_visibility,
-            video_game_rating_field_visibility: opt.video_game_rating_field_visibility,
-          }));
+          const normalised = (rawData || []).map(opt => {
+            const fullPath = opt.fullName || (opt.path && opt.name ? `${opt.path} > ${opt.name}` : '') || opt.label || opt.name || '';
+            return {
+              id: opt.id || opt.categoryId || '',
+              label: fullPath,
+              fullName: fullPath,
+              shortName: opt.name || opt.label || fullPath.split(' > ').pop(),
+              brand_field_visibility: opt.brand_field_visibility,
+              size_field_visibility: opt.size_field_visibility,
+              color_field_visibility: opt.color_field_visibility,
+              isbn_field_visibility: opt.isbn_field_visibility,
+              author_field_visibility: opt.author_field_visibility,
+              book_title_field_visibility: opt.book_title_field_visibility,
+              video_game_rating_field_visibility: opt.video_game_rating_field_visibility,
+            };
+          });
           setSuggestions(normalised);
         }
       } catch (err) {
@@ -57,7 +61,7 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
       } finally {
         setLoading(false);
       }
-    }, 400);
+    }, 350);
 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm, platform]);
@@ -77,36 +81,55 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
             setIsOpen(true);
           }}
           placeholder={placeholder}
-          className="w-full px-4 h-12 bg-white border border-slate-200 rounded-2xl outline-none text-xs font-bold text-slate-700 focus:border-indigo-500 pl-10"
+          className="w-full px-4 h-11 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 focus:border-indigo-500 pl-9 pr-8 transition-all focus:ring-2 focus:ring-indigo-500/10"
         />
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-        {loading && (
-          <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-indigo-500 w-4 h-4 animate-spin" />
-        )}
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+        
+        {loading ? (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-500 w-3.5 h-3.5 animate-spin" />
+        ) : value ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect({ id: '', label: '', fullName: '' });
+              setSearchTerm('');
+            }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-300 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
+            title="Clear category"
+          >
+            <span className="text-xs font-black">×</span>
+          </button>
+        ) : null}
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-60 overflow-y-auto scrollbar-thin py-2">
+        <div className="absolute z-[999] w-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-64 overflow-y-auto scrollbar-thin py-1.5 animate-in fade-in duration-150">
           {suggestions.length > 0 ? (
             suggestions.map((opt) => (
               <button
-                key={opt.id}
+                key={opt.id || opt.label}
                 type="button"
                 onClick={() => {
                   onSelect(opt);
                   setIsOpen(false);
+                  setSearchTerm('');
                 }}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 flex flex-col gap-0.5 border-b border-slate-50 last:border-0 transition-colors"
+                className={`w-full text-left px-3.5 py-2.5 hover:bg-indigo-50/70 text-xs font-bold border-b border-slate-50 last:border-0 transition-colors flex items-center justify-between gap-2 ${
+                  value === opt.label ? 'bg-indigo-50/90 text-indigo-700' : 'text-slate-700'
+                }`}
               >
-                <span className="text-slate-800 font-extrabold">{opt.label}</span>
-                {opt.fullName && opt.fullName !== opt.label && (
-                  <span className="text-slate-400 text-[10px] font-semibold">{opt.fullName}</span>
-                )}
+                <div className="flex-1 min-w-0">
+                  <span className="text-slate-800 font-extrabold text-xs block leading-snug break-words">{opt.label}</span>
+                  {opt.id && (
+                    <span className="text-[9px] text-slate-400 font-mono mt-0.5 block">ID: {opt.id}</span>
+                  )}
+                </div>
               </button>
             ))
           ) : (
             <div className="px-4 py-3 text-xs font-bold text-slate-400 text-center">
-              {loading ? 'Searching categories...' : 'No categories found. Start typing...'}
+              {loading ? 'Searching category hierarchy...' : 'No categories found. Type to search...'}
             </div>
           )}
         </div>

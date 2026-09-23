@@ -526,7 +526,7 @@ Response ONLY as JSON: {
                 title: finalTitle,
                 description: templatedDescription,
                 title_parts: standardizedParts,
-                category: categoryPath.split(' > ').pop(),
+                category: categoryPath,
                 category_id: categoryId,
                 category_name: categoryPath,
                 aspects: officialAspects,
