@@ -232,6 +232,17 @@ const NewDashboardLayout = () => {
     setIsMobileDrawerOpen(false);
   }, [location.key]);
 
+  // Lock body scroll when create modal is open
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isCreateModalOpen]);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
