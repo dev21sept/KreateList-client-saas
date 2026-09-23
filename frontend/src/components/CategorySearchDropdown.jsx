@@ -30,6 +30,8 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
           response = await aiService.poshmarkSuggestCategories(searchTerm);
         } else if (platform === 'ebay') {
           response = await ebayService.suggestCategories(searchTerm);
+        } else if (platform === 'mercari') {
+          response = await aiService.mercariSuggestCategories(searchTerm);
         } else if (platform === 'depop') {
           response = await aiService.depopSuggestCategories(searchTerm);
         } else if (platform === 'etsy') {

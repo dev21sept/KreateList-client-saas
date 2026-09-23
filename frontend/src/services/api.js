@@ -85,8 +85,9 @@ export const ruleService = {
 export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
   poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
-  poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${query}`),
+  poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${encodeURIComponent(query)}`),
   mercariAnalyze: (data) => API.post('/ai/mercari-analyze', data),
+  mercariSuggestCategories: (query) => API.get(`/ai/mercari-categories?query=${encodeURIComponent(query)}`),
   depopAnalyze: (data) => API.post('/ai/depop-analyze', data),
   depopSuggestCategories: (query) => API.get(`/ai/depop-categories?query=${query}`),
   depopGetCategoryDetails: (params) => API.get('/ai/depop-category-details', { params }),

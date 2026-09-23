@@ -545,19 +545,30 @@ exports.searchMercariCategories = async (req, res) => {
         if (!query) return res.json([]);
 
         const lowerQuery = String(query).toLowerCase().trim();
-        const matches = MERCARI_TAXONOMY.filter(cat => cat.path.toLowerCase().includes(lowerQuery));
+        const tokens = lowerQuery.split(/\s+/).filter(Boolean);
 
-        const formatted = matches.slice(0, 20).map(cat => {
-            const parts = cat.path.split(' > ');
-            const name = parts[parts.length - 1];
+        const matches = (MERCARI_TAXONOMY || []).filter(cat => {
+            const cp = (cat.path || '').toLowerCase();
+            return tokens.every(tok => {
+                if (tok === 'men' || tok === 'women' || tok === 'kids') {
+                    return new RegExp('\\b' + tok + '\\b', 'i').test(cat.path);
+                }
+                return cp.includes(tok);
+            });
+        });
+
+        const formatted = matches.slice(0, 30).map(cat => {
+            const parts = (cat.path || '').split(' > ');
+            const name = parts[parts.length - 1] || cat.name;
             const path = parts.slice(0, -1).join(' > ');
             return {
-                id: cat.id,
+                id: String(cat.id),
                 name: name,
+                label: cat.path,
                 path: path,
                 fullName: cat.path,
-                categoryId: cat.id,
-                departmentId: cat.parentId
+                categoryId: String(cat.id),
+                itemSizeGroupId: cat.itemSizeGroupId
             };
         });
 

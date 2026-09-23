@@ -105,6 +105,73 @@ const DEFAULT_COMMON_ASPECTS = [
 
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
+const flattenMercariCategories = (nodes, path = '') => {
+  let list = [];
+  for (const node of (nodes || [])) {
+    const currentPath = path ? `${path} > ${node.name}` : node.name;
+    if (node.children && node.children.length > 0) {
+      list = list.concat(flattenMercariCategories(node.children, currentPath));
+    } else {
+      list.push({
+        id: String(node.id),
+        name: node.name,
+        path: currentPath,
+        itemSizeGroupId: node.itemSizeGroupId || 0
+      });
+    }
+  }
+  return list;
+};
+
+const ALL_MERCARI_LEAF_CATEGORIES = flattenMercariCategories(MERCARI_CATEGORY_TREE);
+
+const resolveMercariCategory = (rawCategory = '', title = '', brand = '') => {
+  const cleanCat = String(rawCategory || '').trim();
+  
+  if (cleanCat && cleanCat.includes(' > ')) {
+    const direct = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path.toLowerCase() === cleanCat.toLowerCase());
+    if (direct) return { category: direct.path, categoryId: direct.id, itemSizeGroupId: direct.itemSizeGroupId };
+  }
+
+  const combinedText = `${cleanCat} ${title} ${brand}`.toLowerCase();
+  const tokens = combinedText.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the');
+
+  let bestMatch = null;
+  let highestScore = 0;
+
+  for (const item of ALL_MERCARI_LEAF_CATEGORIES) {
+    const itemPathLower = item.path.toLowerCase();
+    let score = 0;
+
+    const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b/.test(combinedText);
+    const isWomen = /\bwomen\b|\bwomens\b|\bfemale\b/.test(combinedText);
+    const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combinedText);
+
+    if (isMen && item.path.startsWith('Men')) score += 15;
+    else if (isWomen && item.path.startsWith('Women')) score += 15;
+    else if (isKids && item.path.startsWith('Kids')) score += 15;
+
+    for (const token of tokens) {
+      if (token === 'clothing' || token === 'apparel') continue;
+      if (itemPathLower.includes(token)) {
+        score += token.length;
+      }
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      bestMatch = item;
+    }
+  }
+
+  if (bestMatch && highestScore >= 10) {
+    return { category: bestMatch.path, categoryId: bestMatch.id, itemSizeGroupId: bestMatch.itemSizeGroupId };
+  }
+
+  const fallback = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path === 'Men > Athletic apparel > Athletic T-Shirts') || ALL_MERCARI_LEAF_CATEGORIES[0];
+  return { category: fallback ? fallback.path : 'Men > Tops > T-Shirts', categoryId: fallback ? fallback.id : '1972', itemSizeGroupId: fallback ? fallback.itemSizeGroupId : 1 };
+};
+
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
   { id: 54, name: "Adidas" },
@@ -1426,8 +1493,16 @@ const CreateMasterListing = ({
         poshmarkShippingDiscount: pmData.shippingDiscount || prev.poshmarkShippingDiscount,
 
         // Mercari
-        mercariCategory: mcData.category || (listing.platform === 'mercari' ? listing.category : '') || prev.mercariCategory,
-        mercariCategoryId: mcData.categoryId || (listing.platform === 'mercari' ? listing.categoryId : '') || prev.mercariCategoryId,
+        mercariCategory: resolveMercariCategory(
+          mcData.category || (listing.platform === 'mercari' ? listing.category : '') || prev.mercariCategory,
+          listing.title || ebData.title || pmData.title || mcData.title || prev.title,
+          extractedBrand || prev.brand
+        ).category,
+        mercariCategoryId: mcData.categoryId || (listing.platform === 'mercari' ? listing.categoryId : '') || resolveMercariCategory(
+          mcData.category || (listing.platform === 'mercari' ? listing.category : '') || prev.mercariCategory,
+          listing.title || ebData.title || pmData.title || mcData.title || prev.title,
+          extractedBrand || prev.brand
+        ).categoryId,
         mercariPrice: mcData.price !== undefined ? String(mcData.price) : (listing.price !== undefined ? String(listing.price) : prev.mercariPrice),
         mercariBrand: mcData.brand || listing.brand || rawAspects['Brand']?.[0] || prev.mercariBrand,
         mercariBrandId: mcData.brandId || listing.brandId || prev.mercariBrandId,
@@ -1587,8 +1662,16 @@ const CreateMasterListing = ({
           poshmarkStyleTags: Array.isArray(res.style_tags) ? res.style_tags : prev.poshmarkStyleTags,
 
           // Mercari
-          mercariCategory: res.category_name || res.category || prev.mercariCategory,
-          mercariCategoryId: res.category_id || prev.mercariCategoryId,
+          mercariCategory: resolveMercariCategory(
+            res.category_name || res.category || '',
+            res.title || prev.title,
+            brandVal || prev.brand
+          ).category,
+          mercariCategoryId: resolveMercariCategory(
+            res.category_name || res.category || '',
+            res.title || prev.title,
+            brandVal || prev.brand
+          ).categoryId,
           mercariBrand: brandVal || prev.mercariBrand,
           mercariPrice: prev.mercariPrice || res.price || prev.price,
           mercariSize: sizeVal || prev.mercariSize,
@@ -3088,12 +3171,16 @@ const CreateMasterListing = ({
               <div className="space-y-4">
                 {/* Category Full Path */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Mercari Category (Full Hierarchy)</label>
-                  <SearchableDropdown
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Mercari Category (Full Hierarchy) *</label>
+                  <CategorySearchDropdown
                     value={formData.mercariCategory}
-                    options={mercariCategoryOptions}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, mercariCategory: opt.label, mercariCategoryId: opt.id }))}
-                    placeholder="Select Mercari category hierarchy..."
+                    platform="mercari"
+                    onSelect={(opt) => setFormData(prev => ({ 
+                      ...prev, 
+                      mercariCategory: opt.fullName || opt.label || opt.name, 
+                      mercariCategoryId: String(opt.id || opt.categoryId || '') 
+                    }))}
+                    placeholder="Search Mercari category hierarchy (e.g. Men > Athletic apparel > Athletic T-Shirts)..."
                   />
                 </div>
 
