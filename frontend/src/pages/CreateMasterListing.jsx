@@ -51,6 +51,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
+import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
 import { 
   resolveMercariCategory, 
   resolvePoshmarkCategory, 

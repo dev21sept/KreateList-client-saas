@@ -35,6 +35,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
+import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
 import { resolveMercariCategory } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [

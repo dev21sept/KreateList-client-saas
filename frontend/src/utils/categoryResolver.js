@@ -1,7 +1,6 @@
 import { POSHMARK_TAXONOMY } from '../constants/poshmarkTaxonomy';
-import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
+import { MERCARI_CATEGORY_TREE, MERCARI_FLAT_CATEGORIES } from '../constants/mercariTaxonomy';
 
-const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
 export const flattenMercariCategories = (nodes, path = '') => {
   let list = [];
