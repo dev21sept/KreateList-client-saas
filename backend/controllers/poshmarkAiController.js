@@ -93,7 +93,7 @@ function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
     let cleanAi = String(rawCategory).toLowerCase().trim();
     const isMen = ['men', 'male', 'menswear', 'mens'].includes(itemGender.toLowerCase()) || /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b/.test(cleanAi);
     const isKids = ['kids', 'boy', 'girl', 'toddler', 'baby'].includes(itemGender.toLowerCase()) || /\bkids\b|\bboy\b|\bgirl\b/.test(cleanAi);
-    const defaultMatch = isMen ? "Men > Tops > T-Shirts" : (isKids ? "Kids > Tops > T-Shirts" : "Women > Tops > T-Shirts");
+    const defaultMatch = isMen ? "Men > Shirts > Tees - Short Sleeve" : (isKids ? "Kids > Tops > T-Shirts" : "Women > Tops > T-Shirts");
 
     if (!cleanAi || cleanAi === 'clothing' || cleanAi === 'apparel') return defaultMatch;
 

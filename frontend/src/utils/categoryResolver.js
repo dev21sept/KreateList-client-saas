@@ -138,7 +138,7 @@ export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = ''
     };
   }
 
-  const defaultPath = isMen ? 'Men > Tops > T-Shirts' : 'Women > Tops > Blouses';
+  const defaultPath = isMen ? 'Men > Shirts > Tees - Short Sleeve' : 'Women > Tops > T-Shirts';
   const def = POSHMARK_TAXONOMY.find(c => c.path === defaultPath) || POSHMARK_TAXONOMY[0];
   return {
     path: def.path,
