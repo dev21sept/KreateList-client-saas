@@ -27,7 +27,9 @@ import {
   Package,
   ShieldCheck,
   ExternalLink,
-  Plus
+  Plus,
+  Code,
+  FileText
 } from 'lucide-react';
 import { 
   ruleService, 
@@ -220,6 +222,7 @@ const CreateMasterListing = ({
   const [hasScanned, setHasScanned] = useState(Boolean(editId || initialListing));
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [descriptionMode, setDescriptionMode] = useState('edit'); // 'edit' or 'preview'
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
@@ -231,6 +234,11 @@ const CreateMasterListing = ({
   const [ebayAspects, setEbayAspects] = useState([]);
   const [shippingProfiles, setShippingProfiles] = useState([]);
   const [etsyProperties, setEtsyProperties] = useState([]);
+
+  // New Custom Aspect Input State
+  const [newAspectName, setNewAspectName] = useState('');
+  const [newAspectValue, setNewAspectValue] = useState('');
+  const [showAddAspect, setShowAddAspect] = useState(false);
 
   // Mercari Brand Autocomplete State
   const [mercariBrandQuery, setMercariBrandQuery] = useState('');
@@ -373,11 +381,11 @@ const CreateMasterListing = ({
   useEffect(() => {
     const populateListingData = (listing) => {
       if (!listing) return;
-      const ebData = listing.platformData?.ebay || {};
-      const pmData = listing.platformData?.poshmark || {};
-      const mcData = listing.platformData?.mercari || {};
-      const etData = listing.platformData?.etsy || {};
-      const amData = listing.platformData?.amazon || {};
+      const ebData = listing.platformData?.ebay || (listing.listingsMap?.ebay ? listing.listingsMap.ebay : {}) || {};
+      const pmData = listing.platformData?.poshmark || (listing.listingsMap?.poshmark ? listing.listingsMap.poshmark : {}) || {};
+      const mcData = listing.platformData?.mercari || (listing.listingsMap?.mercari ? listing.listingsMap.mercari : {}) || {};
+      const etData = listing.platformData?.etsy || (listing.listingsMap?.etsy ? listing.listingsMap.etsy : {}) || {};
+      const amData = listing.platformData?.amazon || (listing.listingsMap?.amazon ? listing.listingsMap.amazon : {}) || {};
 
       // Determine active platforms
       const activePlats = new Set();
@@ -397,30 +405,74 @@ const CreateMasterListing = ({
         setSelectedPlatforms(Array.from(activePlats));
       }
 
+      // Extract raw aspects / specifics
+      let rawAspects = {};
+      const srcAspects = ebData.itemSpecifics || listing.itemSpecifics || listing.selectedAspects || ebData.selectedAspects || listing.aspects || {};
+      if (srcAspects && typeof srcAspects === 'object') {
+        if (srcAspects instanceof Map) {
+          srcAspects.forEach((val, key) => { rawAspects[key] = Array.isArray(val) ? val : [val]; });
+        } else {
+          Object.entries(srcAspects).forEach(([k, v]) => {
+            rawAspects[k] = Array.isArray(v) ? v : [v];
+          });
+        }
+      }
+
+      // Merge base product aspects
+      const bBrand = listing.brand || ebData.brand || mcData.brand || '';
+      const bSize = listing.size || ebData.size || mcData.size || pmData.size || '';
+      const bColor = listing.color || ebData.color || mcData.color || '';
+      const bMaterial = listing.material || ebData.material || etData.material || '';
+      const bDepartment = listing.departmentId || pmData.departmentId || '';
+
+      if (bBrand && !rawAspects['Brand']) rawAspects['Brand'] = [bBrand];
+      if (bSize && !rawAspects['Size']) rawAspects['Size'] = [bSize];
+      if (bColor && !rawAspects['Color']) rawAspects['Color'] = [bColor];
+      if (bMaterial && !rawAspects['Material']) rawAspects['Material'] = [bMaterial];
+      if (bDepartment && !rawAspects['Department']) rawAspects['Department'] = [bDepartment];
+
+      // Robust Description Resolver (checks master and each sub-platform)
+      const resolvedDesc = 
+        listing.description || 
+        ebData.description || 
+        pmData.description || 
+        mcData.description || 
+        etData.description || 
+        amData.description || 
+        listing.listingsMap?.ebay?.description ||
+        listing.listingsMap?.mercari?.description ||
+        listing.listingsMap?.poshmark?.description ||
+        listing.listingsMap?.etsy?.description ||
+        listing.details?.description ||
+        '';
+
+      const catId = ebData.categoryId || listing.categoryId || '';
+      const catName = ebData.category || listing.category || '';
+
       setFormData(prev => ({
         ...prev,
         images: (listing.images && listing.images.length > 0) ? listing.images : (listing.thumbnail ? [listing.thumbnail] : []),
         selectedRule: listing.selectedRule || prev.selectedRule,
         selectedCondition: listing.selectedCondition || prev.selectedCondition,
         conditionId: listing.conditionId || prev.conditionId,
-        title: listing.title || prev.title,
-        price: listing.price !== undefined ? String(listing.price) : prev.price,
+        title: listing.title || ebData.title || pmData.title || mcData.title || prev.title,
+        price: listing.price !== undefined && listing.price !== '' ? String(listing.price) : (ebData.price ? String(ebData.price) : prev.price),
         originalPrice: listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.originalPrice,
-        sku: listing.sku || prev.sku,
-        brand: listing.brand || ebData.brand || mcData.brand || prev.brand,
-        size: listing.size || ebData.size || mcData.size || pmData.size || prev.size,
-        color: listing.color || ebData.color || mcData.color || prev.color,
+        sku: listing.sku || ebData.sku || mcData.sku || prev.sku,
+        brand: bBrand || prev.brand,
+        size: bSize || prev.size,
+        color: bColor || prev.color,
         quantity: String(listing.quantity || '1'),
-        description: listing.description || prev.description,
+        description: resolvedDesc || prev.description,
         selectedModel: listing.selectedModel || prev.selectedModel,
         packageWeight: listing.packageWeight || ebData.packageWeight || prev.packageWeight,
         packageDimensions: listing.packageDimensions || ebData.packageDimensions || prev.packageDimensions,
 
         // eBay
-        ebayCategory: ebData.category || listing.category || prev.ebayCategory,
-        ebayCategoryId: ebData.categoryId || listing.categoryId || prev.ebayCategoryId,
+        ebayCategory: catName || prev.ebayCategory,
+        ebayCategoryId: catId || prev.ebayCategoryId,
         ebayCondition: ebData.selectedCondition || ebData.condition || listing.selectedCondition || prev.ebayCondition,
-        ebayAspects: ebData.itemSpecifics || listing.itemSpecifics || prev.ebayAspects,
+        ebayAspects: { ...prev.ebayAspects, ...rawAspects },
         fulfillmentPolicyId: ebData.fulfillmentPolicyId || listing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
         paymentPolicyId: ebData.paymentPolicyId || listing.paymentPolicyId || prev.paymentPolicyId,
         returnPolicyId: ebData.returnPolicyId || listing.returnPolicyId || prev.returnPolicyId,
@@ -437,7 +489,7 @@ const CreateMasterListing = ({
         // Mercari
         mercariCategory: mcData.category || listing.category || prev.mercariCategory,
         mercariCategoryId: mcData.categoryId || listing.categoryId || prev.mercariCategoryId,
-        mercariBrand: mcData.brand || listing.brand || prev.mercariBrand,
+        mercariBrand: mcData.brand || bBrand || prev.mercariBrand,
         mercariBrandId: mcData.brandId || listing.brandId || prev.mercariBrandId,
         mercariCondition: mcData.condition || prev.mercariCondition,
         mercariShippingPayer: mcData.shippingPayer || listing.shippingPayer || prev.mercariShippingPayer,
@@ -451,7 +503,7 @@ const CreateMasterListing = ({
         renewal: etData.renewal || listing.etsyRenewal || prev.renewal,
         shipping_profile_id: etData.shipping_profile_id || listing.etsyShippingProfileId || prev.shipping_profile_id,
         etsyAttributes: etData.etsyAttributes || listing.etsyAttributes || prev.etsyAttributes,
-        material: etData.material || listing.material || prev.material,
+        material: bMaterial || prev.material,
         styleTag: etData.styleTag || listing.styleTag || prev.styleTag,
 
         // Amazon
@@ -460,6 +512,17 @@ const CreateMasterListing = ({
         amazonProductType: amData.productType || listing.amazonProductType || prev.amazonProductType,
         amazonCondition: amData.condition || listing.amazonCondition || prev.amazonCondition
       }));
+
+      // Fetch or synthesize aspects so they appear immediately
+      if (catId) {
+        ebayService.getCategoryAspects(catId)
+          .then(res => {
+            if (res.data?.success && Array.isArray(res.data.data)) {
+              setEbayAspects(res.data.data);
+            }
+          })
+          .catch(e => console.warn("Failed to fetch category aspects:", e));
+      }
 
       setHasScanned(true);
     };
@@ -602,6 +665,61 @@ const CreateMasterListing = ({
     }
   };
 
+  // Handle Changing Individual Item Specific
+  const handleAspectChange = (aspectName, value) => {
+    setFormData(prev => {
+      const nextAspects = { ...prev.ebayAspects };
+      if (value === '' || value === null || value === undefined) {
+        delete nextAspects[aspectName];
+      } else {
+        nextAspects[aspectName] = Array.isArray(value) ? value : [value];
+      }
+
+      // Sync standard fields if matching
+      const extraUpdates = {};
+      const lName = aspectName.toLowerCase();
+      if (lName === 'brand') {
+        extraUpdates.brand = value;
+        extraUpdates.mercariBrand = value;
+      } else if (lName === 'size') {
+        extraUpdates.size = value;
+        extraUpdates.poshmarkSize = value;
+      } else if (lName === 'color') {
+        extraUpdates.color = value;
+      } else if (lName === 'material') {
+        extraUpdates.material = value;
+      } else if (lName === 'department') {
+        extraUpdates.poshmarkDepartment = value;
+      }
+
+      return {
+        ...prev,
+        ebayAspects: nextAspects,
+        ...extraUpdates
+      };
+    });
+  };
+
+  // Handle Adding New Custom Aspect
+  const handleAddCustomAspect = () => {
+    const trimmedName = newAspectName.trim();
+    const trimmedValue = newAspectValue.trim();
+    if (!trimmedName || !trimmedValue) {
+      toast.warning("Please provide both Aspect Name and Value.");
+      return;
+    }
+    handleAspectChange(trimmedName, trimmedValue);
+    setNewAspectName('');
+    setNewAspectValue('');
+    setShowAddAspect(false);
+    toast.success(`Added item specific: ${trimmedName}`);
+  };
+
+  // Handle Deleting an Aspect
+  const handleDeleteAspect = (aspectName) => {
+    handleAspectChange(aspectName, '');
+  };
+
   // AI Scan & Prefill Handler
   const startAIFetch = async () => {
     if (formData.images.length === 0) {
@@ -619,7 +737,7 @@ const CreateMasterListing = ({
     const selectedRuleObj = rules.find(r => (r._id || r.id) === formData.selectedRule);
 
     try {
-      toast.info("AI is analyzing images and extracting product specifics...");
+      toast.info("AI is analyzing images, extracting item specifics & building description...");
       const response = await aiService.analyze({
         images: formData.images,
         platform: 'ebay',
@@ -636,27 +754,46 @@ const CreateMasterListing = ({
         const res = response.data.data;
         const genSku = res.sku || formData.sku || `KL${Date.now().toString().slice(-6)}`;
         
-        // Auto-extract and map aspects
-        const rawAspects = res.itemSpecifics || {};
-        if (res.brand && !rawAspects['Brand']) rawAspects['Brand'] = [res.brand];
-        if (res.color && !rawAspects['Color']) rawAspects['Color'] = [res.color];
-        if (res.size && !rawAspects['Size']) rawAspects['Size'] = [res.size];
+        // Extract all raw item specifics from AI response (supports item_specifics and itemSpecifics)
+        const rawSpecifics = res.item_specifics || res.itemSpecifics || res.selectedAspects || {};
+        const mergedAspects = { ...formData.ebayAspects };
+
+        // Populate extracted specifics
+        Object.entries(rawSpecifics).forEach(([k, v]) => {
+          if (v) mergedAspects[k] = Array.isArray(v) ? v : [String(v)];
+        });
+
+        // Ensure key aspects are present
+        if (res.brand && !mergedAspects['Brand']) mergedAspects['Brand'] = [res.brand];
+        if (res.color && !mergedAspects['Color']) mergedAspects['Color'] = [res.color];
+        if (res.size && !mergedAspects['Size']) mergedAspects['Size'] = [res.size];
+        if (res.material && !mergedAspects['Material']) mergedAspects['Material'] = [res.material];
+        if (res.type && !mergedAspects['Type']) mergedAspects['Type'] = [res.type];
+        if (res.department && !mergedAspects['Department']) mergedAspects['Department'] = [res.department];
+
+        // If official category aspects were returned in AI payload, save them
+        if (res.aspects && Array.isArray(res.aspects) && res.aspects.length > 0) {
+          setEbayAspects(res.aspects);
+        }
+
+        const resolvedDescription = res.description || res.item_description || res.templatedDescription || prev.description;
 
         setFormData(prev => ({
           ...prev,
           title: res.title || prev.title,
-          price: res.price !== undefined ? String(res.price) : (prev.price || '29.99'),
+          price: res.price !== undefined && res.price !== '' ? String(res.price) : (prev.price || '29.99'),
           originalPrice: res.originalPrice !== undefined ? String(res.originalPrice) : (prev.originalPrice || '59.99'),
-          description: res.description || prev.description,
+          description: resolvedDescription || prev.description,
           sku: genSku,
           brand: res.brand || prev.brand,
           size: res.size || prev.size,
           color: res.color || prev.color,
+          material: res.material || prev.material,
           
           // eBay
           ebayCategory: res.category_name || res.category || prev.ebayCategory,
           ebayCategoryId: res.category_id || res.categoryId || prev.ebayCategoryId,
-          ebayAspects: { ...prev.ebayAspects, ...rawAspects },
+          ebayAspects: mergedAspects,
           
           // Mercari
           mercariBrand: res.brand || prev.mercariBrand,
@@ -665,13 +802,14 @@ const CreateMasterListing = ({
           // Poshmark
           poshmarkCategory: res.category_name || res.category || prev.poshmarkCategory,
           poshmarkSize: res.size || prev.poshmarkSize,
+          poshmarkDepartment: res.department || prev.poshmarkDepartment,
           
           // Etsy
           etsyCategory: res.category_name || res.category || prev.etsyCategory,
           etsyCategoryId: res.category_id || res.categoryId || prev.etsyCategoryId,
         }));
 
-        toast.success("AI Scan complete! Product prefilled across all platforms.");
+        toast.success("AI Scan complete! Product details, specifics & description populated.");
       }
     } catch (error) {
       console.error("AI Scan Error:", error);
@@ -725,6 +863,7 @@ const CreateMasterListing = ({
         ebay: {
           title: formData.title,
           price: formData.price,
+          description: formData.description,
           category: formData.ebayCategory,
           categoryId: formData.ebayCategoryId,
           selectedCondition: formData.ebayCondition,
@@ -740,6 +879,7 @@ const CreateMasterListing = ({
         poshmark: {
           title: formData.title,
           price: formData.price,
+          description: formData.description,
           originalPrice: formData.originalPrice,
           departmentId: formData.poshmarkDepartment,
           category: formData.poshmarkCategory,
@@ -752,6 +892,7 @@ const CreateMasterListing = ({
         mercari: {
           title: formData.title,
           price: formData.price,
+          description: formData.description,
           category: formData.mercariCategory,
           categoryId: formData.mercariCategoryId,
           brand: formData.mercariBrand || formData.brand,
@@ -763,6 +904,7 @@ const CreateMasterListing = ({
         etsy: {
           title: formData.title,
           price: formData.price,
+          description: formData.description,
           category: formData.etsyCategory,
           categoryId: formData.etsyCategoryId,
           who_made: formData.who_made,
@@ -777,6 +919,7 @@ const CreateMasterListing = ({
         amazon: {
           title: formData.title,
           price: formData.price,
+          description: formData.description,
           asin: formData.amazonAsin,
           standardProductId: formData.amazonStandardProductId,
           productType: formData.amazonProductType,
@@ -913,6 +1056,51 @@ const CreateMasterListing = ({
     description: c.description
   })), []);
 
+  // Combined List of All Visible Aspects (combines formData.ebayAspects with ebayAspects taxonomy)
+  const combinedAspectsList = useMemo(() => {
+    const list = [];
+    const addedNames = new Set();
+
+    // 1. First add all aspects present in formData.ebayAspects
+    if (formData.ebayAspects && typeof formData.ebayAspects === 'object') {
+      Object.entries(formData.ebayAspects).forEach(([name, valArr]) => {
+        const val = Array.isArray(valArr) ? valArr[0] : valArr;
+        if (name && val !== undefined && val !== null && String(val).trim() !== '') {
+          addedNames.add(name.toLowerCase());
+          // Check if we have taxonomy options for this aspect
+          const matchTaxonomy = ebayAspects.find(a => a.localizedAspectName?.toLowerCase() === name.toLowerCase());
+          const options = matchTaxonomy ? (matchTaxonomy.aspectValues || []).map(v => ({ id: v.localizedValue, label: v.localizedValue })) : [];
+          list.push({
+            name,
+            value: String(val),
+            isRequired: matchTaxonomy?.aspectConstraint?.aspectRequired === true,
+            isRecommended: matchTaxonomy?.aspectConstraint?.aspectUsage === 'RECOMMENDED',
+            options
+          });
+        }
+      });
+    }
+
+    // 2. Next add remaining suggested aspects from eBay taxonomy
+    ebayAspects.forEach((asp) => {
+      const name = asp.localizedAspectName;
+      if (name && !addedNames.has(name.toLowerCase())) {
+        const isReq = asp.aspectConstraint?.aspectRequired === true;
+        const isRec = asp.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        const options = (asp.aspectValues || []).map(v => ({ id: v.localizedValue, label: v.localizedValue }));
+        list.push({
+          name,
+          value: '',
+          isRequired: isReq,
+          isRecommended: isRec,
+          options
+        });
+      }
+    });
+
+    return list;
+  }, [formData.ebayAspects, ebayAspects]);
+
   return (
     <div className={`w-full ${isModal ? 'h-full flex flex-col' : 'max-w-[96vw] xl:max-w-[1440px] mx-auto py-6 px-4 space-y-6'}`}>
       
@@ -932,7 +1120,7 @@ const CreateMasterListing = ({
               </Badge>
             </div>
             <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
-              Prefill, customize, and synchronize product data across all connected marketplaces in one place.
+              Prefill, customize, and synchronize product data, specifics & description across all connected marketplaces in one place.
             </p>
           </div>
         </div>
@@ -1158,7 +1346,7 @@ const CreateMasterListing = ({
                   disabled={loading || isConvertingImages || formData.images.length === 0}
                   icon={<Sparkles size={15} />}
                 >
-                  {loading ? 'AI Scanning & Prefilling...' : 'Scan Image with AI'}
+                  {loading ? 'AI Scanning & Extracting...' : 'Scan Image with AI'}
                 </Button>
               </div>
             </div>
@@ -1167,7 +1355,7 @@ const CreateMasterListing = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* RIGHT COLUMN (SCROLLABLE): Form Cards with Platform Specifics & Logos     */}
+        {/* RIGHT COLUMN (SCROLLABLE): Form Cards with Specifics, Desc & Platform Data */}
         {/* ========================================================================= */}
         <div className={`lg:col-span-7 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
           
@@ -1251,7 +1439,10 @@ const CreateMasterListing = ({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
                   <input
                     value={formData.brand}
-                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value, mercariBrand: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      handleAspectChange('Brand', v);
+                    }}
                     placeholder="e.g. Nike"
                     className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                   />
@@ -1261,7 +1452,10 @@ const CreateMasterListing = ({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
                   <input
                     value={formData.size}
-                    onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value, poshmarkSize: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      handleAspectChange('Size', v);
+                    }}
                     placeholder="e.g. 10 / L"
                     className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                   />
@@ -1271,7 +1465,10 @@ const CreateMasterListing = ({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
                   <input
                     value={formData.color}
-                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      handleAspectChange('Color', v);
+                    }}
                     placeholder="e.g. Black"
                     className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
                   />
@@ -1289,29 +1486,175 @@ const CreateMasterListing = ({
                 </div>
               </div>
 
-              {/* Description */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product Description</label>
-                <textarea
-                  rows={5}
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Enter detailed item description..."
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 font-sans leading-relaxed"
-                />
+              {/* Unified Description with HTML Preview & Source Code Toggle */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                    <FileText size={12} className="text-indigo-600" />
+                    Product Description
+                  </label>
+                  <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                    <button 
+                      type="button"
+                      onClick={() => setDescriptionMode('edit')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Code size={12} /> Text / HTML Edit
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setDescriptionMode('preview')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Eye size={12} /> Visual Preview
+                    </button>
+                  </div>
+                </div>
+
+                {descriptionMode === 'edit' ? (
+                  <textarea
+                    rows={6}
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter detailed item description or HTML template..."
+                    className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-mono leading-relaxed outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 shadow-2xs"
+                  />
+                ) : (
+                  <div className="w-full p-4 bg-slate-50/70 border border-slate-200 rounded-xl text-xs leading-relaxed min-h-[160px] max-h-[350px] overflow-y-auto shadow-inner text-slate-700 font-sans">
+                    {formData.description ? (
+                      <div dangerouslySetInnerHTML={{ __html: formData.description }} />
+                    ) : (
+                      <span className="text-slate-400 italic">No description entered yet. Switch to Edit mode to write description or run AI Scan.</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Card 2: eBay Platform Specific Details */}
+          {/* Card 2: Item Specifics & Attributes (Universal & eBay) */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Tag size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Item Specifics & Attributes</h3>
+                  <p className="text-[10px] font-semibold text-slate-400">Extracted product aspects, features and metadata</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddAspect(!showAddAspect)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[11px] font-black transition-all cursor-pointer"
+              >
+                <Plus size={13} /> Add Custom Aspect
+              </button>
+            </div>
+
+            {/* Add Custom Aspect Row */}
+            {showAddAspect && (
+              <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex flex-col sm:flex-row items-center gap-2.5 animate-in fade-in duration-150">
+                <input
+                  placeholder="Aspect Name (e.g. Closure, Theme)"
+                  value={newAspectName}
+                  onChange={(e) => setNewAspectName(e.target.value)}
+                  className="w-full sm:w-1/2 h-10 px-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                />
+                <input
+                  placeholder="Aspect Value (e.g. Lace Up, Vintage)"
+                  value={newAspectValue}
+                  onChange={(e) => setNewAspectValue(e.target.value)}
+                  className="w-full sm:w-1/2 h-10 px-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    onClick={handleAddCustomAspect}
+                    className="flex-1 sm:flex-none"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowAddAspect(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Aspects Grid */}
+            {combinedAspectsList.length === 0 ? (
+              <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1.5">
+                <p className="text-xs font-bold text-slate-600">No Item Specifics Added Yet</p>
+                <p className="text-[10px] font-semibold text-slate-400">Click "Scan Image with AI" on the left or "+ Add Custom Aspect" above to extract specifics automatically.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[380px] overflow-y-auto pr-1">
+                {combinedAspectsList.map((aspect) => {
+                  const currentVal = formData.ebayAspects?.[aspect.name]?.[0] || aspect.value || '';
+                  const hasOptions = aspect.options && aspect.options.length > 0;
+
+                  return (
+                    <div key={aspect.name} className="space-y-1 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/90 relative group">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider block truncate">
+                          {aspect.name}
+                          {aspect.isRequired && <span className="text-rose-500 ml-0.5">*</span>}
+                          {aspect.isRecommended && <span className="text-[8px] text-slate-400 font-bold ml-1">(Rec)</span>}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAspect(aspect.name)}
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity cursor-pointer"
+                          title={`Delete ${aspect.name}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+
+                      {hasOptions ? (
+                        <SearchableDropdown
+                          value={currentVal}
+                          options={aspect.options}
+                          onSelect={(opt) => handleAspectChange(aspect.name, opt.label)}
+                          placeholder={`Select ${aspect.name}...`}
+                        />
+                      ) : (
+                        <input
+                          value={currentVal}
+                          onChange={(e) => handleAspectChange(aspect.name, e.target.value)}
+                          placeholder={`Enter ${aspect.name}...`}
+                          className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-500/20"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: eBay Platform Specific Details */}
           {selectedPlatforms.includes('ebay') && (
             <div className="bg-white border border-blue-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-blue-50 pb-3.5">
                 <div className="flex items-center gap-2.5">
                   <img src="/ebay.png" className="w-6 h-6 object-contain" alt="eBay" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">eBay Listing Details</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Category, Item Specifics & Business Policies</p>
+                    <h3 className="text-sm font-black text-slate-900">eBay Listing Policies & Category</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">eBay category taxonomy, fulfillment, payment & return policies</p>
                   </div>
                 </div>
                 <Badge variant="primary">eBay</Badge>
@@ -1338,60 +1681,7 @@ const CreateMasterListing = ({
                   )}
                 </div>
 
-                {/* eBay Dynamic Item Specifics Block */}
-                {ebayAspects.length > 0 && (
-                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider">eBay Item Specifics (Aspects)</label>
-                      <span className="text-[10px] font-semibold text-slate-400">{ebayAspects.length} aspects loaded</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
-                      {ebayAspects.slice(0, 12).map((asp) => {
-                        const name = asp.localizedAspectName;
-                        const isReq = asp.aspectConstraint?.aspectRequired;
-                        const currentVal = formData.ebayAspects?.[name]?.[0] || '';
-                        const possibleVals = (asp.aspectValues || []).map(v => ({ id: v.localizedValue, label: v.localizedValue }));
-
-                        return (
-                          <div key={name} className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block truncate">
-                              {name} {isReq && <span className="text-rose-500">*</span>}
-                            </label>
-                            {possibleVals.length > 0 ? (
-                              <SearchableDropdown
-                                value={currentVal}
-                                options={possibleVals}
-                                onSelect={(opt) => {
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    ebayAspects: { ...prev.ebayAspects, [name]: [opt.label] }
-                                  }));
-                                }}
-                                placeholder={`Select ${name}...`}
-                              />
-                            ) : (
-                              <input
-                                value={currentVal}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    ebayAspects: { ...prev.ebayAspects, [name]: [val] }
-                                  }));
-                                }}
-                                placeholder={`Enter ${name}...`}
-                                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* eBay Business Policies & Package */}
+                {/* eBay Business Policies */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Shipping Policy</label>
@@ -1478,7 +1768,7 @@ const CreateMasterListing = ({
             </div>
           )}
 
-          {/* Card 3: Poshmark Platform Specific Details */}
+          {/* Card 4: Poshmark Platform Specific Details */}
           {selectedPlatforms.includes('poshmark') && (
             <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-rose-50 pb-3.5">
@@ -1534,7 +1824,7 @@ const CreateMasterListing = ({
             </div>
           )}
 
-          {/* Card 4: Mercari Platform Specific Details */}
+          {/* Card 5: Mercari Platform Specific Details */}
           {selectedPlatforms.includes('mercari') && (
             <div className="bg-white border border-red-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-red-50 pb-3.5">
@@ -1616,7 +1906,7 @@ const CreateMasterListing = ({
             </div>
           )}
 
-          {/* Card 5: Etsy Platform Specific Details */}
+          {/* Card 6: Etsy Platform Specific Details */}
           {selectedPlatforms.includes('etsy') && (
             <div className="bg-white border border-orange-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-orange-50 pb-3.5">
@@ -1735,7 +2025,7 @@ const CreateMasterListing = ({
             </div>
           )}
 
-          {/* Card 6: Amazon Platform Specific Details */}
+          {/* Card 7: Amazon Platform Specific Details */}
           {selectedPlatforms.includes('amazon') && (
             <div className="bg-white border border-amber-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center justify-between border-b border-amber-50 pb-3.5">
