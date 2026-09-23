@@ -62,11 +62,11 @@ const POPULAR_BRANDS = [
 ];
 
 const PLATFORMS_CONFIG = [
-  { id: 'ebay', name: 'eBay', logo: '/ebay.png', color: '#0064D2' },
-  { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png', color: '#8A2534' },
-  { id: 'mercari', name: 'Mercari', logo: '/mercari.png', color: '#FF2A4D' },
-  { id: 'etsy', name: 'Etsy', logo: '/etsy.png', color: '#F1641E' },
-  { id: 'amazon', name: 'Amazon', logo: '/amazon.png', color: '#FF9900' }
+  { id: 'ebay', name: 'eBay', logo: '/ebay.png' },
+  { id: 'poshmark', name: 'Poshmark', logo: '/poshmark.png' },
+  { id: 'mercari', name: 'Mercari', logo: '/mercari.png' },
+  { id: 'etsy', name: 'Etsy', logo: '/etsy.png' },
+  { id: 'amazon', name: 'Amazon', logo: '/amazon.png' }
 ];
 
 const MASTER_CONDITIONS = [
@@ -122,8 +122,8 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
         className={`w-full h-11 px-3.5 bg-white border ${
-          error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-indigo-300 focus:ring-indigo-500/10'
-        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-700 disabled:opacity-60 transition-all focus:ring-2`}
+          error ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-300'
+        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-700 disabled:opacity-60 transition-all`}
       >
         <span className="truncate">{value || placeholder}</span>
         <span className="flex items-center gap-1 shrink-0 ml-1.5">
@@ -144,14 +144,14 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
       </button>
 
       {isOpen && !disabled && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="p-2.5 bg-slate-50 border-b border-slate-100">
             <input
               autoFocus
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search..."
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold outline-none focus:border-indigo-500"
+              className="w-full h-8.5 px-3 rounded-lg border border-slate-200 text-xs font-semibold outline-none focus:border-slate-400"
             />
           </div>
           <div className="max-h-56 overflow-y-auto">
@@ -165,13 +165,13 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
-                  className={`w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-xs font-bold ${
-                    value === (opt.label || opt.name) ? 'bg-indigo-50/70 text-indigo-600' : 'text-slate-700'
+                  className={`w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-slate-100 text-xs font-bold transition-colors ${
+                    value === (opt.label || opt.name) ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="leading-snug break-words">{opt.label || opt.name}</span>
-                    {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                    {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-slate-800 shrink-0" />}
                   </div>
                   {opt.description && (
                     <p className="text-[10px] text-slate-400 font-normal mt-0.5">{opt.description}</p>
@@ -193,6 +193,7 @@ const CreateMasterListing = ({
   editId: propEditId = null, 
   initialListing = null, 
   initialPlatform = null,
+  isSinglePlatformOnly = false,
   isEditMode: propIsEditMode = false,
   onClose = null, 
   onSyncSuccess = null 
@@ -201,11 +202,13 @@ const CreateMasterListing = ({
   const { toast } = useNotification();
   const [searchParams] = useSearchParams();
   const editId = propEditId || searchParams.get('edit');
+  const queryPlatform = searchParams.get('platform');
   const isEditMode = propIsEditMode || Boolean(editId);
 
-  // Selected Target Platforms state (eBay, Poshmark, Mercari, Etsy, Amazon)
+  // Selected Target Platforms state
   const [selectedPlatforms, setSelectedPlatforms] = useState(() => {
     if (initialPlatform) return [initialPlatform];
+    if (queryPlatform) return [queryPlatform];
     if (initialListing?.platform) return [initialListing.platform];
     return ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
   });
@@ -226,7 +229,7 @@ const CreateMasterListing = ({
   const [shippingProfiles, setShippingProfiles] = useState([]);
   const [etsyProperties, setEtsyProperties] = useState([]);
 
-  // New Custom Aspect Input State (for eBay)
+  // Custom Aspect Input State (for eBay)
   const [newAspectName, setNewAspectName] = useState('');
   const [newAspectValue, setNewAspectValue] = useState('');
   const [showAddAspect, setShowAddAspect] = useState(false);
@@ -385,21 +388,24 @@ const CreateMasterListing = ({
       const amData = listing.platformData?.amazon || (listing.listingsMap?.amazon ? listing.listingsMap.amazon : {}) || {};
 
       // Determine active platforms
-      const activePlats = new Set();
-      PLATFORMS_CONFIG.forEach(p => {
-        if (
-          listing.platform === p.id ||
-          listing[`${p.id}Status`] === 'published' ||
-          listing[`${p.id}ListingId`] ||
-          listing.platformData?.[p.id] ||
-          (listing.listingsMap && listing.listingsMap[p.id])
-        ) {
-          activePlats.add(p.id);
+      if (!isSinglePlatformOnly) {
+        const activePlats = new Set();
+        PLATFORMS_CONFIG.forEach(p => {
+          if (
+            listing.platform === p.id ||
+            listing[`${p.id}Status`] === 'published' ||
+            listing[`${p.id}ListingId`] ||
+            listing.platformData?.[p.id] ||
+            (listing.listingsMap && listing.listingsMap[p.id])
+          ) {
+            activePlats.add(p.id);
+          }
+        });
+        if (initialPlatform) activePlats.add(initialPlatform);
+        if (queryPlatform) activePlats.add(queryPlatform);
+        if (activePlats.size > 0) {
+          setSelectedPlatforms(Array.from(activePlats));
         }
-      });
-      if (initialPlatform) activePlats.add(initialPlatform);
-      if (activePlats.size > 0) {
-        setSelectedPlatforms(Array.from(activePlats));
       }
 
       // Extract raw aspects / specifics for eBay
@@ -526,7 +532,6 @@ const CreateMasterListing = ({
         amazonCondition: amData.condition || listing.amazonCondition || prev.amazonCondition
       }));
 
-      // Fetch aspects if eBay category is present
       if (catId) {
         ebayService.getCategoryAspects(catId)
           .then(res => {
@@ -556,7 +561,7 @@ const CreateMasterListing = ({
         })
         .finally(() => setLoading(false));
     }
-  }, [initialListing, editId]);
+  }, [initialListing, editId, isSinglePlatformOnly, initialPlatform, queryPlatform]);
 
   // Fetch eBay Category Aspects when eBay Category ID changes
   useEffect(() => {
@@ -604,6 +609,7 @@ const CreateMasterListing = ({
 
   // Toggle platform selection
   const handleTogglePlatform = (platformId) => {
+    if (isSinglePlatformOnly) return;
     setSelectedPlatforms(prev => {
       if (prev.includes(platformId)) {
         if (prev.length === 1) {
@@ -753,7 +759,7 @@ const CreateMasterListing = ({
       toast.info("AI is analyzing images, extracting item specifics & building description...");
       const response = await aiService.analyze({
         images: formData.images,
-        platform: 'ebay',
+        platform: selectedPlatforms[0] || 'ebay',
         title_sequence: selectedRuleObj?.title_sequence || [],
         description_prompt: selectedRuleObj?.description_prompt || '',
         description_template: selectedRuleObj?.description_template || '',
@@ -877,7 +883,7 @@ const CreateMasterListing = ({
       material: formData.material,
       styleTag: formData.styleTag || formData.poshmarkStyleTags,
 
-      // Structured platformData container with per-platform prices & categories
+      // Structured platformData container
       platformData: {
         ebay: {
           title: formData.title,
@@ -965,7 +971,7 @@ const CreateMasterListing = ({
         : await listingService.create(payload);
 
       if (res.data?.success) {
-        toast.success(isEditMode ? "Master Listing updated successfully!" : "Master Listing saved as Draft!");
+        toast.success(isEditMode ? "Listing updated successfully!" : "Listing saved as Draft!");
         if (onSyncSuccess) onSyncSuccess();
         if (isModal && onClose) {
           onClose();
@@ -1001,7 +1007,6 @@ const CreateMasterListing = ({
 
     try {
       const activeId = editId || initialListing?._id || initialListing?.id;
-      toast.info("Saving master record to database...");
       
       const res = activeId 
         ? await listingService.update(activeId, payload)
@@ -1014,8 +1019,7 @@ const CreateMasterListing = ({
         throw new Error("Could not obtain listing ID for multi-platform sync.");
       }
 
-      // Sync/Publish across each selected platform
-      toast.info(`Syncing across ${selectedPlatforms.length} platforms (${selectedPlatforms.map(p => p.toUpperCase()).join(', ')})...`);
+      toast.info(`Publishing to ${selectedPlatforms.map(p => p.toUpperCase()).join(', ')}...`);
 
       const syncResults = await Promise.allSettled(
         selectedPlatforms.map(async (plat) => {
@@ -1047,7 +1051,7 @@ const CreateMasterListing = ({
       });
 
       if (successCount > 0) {
-        toast.success(`✨ Master Listing successfully updated across ${successCount}/${selectedPlatforms.length} platforms!`);
+        toast.success(`Listing successfully updated across ${successCount}/${selectedPlatforms.length} platforms!`);
       }
 
       if (onSyncSuccess) onSyncSuccess();
@@ -1117,26 +1121,34 @@ const CreateMasterListing = ({
     return list;
   }, [formData.ebayAspects, ebayAspects]);
 
+  const activePlatformTitle = useMemo(() => {
+    if (isSinglePlatformOnly && selectedPlatforms.length === 1) {
+      const p = PLATFORMS_CONFIG.find(x => x.id === selectedPlatforms[0]);
+      return p ? p.name : 'Single Platform';
+    }
+    return 'Master Listing';
+  }, [isSinglePlatformOnly, selectedPlatforms]);
+
   return (
     <div className={`w-full ${isModal ? 'h-full flex flex-col' : 'max-w-[96vw] xl:max-w-[1440px] mx-auto py-6 px-4 space-y-6'}`}>
       
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-150 shrink-0">
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
-            <Layers size={20} />
+          <div className="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shadow-2xs">
+            <Layers size={18} />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                {isEditMode ? 'Edit Listing' : 'Create Multi-Platform Listing'}
+                {isEditMode ? `Edit ${activePlatformTitle}` : `Create ${activePlatformTitle}`}
               </h1>
-              <Badge variant={isEditMode ? 'warning' : 'brand'}>
-                {isEditMode ? 'Edit Mode' : 'AI Unified'}
+              <Badge variant="neutral">
+                {isEditMode ? 'Edit Mode' : (isSinglePlatformOnly ? selectedPlatforms[0]?.toUpperCase() : 'Multi-Platform')}
               </Badge>
             </div>
-            <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
-              Customize categories, pricing, item specifics, and sync across connected marketplaces in one unified workspace.
+            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+              Customize product details, category hierarchy, pricing, and specifics in a clean unified layout.
             </p>
           </div>
         </div>
@@ -1160,45 +1172,47 @@ const CreateMasterListing = ({
         {/* ========================================================================= */}
         <div className={`lg:col-span-4 space-y-4 ${isModal ? 'h-full overflow-y-auto pr-1' : 'sticky top-4 h-fit max-h-[calc(100vh-60px)] overflow-y-auto pr-1'}`}>
           
-          {/* Target Platforms Multi-Select Badges */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Globe size={12} className="text-indigo-600" />
-                Target Marketplaces
-              </label>
-              <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                {selectedPlatforms.length} Active
-              </span>
+          {/* Target Platforms Multi-Select Badges (Shown when not forced single platform) */}
+          {!isSinglePlatformOnly && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <Globe size={12} className="text-slate-500" />
+                  Target Marketplaces
+                </label>
+                <span className="text-[9px] font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                  {selectedPlatforms.length} Active
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PLATFORMS_CONFIG.map((p) => {
+                  const isSelected = selectedPlatforms.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleTogglePlatform(p.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black transition-all cursor-pointer select-none shadow-2xs ${
+                        isSelected
+                          ? 'border-slate-800 bg-slate-900 text-white shadow-xs'
+                          : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 opacity-60'
+                      }`}
+                    >
+                      <img src={p.logo} alt={p.name} className={`w-3.5 h-3.5 object-contain ${!isSelected ? 'grayscale opacity-60' : ''}`} />
+                      <span>{p.name}</span>
+                      {isSelected && <Check size={11} className="text-white ml-0.5" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {PLATFORMS_CONFIG.map((p) => {
-                const isSelected = selectedPlatforms.includes(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleTogglePlatform(p.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black transition-all cursor-pointer select-none shadow-2xs ${
-                      isSelected
-                        ? 'border-indigo-500 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-500/20'
-                        : 'border-slate-200 bg-slate-50/70 text-slate-400 hover:border-slate-300 opacity-60'
-                    }`}
-                  >
-                    <img src={p.logo} alt={p.name} className={`w-3.5 h-3.5 object-contain ${!isSelected ? 'grayscale opacity-60' : ''}`} />
-                    <span>{p.name}</span>
-                    {isSelected && <Check size={11} className="text-indigo-600 ml-0.5" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* Product Images Gallery (Compact 4-column Grid) */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <ImageIcon size={12} className="text-indigo-600" />
+              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon size={12} className="text-slate-500" />
                 Product Photos
               </label>
               <span className="text-[9px] font-bold text-slate-400">
@@ -1236,9 +1250,9 @@ const CreateMasterListing = ({
                     setDragOverImgIdx(null);
                   }}
                   className={`relative aspect-square border rounded-xl overflow-hidden group cursor-grab active:cursor-grabbing transition-all duration-150 ${
-                    draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
+                    draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-slate-400' : ''
                   } ${
-                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-md border-indigo-500 bg-indigo-50/50' : 'border-slate-150 bg-slate-50'
+                    dragOverImgIdx === idx ? 'ring-2 ring-slate-800 scale-105 shadow-md border-slate-700 bg-slate-100' : 'border-slate-200 bg-slate-50'
                   }`}
                   title="Drag and drop to reorder"
                 >
@@ -1286,7 +1300,7 @@ const CreateMasterListing = ({
                   </div>
 
                   {idx === 0 && (
-                    <span className="absolute top-1 left-1 px-1 py-0.2 bg-indigo-600 text-white text-[7px] font-black uppercase rounded shadow-xs pointer-events-none">
+                    <span className="absolute top-1 left-1 px-1 py-0.2 bg-slate-900 text-white text-[7px] font-black uppercase rounded shadow-xs pointer-events-none">
                       Cover
                     </span>
                   )}
@@ -1294,9 +1308,9 @@ const CreateMasterListing = ({
               ))}
 
               {formData.images.length < 12 && (
-                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50/70 hover:bg-indigo-50/30 transition-all group">
-                  <Upload size={13} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                  <span className="text-[8.5px] font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider">
+                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all group">
+                  <Upload size={13} className="text-slate-400 group-hover:text-slate-700 transition-colors" />
+                  <span className="text-[8.5px] font-black text-slate-400 group-hover:text-slate-700 uppercase tracking-wider">
                     Add
                   </span>
                   <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -1305,20 +1319,20 @@ const CreateMasterListing = ({
             </div>
 
             {isConvertingImages && (
-              <div className="flex items-center gap-1.5 text-indigo-600 text-[11px] font-semibold animate-pulse pt-0.5">
+              <div className="flex items-center gap-1.5 text-slate-600 text-[11px] font-semibold animate-pulse pt-0.5">
                 <Loader2 size={11} className="animate-spin" /> Processing images...
               </div>
             )}
           </div>
 
           {/* AI Scanner Settings Box */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3">
             <div className="flex items-center gap-2">
-              <Zap size={13} className="text-indigo-600" />
+              <Zap size={13} className="text-slate-600" />
               <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">AI Scanner Settings</h3>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Listing Rule</label>
                 <SearchableDropdown
@@ -1329,7 +1343,7 @@ const CreateMasterListing = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Condition</label>
                   <SearchableDropdown
@@ -1351,16 +1365,16 @@ const CreateMasterListing = ({
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1.5">
                 <Button
                   type="button"
                   variant="primary"
                   size="md"
-                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-extrabold shadow-sm py-2.5"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold shadow-sm py-2 text-xs"
                   onClick={startAIFetch}
                   loading={loading}
                   disabled={loading || isConvertingImages || formData.images.length === 0}
-                  icon={<Sparkles size={15} />}
+                  icon={<Sparkles size={14} />}
                 >
                   {loading ? 'AI Scanning & Extracting...' : 'Scan Image with AI'}
                 </Button>
@@ -1373,26 +1387,26 @@ const CreateMasterListing = ({
         {/* ========================================================================= */}
         {/* RIGHT COLUMN (SCROLLABLE): Master Details & Platform-Specific Cards       */}
         {/* ========================================================================= */}
-        <div className={`lg:col-span-8 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
+        <div className={`lg:col-span-8 space-y-5 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-5'}`}>
           
-          {/* Card 1: Master / Universal Product Details (Shared Data) */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
-                  <Package size={16} />
+          {/* Card 1: Product Core Details (Shared / Common Data) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
+                  <Package size={15} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-slate-900">Master Product Details</h2>
-                  <p className="text-[10px] font-semibold text-slate-400">Core listing data shared across all platforms</p>
+                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Product Details</h2>
+                  <p className="text-[10px] font-semibold text-slate-400">Core listing data</p>
                 </div>
               </div>
-              <Badge variant="neutral">Universal</Badge>
+              <Badge variant="neutral">Common</Badge>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {/* Title */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Listing Title</label>
                   <span className="text-[10px] font-bold text-slate-400">{formData.title.length}/80</span>
@@ -1402,56 +1416,56 @@ const CreateMasterListing = ({
                   maxLength={80}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Enter descriptive title (e.g. Nike Air Max 90 Running Shoes Black / White Size 10)..."
-                  className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                  className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                 />
               </div>
 
               {/* Master Default Price, Original Price, SKU */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Default Selling Price ($)</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Selling Price ($)</label>
                   <div className="relative">
-                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600" />
+                    <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="number"
                       step="0.01"
                       value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                       placeholder="0.00"
-                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-emerald-700 outline-none focus:border-emerald-500 transition-all focus:ring-2 focus:ring-emerald-500/10"
+                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Original Price ($)</label>
                   <div className="relative">
-                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="number"
                       step="0.01"
                       value={formData.originalPrice}
                       onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: e.target.value }))}
                       placeholder="0.00"
-                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                      className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SKU / Custom Code</label>
                   <input
                     value={formData.sku}
                     onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
                     placeholder="e.g. KL-1002"
-                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
               </div>
 
               {/* Brand, Size, Color, Quantity */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Brand</label>
                   <input
                     value={formData.brand}
@@ -1460,11 +1474,11 @@ const CreateMasterListing = ({
                       handleAspectChange('Brand', v);
                     }}
                     placeholder="e.g. Nike"
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Size</label>
                   <input
                     value={formData.size}
@@ -1473,11 +1487,11 @@ const CreateMasterListing = ({
                       handleAspectChange('Size', v);
                     }}
                     placeholder="e.g. 10 / L"
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Color</label>
                   <input
                     value={formData.color}
@@ -1486,65 +1500,65 @@ const CreateMasterListing = ({
                       handleAspectChange('Color', v);
                     }}
                     placeholder="e.g. Black"
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Quantity</label>
                   <input
                     type="number"
                     min="1"
                     value={formData.quantity}
                     onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
-                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
               </div>
 
               {/* Description with HTML Preview & Source Code Toggle */}
-              <div className="space-y-2 pt-1">
+              <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                    <FileText size={12} className="text-indigo-600" />
+                    <FileText size={11} className="text-slate-500" />
                     Product Description
                   </label>
-                  <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                  <div className="flex bg-slate-100 p-0.5 rounded-lg gap-1">
                     <button 
                       type="button"
                       onClick={() => setDescriptionMode('edit')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                        descriptionMode === 'edit' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                      className={`flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold transition-all cursor-pointer ${
+                        descriptionMode === 'edit' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      <Code size={12} /> Text / HTML Edit
+                      <Code size={11} /> Edit
                     </button>
                     <button 
                       type="button"
                       onClick={() => setDescriptionMode('preview')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                        descriptionMode === 'preview' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                      className={`flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold transition-all cursor-pointer ${
+                        descriptionMode === 'preview' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      <Eye size={12} /> Visual Preview
+                      <Eye size={11} /> Preview
                     </button>
                   </div>
                 </div>
 
                 {descriptionMode === 'edit' ? (
                   <textarea
-                    rows={6}
+                    rows={5}
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Enter detailed item description or HTML template..."
-                    className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-mono leading-relaxed outline-none focus:border-indigo-500 transition-all focus:ring-2 focus:ring-indigo-500/10 shadow-2xs"
+                    className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono leading-relaxed outline-none focus:border-slate-400 transition-all"
                   />
                 ) : (
-                  <div className="w-full p-4 bg-slate-50/70 border border-slate-200 rounded-xl text-xs leading-relaxed min-h-[160px] max-h-[350px] overflow-y-auto shadow-inner text-slate-700 font-sans">
+                  <div className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-relaxed min-h-[140px] max-h-[300px] overflow-y-auto text-slate-700 font-sans">
                     {formData.description ? (
                       <div dangerouslySetInnerHTML={{ __html: formData.description }} />
                     ) : (
-                      <span className="text-slate-400 italic">No description entered yet. Switch to Edit mode to write description or run AI Scan.</span>
+                      <span className="text-slate-400 italic">No description entered yet.</span>
                     )}
                   </div>
                 )}
@@ -1554,25 +1568,25 @@ const CreateMasterListing = ({
 
           {/* Card 2: eBay Platform Specific Details, Policies, Pricing & Item Specifics */}
           {selectedPlatforms.includes('ebay') && (
-            <div className="bg-white border border-blue-100 rounded-3xl p-6 shadow-2xs space-y-5 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3.5">
-                <div className="flex items-center gap-2.5">
-                  <img src="/ebay.png" className="w-6 h-6 object-contain" alt="eBay" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/ebay.png" className="w-5 h-5 object-contain" alt="eBay" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">eBay Listing Details, Policies & Item Specifics</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">eBay category hierarchy, price override, business policies & aspects</p>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">eBay Listing & Policies</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">eBay category hierarchy, price, policies & item specifics</p>
                   </div>
                 </div>
-                <Badge variant="primary">eBay</Badge>
+                <Badge variant="neutral">eBay</Badge>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* eBay Category (Full Path) */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Full Category Path</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Category (Full Path)</label>
                     {formData.ebayCategoryId && (
-                      <span className="text-[10px] font-bold text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-md">
                         ID: {formData.ebayCategoryId}
                       </span>
                     )}
@@ -1587,30 +1601,30 @@ const CreateMasterListing = ({
                         ebayCategoryId: opt.id
                       }));
                     }}
-                    placeholder="Search full eBay category path (e.g. Clothing > Men's Shoes > Athletic Shoes)..."
+                    placeholder="Search eBay full category path (e.g. Clothing > Men's Shoes > Athletic Shoes)..."
                   />
                 </div>
 
                 {/* eBay Price Override & Condition */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">
-                      eBay Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      eBay Price ($) <span className="text-[9px] text-slate-400 font-normal">(Optional override)</span>
                     </label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-600" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.ebayPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, ebayPrice: e.target.value }))}
                         placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-blue-700 outline-none focus:border-blue-500 transition-all focus:ring-2 focus:ring-blue-500/10"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">eBay Condition</label>
                     <SearchableDropdown
                       value={formData.ebayCondition}
@@ -1662,14 +1676,14 @@ const CreateMasterListing = ({
                 </div>
 
                 {/* Weight & Dimensions */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Weight (Lbs)</label>
                     <input
                       type="number"
                       value={formData.packageWeight.lbs}
                       onChange={(e) => setFormData(prev => ({ ...prev, packageWeight: { ...prev.packageWeight, lbs: Number(e.target.value) } }))}
-                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1678,7 +1692,7 @@ const CreateMasterListing = ({
                       type="number"
                       value={formData.packageWeight.oz}
                       onChange={(e) => setFormData(prev => ({ ...prev, packageWeight: { ...prev.packageWeight, oz: Number(e.target.value) } }))}
-                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1689,14 +1703,14 @@ const CreateMasterListing = ({
                         placeholder="L"
                         value={formData.packageDimensions.length}
                         onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, length: Number(e.target.value) } }))}
-                        className="w-1/2 h-10 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                        className="w-1/2 h-9 px-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                       />
                       <input
                         type="number"
                         placeholder="W"
                         value={formData.packageDimensions.width}
                         onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, width: Number(e.target.value) } }))}
-                        className="w-1/2 h-10 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                        className="w-1/2 h-9 px-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                       />
                     </div>
                   </div>
@@ -1707,7 +1721,7 @@ const CreateMasterListing = ({
                       placeholder="H"
                       value={formData.packageDimensions.height}
                       onChange={(e) => setFormData(prev => ({ ...prev, packageDimensions: { ...prev.packageDimensions, height: Number(e.target.value) } }))}
-                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                     />
                   </div>
                 </div>
@@ -1715,35 +1729,35 @@ const CreateMasterListing = ({
                 {/* ========================================================================= */}
                 {/* eBay ITEM SPECIFICS & ATTRIBUTES (PLACED DIRECTLY INSIDE EBAY CARD)       */}
                 {/* ========================================================================= */}
-                <div className="pt-3 border-t border-slate-100 space-y-3.5">
+                <div className="pt-3 border-t border-slate-100 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Tag size={14} className="text-blue-600" />
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">eBay Item Specifics & Aspects</h4>
+                    <div className="flex items-center gap-1.5">
+                      <Tag size={13} className="text-slate-600" />
+                      <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">eBay Item Specifics</h4>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowAddAspect(!showAddAspect)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] font-black transition-all cursor-pointer"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 text-[10px] font-black transition-all cursor-pointer"
                     >
-                      <Plus size={12} /> Add Custom Aspect
+                      <Plus size={11} /> Add Aspect
                     </button>
                   </div>
 
                   {/* Add Custom Aspect Row */}
                   {showAddAspect && (
-                    <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-2xl flex flex-col sm:flex-row items-center gap-2 animate-in fade-in duration-150">
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center gap-2 animate-in fade-in duration-150">
                       <input
                         placeholder="Aspect Name (e.g. Closure, Theme)"
                         value={newAspectName}
                         onChange={(e) => setNewAspectName(e.target.value)}
-                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                       />
                       <input
                         placeholder="Aspect Value (e.g. Lace Up, Vintage)"
                         value={newAspectValue}
                         onChange={(e) => setNewAspectValue(e.target.value)}
-                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                        className="w-full sm:w-1/2 h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
                       />
                       <div className="flex items-center gap-1.5 w-full sm:w-auto">
                         <Button
@@ -1751,7 +1765,7 @@ const CreateMasterListing = ({
                           size="sm"
                           variant="primary"
                           onClick={handleAddCustomAspect}
-                          className="flex-1 sm:flex-none py-1.5"
+                          className="flex-1 sm:flex-none py-1.5 text-xs bg-slate-900 text-white"
                         >
                           Save
                         </Button>
@@ -1770,18 +1784,18 @@ const CreateMasterListing = ({
 
                   {/* Aspects Grid */}
                   {combinedEbayAspectsList.length === 0 ? (
-                    <div className="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center space-y-1">
                       <p className="text-xs font-bold text-slate-600">No eBay Item Specifics Extracted</p>
-                      <p className="text-[10px] font-semibold text-slate-400">Click "Scan Image with AI" on the left or "+ Add Custom Aspect" above.</p>
+                      <p className="text-[10px] font-semibold text-slate-400">Click "Scan Image with AI" on the left or "+ Add Aspect" above.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[340px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
                       {combinedEbayAspectsList.map((aspect) => {
                         const currentVal = formData.ebayAspects?.[aspect.name]?.[0] || aspect.value || '';
                         const hasOptions = aspect.options && aspect.options.length > 0;
 
                         return (
-                          <div key={aspect.name} className="space-y-1 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100 relative group">
+                          <div key={aspect.name} className="space-y-1 bg-slate-50 p-2 rounded-xl border border-slate-100 relative group">
                             <div className="flex items-center justify-between">
                               <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider block truncate">
                                 {aspect.name}
@@ -1794,7 +1808,7 @@ const CreateMasterListing = ({
                                 className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity cursor-pointer"
                                 title={`Delete ${aspect.name}`}
                               >
-                                <X size={12} />
+                                <X size={11} />
                               </button>
                             </div>
 
@@ -1810,7 +1824,7 @@ const CreateMasterListing = ({
                                 value={currentVal}
                                 onChange={(e) => handleAspectChange(aspect.name, e.target.value)}
                                 placeholder={`Enter ${aspect.name}...`}
-                                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all focus:ring-1 focus:ring-indigo-500/20"
+                                className="w-full h-9.5 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                               />
                             )}
                           </div>
@@ -1825,22 +1839,22 @@ const CreateMasterListing = ({
 
           {/* Card 3: Poshmark Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('poshmark') && (
-            <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-rose-50 pb-3.5">
-                <div className="flex items-center gap-2.5">
-                  <img src="/poshmark.png" className="w-6 h-6 object-contain" alt="Poshmark" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="Poshmark" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Poshmark Listing Details & Pricing</h3>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Poshmark Listing & Pricing</h3>
                     <p className="text-[10px] font-semibold text-slate-400">Poshmark full category path, price override, department, size & style tags</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Poshmark</Badge>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Poshmark Category (Full Path) */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Full Category Path</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Category (Full Path)</label>
                   <CategorySearchDropdown
                     value={formData.poshmarkCategory}
                     platform="poshmark"
@@ -1852,40 +1866,40 @@ const CreateMasterListing = ({
                         poshmarkSubcategory: opt.subcategoryIds?.[0] || prev.poshmarkSubcategory
                       }));
                     }}
-                    placeholder="Search full Poshmark category path (e.g. Women > Tops > Sweaters)..."
+                    placeholder="Search Poshmark full category path (e.g. Women > Tops > Sweaters)..."
                   />
                 </div>
 
                 {/* Poshmark Price Override & Original Price */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest ml-1">
-                      Poshmark Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Poshmark Price ($) <span className="text-[9px] text-slate-400 font-normal">(Optional override)</span>
                     </label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rose-600" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.poshmarkPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, poshmarkPrice: e.target.value }))}
                         placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-rose-700 outline-none focus:border-rose-500 transition-all focus:ring-2 focus:ring-rose-500/10"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Poshmark Original Price ($)</label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.poshmarkOriginalPrice || formData.originalPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, poshmarkOriginalPrice: e.target.value }))}
                         placeholder="0.00"
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
@@ -1908,7 +1922,7 @@ const CreateMasterListing = ({
                       value={formData.poshmarkSize || formData.size}
                       onChange={(e) => setFormData(prev => ({ ...prev, poshmarkSize: e.target.value }))}
                       placeholder="e.g. M / 8 / One Size"
-                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                     />
                   </div>
 
@@ -1923,13 +1937,13 @@ const CreateMasterListing = ({
                 </div>
 
                 {/* Style Tags */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Style Tags (Optional)</label>
                   <input
                     value={formData.poshmarkStyleTags}
                     onChange={(e) => setFormData(prev => ({ ...prev, poshmarkStyleTags: e.target.value }))}
                     placeholder="e.g. Vintage, Streetwear, Casual..."
-                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                    className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                   />
                 </div>
               </div>
@@ -1938,25 +1952,25 @@ const CreateMasterListing = ({
 
           {/* Card 4: Mercari Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('mercari') && (
-            <div className="bg-white border border-red-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-red-50 pb-3.5">
-                <div className="flex items-center gap-2.5">
-                  <img src="/mercari.png" className="w-6 h-6 object-contain" alt="Mercari" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/mercari.png" className="w-5 h-5 object-contain" alt="Mercari" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Mercari Listing Details & Pricing</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Full Category Tree Hierarchy, Mercari price override, Brand ID & Shipping</p>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Mercari Listing & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Category hierarchy, price override, brand & shipping</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Mercari</Badge>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Mercari Category (Full Hierarchy Tree) */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Full Category Hierarchy</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Category (Full Hierarchy)</label>
                     {formData.mercariCategoryId && (
-                      <span className="text-[10px] font-bold text-red-600 font-mono bg-red-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-md">
                         ID: {formData.mercariCategoryId}
                       </span>
                     )}
@@ -1965,23 +1979,23 @@ const CreateMasterListing = ({
                     value={formData.mercariCategory}
                     options={mercariCategoryOptions}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, mercariCategory: opt.label, mercariCategoryId: opt.id }))}
-                    placeholder="Select full Mercari category hierarchy..."
+                    placeholder="Select Mercari category hierarchy..."
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   {/* Mercari Price Override */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-red-600 uppercase tracking-widest ml-1">Mercari Price ($)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mercari Price ($)</label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-red-600" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.mercariPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, mercariPrice: e.target.value }))}
                         placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-red-700 outline-none focus:border-red-500"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
@@ -1993,8 +2007,8 @@ const CreateMasterListing = ({
                       value={formData.mercariBrand || formData.brand}
                       onChange={(e) => handleMercariBrandSearch(e.target.value)}
                       onFocus={() => setIsMercariBrandOpen(true)}
-                      placeholder="Search brand (Nike)..."
-                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                      placeholder="Search brand..."
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                     />
                     {isMercariBrandOpen && mercariBrandSuggestions.length > 0 && (
                       <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 shadow-xl rounded-xl z-[999] max-h-48 overflow-y-auto py-1">
@@ -2030,7 +2044,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.mercariShippingPayer}
                       onChange={(e) => setFormData(prev => ({ ...prev, mercariShippingPayer: e.target.value }))}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="seller">Free Shipping (Seller Pays)</option>
                       <option value="buyer">Buyer Pays (Prepaid Label)</option>
@@ -2043,25 +2057,25 @@ const CreateMasterListing = ({
 
           {/* Card 5: Etsy Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('etsy') && (
-            <div className="bg-white border border-orange-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-orange-50 pb-3.5">
-                <div className="flex items-center gap-2.5">
-                  <img src="/etsy.png" className="w-6 h-6 object-contain" alt="Etsy" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/etsy.png" className="w-5 h-5 object-contain" alt="Etsy" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Etsy Listing Details & Pricing</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Full Etsy taxonomy path, Etsy price override, Shipping Profile & Attributes</p>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Etsy Listing & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Etsy taxonomy path, price override & delivery profile</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Etsy</Badge>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Etsy Category (Full Taxonomy Path) */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Full Taxonomy Category Path</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Taxonomy Path</label>
                     {formData.etsyCategoryId && (
-                      <span className="text-[10px] font-bold text-orange-600 font-mono bg-orange-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-md">
                         Taxonomy ID: {formData.etsyCategoryId}
                       </span>
                     )}
@@ -2076,46 +2090,46 @@ const CreateMasterListing = ({
                         etsyCategoryId: opt.id
                       }));
                     }}
-                    placeholder="Search full Etsy taxonomy path (e.g. Clothing > Men's Clothing > Jackets & Coats)..."
+                    placeholder="Search Etsy taxonomy path (e.g. Clothing > Men's Clothing > Jackets & Coats)..."
                   />
                 </div>
 
                 {/* Etsy Price Override & Shipping Profile */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest ml-1">
-                      Etsy Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Etsy Price ($) <span className="text-[9px] text-slate-400 font-normal">(Optional override)</span>
                     </label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-orange-600" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.etsyPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, etsyPrice: e.target.value }))}
                         placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-orange-700 outline-none focus:border-orange-500"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
 
                   {/* Etsy Delivery Profile */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Etsy Delivery Profile</label>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Delivery Profile</label>
                       <button
                         type="button"
                         onClick={async () => {
-                          toast.info("Refreshing Etsy shipping profiles...");
+                          toast.info("Refreshing Etsy profiles...");
                           const res = await etsyService.getShippingProfiles();
                           if (res.data?.success) {
                             setShippingProfiles(res.data.data || []);
                             toast.success("Profiles updated!");
                           }
                         }}
-                        className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                        className="text-[10px] font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
                       >
-                        <RefreshCw size={11} /> Refresh Profiles
+                        <RefreshCw size={10} /> Refresh
                       </button>
                     </div>
                     <SearchableDropdown
@@ -2133,7 +2147,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.who_made}
                       onChange={(e) => setFormData(prev => ({ ...prev, who_made: e.target.value }))}
-                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="i_did">I did (Handmade)</option>
                       <option value="collective">A member of my shop</option>
@@ -2146,7 +2160,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.when_made}
                       onChange={(e) => setFormData(prev => ({ ...prev, when_made: e.target.value }))}
-                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="2020_2026">2020 - 2026</option>
                       <option value="2010_2019">2010 - 2019</option>
@@ -2162,7 +2176,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.is_supply}
                       onChange={(e) => setFormData(prev => ({ ...prev, is_supply: e.target.value }))}
-                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="false">Finished Product</option>
                       <option value="true">A Craft Supply / Tool</option>
@@ -2174,7 +2188,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.renewal}
                       onChange={(e) => setFormData(prev => ({ ...prev, renewal: e.target.value }))}
-                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="manual">Manual</option>
                       <option value="automatic">Automatic</option>
@@ -2187,43 +2201,43 @@ const CreateMasterListing = ({
 
           {/* Card 6: Amazon Platform Specific Details & Pricing */}
           {selectedPlatforms.includes('amazon') && (
-            <div className="bg-white border border-amber-100 rounded-3xl p-6 shadow-2xs space-y-4 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-amber-50 pb-3.5">
-                <div className="flex items-center gap-2.5">
-                  <img src="/amazon.png" className="w-6 h-6 object-contain" alt="Amazon" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/amazon.png" className="w-5 h-5 object-contain" alt="Amazon" />
                   <div>
-                    <h3 className="text-sm font-black text-slate-900">Amazon Listing Details & Pricing</h3>
-                    <p className="text-[10px] font-semibold text-slate-400">Amazon category / product type, price override & Standard Product ID</p>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Amazon Listing & Pricing</h3>
+                    <p className="text-[10px] font-semibold text-slate-400">Product type, price override & Standard Product ID</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Amazon</Badge>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Amazon Product Type / Category</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product Type / Category</label>
                     <input
                       value={formData.amazonProductType}
                       onChange={(e) => setFormData(prev => ({ ...prev, amazonProductType: e.target.value }))}
                       placeholder="e.g. APPAREL, SHOES, HANDBAG..."
-                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-amber-500"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">
-                      Amazon Price ($) <span className="text-[9px] text-slate-400 font-medium">(Optional override)</span>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Amazon Price ($) <span className="text-[9px] text-slate-400 font-normal">(Optional override)</span>
                     </label>
                     <div className="relative">
-                      <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600" />
+                      <DollarSign size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
                         step="0.01"
                         value={formData.amazonPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, amazonPrice: e.target.value }))}
                         placeholder={formData.price ? `${formData.price} (Default)` : "0.00"}
-                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-amber-700 outline-none focus:border-amber-500"
+                        className="w-full h-11 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400"
                       />
                     </div>
                   </div>
@@ -2238,7 +2252,7 @@ const CreateMasterListing = ({
                         ...prev,
                         amazonStandardProductId: { ...prev.amazonStandardProductId, idType: e.target.value }
                       }))}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="ASIN">ASIN</option>
                       <option value="UPC">UPC</option>
@@ -2248,7 +2262,7 @@ const CreateMasterListing = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product ID / Value</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product ID Value</label>
                     <input
                       value={formData.amazonStandardProductId?.value || ''}
                       onChange={(e) => setFormData(prev => ({
@@ -2256,7 +2270,7 @@ const CreateMasterListing = ({
                         amazonStandardProductId: { ...prev.amazonStandardProductId, value: e.target.value }
                       }))}
                       placeholder="e.g. 012345678901 / B08XYZ..."
-                      className="w-full h-11 px-3.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-amber-500"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-slate-400"
                     />
                   </div>
 
@@ -2265,7 +2279,7 @@ const CreateMasterListing = ({
                     <select
                       value={formData.amazonCondition}
                       onChange={(e) => setFormData(prev => ({ ...prev, amazonCondition: e.target.value }))}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
                     >
                       <option value="New">New</option>
                       <option value="Used - Like New">Used - Like New</option>
@@ -2285,7 +2299,7 @@ const CreateMasterListing = ({
       {/* ========================================================================= */}
       {/* BOTTOM STICKY ACTION BAR: Cancel, Save Draft, Publish/Update Multi-Platform */}
       {/* ========================================================================= */}
-      <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-3.5 px-4 sm:px-6 -mx-4 sm:-mx-6 flex items-center justify-between gap-4 z-40 shadow-lg rounded-b-3xl">
+      <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-3.5 px-4 sm:px-6 -mx-4 sm:-mx-6 flex items-center justify-between gap-4 z-40 shadow-lg rounded-b-2xl">
         <Button
           type="button"
           variant="ghost"
@@ -2323,13 +2337,13 @@ const CreateMasterListing = ({
             loading={publishing}
             disabled={loading || publishing || selectedPlatforms.length === 0}
             icon={<ShoppingBag size={14} />}
-            className="bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-xs shadow-md shadow-indigo-600/20 px-5"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-sm px-5"
           >
             {publishing 
-              ? `Syncing on ${selectedPlatforms.length} Platforms...` 
+              ? `Publishing...` 
               : isEditMode 
-                ? `Update on ${selectedPlatforms.length} Platforms` 
-                : `List on ${selectedPlatforms.length} Platforms`}
+                ? (isSinglePlatformOnly ? `Update on ${activePlatformTitle}` : `Update on ${selectedPlatforms.length} Platforms`)
+                : (isSinglePlatformOnly ? `List on ${activePlatformTitle}` : `List on ${selectedPlatforms.length} Platforms`)}
           </Button>
         </div>
       </div>
