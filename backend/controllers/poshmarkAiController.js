@@ -91,11 +91,15 @@ async function compressImageIfBase64(imageInput) {
 
 function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
     let cleanAi = String(rawCategory).toLowerCase().trim();
-    if (!cleanAi) return "Women > Tops > Other";
+    const isMen = ['men', 'male', 'menswear', 'mens'].includes(itemGender.toLowerCase()) || /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b/.test(cleanAi);
+    const isKids = ['kids', 'boy', 'girl', 'toddler', 'baby'].includes(itemGender.toLowerCase()) || /\bkids\b|\bboy\b|\bgirl\b/.test(cleanAi);
+    const defaultMatch = isMen ? "Men > Tops > T-Shirts" : (isKids ? "Kids > Tops > T-Shirts" : "Women > Tops > T-Shirts");
+
+    if (!cleanAi || cleanAi === 'clothing' || cleanAi === 'apparel') return defaultMatch;
 
     // 1. Convert Unisex to Men or Women
     if (cleanAi.startsWith('unisex')) {
-        if (itemGender.toLowerCase() === 'men' || itemGender.toLowerCase() === 'male') {
+        if (isMen) {
             cleanAi = cleanAi.replace('unisex', 'men');
         } else {
             cleanAi = cleanAi.replace('unisex', 'women');
@@ -107,22 +111,21 @@ function normalizePoshmarkCategory(rawCategory = '', itemGender = 'Unisex') {
     if (directMatch) return directMatch.path;
 
     // 3. Token overlap check to find the closest official taxonomy path
-    const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(Boolean);
-    let bestMatch = "Women > Tops > Other";
+    const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
+    let bestMatch = defaultMatch;
     let maxOverlap = 0;
 
     for (const cat of POSHMARK_TAXONOMY) {
-        const catTokens = cat.path.toLowerCase().replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+        const catLower = cat.path.toLowerCase();
         let overlap = 0;
         
+        if (isMen && cat.path.startsWith('Men')) overlap += 15;
+        else if (!isMen && !isKids && cat.path.startsWith('Women')) overlap += 15;
+        else if (isKids && cat.path.startsWith('Kids')) overlap += 15;
+
         for (const token of aiTokens) {
-            if (catTokens.includes(token)) {
-                // High weight for matching root category to ensure correct department
-                if (catTokens[0] === token) {
-                    overlap += 10;
-                } else {
-                    overlap += 1;
-                }
+            if (catLower.includes(token)) {
+                overlap += token.length * 2;
             }
         }
 
@@ -453,6 +456,7 @@ Response ONLY as JSON: {
                 category: normalizedCategory,
                 category_name: normalizedCategory,
                 categoryId: matchedTaxonomy.categoryId || '',
+                department: matchedTaxonomy.path ? matchedTaxonomy.path.split(' > ')[0] : 'Women',
                 departmentId: matchedTaxonomy.departmentId || '',
                 subcategoryIds: matchedTaxonomy.id && matchedTaxonomy.id !== matchedTaxonomy.categoryId ? [matchedTaxonomy.id] : [],
                 price: finalData.selling_price || finalData.price,

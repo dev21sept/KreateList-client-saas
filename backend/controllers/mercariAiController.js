@@ -85,41 +85,42 @@ async function compressImageIfBase64(imageInput) {
 
 function normalizeMercariCategory(rawCategory = '', itemGender = 'Unisex') {
     let cleanAi = String(rawCategory).toLowerCase().trim();
-    const defaultMatch = MERCARI_TAXONOMY.find(cat => cat.path === "Women > Tops & blouses > Blouse") || MERCARI_TAXONOMY[0];
-    if (!cleanAi) return defaultMatch;
+    const isMenswear = ['men', 'male', 'menswear', 'mens'].includes(itemGender.toLowerCase()) || /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b/.test(cleanAi);
+    const isKids = ['kids', 'boy', 'girl', 'toddler', 'baby'].includes(itemGender.toLowerCase()) || /\bkids\b|\bboy\b|\bgirl\b/.test(cleanAi);
+    const defaultMatch = isMenswear ? (MERCARI_TAXONOMY.find(cat => cat.path === "Men > Athletic apparel > Athletic T-Shirts") || MERCARI_TAXONOMY[0]) : (MERCARI_TAXONOMY.find(cat => cat.path === "Women > Tops & blouses > Blouse") || MERCARI_TAXONOMY[0]);
+
+    if (!cleanAi || cleanAi === 'clothing' || cleanAi === 'apparel') return defaultMatch;
 
     // Convert Unisex/Women/Men based on itemGender
-    const isMenswear = ['men', 'male', 'menswear'].includes(itemGender.toLowerCase());
-    const isWomenswear = ['women', 'female', 'womenswear'].includes(itemGender.toLowerCase());
-
     if (cleanAi.startsWith('unisex') || cleanAi.startsWith('women') || cleanAi.startsWith('men') || cleanAi.startsWith('womenswear') || cleanAi.startsWith('menswear')) {
         if (isMenswear) {
             cleanAi = cleanAi.replace('unisex', 'men').replace('womenswear', 'men').replace('women', 'men').replace('menswear', 'men');
-        } else if (isWomenswear) {
+        } else if (!isKids) {
             cleanAi = cleanAi.replace('unisex', 'women').replace('menswear', 'women').replace('men', 'women').replace('womenswear', 'women');
         }
     }
 
     // Direct match check
-    let directMatch = MERCARI_TAXONOMY.find(cat => cat.path.toLowerCase() === cleanAi || cat.name.toLowerCase() === cleanAi);
+    let directMatch = MERCARI_TAXONOMY.find(cat => cat.path && cat.path.includes(' > ') && (cat.path.toLowerCase() === cleanAi || cat.name.toLowerCase() === cleanAi));
     if (directMatch) return directMatch;
 
     // Token overlap check
-    const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+    const aiTokens = cleanAi.replace(/>/g, ' ').split(/\s+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
     let bestMatch = defaultMatch;
     let maxOverlap = 0;
 
     for (const cat of MERCARI_TAXONOMY) {
-        const catTokens = cat.path.toLowerCase().replace(/>/g, ' ').split(/\s+/).filter(Boolean);
+        if (!cat.path || !cat.path.includes(' > ')) continue;
+        const catLower = cat.path.toLowerCase();
         let overlap = 0;
         
+        if (isMenswear && cat.path.startsWith('Men')) overlap += 15;
+        else if (!isMenswear && !isKids && cat.path.startsWith('Women')) overlap += 15;
+        else if (isKids && cat.path.startsWith('Kids')) overlap += 15;
+
         for (const token of aiTokens) {
-            if (catTokens.includes(token)) {
-                if (catTokens[0] === token) {
-                    overlap += 10; // Root match weight (e.g. Women vs Men)
-                } else {
-                    overlap += 1;
-                }
+            if (catLower.includes(token)) {
+                overlap += token.length * 2;
             }
         }
         if (overlap > maxOverlap) {
@@ -521,8 +522,8 @@ Response ONLY as JSON:
                 title: finalTitle,
                 description: templatedDescription,
                 title_parts: standardizedParts,
-                category: matchedCategory.name,
-                category_id: matchedCategory.id,
+                category: matchedCategory.path,
+                category_id: String(matchedCategory.id),
                 category_name: matchedCategory.path,
                 price: finalData.selling_price || finalData.price,
                 originalPrice: finalData.original_price || '',

@@ -32,6 +32,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
+import { resolvePoshmarkCategory } from '../utils/categoryResolver';
 
 const POSHMARK_COLORS = [
   'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
@@ -763,6 +764,11 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
 
       if (initialListing) {
         const pData = initialListing.platformData?.poshmark || (initialListing.platform === 'poshmark' ? initialListing : {});
+        const resolvedCat = resolvePoshmarkCategory(
+          pData.category || (initialListing.platform === 'poshmark' ? initialListing.category : ''),
+          pData.title || initialListing.title,
+          pData.brand || initialListing.brand
+        );
         setFormData(prev => ({
           ...prev,
           images: initialListing.images || [],
@@ -770,9 +776,9 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           price: pData.price !== undefined ? pData.price : (initialListing.price || ''),
           originalPrice: pData.originalPrice || initialListing.originalPrice || '',
           description: pData.description || initialListing.description || '',
-          category: pData.category || (initialListing.platform === 'poshmark' ? initialListing.category : '') || '',
+          category: resolvedCat.path || '',
           subcategory: pData.subcategory || '',
-          department: pData.department || 'Women',
+          department: pData.department || resolvedCat.department || 'Women',
           brand: pData.brand || initialListing.brand || '',
           size: pData.size || initialListing.size || '',
           colors: Array.isArray(pData.colors) ? pData.colors : (pData.color ? [pData.color] : []),
@@ -791,6 +797,11 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           if (res.data?.success && res.data?.data) {
             const raw = res.data.data;
             const pData = raw.platformData?.poshmark || (raw.platform === 'poshmark' ? raw : {});
+            const resolvedCat = resolvePoshmarkCategory(
+              pData.category || (raw.platform === 'poshmark' ? raw.category : '') || prev.category,
+              pData.title || raw.title,
+              pData.brand || raw.brand
+            );
             setFormData(prev => ({
               ...prev,
               images: (raw.images && raw.images.length > 0) ? raw.images : (pData.images || []),
@@ -798,9 +809,9 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
               price: pData.price !== undefined ? pData.price : (raw.price || prev.price),
               originalPrice: pData.originalPrice || raw.originalPrice || prev.originalPrice,
               description: pData.description || raw.description || prev.description,
-              category: pData.category || (raw.platform === 'poshmark' ? raw.category : '') || prev.category,
+              category: resolvedCat.path || prev.category,
               subcategory: pData.subcategory || prev.subcategory,
-              department: pData.department || prev.department,
+              department: pData.department || resolvedCat.department || prev.department,
               brand: pData.brand || raw.brand || prev.brand,
               size: pData.size || raw.size || prev.size,
               colors: Array.isArray(pData.colors) ? pData.colors : (pData.color ? [pData.color] : prev.colors),
@@ -864,6 +875,11 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
 
       if (response.data.success) {
         const result = response.data.data;
+        const resolvedCat = resolvePoshmarkCategory(
+          result.poshmark_category_name || result.category_name || result.category || '',
+          result.title || prev.title,
+          result.brand || prev.brand
+        );
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
@@ -871,9 +887,9 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           price: result.price || prev.price,
           originalPrice: result.originalPrice || prev.originalPrice,
           description: result.description || prev.description,
-          category: result.category_name || result.category || prev.category,
+          category: result.poshmark_category_name || resolvedCat.path || result.category_name || result.category || prev.category,
           subcategory: result.subcategory || prev.subcategory,
-          department: result.department || prev.department,
+          department: result.department || resolvedCat.department || prev.department,
           size: result.size || prev.size,
           colors: Array.isArray(result.colors) ? result.colors : (result.color ? [result.color] : prev.colors),
           styleTags: Array.isArray(result.style_tags) ? result.style_tags : (result.styleTag ? [result.styleTag] : prev.styleTags),

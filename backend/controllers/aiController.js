@@ -5,6 +5,8 @@ const Listing = require('../models/Listing');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { normalizeProductImages } = require('../utils/imageProcessor');
 const { logActivity } = require('../utils/activityUtils');
+const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
+const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
@@ -211,6 +213,122 @@ exports.analyzeListing = async (req, res) => {
             }
         }));
 
+function resolvePoshmarkCategoryHelper(rawCat = '', title = '', brand = '', gender = 'Unisex') {
+    const combined = `${rawCat} ${title} ${brand}`.toLowerCase();
+    const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b|\btactical\b/.test(combined) || String(gender).toLowerCase() === 'men';
+    const isWomen = (/\bwomen\b|\bwomens\b|\bfemale\b|\blady\b|\bladies\b/.test(combined) || String(gender).toLowerCase() === 'women') && !isMen;
+    const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combined);
+
+    if (rawCat && rawCat.includes(' > ') && rawCat.toLowerCase() !== 'clothing') {
+        const direct = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase() === rawCat.toLowerCase());
+        if (direct) {
+            return {
+                path: direct.path,
+                categoryId: direct.categoryId,
+                id: direct.id,
+                department: direct.path.split(' > ')[0]
+            };
+        }
+    }
+
+    const tokens = combined.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
+    let bestMatch = null;
+    let highestScore = 0;
+
+    for (const item of POSHMARK_TAXONOMY) {
+        const itemLower = item.path.toLowerCase();
+        let score = 0;
+
+        if (isMen && item.path.startsWith('Men')) score += 20;
+        else if (isWomen && item.path.startsWith('Women')) score += 20;
+        else if (isKids && item.path.startsWith('Kids')) score += 20;
+
+        for (const tok of tokens) {
+            if (itemLower.includes(tok)) score += tok.length * 2;
+        }
+
+        if (score > highestScore) {
+            highestScore = score;
+            bestMatch = item;
+        }
+    }
+
+    if (bestMatch && highestScore >= 10) {
+        return {
+            path: bestMatch.path,
+            categoryId: bestMatch.categoryId,
+            id: bestMatch.id,
+            department: bestMatch.path.split(' > ')[0]
+        };
+    }
+
+    const defaultPath = isMen ? "Men > Tops > T-Shirts" : "Women > Tops > Blouses";
+    const def = POSHMARK_TAXONOMY.find(c => c.path === defaultPath) || POSHMARK_TAXONOMY[0];
+    return {
+        path: def.path,
+        categoryId: def.categoryId,
+        id: def.id,
+        department: def.path.split(' > ')[0]
+    };
+}
+
+function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gender = 'Unisex') {
+    const combined = `${rawCat} ${title} ${brand}`.toLowerCase();
+    const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b|\btactical\b/.test(combined) || String(gender).toLowerCase() === 'men';
+    const isWomen = (/\bwomen\b|\bwomens\b|\bfemale\b|\blady\b|\bladies\b/.test(combined) || String(gender).toLowerCase() === 'women') && !isMen;
+    const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combined);
+
+    if (rawCat && rawCat.includes(' > ') && rawCat.toLowerCase() !== 'clothing') {
+        const direct = (MERCARI_TAXONOMY || []).find(c => c.path.toLowerCase() === rawCat.toLowerCase());
+        if (direct) {
+            return {
+                path: direct.path,
+                id: String(direct.id),
+                name: direct.name
+            };
+        }
+    }
+
+    const tokens = combined.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
+    let bestMatch = null;
+    let highestScore = 0;
+
+    for (const item of (MERCARI_TAXONOMY || [])) {
+        if (!item.path || !item.path.includes(' > ')) continue;
+        const itemLower = item.path.toLowerCase();
+        let score = 0;
+
+        if (isMen && item.path.startsWith('Men')) score += 20;
+        else if (isWomen && item.path.startsWith('Women')) score += 20;
+        else if (isKids && item.path.startsWith('Kids')) score += 20;
+
+        for (const tok of tokens) {
+            if (itemLower.includes(tok)) score += tok.length * 2;
+        }
+
+        if (score > highestScore) {
+            highestScore = score;
+            bestMatch = item;
+        }
+    }
+
+    if (bestMatch && highestScore >= 10) {
+        return {
+            path: bestMatch.path,
+            id: String(bestMatch.id),
+            name: bestMatch.name
+        };
+    }
+
+    const defaultPath = isMen ? "Men > Athletic apparel > Athletic T-Shirts" : "Women > Tops & blouses > Blouse";
+    const def = (MERCARI_TAXONOMY || []).find(c => c.path === defaultPath) || MERCARI_TAXONOMY[0];
+    return {
+        path: def.path,
+        id: String(def.id),
+        name: def.name
+    };
+}
+
         // --- PHASE 1: CATEGORY IDENTIFICATION ---
         console.log(`--- Phase 1: Identifying ${platform} Category ---`);
         const categoryResponse = await aiClient.chat.completions.create({
@@ -230,8 +348,9 @@ exports.analyzeListing = async (req, res) => {
 2. Carefully read ALL visible tags, brand logos, model numbers, size labels, and text on the product/box.
 3. Use this deep visual and textual evidence to determine the exact product identity.
 4. If the product is clothing, footwear/shoes, or a fashion accessory, you MUST explicitly identify the target department/gender (e.g., Men's, Women's, Unisex, Kids', Boys', Girls') from the tags, styling, or labels, and you MUST prefix or include this department/gender explicitly in your 'category_query' (e.g. 'Mens Puffer Jacket' or 'Womens Athletic Shoes' instead of a generic 'Puffer Jacket' or 'Athletic Shoes').
-5. Provide a HIGHLY SPECIFIC search query (3-6 words) that targets the ABSOLUTE LEAF CATEGORY (the deepest possible level) on ${platform === 'ebay' ? 'eBay' : 'Etsy'}. (e.g., instead of 'Clothing', use 'Mens Graphic T-Shirts' or 'NFL Fan Apparel T-Shirts').
-6. Return your response ONLY as a JSON object with 'category_query'. You MUST be as detailed as possible to avoid broad parent categories like 'Clothing' (ID 206) on eBay, or generic nodes on Etsy.`
+5. STRICT RULE: NEVER return generic single-word category queries like 'Clothing', 'Apparel', 'Item', 'Shirt', 'Jacket', 'Pants', 'Shoes'.
+6. Provide a HIGHLY SPECIFIC search query (3-6 words) targeting the ABSOLUTE LEAF CATEGORY (the deepest possible level) on eBay/marketplaces (e.g., 'Mens Graphic T-Shirts' or 'Mens APFU Military Physical Fitness T-Shirt' or 'Womens Casual Button Down Blouses').
+7. Return your response ONLY as a JSON object with 'category_query'.`
                         },
                         ...imageContent
                     ]
@@ -243,9 +362,9 @@ exports.analyzeListing = async (req, res) => {
         const categoryResult = JSON.parse(categoryResponse.choices[0].message.content);
 
         let categoryId = '';
-        let categoryPath = 'General';
+        let categoryPath = '';
 
-        const query = categoryResult?.category_query || 'General';
+        const query = categoryResult?.category_query || 'Mens Graphic T-Shirts';
         if (platform === 'etsy') {
             try {
                 console.log(`--- [AI] Resolving Etsy category for query: "${query}" ---`);
@@ -277,31 +396,60 @@ exports.analyzeListing = async (req, res) => {
                     categoryPath = matchedCat.fullName;
                     console.log(`[AI] Etsy Resolved Category: ${categoryPath} (ID: ${categoryId})`);
                 } else {
-                    categoryPath = query;
+                    categoryPath = "Clothing > Men's Clothing > Shirts & Tops > T-shirts";
                 }
             } catch (err) {
                 console.error("Failed to resolve Etsy category:", err.message);
-                categoryPath = query;
+                categoryPath = "Clothing > Men's Clothing > Shirts & Tops > T-shirts";
             }
         } else {
             try {
                 const appToken = await ebayService.getAppToken();
-                const suggestions = await ebayService.getCategorySuggestions(appToken, query);
-                if (suggestions && suggestions.length > 0) {
-                    const bestSuggest = suggestions[0];
-                    categoryId = bestSuggest.category.categoryId;
+                let suggestions = await ebayService.getCategorySuggestions(appToken, query);
+                
+                // Filter out broad parent categories like Category 206 "Clothing" or nodes without ancestors
+                let validSuggestions = (suggestions || []).filter(s => 
+                    String(s.category?.categoryId) !== '206' && 
+                    s.category?.categoryName?.toLowerCase() !== 'clothing' &&
+                    (s.categoryTreeNodeAncestors || []).length > 0
+                );
+
+                // If nothing valid, retry with title/gender fallback
+                if (validSuggestions.length === 0) {
+                    const fallbackQuery = `${gender && gender !== 'Unisex' ? gender : "Men's"} T-Shirts`;
+                    console.log(`[AI] Retrying eBay category suggestions with: "${fallbackQuery}"`);
+                    const retrySuggestions = await ebayService.getCategorySuggestions(appToken, fallbackQuery);
+                    if (retrySuggestions && retrySuggestions.length > 0) {
+                        validSuggestions = retrySuggestions.filter(s => 
+                            String(s.category?.categoryId) !== '206' && 
+                            s.category?.categoryName?.toLowerCase() !== 'clothing' &&
+                            (s.categoryTreeNodeAncestors || []).length > 0
+                        );
+                    }
+                }
+
+                if (validSuggestions.length > 0) {
+                    validSuggestions.sort((a, b) => {
+                        const depthA = (a.categoryTreeNodeAncestors || []).length;
+                        const depthB = (b.categoryTreeNodeAncestors || []).length;
+                        return depthB - depthA;
+                    });
+                    const bestSuggest = validSuggestions[0];
+                    categoryId = String(bestSuggest.category.categoryId);
 
                     let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
                     ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
                     categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
                     
-                    console.log(`[AI] Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
+                    console.log(`[AI] Deepest eBay Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
                 } else {
-                    categoryPath = query;
+                    categoryId = '57990';
+                    categoryPath = "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts";
                 }
             } catch (err) {
                 console.error("Failed to fetch official category suggestions:", err.message);
-                categoryPath = query;
+                categoryId = '57990';
+                categoryPath = "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts";
             }
         }
 
@@ -519,6 +667,9 @@ Response ONLY as JSON: {
             });
         }
 
+        const resolvedPoshCategory = resolvePoshmarkCategoryHelper(categoryPath, finalTitle, finalData.brand, gender);
+        const resolvedMercariCategory = resolveMercariCategoryHelper(categoryPath, finalTitle, finalData.brand, gender);
+
         return res.json({
             success: true,
             data: {
@@ -529,6 +680,15 @@ Response ONLY as JSON: {
                 category: categoryPath,
                 category_id: categoryId,
                 category_name: categoryPath,
+                ebay_category_name: categoryPath,
+                ebay_category_id: categoryId,
+                poshmark_category_name: resolvedPoshCategory.path,
+                poshmark_category_id: resolvedPoshCategory.categoryId,
+                poshmark_department: resolvedPoshCategory.department,
+                mercari_category_name: resolvedMercariCategory.path,
+                mercari_category_id: resolvedMercariCategory.id,
+                etsy_category_name: platform === 'etsy' ? categoryPath : "Clothing > Men's Clothing > Shirts & Tops > T-shirts",
+                etsy_category_id: platform === 'etsy' ? categoryId : '',
                 aspects: officialAspects,
                 price: finalData.selling_price || finalData.price
             }

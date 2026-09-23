@@ -51,126 +51,12 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
-import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
-
-const COUNTRIES_LIST = [
-  { id: 'US', label: 'United States' },
-  { id: 'CN', label: 'China' },
-  { id: 'VN', label: 'Vietnam' },
-  { id: 'IN', label: 'India' },
-  { id: 'MX', label: 'Mexico' },
-  { id: 'IT', label: 'Italy' },
-  { id: 'JP', label: 'Japan' },
-  { id: 'DE', label: 'Germany' },
-  { id: 'GB', label: 'United Kingdom' },
-  { id: 'CA', label: 'Canada' },
-  { id: 'FR', label: 'France' },
-  { id: 'KR', label: 'South Korea' },
-  { id: 'ID', label: 'Indonesia' },
-  { id: 'TH', label: 'Thailand' },
-  { id: 'BD', label: 'Bangladesh' },
-  { id: 'PK', label: 'Pakistan' },
-  { id: 'TR', label: 'Turkey' },
-  { id: 'BR', label: 'Brazil' },
-  { id: 'ES', label: 'Spain' },
-  { id: 'PT', label: 'Portugal' },
-  { id: 'TW', label: 'Taiwan' }
-];
-
-const CHARITY_ORGS = [
-  { id: 'direct_relief', label: 'Direct Relief' },
-  { id: 'red_cross', label: 'American Red Cross' },
-  { id: 'st_jude', label: "St. Jude Children's Research Hospital" },
-  { id: 'wwf', label: 'World Wildlife Fund' },
-  { id: 'feeding_america', label: 'Feeding America' },
-  { id: 'habitat', label: 'Habitat for Humanity' },
-  { id: 'doctors_without_borders', label: 'Doctors Without Borders' }
-];
-
-const PRODUCT_DOC_TYPES = [
-  { id: 'user_guide', label: 'User Guide' },
-  { id: 'certificate', label: 'Certificate of Authenticity' },
-  { id: 'warranty', label: 'Warranty' },
-  { id: 'manual', label: 'Manual' },
-  { id: 'safety_sheet', label: 'Safety Sheet' },
-  { id: 'declaration', label: 'Declaration of Conformity' }
-];
-
-const DEFAULT_COMMON_ASPECTS = [
-  'Brand', 'Size', 'Color', 'Style', 'Department', 'Type', 'Material', 
-  'Fit', 'Pattern', 'Season', 'Sleeve Length', 'Neckline', 'Occasion', 
-  'Features', 'Closure', 'Accents', 'Theme', 'Vintage', 'Country/Region of Manufacture', 
-  'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
-];
-
-const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
-
-const flattenMercariCategories = (nodes, path = '') => {
-  let list = [];
-  for (const node of (nodes || [])) {
-    const currentPath = path ? `${path} > ${node.name}` : node.name;
-    if (node.children && node.children.length > 0) {
-      list = list.concat(flattenMercariCategories(node.children, currentPath));
-    } else {
-      list.push({
-        id: String(node.id),
-        name: node.name,
-        path: currentPath,
-        itemSizeGroupId: node.itemSizeGroupId || 0
-      });
-    }
-  }
-  return list;
-};
-
-const ALL_MERCARI_LEAF_CATEGORIES = flattenMercariCategories(MERCARI_CATEGORY_TREE);
-
-const resolveMercariCategory = (rawCategory = '', title = '', brand = '') => {
-  const cleanCat = String(rawCategory || '').trim();
-  
-  if (cleanCat && cleanCat.includes(' > ')) {
-    const direct = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path.toLowerCase() === cleanCat.toLowerCase());
-    if (direct) return { category: direct.path, categoryId: direct.id, itemSizeGroupId: direct.itemSizeGroupId };
-  }
-
-  const combinedText = `${cleanCat} ${title} ${brand}`.toLowerCase();
-  const tokens = combinedText.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the');
-
-  let bestMatch = null;
-  let highestScore = 0;
-
-  for (const item of ALL_MERCARI_LEAF_CATEGORIES) {
-    const itemPathLower = item.path.toLowerCase();
-    let score = 0;
-
-    const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b/.test(combinedText);
-    const isWomen = /\bwomen\b|\bwomens\b|\bfemale\b/.test(combinedText);
-    const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combinedText);
-
-    if (isMen && item.path.startsWith('Men')) score += 15;
-    else if (isWomen && item.path.startsWith('Women')) score += 15;
-    else if (isKids && item.path.startsWith('Kids')) score += 15;
-
-    for (const token of tokens) {
-      if (token === 'clothing' || token === 'apparel') continue;
-      if (itemPathLower.includes(token)) {
-        score += token.length;
-      }
-    }
-
-    if (score > highestScore) {
-      highestScore = score;
-      bestMatch = item;
-    }
-  }
-
-  if (bestMatch && highestScore >= 10) {
-    return { category: bestMatch.path, categoryId: bestMatch.id, itemSizeGroupId: bestMatch.itemSizeGroupId };
-  }
-
-  const fallback = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path === 'Men > Athletic apparel > Athletic T-Shirts') || ALL_MERCARI_LEAF_CATEGORIES[0];
-  return { category: fallback ? fallback.path : 'Men > Tops > T-Shirts', categoryId: fallback ? fallback.id : '1972', itemSizeGroupId: fallback ? fallback.itemSizeGroupId : 1 };
-};
+import { 
+  resolveMercariCategory, 
+  resolvePoshmarkCategory, 
+  resolveEbayCategoryFallback, 
+  resolveEtsyCategoryFallback 
+} from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
@@ -1445,8 +1331,16 @@ const CreateMasterListing = ({
         description: extractedDescription || prev.description,
 
         // eBay
-        ebayCategory: ebData.category || (listing.platform === 'ebay' ? listing.category : '') || prev.ebayCategory,
-        ebayCategoryId: ebData.categoryId || (listing.platform === 'ebay' ? listing.categoryId : '') || prev.ebayCategoryId,
+        ebayCategory: resolveEbayCategoryFallback(
+          ebData.category || (listing.platform === 'ebay' ? listing.category : '') || prev.ebayCategory,
+          listing.title || ebData.title || prev.title,
+          extractedBrand || prev.brand
+        ).category,
+        ebayCategoryId: (ebData.categoryId && String(ebData.categoryId) !== '206') ? String(ebData.categoryId) : (resolveEbayCategoryFallback(
+          ebData.category || (listing.platform === 'ebay' ? listing.category : '') || prev.ebayCategory,
+          listing.title || ebData.title || prev.title,
+          extractedBrand || prev.brand
+        ).categoryId || prev.ebayCategoryId),
         ebayPrice: ebData.price !== undefined ? String(ebData.price) : (listing.price !== undefined ? String(listing.price) : prev.ebayPrice),
         ebayFormat: ebData.format || prev.ebayFormat,
         ebayYourCost: ebData.yourCost || prev.ebayYourCost,
@@ -1458,7 +1352,7 @@ const CreateMasterListing = ({
         locationKey: ebData.locationKey || listing.locationKey || prev.locationKey,
         ebayAllowOffers: ebData.allowOffers !== undefined ? ebData.allowOffers : prev.ebayAllowOffers,
         ebayMinOfferPrice: ebData.minOfferPrice || prev.ebayMinOfferPrice,
-        ebayAutoAcceptPrice: ebData.autoAcceptPrice || prev.ebayAutoAcceptPrice,
+        ebayAutoAcceptPrice: ebData.autoAcceptPrice || prev.autoAcceptPrice,
         ebayVolumePricingEnabled: ebData.volumePricingEnabled !== undefined ? ebData.volumePricingEnabled : prev.ebayVolumePricingEnabled,
         ebayVolumePricingTier2: ebData.volumePricingTier2 || prev.ebayVolumePricingTier2,
         ebayVolumePricingTier3: ebData.volumePricingTier3 || prev.ebayVolumePricingTier3,
@@ -1467,7 +1361,7 @@ const CreateMasterListing = ({
         ebayScheduleDate: ebData.scheduleDate || prev.ebayScheduleDate,
         ebayScheduleTime: ebData.scheduleTime || prev.ebayScheduleTime,
         ebayIrregularPackage: ebData.irregularPackage !== undefined ? ebData.irregularPackage : prev.ebayIrregularPackage,
-        ebayDisplayUkSite: ebData.displayUkSite !== undefined ? ebData.displayUkSite : prev.ebayDisplayUkSite,
+        ebayDisplayUkSite: ebData.displayUkSite !== undefined ? ebData.displayUkSite : prev.displayUkSite,
         ebayCountryOfOrigin: ebData.countryOfOrigin || prev.ebayCountryOfOrigin,
         ebayItemLocationZip: ebData.itemLocationZip || prev.ebayItemLocationZip,
         ebayItemLocationCity: ebData.itemLocationCity || prev.ebayItemLocationCity,
@@ -1483,10 +1377,18 @@ const CreateMasterListing = ({
         ebayCharityOrg: ebData.charityOrg || prev.ebayCharityOrg,
 
         // Poshmark
-        poshmarkCategory: pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+        poshmarkCategory: resolvePoshmarkCategory(
+          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          listing.title || pmData.title || prev.title,
+          extractedBrand || prev.brand
+        ).category,
         poshmarkPrice: pmData.price !== undefined ? String(pmData.price) : (listing.price !== undefined ? String(listing.price) : prev.poshmarkPrice),
         poshmarkOriginalPrice: pmData.originalPrice !== undefined ? String(pmData.originalPrice) : (listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.poshmarkOriginalPrice),
-        poshmarkDepartment: pmData.departmentId || pmData.department || (listing.platform === 'poshmark' ? listing.departmentId : '') || prev.poshmarkDepartment,
+        poshmarkDepartment: pmData.departmentId || pmData.department || resolvePoshmarkCategory(
+          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          listing.title || pmData.title || prev.title,
+          extractedBrand || prev.brand
+        ).department || prev.poshmarkDepartment || 'Women',
         poshmarkSize: pmData.size || listing.size || rawAspects['Size']?.[0] || prev.poshmarkSize,
         poshmarkColors: Array.isArray(pmData.colors) ? pmData.colors : (pmData.color ? [pmData.color] : (listing.color ? [listing.color] : (rawAspects['Color'] ? rawAspects['Color'] : prev.poshmarkColors))),
         poshmarkStyleTags: Array.isArray(pmData.styleTags) ? pmData.styleTags : (pmData.styleTag ? [pmData.styleTag] : (listing.styleTag ? [listing.styleTag] : prev.poshmarkStyleTags)),
@@ -1520,7 +1422,11 @@ const CreateMasterListing = ({
         mercariShippingPrice: mcData.shippingPrice || listing.shippingPrice || prev.mercariShippingPrice,
 
         // Etsy
-        etsyCategory: etData.category || (listing.platform === 'etsy' ? listing.category : '') || prev.etsyCategory,
+        etsyCategory: resolveEtsyCategoryFallback(
+          etData.category || (listing.platform === 'etsy' ? listing.category : '') || prev.etsyCategory,
+          listing.title || etData.title || prev.title,
+          extractedBrand || prev.brand
+        ),
         etsyCategoryId: etData.categoryId || (listing.platform === 'etsy' ? listing.categoryId : '') || prev.etsyCategoryId,
         etsyPrice: etData.price !== undefined ? String(etData.price) : (listing.price !== undefined ? String(listing.price) : prev.etsyPrice),
         who_made: etData.who_made || listing.etsyWhoMade || prev.who_made,
@@ -1630,6 +1536,27 @@ const CreateMasterListing = ({
         const brandVal = res.brand || prev.brand || '';
         const sizeVal = res.size || prev.size || '';
         const colorVal = res.color || prev.color || '';
+        const resolvedEbay = resolveEbayCategoryFallback(
+          res.ebay_category_name || res.category_name || res.category || '',
+          res.title || prev.title,
+          brandVal || prev.brand
+        );
+        const resolvedPosh = resolvePoshmarkCategory(
+          res.poshmark_category_name || res.category_name || res.category || '',
+          res.title || prev.title,
+          brandVal || prev.brand
+        );
+        const resolvedMercari = resolveMercariCategory(
+          res.mercari_category_name || res.category_name || res.category || '',
+          res.title || prev.title,
+          brandVal || prev.brand
+        );
+        const resolvedEtsy = resolveEtsyCategoryFallback(
+          res.etsy_category_name || res.category_name || res.category || '',
+          res.title || prev.title,
+          brandVal || prev.brand
+        );
+
         setFormData(prev => ({
           ...prev,
           title: res.title || prev.title,
@@ -1642,8 +1569,8 @@ const CreateMasterListing = ({
           sku: res.sku || prev.sku,
 
           // eBay
-          ebayCategory: res.category_name || res.category || prev.ebayCategory,
-          ebayCategoryId: res.category_id || prev.ebayCategoryId,
+          ebayCategory: res.ebay_category_name || resolvedEbay.category || prev.ebayCategory,
+          ebayCategoryId: (res.ebay_category_id && String(res.ebay_category_id) !== '206') ? String(res.ebay_category_id) : (resolvedEbay.categoryId || prev.ebayCategoryId),
           ebayPrice: prev.ebayPrice || res.price || prev.price,
           ebayAspects: { 
             ...prev.ebayAspects, 
@@ -1654,31 +1581,23 @@ const CreateMasterListing = ({
           },
 
           // Poshmark
-          poshmarkCategory: res.category_name || res.category || prev.poshmarkCategory,
+          poshmarkCategory: res.poshmark_category_name || resolvedPosh.category || prev.poshmarkCategory,
           poshmarkPrice: prev.poshmarkPrice || res.price || prev.price,
           poshmarkSize: sizeVal || prev.poshmarkSize,
-          poshmarkDepartment: res.department || prev.poshmarkDepartment,
+          poshmarkDepartment: res.poshmark_department || resolvedPosh.department || prev.poshmarkDepartment,
           poshmarkColors: Array.isArray(res.colors) ? res.colors : (colorVal ? [colorVal] : prev.poshmarkColors),
           poshmarkStyleTags: Array.isArray(res.style_tags) ? res.style_tags : prev.poshmarkStyleTags,
 
           // Mercari
-          mercariCategory: resolveMercariCategory(
-            res.category_name || res.category || '',
-            res.title || prev.title,
-            brandVal || prev.brand
-          ).category,
-          mercariCategoryId: resolveMercariCategory(
-            res.category_name || res.category || '',
-            res.title || prev.title,
-            brandVal || prev.brand
-          ).categoryId,
+          mercariCategory: res.mercari_category_name || resolvedMercari.category,
+          mercariCategoryId: res.mercari_category_id || resolvedMercari.categoryId,
           mercariBrand: brandVal || prev.mercariBrand,
           mercariPrice: prev.mercariPrice || res.price || prev.price,
           mercariSize: sizeVal || prev.mercariSize,
 
           // Etsy
-          etsyCategory: res.category_name || res.category || prev.etsyCategory,
-          etsyCategoryId: res.category_id || prev.etsyCategoryId,
+          etsyCategory: res.etsy_category_name || resolvedEtsy || prev.etsyCategory,
+          etsyCategoryId: res.etsy_category_id || res.category_id || prev.etsyCategoryId,
           etsyPrice: prev.etsyPrice || res.price || prev.price,
           etsyTags: Array.isArray(res.tags) ? res.tags : (res.style_tags || prev.etsyTags),
           etsyMaterials: Array.isArray(res.materials) ? res.materials : prev.etsyMaterials,

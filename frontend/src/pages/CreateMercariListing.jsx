@@ -34,77 +34,8 @@ import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
-import mercariTaxonomy from '../../../backend/constants/mercariCategoryTaxonomy.json';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
-
-const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
-
-const flattenMercariCategories = (nodes, path = '') => {
-  let list = [];
-  for (const node of (nodes || [])) {
-    const currentPath = path ? `${path} > ${node.name}` : node.name;
-    if (node.children && node.children.length > 0) {
-      list = list.concat(flattenMercariCategories(node.children, currentPath));
-    } else {
-      list.push({
-        id: String(node.id),
-        name: node.name,
-        path: currentPath,
-        itemSizeGroupId: node.itemSizeGroupId || 0
-      });
-    }
-  }
-  return list;
-};
-
-const ALL_MERCARI_LEAF_CATEGORIES = flattenMercariCategories(MERCARI_CATEGORY_TREE);
-
-const resolveMercariCategory = (rawCategory = '', title = '', brand = '') => {
-  const cleanCat = String(rawCategory || '').trim();
-  
-  if (cleanCat && cleanCat.includes(' > ')) {
-    const direct = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path.toLowerCase() === cleanCat.toLowerCase());
-    if (direct) return { category: direct.path, categoryId: direct.id, itemSizeGroupId: direct.itemSizeGroupId };
-  }
-
-  const combinedText = `${cleanCat} ${title} ${brand}`.toLowerCase();
-  const tokens = combinedText.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the');
-
-  let bestMatch = null;
-  let highestScore = 0;
-
-  for (const item of ALL_MERCARI_LEAF_CATEGORIES) {
-    const itemPathLower = item.path.toLowerCase();
-    let score = 0;
-
-    const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b/.test(combinedText);
-    const isWomen = /\bwomen\b|\bwomens\b|\bfemale\b/.test(combinedText);
-    const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combinedText);
-
-    if (isMen && item.path.startsWith('Men')) score += 15;
-    else if (isWomen && item.path.startsWith('Women')) score += 15;
-    else if (isKids && item.path.startsWith('Kids')) score += 15;
-
-    for (const token of tokens) {
-      if (token === 'clothing' || token === 'apparel') continue;
-      if (itemPathLower.includes(token)) {
-        score += token.length;
-      }
-    }
-
-    if (score > highestScore) {
-      highestScore = score;
-      bestMatch = item;
-    }
-  }
-
-  if (bestMatch && highestScore >= 10) {
-    return { category: bestMatch.path, categoryId: bestMatch.id, itemSizeGroupId: bestMatch.itemSizeGroupId };
-  }
-
-  const fallback = ALL_MERCARI_LEAF_CATEGORIES.find(c => c.path === 'Men > Athletic apparel > Athletic T-Shirts') || ALL_MERCARI_LEAF_CATEGORIES[0];
-  return { category: fallback ? fallback.path : 'Men > Tops > T-Shirts', categoryId: fallback ? fallback.id : '1972', itemSizeGroupId: fallback ? fallback.itemSizeGroupId : 1 };
-};
+import { resolveMercariCategory } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
@@ -600,6 +531,11 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
 
       if (response.data.success) {
         const result = response.data.data;
+        const resolvedMercari = resolveMercariCategory(
+          result.mercari_category_name || result.category_name || result.category || '',
+          result.title || prev.title,
+          result.brand || prev.brand
+        );
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
@@ -611,8 +547,8 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
           size: result.size || prev.size,
           price: result.price || prev.price,
           description: cleanMercariText(result.description || prev.description),
-          category: result.category_name || result.category || prev.category,
-          categoryId: result.category_id || prev.categoryId,
+          category: result.mercari_category_name || resolvedMercari.category || result.category_name || prev.category,
+          categoryId: result.mercari_category_id || result.category_id || resolvedMercari.categoryId || prev.categoryId,
           sku: result.sku || prev.sku
         }));
         toast.success("AI scanning complete! Listing details updated.");

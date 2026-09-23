@@ -40,6 +40,7 @@ import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
+import { resolveEbayCategoryFallback } from '../utils/categoryResolver';
 
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
@@ -494,8 +495,16 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               title: eData.title || raw.title || prev.title,
               price: eData.price !== undefined ? eData.price : (raw.price || prev.price),
               description: eData.description || raw.description || prev.description,
-              category: eData.category || (raw.platform === 'ebay' ? raw.category : '') || prev.category,
-              categoryId: eData.categoryId || (raw.platform === 'ebay' ? raw.categoryId : '') || prev.categoryId,
+              category: resolveEbayCategoryFallback(
+                eData.category || (raw.platform === 'ebay' ? raw.category : '') || prev.category,
+                eData.title || raw.title,
+                b
+              ).category,
+              categoryId: (eData.categoryId && String(eData.categoryId) !== '206') ? String(eData.categoryId) : (resolveEbayCategoryFallback(
+                eData.category || (raw.platform === 'ebay' ? raw.category : '') || prev.category,
+                eData.title || raw.title,
+                b
+              ).categoryId || prev.categoryId),
               selectedAspects: { ...prev.selectedAspects, ...rawAspects },
               sku: eData.sku || raw.sku || prev.sku,
               fulfillmentPolicyId: eData.fulfillmentPolicyId || prev.fulfillmentPolicyId,
@@ -606,13 +615,18 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         const brandVal = result.brand || '';
         const sizeVal = result.size || '';
         const colorVal = result.color || '';
+        const resolvedEbay = resolveEbayCategoryFallback(
+          result.ebay_category_name || result.category_name || result.category || '',
+          result.title || prev.title,
+          brandVal
+        );
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
           price: result.price || prev.price,
           description: result.description || prev.description,
-          category: result.category_name || result.category || prev.category,
-          categoryId: result.category_id || prev.categoryId,
+          category: result.ebay_category_name || resolvedEbay.category || prev.category,
+          categoryId: (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId)),
           selectedAspects: {
             ...prev.selectedAspects,
             ...(brandVal ? { Brand: [brandVal] } : {}),
