@@ -96,6 +96,13 @@ const PRODUCT_DOC_TYPES = [
   { id: 'declaration', label: 'Declaration of Conformity' }
 ];
 
+const DEFAULT_COMMON_ASPECTS = [
+  'Brand', 'Size', 'Color', 'Style', 'Department', 'Type', 'Material', 
+  'Fit', 'Pattern', 'Season', 'Sleeve Length', 'Neckline', 'Occasion', 
+  'Features', 'Closure', 'Accents', 'Theme', 'Vintage', 'Country/Region of Manufacture', 
+  'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
+];
+
 const { MERCARI_CATEGORY_TREE } = mercariTaxonomy;
 
 const POPULAR_BRANDS = [
@@ -2384,7 +2391,14 @@ const CreateMasterListing = ({
                 {/* eBay Aspects Grid */}
                 <div className="pt-2 border-t border-slate-100 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold text-slate-700">eBay Item Specifics (Aspects)</label>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700">eBay Item Specifics (Aspects)</label>
+                      <p className="text-[10px] text-slate-500">
+                        {ebayAspects.length > 0 
+                          ? `Showing all ${ebayAspects.length} item specifics for category` 
+                          : 'All standard item specifics (select category above to load category specifics)'}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setShowAddAspect(!showAddAspect)}
@@ -2413,18 +2427,88 @@ const CreateMasterListing = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
-                    {Object.entries(formData.ebayAspects || {}).map(([key, val]) => (
-                      <div key={key} className="space-y-0.5">
-                        <label className="block text-[10px] font-bold text-slate-600 truncate">{key}</label>
-                        <input 
-                          type="text"
-                          className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
-                          value={Array.isArray(val) ? val[0] : val}
-                          onChange={(e) => handleAspectChange(key, e.target.value)}
-                        />
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
+                    {ebayAspects.length > 0 ? (
+                      ebayAspects.map((aspect) => {
+                        const aspectName = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+                        const currentVal = formData.ebayAspects[aspectName]?.[0] || formData.ebayAspects[aspectName] || '';
+                        const isRequired = aspect.aspectConstraint?.aspectRequired || false;
+                        const hasValues = aspect.aspectValues && aspect.aspectValues.length > 0;
+                        const listId = `master-ebay-aspect-${aspectName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+                        return (
+                          <div key={aspectName} className="space-y-0.5">
+                            <label className="block text-[10px] font-bold text-slate-600 truncate" title={aspectName}>
+                              {aspectName} {isRequired && <span className="text-rose-500">*</span>}
+                            </label>
+                            <input 
+                              type="text"
+                              list={hasValues ? listId : undefined}
+                              className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                              value={currentVal}
+                              onChange={(e) => handleAspectChange(aspectName, e.target.value)}
+                              placeholder={`Enter ${aspectName}...`}
+                            />
+                            {hasValues && (
+                              <datalist id={listId}>
+                                {aspect.aspectValues.map((v, i) => (
+                                  <option key={i} value={v.localizedValue || v.value || v} />
+                                ))}
+                              </datalist>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      DEFAULT_COMMON_ASPECTS.map((name) => {
+                        const currentVal = formData.ebayAspects[name]?.[0] || formData.ebayAspects[name] || '';
+                        return (
+                          <div key={name} className="space-y-0.5">
+                            <label className="block text-[10px] font-bold text-slate-600 truncate">{name}</label>
+                            <input 
+                              type="text"
+                              className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                              value={currentVal}
+                              onChange={(e) => handleAspectChange(name, e.target.value)}
+                              placeholder={`Enter ${name}...`}
+                            />
+                          </div>
+                        );
+                      })
+                    )}
+
+                    {/* Custom user-added aspects */}
+                    {Object.keys(formData.ebayAspects || {})
+                      .filter(k => 
+                        (ebayAspects.length > 0 
+                          ? !ebayAspects.some(a => (a.localizedAspectName || a.name) === k)
+                          : !DEFAULT_COMMON_ASPECTS.includes(k)
+                        )
+                      )
+                      .map((k) => (
+                        <div key={k} className="space-y-0.5 relative group">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-bold text-slate-600 truncate">{k}</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = { ...formData.ebayAspects };
+                                delete updated[k];
+                                setFormData(prev => ({ ...prev, ebayAspects: updated }));
+                              }}
+                              className="text-rose-500 hover:text-rose-700 text-[9px]"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <input 
+                            type="text"
+                            className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                            value={formData.ebayAspects[k]?.[0] || formData.ebayAspects[k] || ''}
+                            onChange={(e) => handleAspectChange(k, e.target.value)}
+                          />
+                        </div>
+                      ))}
                   </div>
                 </div>
 
@@ -2901,27 +2985,23 @@ const CreateMasterListing = ({
               </div>
 
               <div className="space-y-3">
-                {/* Department, Category & Price */}
+                {/* Poshmark Category & Price */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Department</label>
-                    <SearchableDropdown
-                      value={formData.poshmarkDepartment}
-                      options={POSHMARK_DEPARTMENTS}
-                      onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkDepartment: opt.id }))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category</label>
-                    <PoshmarkCategoryDropdown
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category (Full Hierarchy) *</label>
+                    <CategorySearchDropdown
                       value={formData.poshmarkCategory}
-                      onSelect={(opt) => setFormData(prev => ({ 
-                        ...prev, 
-                        poshmarkCategory: opt.fullName || opt.name,
-                        poshmarkDepartment: opt.department || prev.poshmarkDepartment
-                      }))}
-                      placeholder="Search Poshmark category..."
+                      platform="poshmark"
+                      onSelect={(opt) => setFormData(prev => {
+                        const fullCategory = opt.fullName || opt.label || opt.name || '';
+                        const dept = opt.department || opt.departmentId || fullCategory.split(' > ')[0] || prev.poshmarkDepartment || 'Women';
+                        return { 
+                          ...prev, 
+                          poshmarkCategory: fullCategory,
+                          poshmarkDepartment: dept
+                        };
+                      })}
+                      placeholder="Search Poshmark category hierarchy (e.g. Women > Tops > Blouses)..."
                     />
                   </div>
 

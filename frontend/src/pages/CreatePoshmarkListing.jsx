@@ -30,6 +30,7 @@ import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
+import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 
 const POSHMARK_COLORS = [
@@ -1223,32 +1224,25 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
               />
             </div>
 
-            {/* Department & Category Search Dropdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Department *</label>
-                <SearchableDropdown 
-                  value={formData.department}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, department: opt.id }))}
-                  options={POSHMARK_DEPARTMENTS}
-                  placeholder="Select department..."
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category (Full Hierarchy) *</label>
-                <PoshmarkCategoryDropdown 
-                  value={formData.category}
-                  onSelect={(opt) => setFormData(prev => ({
+            {/* Category Search Dropdown (Single full-width field) */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category (Full Hierarchy) *</label>
+              <CategorySearchDropdown 
+                value={formData.category}
+                platform="poshmark"
+                onSelect={(opt) => setFormData(prev => {
+                  const fullCategory = opt.fullName || opt.label || opt.name || '';
+                  const dept = opt.department || opt.departmentId || fullCategory.split(' > ')[0] || prev.department || 'Women';
+                  return {
                     ...prev,
-                    category: opt.fullName || opt.label,
-                    categoryId: opt.id,
-                    department: opt.department || prev.department,
+                    category: fullCategory,
+                    categoryId: opt.id || prev.categoryId,
+                    department: dept,
                     subcategory: opt.subcategory || prev.subcategory
-                  }))}
-                  placeholder="Search category (e.g. Women > Dresses > Maxi, Men > Shoes > Sneakers)..."
-                />
-              </div>
+                  };
+                })}
+                placeholder="Search category hierarchy (e.g. Women > Dresses > Maxi, Men > Shoes > Sneakers)..."
+              />
             </div>
 
             {/* Brand & Size Search Dropdowns */}

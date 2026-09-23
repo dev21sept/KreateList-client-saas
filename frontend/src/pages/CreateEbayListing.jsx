@@ -84,6 +84,13 @@ const PRODUCT_DOC_TYPES = [
   { id: 'declaration', label: 'Declaration of Conformity' }
 ];
 
+const DEFAULT_COMMON_ASPECTS = [
+  'Brand', 'Size', 'Color', 'Style', 'Department', 'Type', 'Material', 
+  'Fit', 'Pattern', 'Season', 'Sleeve Length', 'Neckline', 'Occasion', 
+  'Features', 'Closure', 'Accents', 'Theme', 'Vintage', 'Country/Region of Manufacture', 
+  'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
+];
+
 const EBAY_CONDITIONS = [
   { id: '1000', label: 'New with tags', description: 'A brand-new, unused, and unworn item with original tags.' },
   { id: '1500', label: 'New without tags', description: 'A brand-new, unused, and unworn item without original tags.' },
@@ -1165,30 +1172,40 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             )}
 
             {/* Aspects Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[520px] overflow-y-auto pr-1">
               {aspects.length > 0 ? (
-                aspects.slice(0, 18).map((aspect) => {
+                aspects.map((aspect) => {
                   const aspectName = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
                   const currentVal = formData.selectedAspects[aspectName]?.[0] || formData.selectedAspects[aspectName] || '';
                   const isRequired = aspect.aspectConstraint?.aspectRequired || false;
+                  const hasValues = aspect.aspectValues && aspect.aspectValues.length > 0;
+                  const listId = `ebay-single-aspect-${aspectName.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
                   return (
                     <div key={aspectName} className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 truncate">
+                      <label className="block text-[11px] font-bold text-slate-700 truncate" title={aspectName}>
                         {aspectName} {isRequired && <span className="text-rose-500">*</span>}
                       </label>
                       <input 
                         type="text"
+                        list={hasValues ? listId : undefined}
                         className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
                         value={currentVal}
                         onChange={(e) => handleAspectChange(aspectName, e.target.value)}
                         placeholder={`Enter ${aspectName}...`}
                       />
+                      {hasValues && (
+                        <datalist id={listId}>
+                          {aspect.aspectValues.map((v, i) => (
+                            <option key={i} value={v.localizedValue || v.value || v} />
+                          ))}
+                        </datalist>
+                      )}
                     </div>
                   );
                 })
               ) : (
-                ['Brand', 'Size', 'Color', 'Style', 'Department', 'Material', 'Type', 'Model'].map((name) => {
+                DEFAULT_COMMON_ASPECTS.map((name) => {
                   const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name] || '';
                   return (
                     <div key={name} className="space-y-1">
@@ -1206,7 +1223,12 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               )}
 
               {Object.keys(formData.selectedAspects)
-                .filter(k => !aspects.some(a => (a.localizedAspectName || a.name) === k) && !['Brand', 'Size', 'Color', 'Style', 'Department', 'Material', 'Type', 'Model'].includes(k))
+                .filter(k => 
+                  (aspects.length > 0 
+                    ? !aspects.some(a => (a.localizedAspectName || a.name) === k)
+                    : !DEFAULT_COMMON_ASPECTS.includes(k)
+                  )
+                )
                 .map((k) => (
                   <div key={k} className="space-y-1 relative group">
                     <div className="flex items-center justify-between">
