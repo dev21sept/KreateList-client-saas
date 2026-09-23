@@ -130,7 +130,44 @@ const AMAZON_PRODUCT_TYPES = [
   { id: 'PRODUCT', name: 'General Product' }
 ];
 
-const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false, className = '' }) => {
+const POSHMARK_STYLE_TAGS = [
+  "70s", "80s", "90s", "Activewear", "Animal Print", "Athleisure", "Avant Garde", "Baggy", 
+  "Balletcore", "Beach", "Beaded", "Bikercore", "Blokecore", "Bodycon", "Bohemian", "Bow", 
+  "Bridal", "Bridesmaid", "Business Casual", "Cable Knit", "Cashmere", "Casual", "Chunky", 
+  "Collegiate", "Colorblock", "Colorful", "Contemporary", "Coord Sets", "Coquette Girl", 
+  "Corduroy", "Cottagecore", "Cozy", "Crochet", "Cropped", "Cruelty-Free", "Cut Out", 
+  "Denim", "Distressed", "DIY", "Drop Waist", "Eclectic Grandpa", "Embroidered", "Fall", 
+  "Faux Fur", "Feminine", "Festival", "Festive", "Flannel", "Flare", "Floral", "Formal", 
+  "Fringe", "Gingham", "Girlhoodcore", "Gorpcore", "Goth", "Grunge", "Hand Knit", 
+  "Handmade", "Herringbone", "Houndstooth", "Indie Sleeze", "Knit", "Lace", "Leather", 
+  "Leopard Print", "Lightweight", "Linen", "Luxury", "Maximalism", "Mesh", "Metallic", 
+  "Minimalist", "Monochrome", "Monogram", "Moto", "Neon", "Neutral", "Nylon", "Office", 
+  "Oversized", "Paisley", "Party", "Pastel", "Patchwork", "Peplum", "Plaid", "Platform", 
+  "Pleated", "Polka Dot", "Preppy", "Punk", "Quiet Luxury", "Quilted", "Relaxed Fit", 
+  "Resortwear", "Retro", "Rosette", "Ruffle", "Satin", "Sequins", "Sheer", "Sherpa", 
+  "Silk", "Sporty", "Strapless", "Streetwear", "Stripes", "Suede", "Tailored", 
+  "Tennis Prep", "Travel", "Tropical", "Tweed", "Two-Tone", "Unisex", "Upcycled", 
+  "Utility", "Vacation", "Vegan", "Velour", "Vintage", "Waterproof", "Wedding", 
+  "Western", "Whimsigoth", "Winter", "Wool", "Woven", "Y2K"
+];
+
+const POPULAR_POSH_BRANDS = [
+  "Nike", "Lululemon", "Zara", "Free People", "Anthropologie", "Madewell", "Torrid", 
+  "Coach", "Kate Spade", "Michael Kors", "Tory Burch", "Gucci", "Louis Vuitton", 
+  "Patagonia", "The North Face", "Carhartt", "Levi's", "Adidas", "Jordan", 
+  "Aritzia", "Urban Outfitters", "ASOS", "Abercrombie & Fitch", "American Eagle", 
+  "H&M", "Gymshark", "Spanx", "Reformation", "Brandy Melville", "Under Armour", "J. Crew"
+];
+
+const POSHMARK_SIZES_BY_DEPT = {
+  Women: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '1X', '2X', '3X', '00', '0', '2', '4', '6', '8', '10', '12', '14', '16', '18', '20', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', 'One Size'],
+  Men: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '28', '29', '30', '31', '32', '33', '34', '36', '38', '40', '42', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', '13', '14', 'One Size'],
+  Kids: ['0-3M', '3-6M', '6-9M', '9-12M', '12-18M', '18-24M', '2T', '3T', '4T', '5T', '4', '5', '6', '7', '8', '10', '12', '14', '16', 'One Size'],
+  Home: ['One Size', 'Twin', 'Full', 'Queen', 'King', 'Standard'],
+  Pets: ['One Size', 'XS', 'S', 'M', 'L', 'XL']
+};
+
+const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select colors (max 2)...' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -143,81 +180,596 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const selected = useMemo(() => {
+    if (Array.isArray(value)) return value;
+    return value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  }, [value]);
+
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((opt) => {
-      const label = String(opt?.label || opt?.name || '').toLowerCase();
-      const desc = String(opt?.description || '').toLowerCase();
-      return label.includes(q) || desc.includes(q);
-    });
-  }, [options, searchTerm]);
+    if (!q) return POSHMARK_COLORS;
+    return POSHMARK_COLORS.filter(c => c.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  const handleSelect = (color) => {
+    if (selected.includes(color)) {
+      const updated = selected.filter(item => item !== color);
+      onChange(updated);
+    } else {
+      if (selected.length >= 2) return;
+      const updated = [...selected, color];
+      onChange(updated);
+    }
+  };
 
   return (
-    <div className={`relative w-full ${className}`} ref={wrapperRef}>
-      <button
-        type="button"
-        disabled={disabled}
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-11 px-3 bg-white border ${
-          error ? 'border-rose-500 ring-2 ring-rose-500/10' : 'border-slate-200 hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/5'
-        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-800 disabled:opacity-60 transition-all`}
+        className="w-full min-h-10 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-400 focus-within:border-slate-900 rounded-xl text-left flex items-center justify-between text-xs font-semibold text-slate-800 cursor-pointer transition-all"
       >
-        <span className="truncate pr-2">{value || placeholder}</span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {value && !disabled && (
+        <div className="flex flex-wrap gap-1 items-center flex-1 min-w-0 mr-2">
+          {selected.length > 0 ? (
+            selected.map((item) => (
+              <span
+                key={item}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-900 text-[11px] font-bold rounded-md"
+              >
+                {item}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="p-0.5 hover:text-rose-500 rounded text-slate-400"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 font-medium">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
+          {selected.length > 0 && (
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                onSelect({ id: '', label: '', name: '' });
+                onChange([]);
                 setSearchTerm('');
               }}
-              className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-slate-600 transition-colors"
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
             >
-              <X className="w-3.5 h-3.5" />
+              <X size={12} />
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </div>
-      </button>
+      </div>
 
-      {isOpen && !disabled && (
+      {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] overflow-hidden animate-in fade-in duration-150">
           <div className="p-2 bg-slate-50 border-b border-slate-100">
             <input
               autoFocus
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search..."
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+              placeholder="Search colors..."
+              className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+          
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
-                <button
-                  key={opt.id || opt.label || opt.name}
-                  type="button"
-                  onClick={() => {
-                    onSelect(opt);
-                    setIsOpen(false);
-                    setSearchTerm('');
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition-colors flex items-center justify-between text-xs font-semibold ${
-                    value === (opt.label || opt.name) ? 'bg-slate-100 font-bold text-slate-900' : ''
-                  }`}
-                >
-                  <div className="truncate pr-2">
-                    <div>{opt.label || opt.name}</div>
-                    {opt.description && <div className="text-[10px] text-slate-400 font-normal">{opt.description}</div>}
-                  </div>
-                  {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
-                </button>
-              ))
+              filteredOptions.map((item) => {
+                const isSelected = selected.includes(item);
+                const isLimitReached = selected.length >= 2 && !isSelected;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    disabled={isLimitReached}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-3 py-2 transition-colors flex items-center justify-between text-xs font-semibold ${
+                      isSelected 
+                        ? 'bg-slate-100 text-slate-900 font-bold' 
+                        : isLimitReached 
+                          ? 'opacity-40 cursor-not-allowed text-slate-400' 
+                          : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span>{item}</span>
+                    {isSelected && <Check size={14} className="text-slate-900" />}
+                  </button>
+                );
+              })
             ) : (
-              <div className="p-4 text-xs text-slate-400 text-center">No options found</div>
+              <div className="p-3 text-xs text-slate-400 text-center">No colors found</div>
             )}
           </div>
+
+          <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
+            <span>Select 1 - 2 colors</span>
+            <span className={selected.length === 2 ? 'text-slate-900 font-extrabold' : 'text-slate-500'}>
+              {selected.length}/2 Selected
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StyleTagMultiSelectDropdown = ({ value, onChange, placeholder = 'Select style tags (max 3)...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = useMemo(() => {
+    if (Array.isArray(value)) return value;
+    return value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return POSHMARK_STYLE_TAGS;
+    return POSHMARK_STYLE_TAGS.filter(t => t.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  const handleSelect = (tag) => {
+    if (selected.includes(tag)) {
+      const updated = selected.filter(item => item !== tag);
+      onChange(updated);
+    } else {
+      if (selected.length >= 3) return;
+      const updated = [...selected, tag];
+      onChange(updated);
+    }
+  };
+
+  const handleCustomAdd = () => {
+    const clean = searchTerm.trim();
+    if (!clean || selected.includes(clean)) return;
+    if (selected.length >= 3) return;
+    onChange([...selected, clean]);
+    setSearchTerm('');
+  };
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full min-h-10 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-400 focus-within:border-slate-900 rounded-xl text-left flex items-center justify-between text-xs font-semibold text-slate-800 cursor-pointer transition-all"
+      >
+        <div className="flex flex-wrap gap-1 items-center flex-1 min-w-0 mr-2">
+          {selected.length > 0 ? (
+            selected.map((item) => (
+              <span
+                key={item}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-900 text-[11px] font-bold rounded-md"
+              >
+                #{item}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="p-0.5 hover:text-rose-500 rounded text-slate-400"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 font-medium">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
+          {selected.length > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange([]);
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+            >
+              <X size={12} />
+            </span>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] overflow-hidden animate-in fade-in duration-150">
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex gap-1.5">
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCustomAdd();
+                }
+              }}
+              placeholder="Search or type custom style tag..."
+              className="flex-1 h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+            />
+            {searchTerm.trim() && !POSHMARK_STYLE_TAGS.some(t => t.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+              <button
+                type="button"
+                onClick={handleCustomAdd}
+                className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
+              >
+                Add
+              </button>
+            )}
+          </div>
+          
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((item) => {
+                const isSelected = selected.includes(item);
+                const isLimitReached = selected.length >= 3 && !isSelected;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    disabled={isLimitReached}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-3 py-2 transition-colors flex items-center justify-between text-xs font-semibold ${
+                      isSelected 
+                        ? 'bg-slate-100 text-slate-900 font-bold' 
+                        : isLimitReached 
+                          ? 'opacity-40 cursor-not-allowed text-slate-400' 
+                          : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span>#{item}</span>
+                    {isSelected && <Check size={14} className="text-slate-900" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-3 text-xs text-slate-400 text-center">Press Add to create "{searchTerm}"</div>
+            )}
+          </div>
+
+          <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
+            <span>Select up to 3 style tags</span>
+            <span className={selected.length === 3 ? 'text-slate-900 font-extrabold' : 'text-slate-500'}>
+              {selected.length}/3 Selected
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkCategoryDropdown = ({ value, onSelect, placeholder = 'Search Poshmark category...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await aiService.poshmarkSuggestCategories(searchTerm);
+        if (response.data) {
+          setSuggestions(response.data);
+        }
+      } catch (err) {
+        console.error("Error fetching category suggestions:", err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 transition-all"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+            setSearchTerm(value || '');
+          }}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-3 top-3 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchTerm(value || '');
+          }}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-60 overflow-y-auto animate-in fade-in duration-150">
+          {loading && (
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center">Searching Poshmark Categories...</div>
+          )}
+          {!loading && suggestions.length === 0 && searchTerm.trim() && (
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center">No categories found</div>
+          )}
+          {suggestions.map((opt) => (
+            <button
+              key={opt.id || opt.fullName}
+              type="button"
+              onClick={() => {
+                onSelect(opt);
+                setIsOpen(false);
+                setSearchTerm('');
+              }}
+              className="w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-slate-100 text-slate-700 transition-colors"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-bold text-slate-800">{opt.fullName}</span>
+                {opt.department && <span className="text-[10px] text-slate-400">{opt.department}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter brand...' }) => {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredBrands = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return POPULAR_POSH_BRANDS;
+    return POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input 
+        type="text"
+        className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+      />
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
+          {filteredBrands.map((b) => (
+            <button
+              key={b}
+              type="button"
+              onClick={() => {
+                setSearchTerm(b);
+                onChange(b);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
+            >
+              {b}
+            </button>
+          ))}
+          {searchTerm.trim() && !filteredBrands.includes(searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(searchTerm.trim());
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-900 font-bold text-xs border-t border-slate-100"
+            >
+              Use "{searchTerm.trim()}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkSizeDropdown = ({ value, onChange, department = 'Women', placeholder = 'Select size...' }) => {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const deptSizes = POSHMARK_SIZES_BY_DEPT[department] || POSHMARK_SIZES_BY_DEPT.Women || [];
+
+  const filteredSizes = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return deptSizes;
+    return deptSizes.filter(s => s.toLowerCase().includes(q));
+  }, [searchTerm, deptSizes]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input 
+        type="text"
+        className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+      />
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
+          {filteredSizes.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setSearchTerm(s);
+                onChange(s);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
+            >
+              {s}
+            </button>
+          ))}
+          {searchTerm.trim() && !deptSizes.includes(searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(searchTerm.trim());
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-900 font-bold text-xs border-t border-slate-100"
+            >
+              Use "{searchTerm.trim()}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MercariBrandDropdown = ({ value, onChange, placeholder = 'Search or enter brand...' }) => {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const [suggestions, setSuggestions] = useState(POPULAR_BRANDS);
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const triggerBrandSearch = async (val) => {
+    setSearchTerm(val);
+    onChange(val, '');
+    setIsOpen(true);
+    if (!val.trim()) {
+      setSuggestions(POPULAR_BRANDS);
+      return;
+    }
+    try {
+      const response = await mercariService.suggestBrands(val);
+      if (response.data && response.data.success && response.data.brands) {
+        setSuggestions(response.data.brands);
+      }
+    } catch (err) {
+      console.warn("Backend brand autocomplete fetch failed:", err);
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input 
+        type="text"
+        className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+        value={searchTerm}
+        onChange={(e) => triggerBrandSearch(e.target.value)}
+        onFocus={() => {
+          setIsOpen(true);
+          if (!searchTerm.trim()) setSuggestions(POPULAR_BRANDS);
+        }}
+        placeholder={placeholder}
+      />
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
+          {suggestions.map((b) => (
+            <button
+              key={b.id || b.name}
+              type="button"
+              onClick={() => {
+                setSearchTerm(b.name);
+                onChange(b.name, String(b.id || ''));
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
+            >
+              {b.name}
+            </button>
+          ))}
+          {searchTerm.trim() && !suggestions.some(s => s.name.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(searchTerm.trim(), '');
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-900 font-bold text-xs border-t border-slate-100"
+            >
+              Use "{searchTerm.trim()}"
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1192,17 +1744,19 @@ const CreateMasterListing = ({
                           type="button" 
                           disabled={idx === 0}
                           onClick={() => moveImage(idx, 'left')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move left"
                         >
-                          ?
+                          <ArrowLeft size={10} />
                         </button>
                         <button 
                           type="button" 
                           disabled={idx === formData.images.length - 1}
                           onClick={() => moveImage(idx, 'right')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move right"
                         >
-                          ?
+                          <ArrowRight size={10} />
                         </button>
                       </div>
                     </div>
@@ -1491,13 +2045,14 @@ const CreateMasterListing = ({
                   <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Poshmark Platform Configuration</h3>
-                    <p className="text-[10px] text-slate-500">Colors, style tags, department & shipping discounts</p>
+                    <p className="text-[10px] text-slate-500">Live category search, colors, style tags, brand & size dropdowns</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Poshmark</Badge>
               </div>
 
               <div className="space-y-3">
+                {/* Department, Category & Price */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Department</label>
@@ -1510,12 +2065,14 @@ const CreateMasterListing = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category</label>
-                    <input 
-                      type="text"
-                      className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    <PoshmarkCategoryDropdown
                       value={formData.poshmarkCategory}
-                      onChange={(e) => setFormData(prev => ({ ...prev, poshmarkCategory: e.target.value }))}
-                      placeholder="e.g. Dresses, Tops..."
+                      onSelect={(opt) => setFormData(prev => ({ 
+                        ...prev, 
+                        poshmarkCategory: opt.fullName || opt.name,
+                        poshmarkDepartment: opt.department || prev.poshmarkDepartment
+                      }))}
+                      placeholder="Search Poshmark category..."
                     />
                   </div>
 
@@ -1532,52 +2089,54 @@ const CreateMasterListing = ({
                   </div>
                 </div>
 
-                {/* Colors (up to 2) */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                  <label className="block text-[11px] font-bold text-slate-700">Colors (Max 2)</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {POSHMARK_COLORS.map((col) => {
-                      const isSelected = formData.poshmarkColors?.includes(col);
-                      return (
-                        <button
-                          key={col}
-                          type="button"
-                          onClick={() => togglePoshColor(col)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
-                            isSelected ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          {col} {isSelected && '?'}
-                        </button>
-                      );
-                    })}
+                {/* Brand, Size & Shipping Discount */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand</label>
+                    <PoshmarkBrandDropdown
+                      value={formData.brand}
+                      onChange={(b) => setFormData(prev => ({ ...prev, brand: b }))}
+                      placeholder="Search or enter brand..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Size</label>
+                    <PoshmarkSizeDropdown
+                      value={formData.poshmarkSize || formData.size}
+                      department={formData.poshmarkDepartment}
+                      onChange={(s) => setFormData(prev => ({ ...prev, poshmarkSize: s }))}
+                      placeholder="Select size..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Shipping Discount</label>
+                    <SearchableDropdown
+                      value={POSHMARK_SHIPPING_DISCOUNTS.find(d => d.id === formData.poshmarkShippingDiscount)?.label || 'No discount'}
+                      options={POSHMARK_SHIPPING_DISCOUNTS}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, poshmarkShippingDiscount: opt.id }))}
+                      placeholder="Select discount..."
+                    />
                   </div>
                 </div>
 
-                {/* Style Tags (up to 3) */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                  <label className="block text-[11px] font-bold text-slate-700">Style Tags (Max 3)</label>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(formData.poshmarkStyleTags || []).map((t) => (
-                      <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold border border-slate-200">
-                        #{t}
-                        <button type="button" onClick={() => removePoshTag(t)} className="hover:text-rose-500"><X size={12} /></button>
-                      </span>
-                    ))}
-                    {(formData.poshmarkStyleTags || []).length < 3 && (
-                      <div className="flex items-center gap-1">
-                        <input 
-                          type="text"
-                          placeholder="Add tag..."
-                          value={poshTagInput}
-                          onChange={(e) => setPoshTagInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPoshTag(poshTagInput); } }}
-                          className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800 w-32"
-                        />
-                        <Button type="button" variant="outline" size="sm" onClick={() => addPoshTag(poshTagInput)}>Add</Button>
-                      </div>
-                    )}
-                  </div>
+                {/* Colors (Max 2) */}
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Colors (Max 2)</label>
+                  <ColorMultiSelectDropdown
+                    value={formData.poshmarkColors}
+                    onChange={(cols) => setFormData(prev => ({ ...prev, poshmarkColors: cols }))}
+                  />
+                </div>
+
+                {/* Style Tags (Max 3) */}
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Style Tags (Max 3)</label>
+                  <StyleTagMultiSelectDropdown
+                    value={formData.poshmarkStyleTags}
+                    onChange={(tags) => setFormData(prev => ({ ...prev, poshmarkStyleTags: tags }))}
+                  />
                 </div>
               </div>
             </div>
@@ -1591,7 +2150,7 @@ const CreateMasterListing = ({
                   <img src="/mercari.png" className="w-5 h-5 object-contain" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Mercari Platform Configuration</h3>
-                    <p className="text-[10px] text-slate-500">Category hierarchy, condition & full shipping matrix</p>
+                    <p className="text-[10px] text-slate-500">Category taxonomy, brand autocomplete, condition & full shipping matrix</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Mercari</Badge>
@@ -1609,16 +2168,14 @@ const CreateMasterListing = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Brand, Condition, Size & Price */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Mercari Price ($)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      placeholder={formData.price ? `${formData.price} (Default)` : '0.00'}
-                      value={formData.mercariPrice}
-                      onChange={(e) => setFormData(prev => ({ ...prev, mercariPrice: e.target.value }))}
-                      className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-slate-800"
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Mercari Brand</label>
+                    <MercariBrandDropdown
+                      value={formData.mercariBrand || formData.brand}
+                      onChange={(bName, bId) => setFormData(prev => ({ ...prev, mercariBrand: bName, mercariBrandId: bId }))}
+                      placeholder="e.g. Nike, Adidas..."
                     />
                   </div>
 
@@ -1644,11 +2201,23 @@ const CreateMasterListing = ({
                       <input 
                         type="text"
                         className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                        value={formData.mercariSize}
+                        value={formData.mercariSize || formData.size}
                         onChange={(e) => setFormData(prev => ({ ...prev, mercariSize: e.target.value }))}
                         placeholder="Size..."
                       />
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Mercari Price ($)</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      placeholder={formData.price ? `${formData.price} (Default)` : '0.00'}
+                      value={formData.mercariPrice}
+                      onChange={(e) => setFormData(prev => ({ ...prev, mercariPrice: e.target.value }))}
+                      className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-slate-800"
+                    />
                   </div>
                 </div>
 
@@ -1663,7 +2232,7 @@ const CreateMasterListing = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className={`p-3 rounded-xl border cursor-pointer flex items-center gap-2.5 transition-all ${
-                      formData.mercariShippingPayer === 'buyer' ? 'bg-slate-50 border-slate-900' : 'bg-white border-slate-200'
+                      formData.mercariShippingPayer === 'buyer' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'bg-white border-slate-200'
                     }`}>
                       <input 
                         type="radio" 
@@ -1678,7 +2247,7 @@ const CreateMasterListing = ({
                     </label>
 
                     <label className={`p-3 rounded-xl border cursor-pointer flex items-center gap-2.5 transition-all ${
-                      formData.mercariShippingPayer === 'seller' ? 'bg-slate-50 border-slate-900' : 'bg-white border-slate-200'
+                      formData.mercariShippingPayer === 'seller' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'bg-white border-slate-200'
                     }`}>
                       <input 
                         type="radio" 
@@ -1702,7 +2271,7 @@ const CreateMasterListing = ({
                           <input 
                             type="number"
                             min="0"
-                            className="w-full px-3 pr-7 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                            className="w-full px-3 pr-7 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-slate-800"
                             value={formData.mercariShippingWeightLbs}
                             onChange={(e) => setFormData(prev => ({ ...prev, mercariShippingWeightLbs: Math.max(0, parseInt(e.target.value) || 0) }))}
                           />
@@ -1713,7 +2282,7 @@ const CreateMasterListing = ({
                             type="number"
                             min="0"
                             max="15"
-                            className="w-full px-3 pr-7 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                            className="w-full px-3 pr-7 h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-slate-800"
                             value={formData.mercariShippingWeightOz}
                             onChange={(e) => setFormData(prev => ({ ...prev, mercariShippingWeightOz: Math.max(0, parseInt(e.target.value) || 0) }))}
                           />
@@ -1747,7 +2316,7 @@ const CreateMasterListing = ({
                             key={opt.carrier}
                             onClick={() => setFormData(prev => ({ ...prev, mercariShippingCarrier: opt.carrier, mercariShippingPrice: opt.price }))}
                             className={`p-2.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                              isSelected ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'bg-white border-slate-200'
+                              isSelected ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'bg-white border-slate-200 hover:border-slate-300'
                             }`}
                           >
                             <div className="flex items-center justify-between">

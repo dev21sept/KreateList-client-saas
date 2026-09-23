@@ -36,6 +36,27 @@ const POSHMARK_COLORS = [
   'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
 ];
 
+const POSHMARK_STYLE_TAGS = [
+  "70s", "80s", "90s", "Activewear", "Animal Print", "Athleisure", "Avant Garde", "Baggy", 
+  "Balletcore", "Beach", "Beaded", "Bikercore", "Blokecore", "Bodycon", "Bohemian", "Bow", 
+  "Bridal", "Bridesmaid", "Business Casual", "Cable Knit", "Cashmere", "Casual", "Chunky", 
+  "Collegiate", "Colorblock", "Colorful", "Contemporary", "Coord Sets", "Coquette Girl", 
+  "Corduroy", "Cottagecore", "Cozy", "Crochet", "Cropped", "Cruelty-Free", "Cut Out", 
+  "Denim", "Distressed", "DIY", "Drop Waist", "Eclectic Grandpa", "Embroidered", "Fall", 
+  "Faux Fur", "Feminine", "Festival", "Festive", "Flannel", "Flare", "Floral", "Formal", 
+  "Fringe", "Gingham", "Girlhoodcore", "Gorpcore", "Goth", "Grunge", "Hand Knit", 
+  "Handmade", "Herringbone", "Houndstooth", "Indie Sleeze", "Knit", "Lace", "Leather", 
+  "Leopard Print", "Lightweight", "Linen", "Luxury", "Maximalism", "Mesh", "Metallic", 
+  "Minimalist", "Monochrome", "Monogram", "Moto", "Neon", "Neutral", "Nylon", "Office", 
+  "Oversized", "Paisley", "Party", "Pastel", "Patchwork", "Peplum", "Plaid", "Platform", 
+  "Pleated", "Polka Dot", "Preppy", "Punk", "Quiet Luxury", "Quilted", "Relaxed Fit", 
+  "Resortwear", "Retro", "Rosette", "Ruffle", "Satin", "Sequins", "Sheer", "Sherpa", 
+  "Silk", "Sporty", "Strapless", "Streetwear", "Stripes", "Suede", "Tailored", 
+  "Tennis Prep", "Travel", "Tropical", "Tweed", "Two-Tone", "Unisex", "Upcycled", 
+  "Utility", "Vacation", "Vegan", "Velour", "Vintage", "Waterproof", "Wedding", 
+  "Western", "Whimsigoth", "Winter", "Wool", "Woven", "Y2K"
+];
+
 const POSHMARK_DEPARTMENTS = [
   { id: 'Women', label: 'Women' },
   { id: 'Men', label: 'Men' },
@@ -44,6 +65,14 @@ const POSHMARK_DEPARTMENTS = [
   { id: 'Pets', label: 'Pets' }
 ];
 
+const POSHMARK_SIZES_BY_DEPT = {
+  Women: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '1X', '2X', '3X', '00', '0', '2', '4', '6', '8', '10', '12', '14', '16', '18', '20', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', 'One Size'],
+  Men: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '28', '29', '30', '31', '32', '33', '34', '36', '38', '40', '42', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', '13', '14', 'One Size'],
+  Kids: ['0-3M', '3-6M', '6-9M', '9-12M', '12-18M', '18-24M', '2T', '3T', '4T', '5T', '4', '5', '6', '7', '8', '10', '12', '14', '16', 'One Size'],
+  Home: ['One Size', 'Twin', 'Full', 'Queen', 'King', 'Standard'],
+  Pets: ['One Size', 'XS', 'S', 'M', 'L', 'XL']
+};
+
 const POSHMARK_SHIPPING_DISCOUNTS = [
   { id: '', label: 'No discount (Buyer pays $7.97)' },
   { id: '5.95', label: '$5.95 (You cover $2.02)' },
@@ -51,19 +80,12 @@ const POSHMARK_SHIPPING_DISCOUNTS = [
   { id: '0.00', label: 'Free shipping (You cover $7.97)' }
 ];
 
-const POPULAR_BRANDS = [
-  { id: 4578, name: "Nike" },
-  { id: 54, name: "Adidas" },
-  { id: 3370, name: "Jordan" },
-  { id: 115, name: "Air Jordan" },
-  { id: 3778, name: "Levi's" },
-  { id: 969, name: "Carhartt" },
-  { id: 4867, name: "Patagonia" },
-  { id: 5212, name: "Polo Ralph Lauren" },
-  { id: 5971, name: "The North Face" },
-  { id: 6223, name: "Under Armour" },
-  { id: 7777, name: "Lululemon" },
-  { id: 8888, name: "Zara" }
+const POPULAR_POSH_BRANDS = [
+  "Nike", "Lululemon", "Zara", "Free People", "Anthropologie", "Madewell", "Torrid", 
+  "Coach", "Kate Spade", "Michael Kors", "Tory Burch", "Gucci", "Louis Vuitton", 
+  "Patagonia", "The North Face", "Carhartt", "Levi's", "Adidas", "Jordan", 
+  "Aritzia", "Urban Outfitters", "ASOS", "Abercrombie & Fitch", "American Eagle", 
+  "H&M", "Gymshark", "Spanx", "Reformation", "Brandy Melville", "Under Armour", "J. Crew"
 ];
 
 const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
@@ -156,6 +178,532 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
   );
 };
 
+const ColorMultiSelectDropdown = ({ value, onChange, placeholder = 'Select colors (max 2)...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = useMemo(() => {
+    if (Array.isArray(value)) return value;
+    return value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return POSHMARK_COLORS;
+    return POSHMARK_COLORS.filter(c => c.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  const handleSelect = (color) => {
+    if (selected.includes(color)) {
+      const updated = selected.filter(item => item !== color);
+      onChange(updated);
+    } else {
+      if (selected.length >= 2) return;
+      const updated = [...selected, color];
+      onChange(updated);
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full min-h-11 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-400 focus-within:border-slate-900 rounded-xl text-left flex items-center justify-between text-xs font-semibold text-slate-800 cursor-pointer transition-all"
+      >
+        <div className="flex flex-wrap gap-1 items-center flex-1 min-w-0 mr-2">
+          {selected.length > 0 ? (
+            selected.map((item) => (
+              <span
+                key={item}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-900 text-[11px] font-bold rounded-md"
+              >
+                {item}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="p-0.5 hover:text-rose-500 rounded text-slate-400"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 font-medium">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
+          {selected.length > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange([]);
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+            >
+              <X size={12} />
+            </span>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] overflow-hidden animate-in fade-in duration-150">
+          <div className="p-2 bg-slate-50 border-b border-slate-100">
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search colors..."
+              className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+            />
+          </div>
+          
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((item) => {
+                const isSelected = selected.includes(item);
+                const isLimitReached = selected.length >= 2 && !isSelected;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    disabled={isLimitReached}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-3 py-2 transition-colors flex items-center justify-between text-xs font-semibold ${
+                      isSelected 
+                        ? 'bg-slate-100 text-slate-900 font-bold' 
+                        : isLimitReached 
+                          ? 'opacity-40 cursor-not-allowed text-slate-400' 
+                          : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span>{item}</span>
+                    {isSelected && <Check size={14} className="text-slate-900" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-3 text-xs text-slate-400 text-center">No colors found</div>
+            )}
+          </div>
+
+          <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
+            <span>Select 1 - 2 colors</span>
+            <span className={selected.length === 2 ? 'text-slate-900 font-extrabold' : 'text-slate-500'}>
+              {selected.length}/2 Selected
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StyleTagMultiSelectDropdown = ({ value, onChange, placeholder = 'Select style tags (max 3)...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selected = useMemo(() => {
+    if (Array.isArray(value)) return value;
+    return value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  }, [value]);
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return POSHMARK_STYLE_TAGS;
+    return POSHMARK_STYLE_TAGS.filter(t => t.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  const handleSelect = (tag) => {
+    if (selected.includes(tag)) {
+      const updated = selected.filter(item => item !== tag);
+      onChange(updated);
+    } else {
+      if (selected.length >= 3) return;
+      const updated = [...selected, tag];
+      onChange(updated);
+    }
+  };
+
+  const handleCustomAdd = () => {
+    const clean = searchTerm.trim();
+    if (!clean || selected.includes(clean)) return;
+    if (selected.length >= 3) return;
+    onChange([...selected, clean]);
+    setSearchTerm('');
+  };
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full min-h-11 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-400 focus-within:border-slate-900 rounded-xl text-left flex items-center justify-between text-xs font-semibold text-slate-800 cursor-pointer transition-all"
+      >
+        <div className="flex flex-wrap gap-1 items-center flex-1 min-w-0 mr-2">
+          {selected.length > 0 ? (
+            selected.map((item) => (
+              <span
+                key={item}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-900 text-[11px] font-bold rounded-md"
+              >
+                #{item}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="p-0.5 hover:text-rose-500 rounded text-slate-400"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 font-medium">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
+          {selected.length > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange([]);
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+            >
+              <X size={12} />
+            </span>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] overflow-hidden animate-in fade-in duration-150">
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex gap-1.5">
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCustomAdd();
+                }
+              }}
+              placeholder="Search or type custom style tag..."
+              className="flex-1 h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+            />
+            {searchTerm.trim() && !POSHMARK_STYLE_TAGS.some(t => t.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+              <button
+                type="button"
+                onClick={handleCustomAdd}
+                className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
+              >
+                Add
+              </button>
+            )}
+          </div>
+          
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((item) => {
+                const isSelected = selected.includes(item);
+                const isLimitReached = selected.length >= 3 && !isSelected;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    disabled={isLimitReached}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-3 py-2 transition-colors flex items-center justify-between text-xs font-semibold ${
+                      isSelected 
+                        ? 'bg-slate-100 text-slate-900 font-bold' 
+                        : isLimitReached 
+                          ? 'opacity-40 cursor-not-allowed text-slate-400' 
+                          : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span>#{item}</span>
+                    {isSelected && <Check size={14} className="text-slate-900" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-3 text-xs text-slate-400 text-center">Press Add to create "{searchTerm}"</div>
+            )}
+          </div>
+
+          <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold text-slate-400">
+            <span>Select up to 3 style tags</span>
+            <span className={selected.length === 3 ? 'text-slate-900 font-extrabold' : 'text-slate-500'}>
+              {selected.length}/3 Selected
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkCategoryDropdown = ({ value, onSelect, placeholder = 'Search Poshmark category...' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await aiService.poshmarkSuggestCategories(searchTerm);
+        if (response.data) {
+          setSuggestions(response.data);
+        }
+      } catch (err) {
+        console.error("Error fetching category suggestions:", err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          className="w-full px-3 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 transition-all shadow-xs"
+          value={isOpen ? searchTerm : (value || '')}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+            setSearchTerm(value || '');
+          }}
+          placeholder={placeholder}
+        />
+        <ChevronDown 
+          className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 cursor-pointer" 
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchTerm(value || '');
+          }}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-60 overflow-y-auto animate-in fade-in duration-150">
+          {loading && (
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center">Searching Poshmark Categories...</div>
+          )}
+          {!loading && suggestions.length === 0 && searchTerm.trim() && (
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center">No categories found</div>
+          )}
+          {suggestions.map((opt) => (
+            <button
+              key={opt.id || opt.fullName}
+              type="button"
+              onClick={() => {
+                onSelect(opt);
+                setIsOpen(false);
+                setSearchTerm('');
+              }}
+              className="w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-slate-100 text-slate-700 transition-colors"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-bold text-slate-800">{opt.fullName}</span>
+                {opt.department && <span className="text-[10px] text-slate-400">{opt.department}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter brand...' }) => {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredBrands = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return POPULAR_POSH_BRANDS;
+    return POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(q));
+  }, [searchTerm]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input 
+        type="text"
+        className="w-full px-3 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+      />
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
+          {filteredBrands.map((b) => (
+            <button
+              key={b}
+              type="button"
+              onClick={() => {
+                setSearchTerm(b);
+                onChange(b);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
+            >
+              {b}
+            </button>
+          ))}
+          {searchTerm.trim() && !filteredBrands.includes(searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(searchTerm.trim());
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-900 font-bold text-xs border-t border-slate-100"
+            >
+              Use "{searchTerm.trim()}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoshmarkSizeDropdown = ({ value, onChange, department = 'Women', placeholder = 'Select size...' }) => {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const sizes = POSHMARK_SIZES_BY_DEPT[department] || POSHMARK_SIZES_BY_DEPT.Women;
+
+  const filteredSizes = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return sizes;
+    return sizes.filter(s => s.toLowerCase().includes(q));
+  }, [searchTerm, sizes]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input 
+        type="text"
+        className="w-full px-3 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+      />
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
+          {filteredSizes.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setSearchTerm(s);
+                onChange(s);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
+            >
+              {s}
+            </button>
+          ))}
+          {searchTerm.trim() && !filteredSizes.includes(searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(searchTerm.trim());
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-900 font-bold text-xs border-t border-slate-100"
+            >
+              Custom Size: "{searchTerm.trim()}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, initialListing = null, onClose = null }) => {
   const navigate = useNavigate();
   const { toast } = useNotification();
@@ -167,14 +715,6 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
   const [descriptionMode, setDescriptionMode] = useState('edit');
   const [rules, setRules] = useState([]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
-
-  // Brand autocomplete
-  const [brandSuggestions, setBrandSuggestions] = useState([]);
-  const [isBrandOpen, setIsBrandOpen] = useState(false);
-  const brandDropdownRef = useRef(null);
-
-  // Style tags chip input
-  const [tagInput, setTagInput] = useState('');
 
   const [formData, setFormData] = useState({
     images: [],
@@ -280,26 +820,6 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
     fetchInitial();
   }, [editId, initialListing]);
 
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target)) {
-        setIsBrandOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const triggerBrandSearch = (value) => {
-    setIsBrandOpen(true);
-    if (!value.trim()) {
-      setBrandSuggestions(POPULAR_BRANDS);
-      return;
-    }
-    const filtered = POPULAR_BRANDS.filter(b => b.name.toLowerCase().includes(value.toLowerCase()));
-    setBrandSuggestions(filtered);
-  };
-
   const handleImageUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
     setIsConvertingImages(true);
@@ -379,42 +899,6 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
   const deleteImage = (index) => {
     const newImages = formData.images.filter((_, idx) => idx !== index);
     setFormData(prev => ({ ...prev, images: newImages }));
-  };
-
-  const toggleColor = (color) => {
-    setFormData(prev => {
-      const current = prev.colors || [];
-      if (current.includes(color)) {
-        return { ...prev, colors: current.filter(c => c !== color) };
-      }
-      if (current.length >= 2) {
-        toast.warning("Poshmark allows a maximum of 2 colors.");
-        return prev;
-      }
-      return { ...prev, colors: [...current, color] };
-    });
-  };
-
-  const addStyleTag = (tag) => {
-    const cleanTag = tag.trim();
-    if (!cleanTag) return;
-    setFormData(prev => {
-      const current = prev.styleTags || [];
-      if (current.includes(cleanTag)) return prev;
-      if (current.length >= 3) {
-        toast.warning("Poshmark allows a maximum of 3 style tags.");
-        return prev;
-      }
-      return { ...prev, styleTags: [...current, cleanTag] };
-    });
-    setTagInput('');
-  };
-
-  const removeStyleTag = (tag) => {
-    setFormData(prev => ({
-      ...prev,
-      styleTags: (prev.styleTags || []).filter(t => t !== tag)
-    }));
   };
 
   const handleSaveListing = async (publishMode = null) => {
@@ -498,7 +982,6 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
     }
   };
 
-  // Fee calculation (Poshmark: $2.95 under $15, 20% for $15 and above)
   const numPrice = parseFloat(formData.price) || 0;
   const poshmarkFee = numPrice < 15 ? (numPrice > 0 ? 2.95 : 0) : numPrice * 0.20;
   const shippingDiscountDeduction = parseFloat(formData.shippingDiscount) === 5.95 ? 2.02 : (parseFloat(formData.shippingDiscount) === 4.99 ? 2.98 : (formData.shippingDiscount === '0.00' ? 7.97 : 0));
@@ -628,17 +1111,19 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
                           type="button" 
                           disabled={idx === 0}
                           onClick={() => moveImage(idx, 'left')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move left"
                         >
-                          ?
+                          <ArrowLeft size={10} />
                         </button>
                         <button 
                           type="button" 
                           disabled={idx === formData.images.length - 1}
                           onClick={() => moveImage(idx, 'right')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move right"
                         >
-                          ?
+                          <ArrowRight size={10} />
                         </button>
                       </div>
                     </div>
@@ -738,7 +1223,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
               />
             </div>
 
-            {/* Department & Category */}
+            {/* Department & Category Search Dropdown */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Department *</label>
@@ -750,143 +1235,66 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Category *</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Poshmark Category (Full Hierarchy) *</label>
+                <PoshmarkCategoryDropdown 
                   value={formData.category}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  placeholder="e.g. Dresses, Tops, Shoes..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Subcategory</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.subcategory}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subcategory: e.target.value }))}
-                  placeholder="e.g. Maxi, Mini, Casual..."
+                  onSelect={(opt) => setFormData(prev => ({
+                    ...prev,
+                    category: opt.fullName || opt.label,
+                    categoryId: opt.id,
+                    department: opt.department || prev.department,
+                    subcategory: opt.subcategory || prev.subcategory
+                  }))}
+                  placeholder="Search category (e.g. Women > Dresses > Maxi, Men > Shoes > Sneakers)..."
                 />
               </div>
             </div>
 
-            {/* Size & Brand */}
+            {/* Brand & Size Search Dropdowns */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Size *</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.size}
-                  onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                  placeholder="e.g. S, M, L, 8, 10, One Size..."
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand Name</label>
+                <PoshmarkBrandDropdown 
+                  value={formData.brand}
+                  onChange={(val) => setFormData(prev => ({ ...prev, brand: val }))}
+                  placeholder="Search brand (Nike, Lululemon, Zara, Coach...)"
                 />
               </div>
 
-              {/* Brand Autocomplete */}
-              <div className="relative" ref={brandDropdownRef}>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.brand}
-                  onChange={(e) => {
-                    setFormData(prev => ({ ...prev, brand: e.target.value }));
-                    triggerBrandSearch(e.target.value);
-                  }}
-                  onFocus={() => triggerBrandSearch(formData.brand)}
-                  placeholder="e.g. Lululemon, Nike, Zara..."
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Size *</label>
+                <PoshmarkSizeDropdown 
+                  value={formData.size}
+                  onChange={(val) => setFormData(prev => ({ ...prev, size: val }))}
+                  department={formData.department}
+                  placeholder="Select size or type custom..."
                 />
-                {isBrandOpen && brandSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] py-1 text-xs">
-                    {brandSuggestions.map((b) => (
-                      <button
-                        key={b.id || b.name}
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, brand: b.name }));
-                          setIsBrandOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-100 text-slate-700 font-semibold truncate"
-                      >
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Colors Selector (Max 2) */}
+            {/* Colors Dropdown (Searchable Multi-Select with Chips) */}
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               <label className="block text-[11px] font-bold text-slate-700">
-                Colors (Select up to 2)
+                Colors (Dropdown - Select up to 2)
               </label>
-              <div className="flex flex-wrap gap-1.5">
-                {POSHMARK_COLORS.map((col) => {
-                  const isSelected = formData.colors?.includes(col);
-                  return (
-                    <button
-                      key={col}
-                      type="button"
-                      onClick={() => toggleColor(col)}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
-                        isSelected 
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-xs' 
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {col} {isSelected && '?'}
-                    </button>
-                  );
-                })}
-              </div>
+              <ColorMultiSelectDropdown 
+                value={formData.colors}
+                onChange={(val) => setFormData(prev => ({ ...prev, colors: val }))}
+                placeholder="Click to select up to 2 colors..."
+              />
             </div>
 
-            {/* Style Tags (Max 3) */}
+            {/* Style Tags Dropdown (Searchable Multi-Select with All Tags) */}
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  Style Tags (Up to 3)
-                </label>
-                <span className="text-[10px] text-slate-400">{(formData.styleTags || []).length}/3 tags</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(formData.styleTags || []).map((tag) => (
-                  <span 
-                    key={tag} 
-                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold border border-slate-200"
-                  >
-                    #{tag}
-                    <button type="button" onClick={() => removeStyleTag(tag)} className="hover:text-rose-500">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-                {(formData.styleTags || []).length < 3 && (
-                  <div className="flex items-center gap-1">
-                    <input 
-                      type="text"
-                      placeholder="Add tag (e.g. Boho, Y2K)..."
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addStyleTag(tagInput);
-                        }
-                      }}
-                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800 w-44"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={() => addStyleTag(tagInput)}>
-                      Add
-                    </Button>
-                  </div>
-                )}
-              </div>
+              <label className="block text-[11px] font-bold text-slate-700">
+                Style Tags (Dropdown - Select up to 3 tags)
+              </label>
+              <StyleTagMultiSelectDropdown 
+                value={formData.styleTags}
+                onChange={(val) => setFormData(prev => ({ ...prev, styleTags: val }))}
+                placeholder="Click to select or search style tags (Boho, Vintage, Y2K, Cottagecore...)"
+              />
             </div>
 
             {/* Price, Original Price & Shipping Discount */}
@@ -907,7 +1315,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Original Price ($)</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Original Retail Price ($)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
                   <input 

@@ -701,17 +701,19 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                           type="button" 
                           disabled={idx === 0}
                           onClick={() => moveImage(idx, 'left')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move left"
                         >
-                          ?
+                          <ArrowLeft size={10} />
                         </button>
                         <button 
                           type="button" 
                           disabled={idx === formData.images.length - 1}
                           onClick={() => moveImage(idx, 'right')}
-                          className="px-1 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          className="px-1.5 py-0.5 bg-white/30 hover:bg-white/50 text-white rounded text-[9px] font-bold disabled:opacity-30"
+                          title="Move right"
                         >
-                          ?
+                          <ArrowRight size={10} />
                         </button>
                       </div>
                     </div>
