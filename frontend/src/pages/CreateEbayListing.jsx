@@ -403,6 +403,20 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
 
       if (initialListing) {
         const eData = initialListing.platformData?.ebay || (initialListing.platform === 'ebay' ? initialListing : {});
+        let rawAspects = {};
+        const srcAspects = eData.itemSpecifics || initialListing.itemSpecifics || eData.aspects || {};
+        if (srcAspects && typeof srcAspects === 'object') {
+          Object.entries(srcAspects).forEach(([k, v]) => {
+            rawAspects[k] = Array.isArray(v) ? v : [v];
+          });
+        }
+        const b = initialListing.brand || eData.brand || rawAspects['Brand']?.[0] || '';
+        const s = initialListing.size || eData.size || rawAspects['Size']?.[0] || '';
+        const c = initialListing.color || eData.color || rawAspects['Color']?.[0] || '';
+        if (b && !rawAspects['Brand']) rawAspects['Brand'] = [b];
+        if (s && !rawAspects['Size']) rawAspects['Size'] = [s];
+        if (c && !rawAspects['Color']) rawAspects['Color'] = [c];
+
         setFormData(prev => ({
           ...prev,
           images: initialListing.images || [],
@@ -411,7 +425,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           description: eData.description || initialListing.description || '',
           category: eData.category || (initialListing.platform === 'ebay' ? initialListing.category : '') || '',
           categoryId: eData.categoryId || (initialListing.platform === 'ebay' ? initialListing.categoryId : '') || '',
-          selectedAspects: eData.selectedAspects || eData.aspects || initialListing.itemSpecifics || {},
+          selectedAspects: { ...prev.selectedAspects, ...rawAspects },
           sku: eData.sku || initialListing.sku || '',
           conditionId: eData.conditionId || mapEbayCondition(initialListing.condition),
           yourCost: eData.yourCost || prev.yourCost,
@@ -453,15 +467,29 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           if (res.data?.success && res.data?.data) {
             const raw = res.data.data;
             const eData = raw.platformData?.ebay || (raw.platform === 'ebay' ? raw : {});
+            let rawAspects = {};
+            const srcAspects = eData.itemSpecifics || raw.itemSpecifics || eData.aspects || {};
+            if (srcAspects && typeof srcAspects === 'object') {
+              Object.entries(srcAspects).forEach(([k, v]) => {
+                rawAspects[k] = Array.isArray(v) ? v : [v];
+              });
+            }
+            const b = raw.brand || eData.brand || rawAspects['Brand']?.[0] || '';
+            const s = raw.size || eData.size || rawAspects['Size']?.[0] || '';
+            const c = raw.color || eData.color || rawAspects['Color']?.[0] || '';
+            if (b && !rawAspects['Brand']) rawAspects['Brand'] = [b];
+            if (s && !rawAspects['Size']) rawAspects['Size'] = [s];
+            if (c && !rawAspects['Color']) rawAspects['Color'] = [c];
+
             setFormData(prev => ({
               ...prev,
-              images: (raw.images && raw.images.length > 0) ? raw.images : (eData.images || []),
+              images: (raw.images && raw.images.length > 0) ? raw.images : (eData.images || prev.images),
               title: eData.title || raw.title || prev.title,
               price: eData.price !== undefined ? eData.price : (raw.price || prev.price),
               description: eData.description || raw.description || prev.description,
               category: eData.category || (raw.platform === 'ebay' ? raw.category : '') || prev.category,
               categoryId: eData.categoryId || (raw.platform === 'ebay' ? raw.categoryId : '') || prev.categoryId,
-              selectedAspects: eData.selectedAspects || eData.aspects || raw.itemSpecifics || prev.selectedAspects,
+              selectedAspects: { ...prev.selectedAspects, ...rawAspects },
               sku: eData.sku || raw.sku || prev.sku,
               fulfillmentPolicyId: eData.fulfillmentPolicyId || prev.fulfillmentPolicyId,
               paymentPolicyId: eData.paymentPolicyId || prev.paymentPolicyId,
@@ -568,6 +596,9 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
 
       if (response.data.success) {
         const result = response.data.data;
+        const brandVal = result.brand || '';
+        const sizeVal = result.size || '';
+        const colorVal = result.color || '';
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
@@ -577,6 +608,9 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           categoryId: result.category_id || prev.categoryId,
           selectedAspects: {
             ...prev.selectedAspects,
+            ...(brandVal ? { Brand: [brandVal] } : {}),
+            ...(sizeVal ? { Size: [sizeVal] } : {}),
+            ...(colorVal ? { Color: [colorVal] } : {}),
             ...(result.item_specifics || result.aspects || {})
           },
           sku: result.sku || prev.sku

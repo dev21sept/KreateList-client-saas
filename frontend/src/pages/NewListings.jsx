@@ -2751,7 +2751,7 @@ const NewListings = () => {
           onClick={() => {
             setActiveMasterDropdown(null);
             setSelectedListing(item);
-            setSelectedPlatform(item.platform || 'ebay');
+            setSelectedPlatform(null);
             setIsEditMode(true);
             setModalOpen(true);
           }}
