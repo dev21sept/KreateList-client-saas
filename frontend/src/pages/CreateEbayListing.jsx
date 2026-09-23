@@ -23,7 +23,15 @@ import {
   ShieldCheck,
   Plus,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Clock,
+  Globe,
+  Heart,
+  TrendingUp,
+  FileText,
+  HelpCircle,
+  Percent,
+  Sliders
 } from 'lucide-react';
 import { ruleService, aiService, listingService, externalImportService, ebayService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
@@ -32,6 +40,49 @@ import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
+
+const COUNTRIES_LIST = [
+  { id: 'US', label: 'United States' },
+  { id: 'CN', label: 'China' },
+  { id: 'VN', label: 'Vietnam' },
+  { id: 'IN', label: 'India' },
+  { id: 'MX', label: 'Mexico' },
+  { id: 'IT', label: 'Italy' },
+  { id: 'JP', label: 'Japan' },
+  { id: 'DE', label: 'Germany' },
+  { id: 'GB', label: 'United Kingdom' },
+  { id: 'CA', label: 'Canada' },
+  { id: 'FR', label: 'France' },
+  { id: 'KR', label: 'South Korea' },
+  { id: 'ID', label: 'Indonesia' },
+  { id: 'TH', label: 'Thailand' },
+  { id: 'BD', label: 'Bangladesh' },
+  { id: 'PK', label: 'Pakistan' },
+  { id: 'TR', label: 'Turkey' },
+  { id: 'BR', label: 'Brazil' },
+  { id: 'ES', label: 'Spain' },
+  { id: 'PT', label: 'Portugal' },
+  { id: 'TW', label: 'Taiwan' }
+];
+
+const CHARITY_ORGS = [
+  { id: 'direct_relief', label: 'Direct Relief' },
+  { id: 'red_cross', label: 'American Red Cross' },
+  { id: 'st_jude', label: "St. Jude Children's Research Hospital" },
+  { id: 'wwf', label: 'World Wildlife Fund' },
+  { id: 'feeding_america', label: 'Feeding America' },
+  { id: 'habitat', label: 'Habitat for Humanity' },
+  { id: 'doctors_without_borders', label: 'Doctors Without Borders' }
+];
+
+const PRODUCT_DOC_TYPES = [
+  { id: 'user_guide', label: 'User Guide' },
+  { id: 'certificate', label: 'Certificate of Authenticity' },
+  { id: 'warranty', label: 'Warranty' },
+  { id: 'manual', label: 'Manual' },
+  { id: 'safety_sheet', label: 'Safety Sheet' },
+  { id: 'declaration', label: 'Declaration of Conformity' }
+];
 
 const EBAY_CONDITIONS = [
   { id: '1000', label: 'New with tags', description: 'A brand-new, unused, and unworn item with original tags.' },
@@ -278,10 +329,37 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
     paymentPolicyId: '',
     returnPolicyId: '',
     locationKey: '',
-    format: 'FixedPrice',
+    format: 'Buy It Now',
     duration: 'GTC',
-    bestOffer: false,
-    quantity: '1'
+    quantity: '1',
+
+    // New Fields from eBay PDF
+    yourCost: '',
+    allowOffers: false,
+    minOfferPrice: '',
+    autoAcceptPrice: '',
+    volumePricingEnabled: false,
+    volumePricingTier2: '5',
+    volumePricingTier3: '10',
+    volumePricingTier4: '15',
+    scheduleListing: false,
+    scheduleDate: '',
+    scheduleTime: '12:00',
+    irregularPackage: false,
+    displayUkSite: false,
+    countryOfOrigin: 'China',
+    itemLocationZip: '23294',
+    itemLocationCity: 'Henrico, Virginia, United States',
+    productDocumentsEnabled: false,
+    productDocType: 'User Guide',
+    productDocUrl: '',
+    promotedGeneral: false,
+    promotedGeneralRate: '7.5',
+    promotedPriority: false,
+    promotedPriorityBid: '0.45',
+    charityEnabled: false,
+    charityPercentage: '10',
+    charityOrg: 'Direct Relief'
   });
 
   const modelOptions = useMemo(() => [
@@ -335,7 +413,35 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           categoryId: eData.categoryId || (initialListing.platform === 'ebay' ? initialListing.categoryId : '') || '',
           selectedAspects: eData.selectedAspects || eData.aspects || initialListing.itemSpecifics || {},
           sku: eData.sku || initialListing.sku || '',
-          conditionId: eData.conditionId || mapEbayCondition(initialListing.condition)
+          conditionId: eData.conditionId || mapEbayCondition(initialListing.condition),
+          yourCost: eData.yourCost || prev.yourCost,
+          format: eData.format || prev.format,
+          quantity: eData.quantity || prev.quantity,
+          allowOffers: eData.allowOffers !== undefined ? eData.allowOffers : prev.allowOffers,
+          minOfferPrice: eData.minOfferPrice || prev.minOfferPrice,
+          autoAcceptPrice: eData.autoAcceptPrice || prev.autoAcceptPrice,
+          volumePricingEnabled: eData.volumePricingEnabled !== undefined ? eData.volumePricingEnabled : prev.volumePricingEnabled,
+          volumePricingTier2: eData.volumePricingTier2 || prev.volumePricingTier2,
+          volumePricingTier3: eData.volumePricingTier3 || prev.volumePricingTier3,
+          volumePricingTier4: eData.volumePricingTier4 || prev.volumePricingTier4,
+          scheduleListing: eData.scheduleListing !== undefined ? eData.scheduleListing : prev.scheduleListing,
+          scheduleDate: eData.scheduleDate || prev.scheduleDate,
+          scheduleTime: eData.scheduleTime || prev.scheduleTime,
+          irregularPackage: eData.irregularPackage !== undefined ? eData.irregularPackage : prev.irregularPackage,
+          displayUkSite: eData.displayUkSite !== undefined ? eData.displayUkSite : prev.displayUkSite,
+          countryOfOrigin: eData.countryOfOrigin || prev.countryOfOrigin,
+          itemLocationZip: eData.itemLocationZip || prev.itemLocationZip,
+          itemLocationCity: eData.itemLocationCity || prev.itemLocationCity,
+          productDocumentsEnabled: eData.productDocumentsEnabled !== undefined ? eData.productDocumentsEnabled : prev.productDocumentsEnabled,
+          productDocType: eData.productDocType || prev.productDocType,
+          productDocUrl: eData.productDocUrl || prev.productDocUrl,
+          promotedGeneral: eData.promotedGeneral !== undefined ? eData.promotedGeneral : prev.promotedGeneral,
+          promotedGeneralRate: eData.promotedGeneralRate || prev.promotedGeneralRate,
+          promotedPriority: eData.promotedPriority !== undefined ? eData.promotedPriority : prev.promotedPriority,
+          promotedPriorityBid: eData.promotedPriorityBid || prev.promotedPriorityBid,
+          charityEnabled: eData.charityEnabled !== undefined ? eData.charityEnabled : prev.charityEnabled,
+          charityPercentage: eData.charityPercentage || prev.charityPercentage,
+          charityOrg: eData.charityOrg || prev.charityOrg
         }));
       }
 
@@ -361,7 +467,35 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               paymentPolicyId: eData.paymentPolicyId || prev.paymentPolicyId,
               returnPolicyId: eData.returnPolicyId || prev.returnPolicyId,
               locationKey: eData.locationKey || prev.locationKey,
-              conditionId: eData.conditionId || mapEbayCondition(raw.condition) || prev.conditionId
+              conditionId: eData.conditionId || mapEbayCondition(raw.condition) || prev.conditionId,
+              yourCost: eData.yourCost || prev.yourCost,
+              format: eData.format || prev.format,
+              quantity: eData.quantity || prev.quantity,
+              allowOffers: eData.allowOffers !== undefined ? eData.allowOffers : prev.allowOffers,
+              minOfferPrice: eData.minOfferPrice || prev.minOfferPrice,
+              autoAcceptPrice: eData.autoAcceptPrice || prev.autoAcceptPrice,
+              volumePricingEnabled: eData.volumePricingEnabled !== undefined ? eData.volumePricingEnabled : prev.volumePricingEnabled,
+              volumePricingTier2: eData.volumePricingTier2 || prev.volumePricingTier2,
+              volumePricingTier3: eData.volumePricingTier3 || prev.volumePricingTier3,
+              volumePricingTier4: eData.volumePricingTier4 || prev.volumePricingTier4,
+              scheduleListing: eData.scheduleListing !== undefined ? eData.scheduleListing : prev.scheduleListing,
+              scheduleDate: eData.scheduleDate || prev.scheduleDate,
+              scheduleTime: eData.scheduleTime || prev.scheduleTime,
+              irregularPackage: eData.irregularPackage !== undefined ? eData.irregularPackage : prev.irregularPackage,
+              displayUkSite: eData.displayUkSite !== undefined ? eData.displayUkSite : prev.displayUkSite,
+              countryOfOrigin: eData.countryOfOrigin || prev.countryOfOrigin,
+              itemLocationZip: eData.itemLocationZip || prev.itemLocationZip,
+              itemLocationCity: eData.itemLocationCity || prev.itemLocationCity,
+              productDocumentsEnabled: eData.productDocumentsEnabled !== undefined ? eData.productDocumentsEnabled : prev.productDocumentsEnabled,
+              productDocType: eData.productDocType || prev.productDocType,
+              productDocUrl: eData.productDocUrl || prev.productDocUrl,
+              promotedGeneral: eData.promotedGeneral !== undefined ? eData.promotedGeneral : prev.promotedGeneral,
+              promotedGeneralRate: eData.promotedGeneralRate || prev.promotedGeneralRate,
+              promotedPriority: eData.promotedPriority !== undefined ? eData.promotedPriority : prev.promotedPriority,
+              promotedPriorityBid: eData.promotedPriorityBid || prev.promotedPriorityBid,
+              charityEnabled: eData.charityEnabled !== undefined ? eData.charityEnabled : prev.charityEnabled,
+              charityPercentage: eData.charityPercentage || prev.charityPercentage,
+              charityOrg: eData.charityOrg || prev.charityOrg
             }));
           }
         } catch (err) {
@@ -532,6 +666,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             category: formData.category,
             categoryId: formData.categoryId,
             price: formData.price,
+            yourCost: formData.yourCost,
+            quantity: formData.quantity,
             conditionId: formData.conditionId,
             selectedAspects: formData.selectedAspects,
             aspects: formData.selectedAspects,
@@ -542,7 +678,33 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             locationKey: formData.locationKey,
             packageWeight: formData.packageWeight,
             packageDimensions: formData.packageDimensions,
-            description: formData.description
+            description: formData.description,
+            format: formData.format,
+            allowOffers: formData.allowOffers,
+            minOfferPrice: formData.minOfferPrice,
+            autoAcceptPrice: formData.autoAcceptPrice,
+            volumePricingEnabled: formData.volumePricingEnabled,
+            volumePricingTier2: formData.volumePricingTier2,
+            volumePricingTier3: formData.volumePricingTier3,
+            volumePricingTier4: formData.volumePricingTier4,
+            scheduleListing: formData.scheduleListing,
+            scheduleDate: formData.scheduleDate,
+            scheduleTime: formData.scheduleTime,
+            irregularPackage: formData.irregularPackage,
+            displayUkSite: formData.displayUkSite,
+            countryOfOrigin: formData.countryOfOrigin,
+            itemLocationZip: formData.itemLocationZip,
+            itemLocationCity: formData.itemLocationCity,
+            productDocumentsEnabled: formData.productDocumentsEnabled,
+            productDocType: formData.productDocType,
+            productDocUrl: formData.productDocUrl,
+            promotedGeneral: formData.promotedGeneral,
+            promotedGeneralRate: formData.promotedGeneralRate,
+            promotedPriority: formData.promotedPriority,
+            promotedPriorityBid: formData.promotedPriorityBid,
+            charityEnabled: formData.charityEnabled,
+            charityPercentage: formData.charityPercentage,
+            charityOrg: formData.charityOrg
           }
         }
       };
@@ -823,10 +985,22 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               />
             </div>
 
-            {/* Price, SKU & Quantity */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Format, Price, Your Cost, Quantity & SKU */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Buy It Now Price ($) *</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Format</label>
+                <select
+                  value={formData.format}
+                  onChange={(e) => setFormData(prev => ({ ...prev, format: e.target.value }))}
+                  className="w-full px-2.5 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-800"
+                >
+                  <option value="Buy It Now">Buy It Now</option>
+                  <option value="Auction">Auction</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Price ($) *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
                   <input 
@@ -838,6 +1012,25 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                     placeholder="0.00"
                   />
                 </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700">Your Cost ($)</label>
+                  <span className="text-[9px] text-slate-400 font-normal">Optional</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    className="w-full pl-7 pr-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.yourCost}
+                    onChange={(e) => setFormData(prev => ({ ...prev, yourCost: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <span className="text-[9px] text-slate-400 block mt-0.5">Not visible to buyers</span>
               </div>
 
               <div>
@@ -867,7 +1060,10 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           {/* Section 2: Description */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h2 className="text-sm font-bold text-slate-900">Description</h2>
+              <div className="flex items-center gap-2">
+                <FileText size={16} className="text-slate-700" />
+                <h2 className="text-sm font-bold text-slate-900">Description</h2>
+              </div>
               <button
                 type="button"
                 onClick={() => setDescriptionMode(prev => prev === 'edit' ? 'preview' : 'edit')}
@@ -936,7 +1132,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
 
             {/* Aspects Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {/* Dynamic aspects from API if present */}
               {aspects.length > 0 ? (
                 aspects.slice(0, 18).map((aspect) => {
                   const aspectName = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
@@ -959,7 +1154,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   );
                 })
               ) : (
-                /* Fallback standard aspects */
                 ['Brand', 'Size', 'Color', 'Style', 'Department', 'Material', 'Type', 'Model'].map((name) => {
                   const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name] || '';
                   return (
@@ -977,7 +1171,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 })
               )}
 
-              {/* Render any additional custom aspects already in state */}
               {Object.keys(formData.selectedAspects)
                 .filter(k => !aspects.some(a => (a.localizedAspectName || a.name) === k) && !['Brand', 'Size', 'Color', 'Style', 'Department', 'Material', 'Type', 'Model'].includes(k))
                 .map((k) => (
@@ -1007,52 +1200,236 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             </div>
           </div>
 
-          {/* Section 4: eBay Business Policies & Package Details */}
+          {/* Section 4: PRICING & SELLING FORMAT OPTIONS */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-slate-700" />
-                <h2 className="text-sm font-bold text-slate-900">eBay Business Policies & Package</h2>
+                <DollarSign size={16} className="text-slate-700" />
+                <h2 className="text-sm font-bold text-slate-900">Pricing & Selling Options</h2>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold">Payment & Pricing Toggles</span>
+            </div>
+
+            {/* Payment Policy */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Policy *</label>
+              <SearchableDropdown 
+                value={ebayPolicies.payment?.find(p => p.paymentPolicyId === formData.paymentPolicyId)?.name}
+                onSelect={(opt) => setFormData(prev => ({ ...prev, paymentPolicyId: opt.id }))}
+                options={ebayPolicies.payment?.map(p => ({ id: p.paymentPolicyId, label: p.name })) || []}
+                placeholder="Select payment policy..."
+              />
+            </div>
+
+            {/* Sold Listings Insights Card */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <TrendingUp size={14} className="text-emerald-600" /> Sold listings in the last 90 days
+                </div>
+                <p className="text-[11px] text-slate-500">Based on similar items sold on eBay recently</p>
+              </div>
+              <div className="flex items-center gap-4 text-right">
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">Recommended price</span>
+                  <span className="text-xs font-extrabold text-slate-900">${formData.price || '35.99'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">Free shipping</span>
+                  <span className="text-xs font-extrabold text-emerald-600">86%</span>
+                </div>
               </div>
             </div>
 
-            {/* Policies */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Shipping / Fulfillment Policy *</label>
-                <SearchableDropdown 
-                  value={ebayPolicies.fulfillment?.find(p => p.fulfillmentPolicyId === formData.fulfillmentPolicyId)?.name}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, fulfillmentPolicyId: opt.id }))}
-                  options={ebayPolicies.fulfillment?.map(p => ({ id: p.fulfillmentPolicyId, label: p.name })) || []}
-                  placeholder="Select shipping policy..."
-                />
+            {/* Allow Offers (Best Offer) Toggle */}
+            <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Allow offers (optional)</span>
+                  <p className="text-[11px] text-slate-500">Interested buyers can send an offer for this item. You can accept, counter, or decline.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input 
+                    type="checkbox"
+                    checked={formData.allowOffers}
+                    onChange={(e) => setFormData(prev => ({ ...prev, allowOffers: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
+                </label>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Return Policy *</label>
-                <SearchableDropdown 
-                  value={ebayPolicies.returns?.find(p => p.returnPolicyId === formData.returnPolicyId)?.name}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, returnPolicyId: opt.id }))}
-                  options={ebayPolicies.returns?.map(p => ({ id: p.returnPolicyId, label: p.name })) || []}
-                  placeholder="Select return policy..."
-                />
+              {formData.allowOffers && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Minimum offer amount (Auto-decline)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">$</span>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        value={formData.minOfferPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, minOfferPrice: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Auto-accept offers at or above</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">$</span>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        value={formData.autoAcceptPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, autoAcceptPrice: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Volume Pricing Toggle */}
+            <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Add volume pricing</span>
+                  <p className="text-[11px] text-slate-500">Offer a discount when buyers purchase more than one item at a time.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input 
+                    type="checkbox"
+                    checked={formData.volumePricingEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, volumePricingEnabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
+                </label>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Payment Policy *</label>
-                <SearchableDropdown 
-                  value={ebayPolicies.payment?.find(p => p.paymentPolicyId === formData.paymentPolicyId)?.name}
-                  onSelect={(opt) => setFormData(prev => ({ ...prev, paymentPolicyId: opt.id }))}
-                  options={ebayPolicies.payment?.map(p => ({ id: p.paymentPolicyId, label: p.name })) || []}
-                  placeholder="Select payment policy..."
-                />
+              {formData.volumePricingEnabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Buy 2 items</label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={formData.volumePricingTier2}
+                        onChange={(e) => setFormData(prev => ({ ...prev, volumePricingTier2: e.target.value }))}
+                        className="w-full px-3 pr-8 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs text-slate-400 font-bold">% off</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Buy 3 items</label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={formData.volumePricingTier3}
+                        onChange={(e) => setFormData(prev => ({ ...prev, volumePricingTier3: e.target.value }))}
+                        className="w-full px-3 pr-8 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs text-slate-400 font-bold">% off</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Buy 4+ items</label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={formData.volumePricingTier4}
+                        onChange={(e) => setFormData(prev => ({ ...prev, volumePricingTier4: e.target.value }))}
+                        className="w-full px-3 pr-8 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs text-slate-400 font-bold">% off</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Schedule Listing Toggle */}
+            <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Schedule your listing</span>
+                  <p className="text-[11px] text-slate-500">Your listing goes live immediately, unless you select a time and date you want it to start.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input 
+                    type="checkbox"
+                    checked={formData.scheduleListing}
+                    onChange={(e) => setFormData(prev => ({ ...prev, scheduleListing: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
+                </label>
               </div>
+
+              {formData.scheduleListing && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Start Date</label>
+                    <input 
+                      type="date"
+                      value={formData.scheduleDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, scheduleDate: e.target.value }))}
+                      className="w-full px-3 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Start Time</label>
+                    <input 
+                      type="time"
+                      value={formData.scheduleTime}
+                      onChange={(e) => setFormData(prev => ({ ...prev, scheduleTime: e.target.value }))}
+                      className="w-full px-3 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="text-[10px] text-slate-400 italic">
+              Use the sales tax table to manage the tax rate for jurisdictions where you may have an obligation to collect sales tax from buyers.
+            </div>
+          </div>
+
+          {/* Section 5: SHIPPING & PACKAGE */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <Package size={16} className="text-slate-700" />
+                <h2 className="text-sm font-bold text-slate-900">Shipping & Package</h2>
+              </div>
+            </div>
+
+            {/* Shipping Policy */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Shipping / Fulfillment Policy *</label>
+              <SearchableDropdown 
+                value={ebayPolicies.fulfillment?.find(p => p.fulfillmentPolicyId === formData.fulfillmentPolicyId)?.name}
+                onSelect={(opt) => setFormData(prev => ({ ...prev, fulfillmentPolicyId: opt.id }))}
+                options={ebayPolicies.fulfillment?.map(p => ({ id: p.fulfillmentPolicyId, label: p.name })) || []}
+                placeholder="Select shipping policy..."
+              />
             </div>
 
             {/* Package Weight & Dimensions */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Package Weight</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Package weight (optional)</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     <input 
@@ -1065,7 +1442,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                         packageWeight: { ...prev.packageWeight, lbs: parseInt(e.target.value) || 0 }
                       }))}
                     />
-                    <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-semibold">lbs</span>
+                    <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-semibold">lbs.</span>
                   </div>
                   <div className="relative">
                     <input 
@@ -1079,73 +1456,403 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                         packageWeight: { ...prev.packageWeight, oz: parseInt(e.target.value) || 0 }
                       }))}
                     />
-                    <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-semibold">oz</span>
+                    <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-semibold">oz.</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Dimensions (L x W x H in)</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Package dimensions (optional)</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <input 
-                    type="number"
-                    min="1"
-                    placeholder="L"
-                    className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
-                    value={formData.packageDimensions?.length || 10}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      packageDimensions: { ...prev.packageDimensions, length: parseInt(e.target.value) || 0 }
-                    }))}
-                  />
-                  <input 
-                    type="number"
-                    min="1"
-                    placeholder="W"
-                    className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
-                    value={formData.packageDimensions?.width || 8}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      packageDimensions: { ...prev.packageDimensions, width: parseInt(e.target.value) || 0 }
-                    }))}
-                  />
-                  <input 
-                    type="number"
-                    min="1"
-                    placeholder="H"
-                    className="w-full px-2 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
-                    value={formData.packageDimensions?.height || 2}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      packageDimensions: { ...prev.packageDimensions, height: parseInt(e.target.value) || 0 }
-                    }))}
-                  />
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      min="1"
+                      placeholder="L"
+                      className="w-full px-2 pr-6 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      value={formData.packageDimensions?.length || 10}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        packageDimensions: { ...prev.packageDimensions, length: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                    <span className="absolute right-2 top-2 text-[9px] text-slate-400">in.</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      min="1"
+                      placeholder="W"
+                      className="w-full px-2 pr-6 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      value={formData.packageDimensions?.width || 8}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        packageDimensions: { ...prev.packageDimensions, width: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                    <span className="absolute right-2 top-2 text-[9px] text-slate-400">in.</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      min="1"
+                      placeholder="H"
+                      className="w-full px-2 pr-6 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                      value={formData.packageDimensions?.height || 2}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        packageDimensions: { ...prev.packageDimensions, height: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                    <span className="absolute right-2 top-2 text-[9px] text-slate-400">in.</span>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Irregular Package Checkbox */}
+            <div className="pt-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input 
+                  type="checkbox"
+                  checked={formData.irregularPackage}
+                  onChange={(e) => setFormData(prev => ({ ...prev, irregularPackage: e.target.checked }))}
+                  className="rounded border-slate-300 text-slate-900 focus:ring-0 mt-0.5"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-slate-800">Irregular package</span>
+                  <p className="text-[11px] text-slate-500">Carriers may charge extra for items not shipped in standard packages. Learn more</p>
+                </div>
+              </label>
+            </div>
+
+            {/* eBay International Shipping Banner */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
+                <Globe size={14} className="text-blue-600" /> eBay International Shipping
+              </div>
+              <p className="text-[11px] text-slate-600">Send to our hub in the US and reach buyers worldwide with no extra cost or effort.</p>
+            </div>
+
+            {/* UK Site Checkbox */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox"
+                  checked={formData.displayUkSite}
+                  onChange={(e) => setFormData(prev => ({ ...prev, displayUkSite: e.target.checked }))}
+                  className="rounded border-slate-300 text-slate-900 focus:ring-0"
+                />
+                <span className="text-xs font-semibold text-slate-800">
+                  Display your listing on eBay UK site — <span className="text-slate-500 font-normal">fees apply</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Section 6: ITEM ORIGIN */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+              <Globe size={16} className="text-slate-700" />
+              <h2 className="text-sm font-bold text-slate-900">Item Origin</h2>
+            </div>
+
+            <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl flex items-start gap-2.5 text-xs text-slate-700">
+              <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                We prefilled the country of origin for you. To comply with customs policies, make sure the country is correct before listing.
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Country of Origin</label>
+              <SearchableDropdown 
+                value={formData.countryOfOrigin}
+                options={COUNTRIES_LIST}
+                onSelect={(opt) => setFormData(prev => ({ ...prev, countryOfOrigin: opt.label || opt.name }))}
+                placeholder="Select country of origin..."
+              />
+              <span className="text-[10px] text-slate-400 block mt-1">This information may be needed for your listing to be visible to international buyers.</span>
+            </div>
+          </div>
+
+          {/* Section 7: PREFERENCES & RETURN SETTINGS */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-slate-700" />
+                <h2 className="text-sm font-bold text-slate-900">Preferences & Return Settings</h2>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Location ZIP</label>
+                <input 
+                  type="text"
+                  value={formData.itemLocationZip}
+                  onChange={(e) => setFormData(prev => ({ ...prev, itemLocationZip: e.target.value }))}
+                  placeholder="23294"
+                  className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">City, State, Country</label>
+                <input 
+                  type="text"
+                  value={formData.itemLocationCity}
+                  onChange={(e) => setFormData(prev => ({ ...prev, itemLocationCity: e.target.value }))}
+                  placeholder="Henrico, Virginia, United States"
+                  className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
+                />
+              </div>
+            </div>
+
+            {/* Return Policy */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Return Policy *</label>
+              <SearchableDropdown 
+                value={ebayPolicies.returns?.find(p => p.returnPolicyId === formData.returnPolicyId)?.name}
+                onSelect={(opt) => setFormData(prev => ({ ...prev, returnPolicyId: opt.id }))}
+                options={ebayPolicies.returns?.map(p => ({ id: p.returnPolicyId, label: p.name })) || []}
+                placeholder="Select return policy..."
+              />
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-0.5">
+              <div className="font-bold text-slate-800">Returns through eBay International Shipping</div>
+              <div>Accepted within 30 days — eBay handles on your behalf.</div>
+            </div>
+          </div>
+
+          {/* Section 8: ITEM DISCLOSURES */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Item Disclosures</h2>
+                <p className="text-[11px] text-slate-500">Add product information to meet regulatory requirements in your buyer's region.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Product documents</span>
+                  <p className="text-[11px] text-slate-500">Upload user guides, certificates, documents and accessibility information that are included with the item.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input 
+                    type="checkbox"
+                    checked={formData.productDocumentsEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, productDocumentsEnabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
+                </label>
+              </div>
+
+              {formData.productDocumentsEnabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Document Type</label>
+                    <SearchableDropdown 
+                      value={formData.productDocType}
+                      options={PRODUCT_DOC_TYPES}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, productDocType: opt.label || opt.name }))}
+                      placeholder="Select doc type..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Document File or URL</label>
+                    <input 
+                      type="text"
+                      value={formData.productDocUrl}
+                      onChange={(e) => setFormData(prev => ({ ...prev, productDocUrl: e.target.value }))}
+                      placeholder="https://... or doc identifier"
+                      className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 9: PROMOTE YOUR LISTING / SPONSORED ADS */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Promote Your Listing</h2>
+                <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Competitive Category</span>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">66% of items in this category are promoted</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* General Campaign */}
+              <div className={`p-4 rounded-xl border transition-all ${formData.promotedGeneral ? 'border-slate-900 bg-slate-50/50' : 'border-slate-200 bg-white'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-900">General</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={formData.promotedGeneral}
+                      onChange={(e) => setFormData(prev => ({ ...prev, promotedGeneral: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-slate-900"></div>
+                  </label>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-600 font-bold text-xs mb-2">
+                  <span>▲ 90%</span> <span className="text-slate-600 font-normal">more visibility, on average</span>
+                </div>
+                <ul className="text-[11px] text-slate-600 space-y-1 mb-3">
+                  <li className="flex items-center gap-1.5"><Check size={12} className="text-slate-800" /> Basic access to ad placements</li>
+                  <li className="flex items-center gap-1.5"><Check size={12} className="text-slate-800" /> Only pay when your item sells</li>
+                </ul>
+                {formData.promotedGeneral && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">Ad Rate (%)</label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        step="0.1"
+                        min="2"
+                        max="100"
+                        value={formData.promotedGeneralRate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, promotedGeneralRate: e.target.value }))}
+                        className="w-full px-3 pr-8 h-8 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-slate-800"
+                      />
+                      <span className="absolute right-3 top-1.5 text-xs text-slate-400 font-bold">%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Priority Campaign */}
+              <div className={`p-4 rounded-xl border transition-all ${formData.promotedPriority ? 'border-slate-900 bg-slate-50/50' : 'border-slate-200 bg-white'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-900">Priority</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={formData.promotedPriority}
+                      onChange={(e) => setFormData(prev => ({ ...prev, promotedPriority: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-slate-900"></div>
+                  </label>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-600 font-bold text-xs mb-2">
+                  <span>▲ 170%</span> <span className="text-slate-600 font-normal">more visibility, on average</span>
+                </div>
+                <ul className="text-[11px] text-slate-600 space-y-1 mb-3">
+                  <li className="flex items-center gap-1.5"><Check size={12} className="text-slate-800" /> Exclusive access to top of search</li>
+                  <li className="flex items-center gap-1.5"><Check size={12} className="text-slate-800" /> Advanced targeting & bid controls</li>
+                  <li className="flex items-center gap-1.5"><Check size={12} className="text-slate-800" /> Only pay for clicks on your ads</li>
+                </ul>
+                {formData.promotedPriority && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">Target CPC Bid ($)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1.5 text-xs text-slate-400 font-bold">$</span>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        value={formData.promotedPriorityBid}
+                        onChange={(e) => setFormData(prev => ({ ...prev, promotedPriorityBid: e.target.value }))}
+                        className="w-full pl-7 pr-3 h-8 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-slate-800"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Action Footer */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => handleSaveListing(null)}
-              disabled={loading}
-            >
-              Save as Draft
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => handleSaveListing('direct')}
-              loading={loading}
-              icon={<Zap size={14} />}
-            >
-              {editId ? 'Update eBay Listing' : 'List on eBay'}
-            </Button>
+          {/* Section 10: CHARITY */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <Heart size={16} className="text-rose-500" />
+                <h2 className="text-sm font-bold text-slate-900">Charity</h2>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox"
+                  checked={formData.charityEnabled}
+                  onChange={(e) => setFormData(prev => ({ ...prev, charityEnabled: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-slate-900"></div>
+              </label>
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              Donate a portion to charity. You'll get a final value fee discount for sold items.
+            </p>
+
+            {formData.charityEnabled && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Donation Percentage</label>
+                  <select
+                    value={formData.charityPercentage}
+                    onChange={(e) => setFormData(prev => ({ ...prev, charityPercentage: e.target.value }))}
+                    className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-slate-800"
+                  >
+                    <option value="10">10% of sale</option>
+                    <option value="15">15% of sale</option>
+                    <option value="20">20% of sale</option>
+                    <option value="25">25% of sale</option>
+                    <option value="50">50% of sale</option>
+                    <option value="100">100% of sale</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Charity Organization</label>
+                  <SearchableDropdown 
+                    value={formData.charityOrg}
+                    options={CHARITY_ORGS}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, charityOrg: opt.label || opt.name }))}
+                    placeholder="Select charity..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* List it for free note & Action Footer */}
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <div className="text-center space-y-1">
+              <h3 className="text-sm font-bold text-slate-900">List it for free.</h3>
+              <p className="text-[11px] text-slate-500">A final value fee applies when your item sells.</p>
+              <p className="text-[10px] text-slate-400 max-w-xl mx-auto leading-relaxed">
+                By selecting List it, you agree to pay the fees, accept the eBay User Agreement, Payments Terms of Use and Marketing Program Terms; acknowledge reading the User Privacy Notice.
+              </p>
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => handleSaveListing(null)}
+                disabled={loading}
+              >
+                Save for later
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => handleSaveListing('direct')}
+                loading={loading}
+                icon={<Zap size={14} />}
+              >
+                {editId ? 'Update eBay Listing' : 'List it'}
+              </Button>
+            </div>
           </div>
 
         </div>
