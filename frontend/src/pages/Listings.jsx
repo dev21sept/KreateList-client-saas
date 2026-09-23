@@ -463,7 +463,7 @@ const Listings = () => {
           else if (listing.platform === 'ebay') url = listing.ebayUrl;
           else if (listing.platform === 'etsy') url = listing.etsyUrl;
           else if (listing.platform === 'depop') url = listing.depopUrl;
-          else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+          else if (listing.platform === 'mercari') url = (listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/us/item/${listing.mercariListingId}/` : '')).replace('mercari.com/item/', 'mercari.com/us/item/');
           if (url) window.open(url, '_blank');
         } else {
           toast.warning(`Listing was deleted/not found on ${listing.platform}. Status reset to Draft!`);
@@ -478,7 +478,7 @@ const Listings = () => {
       else if (listing.platform === 'ebay') url = listing.ebayUrl;
       else if (listing.platform === 'etsy') url = listing.etsyUrl;
       else if (listing.platform === 'depop') url = listing.depopUrl;
-      else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+      else if (listing.platform === 'mercari') url = (listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/us/item/${listing.mercariListingId}/` : '')).replace('mercari.com/item/', 'mercari.com/us/item/');
       if (url) window.open(url, '_blank');
     } finally {
       setVerifyingListingId(null);

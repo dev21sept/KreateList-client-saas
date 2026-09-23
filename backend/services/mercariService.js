@@ -239,7 +239,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
 
                   results.push({
                     mercariListingId: it.id,
-                    mercariUrl: `https://www.mercari.com/item/${it.id}/`,
+                    mercariUrl: `https://www.mercari.com/us/item/${it.id}/`,
                     title: it.name,
                     price: formattedPrice,
                     images: (it.photos || []).map(p => typeof p === 'string' ? p : (p.thumbnail || p.url || '')).filter(Boolean),
@@ -370,7 +370,9 @@ async function publishToMercari(listing, credentials = {}) {
             const data = JSON.parse(text);
             if (data.data?.createListing?.id) {
               createdListingId = data.data.createListing.id;
-              createdListingUrl = data.data.createListing.url || `https://www.mercari.com/item/${createdListingId}/`;
+              createdListingUrl = data.data.createListing.url
+                ? data.data.createListing.url.replace('mercari.com/item/', 'mercari.com/us/item/')
+                : `https://www.mercari.com/us/item/${createdListingId}/`;
             }
           }
         } catch (e) {}
@@ -455,7 +457,9 @@ async function publishToMercari(listing, credentials = {}) {
       return {
         success: true,
         id: listing.mercariListingId,
-        url: listing.mercariUrl || `https://www.mercari.com/item/${listing.mercariListingId}/`
+        url: listing.mercariUrl
+          ? listing.mercariUrl.replace('mercari.com/item/', 'mercari.com/us/item/')
+          : `https://www.mercari.com/us/item/${listing.mercariListingId}/`
       };
 
     } else {
@@ -612,7 +616,9 @@ async function publishToMercari(listing, credentials = {}) {
 
       if (directApiResult?.data?.createListing?.id) {
         createdListingId = directApiResult.data.createListing.id;
-        createdListingUrl = directApiResult.data.createListing.url || `https://www.mercari.com/item/${createdListingId}/`;
+        createdListingUrl = directApiResult.data.createListing.url
+          ? directApiResult.data.createListing.url.replace('mercari.com/item/', 'mercari.com/us/item/')
+          : `https://www.mercari.com/us/item/${createdListingId}/`;
       } else if (initialShippingPayerId === 1 && directApiResult?.errors) {
         // If buyer-paid shipping triggered a validation error, retry with seller-paid (shippingPayerId: 2)
         console.log('[Mercari Publisher] Buyer-paid shipping validation failed, retrying with seller-paid (Free shipping)...');
@@ -652,7 +658,9 @@ async function publishToMercari(listing, credentials = {}) {
 
         if (directApiResult?.data?.createListing?.id) {
           createdListingId = directApiResult.data.createListing.id;
-          createdListingUrl = directApiResult.data.createListing.url || `https://www.mercari.com/item/${createdListingId}/`;
+          createdListingUrl = directApiResult.data.createListing.url
+            ? directApiResult.data.createListing.url.replace('mercari.com/item/', 'mercari.com/us/item/')
+            : `https://www.mercari.com/us/item/${createdListingId}/`;
         }
       }
 
@@ -676,7 +684,7 @@ async function publishToMercari(listing, credentials = {}) {
             const match = currentUrl.match(/\/item\/(m[0-9]+)/) || currentUrl.match(/\/sell\/confirmation\/(m[0-9]+)/);
             if (match) {
               createdListingId = match[1];
-              createdListingUrl = `https://www.mercari.com/item/${createdListingId}/`;
+              createdListingUrl = `https://www.mercari.com/us/item/${createdListingId}/`;
               break;
             }
           }
@@ -695,7 +703,9 @@ async function publishToMercari(listing, credentials = {}) {
         throw new Error('Listing submission timed out. Please check your Mercari account.');
       }
 
-      const listingUrl = createdListingUrl || `https://www.mercari.com/item/${createdListingId}/`;
+      const listingUrl = (createdListingUrl
+        ? createdListingUrl.replace('mercari.com/item/', 'mercari.com/us/item/')
+        : `https://www.mercari.com/us/item/${createdListingId}/`);
       console.log(`[Mercari Publisher] Successfully created listing ID: ${createdListingId} URL: ${listingUrl}`);
 
       tempFiles.forEach(f => fs.unlink(f, () => {}));
@@ -1829,7 +1839,7 @@ async function syncMercariOrders(credentials = {}, userId = null) {
               paidDate: createdDate,
               lineItems,
               platform: 'mercari',
-              orderUrl: `https://www.mercari.com/item/${item.id}/`,
+              orderUrl: `https://www.mercari.com/us/item/${item.id}/`,
               updated_at: new Date()
             }
           },

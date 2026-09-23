@@ -578,7 +578,7 @@ exports.mercariVerifyStatus = async (req, res) => {
       if (matchByTitle?.mercariListingId) {
         mercariListingId = matchByTitle.mercariListingId;
         listing.mercariListingId = mercariListingId;
-        listing.mercariUrl = `https://www.mercari.com/item/${mercariListingId}/`;
+        listing.mercariUrl = `https://www.mercari.com/us/item/${mercariListingId}/`;
         await listing.save();
       }
     }
@@ -1027,7 +1027,7 @@ exports.mercariGetItemDetails = async (req, res) => {
         source: 'mercari',
         status: details.status,
         mercariListingId: targetMercariId,
-        mercariUrl: `https://www.mercari.com/item/${targetMercariId}/`,
+        mercariUrl: `https://www.mercari.com/us/item/${targetMercariId}/`,
         updated_at: Date.now()
       });
     }

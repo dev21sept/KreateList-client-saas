@@ -2670,7 +2670,8 @@ exports.getActiveChannelImportPreview = async (req, res) => {
         url = prod.poshmarkUrl || prod.url || '';
       } else if (src === 'mercari') {
         liveId = String(prod.mercariListingId || prod.sku || '');
-        url = prod.mercariUrl || prod.url || '';
+        const rawUrl = prod.mercariUrl || prod.url || '';
+        url = rawUrl ? rawUrl.replace('mercari.com/item/', 'mercari.com/us/item/') : (liveId && liveId !== '-' ? `https://www.mercari.com/us/item/${liveId.replace(/^M-/, '')}/` : '');
       } else if (src === 'depop') {
         liveId = String(prod.depopListingId || prod.sku || '');
         url = prod.depopUrl || prod.url || '';

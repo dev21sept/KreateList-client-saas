@@ -50,7 +50,7 @@ async function run() {
     const mercMatch = rawSku.match(/M-(m[0-9]+)/i);
     if (mercMatch && !item.mercariListingId) {
       updateFields.mercariListingId = mercMatch[1];
-      if (!item.mercariUrl) updateFields.mercariUrl = `https://www.mercari.com/item/${mercMatch[1]}/`;
+      if (!item.mercariUrl) updateFields.mercariUrl = `https://www.mercari.com/us/item/${mercMatch[1]}/`;
       needsUpdate = true;
     }
 

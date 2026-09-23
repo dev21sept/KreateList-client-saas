@@ -537,7 +537,17 @@ exports.syncInventory = async (req, res) => {
             existingProduct = await Product.findOne({ ebayListingId: offerInfo.listingId, user: userId, source: 'ebay' });
           }
           if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({ sku: item.sku, user: userId, source: 'ebay' });
+            existingProduct = await Product.findOne({
+              sku: item.sku,
+              user: userId,
+              source: 'ebay',
+              $or: [
+                { ebayListingId: { $exists: false } },
+                { ebayListingId: null },
+                { ebayListingId: '' },
+                { ebayListingId: offerInfo.listingId }
+              ]
+            });
           }
 
           if (existingProduct) {
@@ -612,7 +622,17 @@ exports.syncInventory = async (req, res) => {
             existingProduct = await Product.findOne({ ebayListingId: item.itemId, user: userId, source: 'ebay' });
           }
           if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({ sku: item.sku, user: userId, source: 'ebay' });
+            existingProduct = await Product.findOne({
+              sku: item.sku,
+              user: userId,
+              source: 'ebay',
+              $or: [
+                { ebayListingId: { $exists: false } },
+                { ebayListingId: null },
+                { ebayListingId: '' },
+                { ebayListingId: item.itemId }
+              ]
+            });
           }
 
           if (existingProduct) {
@@ -693,7 +713,17 @@ exports.syncInventory = async (req, res) => {
             existingProduct = await Product.findOne({ ebayListingId: item.itemId, user: userId, source: 'ebay' });
           }
           if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({ sku: item.sku, user: userId, source: 'ebay' });
+            existingProduct = await Product.findOne({
+              sku: item.sku,
+              user: userId,
+              source: 'ebay',
+              $or: [
+                { ebayListingId: { $exists: false } },
+                { ebayListingId: null },
+                { ebayListingId: '' },
+                { ebayListingId: item.itemId }
+              ]
+            });
           }
 
           if (existingProduct) {

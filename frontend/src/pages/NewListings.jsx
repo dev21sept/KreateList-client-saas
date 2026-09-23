@@ -92,7 +92,7 @@ const MOCK_LISTINGS = [
     poshmarkStatus: 'published',
     poshmarkPrice: 36.00,
     mercariListingId: 'm26470764471',
-    mercariUrl: 'https://www.mercari.com/item/m26470764471/',
+    mercariUrl: 'https://www.mercari.com/us/item/m26470764471/',
     mercariStatus: 'published',
     mercariPrice: 35.00,
     etsyListingId: '1849204810',
@@ -125,7 +125,7 @@ const MOCK_LISTINGS = [
     poshmarkStatus: 'published',
     poshmarkPrice: 52.00,
     mercariListingId: 'm26470764472',
-    mercariUrl: 'https://www.mercari.com/item/m26470764472/',
+    mercariUrl: 'https://www.mercari.com/us/item/m26470764472/',
     mercariStatus: 'published',
     mercariPrice: 50.00,
     etsyListingId: '',
@@ -191,7 +191,7 @@ const MOCK_LISTINGS = [
     poshmarkStatus: 'published',
     poshmarkPrice: 24.00,
     mercariListingId: 'm26470764474',
-    mercariUrl: 'https://www.mercari.com/item/m26470764474/',
+    mercariUrl: 'https://www.mercari.com/us/item/m26470764474/',
     mercariStatus: 'published',
     mercariPrice: 26.00,
     etsyListingId: '',
@@ -1025,10 +1025,13 @@ const NewListings = () => {
         : item;
 
       let fallbackUrl = targetItem[`${platform}Url`] || targetItem.url || '';
+      if (platform === 'mercari' && fallbackUrl.includes('mercari.com/item/')) {
+        fallbackUrl = fallbackUrl.replace('mercari.com/item/', 'mercari.com/us/item/');
+      }
       if (!fallbackUrl) {
         const checkId = targetItem[`${platform}ListingId`] || targetItem.listingId;
         if (checkId) {
-          if (platform === 'mercari') fallbackUrl = `https://www.mercari.com/item/${checkId}/`;
+          if (platform === 'mercari') fallbackUrl = `https://www.mercari.com/us/item/${checkId}/`;
           else if (platform === 'ebay') fallbackUrl = `https://www.ebay.com/itm/${checkId}`;
           else if (platform === 'poshmark') fallbackUrl = `https://poshmark.com/listing/${checkId}`;
           else if (platform === 'etsy') fallbackUrl = `https://www.etsy.com/listing/${checkId}`;
@@ -1121,7 +1124,7 @@ const NewListings = () => {
           else if (listing.platform === 'ebay') url = listing.ebayUrl;
           else if (listing.platform === 'etsy') url = listing.etsyUrl;
           else if (listing.platform === 'depop') url = listing.depopUrl;
-          else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+          else if (listing.platform === 'mercari') url = (listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/us/item/${listing.mercariListingId}/` : '')).replace('mercari.com/item/', 'mercari.com/us/item/');
           if (url) window.open(url, '_blank');
         } else {
           toast.warning(`Listing was deleted/delisted on ${listing.platform}. Status updated!`);
@@ -1137,7 +1140,7 @@ const NewListings = () => {
       else if (listing.platform === 'ebay') url = listing.ebayUrl;
       else if (listing.platform === 'etsy') url = listing.etsyUrl;
       else if (listing.platform === 'depop') url = listing.depopUrl;
-      else if (listing.platform === 'mercari') url = listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/item/${listing.mercariListingId}/` : '');
+      else if (listing.platform === 'mercari') url = (listing.mercariUrl || (listing.mercariListingId ? `https://www.mercari.com/us/item/${listing.mercariListingId}/` : '')).replace('mercari.com/item/', 'mercari.com/us/item/');
       if (url) window.open(url, '_blank');
     } finally {
       setVerifyingListingId(null);
@@ -1393,12 +1396,15 @@ const NewListings = () => {
       }
 
       let url = previewListing[`${platformName}Url`] || (previewListing.platform === platformName ? previewListing.url : null);
+      if (platformName === 'mercari' && url && url.includes('mercari.com/item/')) {
+        url = url.replace('mercari.com/item/', 'mercari.com/us/item/');
+      }
       if (!url) {
         const id = previewListing[`${platformName}ListingId`] || platformSpecificItem?.listingId || (previewListing.platform === platformName ? (previewListing.liveId || previewListing.itemId || previewListing._id) : null);
         if (id && id !== '-') {
           if (platformName === 'ebay') url = `https://www.ebay.com/itm/${id}`;
           else if (platformName === 'poshmark') url = `https://poshmark.com/listing/${id}`;
-          else if (platformName === 'mercari') url = `https://www.mercari.com/item/${id}/`;
+          else if (platformName === 'mercari') url = `https://www.mercari.com/us/item/${id}/`;
           else if (platformName === 'etsy') url = `https://www.etsy.com/listing/${id}`;
           else if (platformName === 'amazon') url = previewListing.amazonAsin ? `https://www.amazon.com/dp/${previewListing.amazonAsin}` : (id ? `https://sellercentral.amazon.com/inventory` : null);
           else if (platformName === 'depop') url = `https://www.depop.com/products/${id}`;
@@ -1587,7 +1593,7 @@ const NewListings = () => {
       url = product.depopUrl || '';
     } else if (isMercari) {
       liveId = product.mercariListingId || product.itemId || (product.sku?.match(/M-(m[0-9]+)/i)?.[1]) || product.liveId || '-';
-      url = product.mercariUrl || (liveId !== '-' ? `https://www.mercari.com/item/${liveId}/` : '');
+      url = (product.mercariUrl || (liveId !== '-' ? `https://www.mercari.com/us/item/${liveId}/` : '')).replace('mercari.com/item/', 'mercari.com/us/item/');
     } else if (isAmazon) {
       liveId = product.amazonListingId || product.amazonAsin || product.asin || product.liveId || '-';
       url = product.amazonUrl || (product.amazonAsin ? `https://www.amazon.com/dp/${product.amazonAsin}` : '');
@@ -2783,9 +2789,13 @@ const NewListings = () => {
   };
 
   const getListingUrl = (item, platformName, checkId) => {
-    if (item[`${platformName}Url`]) return item[`${platformName}Url`];
+    let directUrl = item[`${platformName}Url`];
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
-    if (platformSpecificItem && platformSpecificItem.url) return platformSpecificItem.url;
+    if (!directUrl && platformSpecificItem && platformSpecificItem.url) directUrl = platformSpecificItem.url;
+    if (directUrl) {
+      if (platformName === 'mercari') return directUrl.replace('mercari.com/item/', 'mercari.com/us/item/');
+      return directUrl;
+    }
 
     if (platformName === 'depop') {
       return `https://www.depop.com/products/${checkId}`;
@@ -2794,7 +2804,7 @@ const NewListings = () => {
     } else if (platformName === 'poshmark') {
       return `https://poshmark.com/listing/${checkId}`;
     } else if (platformName === 'mercari') {
-      return `https://www.mercari.com/item/${checkId}/`;
+      return `https://www.mercari.com/us/item/${checkId}/`;
     } else if (platformName === 'etsy') {
       return `https://www.etsy.com/listing/${checkId}`;
     } else if (platformName === 'amazon') {
@@ -3355,7 +3365,7 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2.5 w-[172px] shrink-0 min-h-[108px] h-[108px] select-none cursor-grab active:cursor-grabbing ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
+            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2 w-full min-w-[136px] max-w-[170px] sm:min-w-[145px] h-[98px] sm:h-[104px] select-none cursor-grab active:cursor-grabbing shrink-0 ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
             {/* Left Side: Clean Marketplace Image Thumbnail (No colored border, No overlaid badge) */}
             <div 
@@ -3364,7 +3374,7 @@ const NewListings = () => {
                 handleOpenPreview(item, platformName);
               }}
               title={`Click to preview on ${getChannelDisplayName(platformName)}`}
-              className="w-[72px] h-[90px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center border border-slate-200/80 shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer"
+              className="w-[60px] sm:w-[68px] h-[82px] sm:h-[88px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center border border-slate-200/80 shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer"
             >
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
@@ -3536,7 +3546,7 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2.5 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[172px] shrink-0 min-h-[108px] h-[108px] select-none ${
+            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-full min-w-[136px] max-w-[170px] sm:min-w-[145px] h-[98px] sm:h-[104px] select-none shrink-0 ${
               isDropTarget
                 ? isHovered
                   ? 'scale-105 ring-2 ring-indigo-500 rounded-2xl bg-indigo-100/80 shadow-md'
@@ -3545,8 +3555,8 @@ const NewListings = () => {
             }`}
             title={isDropTarget ? "Drop here to merge channel into this item!" : `Click to list on ${getChannelDisplayName(platformName)}`}
           >
-            <Plus size={24} className="stroke-[2.5] text-indigo-600 group-hover:scale-110 transition-transform mb-1 shrink-0" />
-            <span className="text-[11px] font-bold text-indigo-700 leading-snug select-none">
+            <Plus size={20} className="stroke-[2.5] text-indigo-600 group-hover:scale-110 transition-transform mb-1 shrink-0" />
+            <span className="text-[11px] font-bold text-indigo-700 leading-tight select-none">
               {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : (
                 <>
                   List on<br />
@@ -3683,15 +3693,15 @@ const NewListings = () => {
     <div className="space-y-6">
 
       {/* TABS SWITCHER & TOP ACTIONS BAR */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3.5 bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-100 shadow-sm">
         {/* Left Side: Tabs Switcher */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full lg:w-auto">
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 w-full md:w-auto overflow-x-auto no-scrollbar">
           <button
             onClick={() => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
             }}
-            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'local'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -3704,7 +3714,7 @@ const NewListings = () => {
               setActiveTab('channel');
               localStorage.setItem('elister_active_listings_tab', 'channel');
             }}
-            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'channel'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -3718,7 +3728,7 @@ const NewListings = () => {
               localStorage.setItem('elister_active_listings_tab', 'sold');
               fetchSoldOrders();
             }}
-            className={`flex-1 lg:flex-none px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'sold'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
@@ -3729,11 +3739,11 @@ const NewListings = () => {
         </div>
 
         {/* Right Side: Channel Switcher (if channel tab) + Universal Actions (Smart Merge & Import) */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+        <div className="flex items-center gap-2.5 w-full md:w-auto justify-stretch sm:justify-end flex-wrap sm:flex-nowrap">
           {activeTab === 'channel' && (
             <>
               {/* Channel Switcher Pills */}
-              <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto">
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto overflow-x-auto no-scrollbar">
                 {['ebay', 'etsy', 'poshmark', 'mercari', 'amazon'].map((ch) => (
                   <button
                     key={ch}
@@ -3741,7 +3751,7 @@ const NewListings = () => {
                       setSelectedChannel(ch);
                       localStorage.setItem('elister_selected_listings_channel', ch);
                     }}
-                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
                       selectedChannel === ch
                         ? 'bg-white text-indigo-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-800'
@@ -3758,7 +3768,7 @@ const NewListings = () => {
                 disabled={syncing || !isChannelConnected()}
                 size="sm"
                 icon={<RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-none"
               >
                 {syncing ? 'Syncing...' : `Sync ${getChannelDisplayName(selectedChannel)}`}
               </Button>
@@ -3768,7 +3778,7 @@ const NewListings = () => {
           {/* Smart Merge Button (Universal) */}
           <button
             onClick={handleOpenLocalMergeModal}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-[0.98]"
             title="Scan and merge duplicated or cross-channel listings"
           >
             <GitMerge size={14} className="text-indigo-600" />
@@ -3778,7 +3788,7 @@ const NewListings = () => {
           {/* Sync Platforms Button (Universal) */}
           <button
             onClick={handleOpenImportModal}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto active:scale-[0.98]"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black shadow-sm hover:shadow transition-all cursor-pointer active:scale-[0.98]"
             title="Sync & merge live active items from connected channels into database"
           >
             <RefreshCw size={14} className={importLoading ? "animate-spin" : ""} />

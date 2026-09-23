@@ -686,7 +686,7 @@ const NewDashboardLayout = () => {
         </header>
 
         {/* Page Content Outlet */}
-        <main className="p-4 sm:p-8 flex-grow">
+        <main className="p-3.5 sm:p-6 lg:p-8 flex-grow min-w-0 max-w-full">
           <Outlet />
         </main>
       </div>
