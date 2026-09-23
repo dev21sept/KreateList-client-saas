@@ -1153,25 +1153,25 @@ const CreateMasterListing = ({
       </div>
 
       {/* Main Split Layout Grid */}
-      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 min-h-0 ${isModal ? 'overflow-hidden' : ''}`}>
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-5 items-start flex-1 min-h-0 ${isModal ? 'overflow-hidden' : ''}`}>
         
         {/* ========================================================================= */}
         {/* LEFT COLUMN (FIXED / STICKY): Platforms, Images & AI Scanning Box        */}
         {/* ========================================================================= */}
-        <div className={`lg:col-span-5 space-y-5 ${isModal ? 'h-full overflow-y-auto pr-1' : 'sticky top-4 h-fit max-h-[calc(100vh-60px)] overflow-y-auto pr-1'}`}>
+        <div className={`lg:col-span-4 space-y-4 ${isModal ? 'h-full overflow-y-auto pr-1' : 'sticky top-4 h-fit max-h-[calc(100vh-60px)] overflow-y-auto pr-1'}`}>
           
           {/* Target Platforms Multi-Select Badges */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-3">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Globe size={13} className="text-indigo-600" />
+              <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Globe size={12} className="text-indigo-600" />
                 Target Marketplaces
               </label>
-              <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
                 {selectedPlatforms.length} Active
               </span>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {PLATFORMS_CONFIG.map((p) => {
                 const isSelected = selectedPlatforms.includes(p.id);
                 return (
@@ -1179,34 +1179,34 @@ const CreateMasterListing = ({
                     key={p.id}
                     type="button"
                     onClick={() => handleTogglePlatform(p.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black transition-all cursor-pointer select-none shadow-2xs ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-black transition-all cursor-pointer select-none shadow-2xs ${
                       isSelected
-                        ? 'border-indigo-500 bg-indigo-50/60 text-indigo-900 ring-2 ring-indigo-500/15'
+                        ? 'border-indigo-500 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-500/20'
                         : 'border-slate-200 bg-slate-50/70 text-slate-400 hover:border-slate-300 opacity-60'
                     }`}
                   >
-                    <img src={p.logo} alt={p.name} className={`w-4 h-4 object-contain ${!isSelected ? 'grayscale opacity-60' : ''}`} />
+                    <img src={p.logo} alt={p.name} className={`w-3.5 h-3.5 object-contain ${!isSelected ? 'grayscale opacity-60' : ''}`} />
                     <span>{p.name}</span>
-                    {isSelected && <Check size={12} className="text-indigo-600 ml-0.5" />}
+                    {isSelected && <Check size={11} className="text-indigo-600 ml-0.5" />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Product Images Gallery */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-3.5">
+          {/* Product Images Gallery (Compact 4-column Grid) */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <ImageIcon size={13} className="text-indigo-600" />
+              <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon size={12} className="text-indigo-600" />
                 Product Photos
               </label>
-              <span className="text-[10px] font-bold text-slate-400">
+              <span className="text-[9px] font-bold text-slate-400">
                 {formData.images.length}/12 Photos
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-4 gap-2">
               {formData.images.map((img, idx) => (
                 <div
                   key={idx}
@@ -1235,17 +1235,17 @@ const CreateMasterListing = ({
                     setDraggedImgIdx(null);
                     setDragOverImgIdx(null);
                   }}
-                  className={`relative aspect-square border rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                  className={`relative aspect-square border rounded-xl overflow-hidden group cursor-grab active:cursor-grabbing transition-all duration-150 ${
                     draggedImgIdx === idx ? 'opacity-40 scale-95 ring-2 ring-indigo-400' : ''
                   } ${
-                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-xl border-indigo-500 bg-indigo-50/50' : 'border-slate-100 bg-slate-50'
+                    dragOverImgIdx === idx ? 'ring-2 ring-indigo-600 scale-105 shadow-md border-indigo-500 bg-indigo-50/50' : 'border-slate-150 bg-slate-50'
                   }`}
                   title="Drag and drop to reorder"
                 >
                   <img src={img} className="w-full h-full object-cover pointer-events-none" alt="" />
 
                   {/* Hover Overlay Controls */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 p-0.5">
                     {idx > 0 && (
                       <button
                         type="button"
@@ -1253,10 +1253,10 @@ const CreateMasterListing = ({
                           e.stopPropagation();
                           moveImage(idx, 'left');
                         }}
-                        className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="p-1 bg-white/20 hover:bg-white/40 text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
                         title="Move Left"
                       >
-                        <ArrowLeft size={11} />
+                        <ArrowLeft size={9} />
                       </button>
                     )}
                     <button
@@ -1265,10 +1265,10 @@ const CreateMasterListing = ({
                         e.stopPropagation();
                         deleteImage(idx);
                       }}
-                      className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="p-1 bg-rose-600/90 hover:bg-rose-600 text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
                       title="Delete Photo"
                     >
-                      <Trash2 size={11} />
+                      <Trash2 size={9} />
                     </button>
                     {idx < formData.images.length - 1 && (
                       <button
@@ -1277,16 +1277,16 @@ const CreateMasterListing = ({
                           e.stopPropagation();
                           moveImage(idx, 'right');
                         }}
-                        className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="p-1 bg-white/20 hover:bg-white/40 text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
                         title="Move Right"
                       >
-                        <ArrowRight size={11} />
+                        <ArrowRight size={9} />
                       </button>
                     )}
                   </div>
 
                   {idx === 0 && (
-                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-xs pointer-events-none">
+                    <span className="absolute top-1 left-1 px-1 py-0.2 bg-indigo-600 text-white text-[7px] font-black uppercase rounded shadow-xs pointer-events-none">
                       Cover
                     </span>
                   )}
@@ -1294,10 +1294,10 @@ const CreateMasterListing = ({
               ))}
 
               {formData.images.length < 12 && (
-                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl flex flex-col items-center justify-center gap-1 cursor-pointer bg-slate-50/70 hover:bg-indigo-50/30 transition-all group">
-                  <Upload size={16} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                  <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider">
-                    Upload
+                <label className="aspect-square border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50/70 hover:bg-indigo-50/30 transition-all group">
+                  <Upload size={13} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                  <span className="text-[8.5px] font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-wider">
+                    Add
                   </span>
                   <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </label>
@@ -1305,17 +1305,17 @@ const CreateMasterListing = ({
             </div>
 
             {isConvertingImages && (
-              <div className="flex items-center gap-2 text-indigo-600 text-xs font-semibold animate-pulse pt-1">
-                <Loader2 size={13} className="animate-spin" /> Compressing & converting images...
+              <div className="flex items-center gap-1.5 text-indigo-600 text-[11px] font-semibold animate-pulse pt-0.5">
+                <Loader2 size={11} className="animate-spin" /> Processing images...
               </div>
             )}
           </div>
 
           {/* AI Scanner Settings Box */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-2xs space-y-4">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
             <div className="flex items-center gap-2">
-              <Zap size={14} className="text-indigo-600" />
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">AI Scanner Settings</h3>
+              <Zap size={13} className="text-indigo-600" />
+              <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-wider">AI Scanner Settings</h3>
             </div>
 
             <div className="space-y-3.5">
@@ -1373,7 +1373,7 @@ const CreateMasterListing = ({
         {/* ========================================================================= */}
         {/* RIGHT COLUMN (SCROLLABLE): Master Details & Platform-Specific Cards       */}
         {/* ========================================================================= */}
-        <div className={`lg:col-span-7 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
+        <div className={`lg:col-span-8 space-y-6 ${isModal ? 'h-full overflow-y-auto pr-2 pb-16' : 'space-y-6'}`}>
           
           {/* Card 1: Master / Universal Product Details (Shared Data) */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-2xs space-y-4">
