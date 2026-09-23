@@ -131,6 +131,132 @@ const AMAZON_PRODUCT_TYPES = [
   { id: 'PRODUCT', name: 'General Product' }
 ];
 
+const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false, className = '' }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getInitialSearchTerm = (val) => {
+    if (!val) return '';
+    const hasChildren = options.some(o => o.label && o.label.startsWith(val + ' > '));
+    if (hasChildren) return val + ' > ';
+    const lastIndex = val.lastIndexOf(' > ');
+    if (lastIndex !== -1) return val.substring(0, lastIndex) + ' > ';
+    return '';
+  };
+
+  const handleToggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) setSearchTerm(getInitialSearchTerm(value));
+      return next;
+    });
+  };
+
+  const filteredOptions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) {
+      return options.filter(opt => opt.level === undefined || opt.level === 0);
+    }
+    const hasArrow = q.includes('>');
+    if (hasArrow) {
+      const normalizedQ = q.replace(/\s*>\s*/g, ' > ');
+      return options.filter(opt => {
+        const normalizedLabel = (opt.label || '').toLowerCase().replace(/\s*>\s*/g, ' > ');
+        return normalizedLabel.startsWith(normalizedQ) || normalizedLabel.includes(normalizedQ);
+      });
+    }
+    return options.filter((opt) => {
+      const label = String(opt?.label || opt?.name || '').toLowerCase();
+      const desc = String(opt?.description || '').toLowerCase();
+      return label.includes(q) || desc.includes(q);
+    });
+  }, [options, searchTerm]);
+
+  return (
+    <div className={`relative w-full ${className}`} ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={handleToggle}
+        className={`w-full h-10 px-3 bg-white border ${
+          error ? 'border-rose-500 ring-2 ring-rose-500/10' : 'border-slate-200 hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/5'
+        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-800 disabled:opacity-60 transition-all`}
+      >
+        <span className="truncate pr-2">{value || placeholder}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {value && !disabled && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect({ id: '', label: '', name: '' });
+                setSearchTerm('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] overflow-hidden animate-in fade-in duration-150">
+          <div className="p-2 bg-slate-50 border-b border-slate-100">
+            <input
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search..."
+              className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <button
+                  key={opt.id || opt.label || opt.name}
+                  type="button"
+                  onClick={() => {
+                    const hasChildren = options.some(o => o.label && o.label.startsWith(opt.label + ' > '));
+                    if (hasChildren) {
+                      setSearchTerm(opt.label + ' > ');
+                    } else {
+                      onSelect(opt);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }
+                  }}
+                  className={`w-full text-left px-3.5 py-2 hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition-colors flex items-center justify-between text-xs font-semibold ${
+                    value === (opt.label || opt.name) ? 'bg-slate-100 font-bold text-slate-900' : ''
+                  }`}
+                >
+                  <div className="truncate pr-2">
+                    <div>{opt.label || opt.name}</div>
+                    {opt.description && <div className="text-[10px] text-slate-400 font-normal">{opt.description}</div>}
+                  </div>
+                  {value === (opt.label || opt.name) && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                </button>
+              ))
+            ) : (
+              <div className="p-4 text-xs text-slate-400 text-center">No options found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const POSHMARK_STYLE_TAGS = [
   "70s", "80s", "90s", "Activewear", "Animal Print", "Athleisure", "Avant Garde", "Baggy", 
   "Balletcore", "Beach", "Beaded", "Bikercore", "Blokecore", "Bodycon", "Bohemian", "Bow", 
