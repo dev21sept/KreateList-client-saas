@@ -36,7 +36,7 @@ import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
-import { resolveMercariCategory } from '../utils/categoryResolver';
+import { resolveMercariCategory, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
@@ -328,12 +328,20 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
   }, [carrierOptions, formData.shippingPayer]);
 
   const activeSizeOptions = useMemo(() => {
-    if (!formData.category) return [];
-    const selectedCat = categoryOptions.find(opt => opt.label === formData.category);
-    if (!selectedCat) return [];
-    const groupId = selectedCat.itemSizeGroupId;
-    if (!groupId || groupId === 0) return [];
-    return MERCARI_SIZES_BY_GROUP[groupId] || [];
+    if (formData.category) {
+      const selectedCat = categoryOptions.find(opt => opt.label === formData.category || opt.name === formData.category);
+      if (selectedCat && selectedCat.itemSizeGroupId && MERCARI_SIZES_BY_GROUP[selectedCat.itemSizeGroupId]?.length > 0) {
+        return MERCARI_SIZES_BY_GROUP[selectedCat.itemSizeGroupId];
+      }
+    }
+    const catLower = (formData.category || '').toLowerCase();
+    if (catLower.startsWith('women')) {
+      return MERCARI_SIZES_BY_GROUP['1'] || [];
+    }
+    if (catLower.startsWith('kids')) {
+      return MERCARI_SIZES_BY_GROUP['8'] || [];
+    }
+    return MERCARI_SIZES_BY_GROUP['4'] || MERCARI_SIZES_BY_GROUP['1'] || [];
   }, [formData.category, categoryOptions]);
 
   const modelOptions = useMemo(() => [

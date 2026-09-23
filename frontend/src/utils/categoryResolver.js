@@ -226,3 +226,36 @@ export const resolveEtsyCategoryFallback = (rawCategory = '', title = '', brand 
   }
   return "Clothing > Men's Clothing > Shirts & Tops > T-shirts";
 };
+
+/**
+ * Cleans HTML tags (<br/>, <b>, <p>, etc.) and decodes HTML entities into clean readable multiline text.
+ */
+export const cleanHtmlDescription = (str) => {
+  if (!str) return '';
+  let clean = String(str);
+  
+  // Unescape HTML entities
+  clean = clean
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+
+  // Standardize line breaks
+  clean = clean.replace(/<br\s*\/?>/gi, '\n');
+  clean = clean.replace(/<\/p>/gi, '\n\n');
+  clean = clean.replace(/<\/div>/gi, '\n');
+  clean = clean.replace(/<\/li>/gi, '\n');
+  clean = clean.replace(/<li>/gi, '• ');
+
+  // Strip remaining HTML tags
+  clean = clean.replace(/<[^>]+>/g, '');
+
+  // Clean extra blank lines
+  clean = clean.replace(/\n{3,}/g, '\n\n');
+
+  return clean.trim();
+};
+

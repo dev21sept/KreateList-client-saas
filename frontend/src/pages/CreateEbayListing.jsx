@@ -40,7 +40,7 @@ import { compressImage } from '../utils/imageCompressor';
 import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
-import { resolveEbayCategoryFallback } from '../utils/categoryResolver';
+import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
@@ -617,14 +617,27 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         const colorVal = result.color || '';
         const resolvedEbay = resolveEbayCategoryFallback(
           result.ebay_category_name || result.category_name || result.category || '',
-          result.title || prev.title,
+          result.title || '',
           brandVal
         );
+
+        if (Array.isArray(result.aspects) && result.aspects.length > 0) {
+          setAspects(result.aspects);
+        }
+
+        const rawSpecifics = result.item_specifics || (typeof result.aspects === 'object' && !Array.isArray(result.aspects) ? result.aspects : {});
+        const formattedAspects = {};
+        Object.entries(rawSpecifics).forEach(([k, v]) => {
+          if (v) formattedAspects[k] = Array.isArray(v) ? v : [String(v)];
+        });
+
+        const cleanedDesc = cleanHtmlDescription(result.description);
+
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
           price: result.price || prev.price,
-          description: result.description || prev.description,
+          description: cleanedDesc || result.description || prev.description,
           category: result.ebay_category_name || resolvedEbay.category || prev.category,
           categoryId: (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId)),
           selectedAspects: {
@@ -632,7 +645,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             ...(brandVal ? { Brand: [brandVal] } : {}),
             ...(sizeVal ? { Size: [sizeVal] } : {}),
             ...(colorVal ? { Color: [colorVal] } : {}),
-            ...(result.item_specifics || result.aspects || {})
+            ...formattedAspects
           },
           sku: result.sku || prev.sku
         }));

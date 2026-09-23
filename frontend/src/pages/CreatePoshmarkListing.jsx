@@ -23,7 +23,7 @@ import {
   ArrowLeft,
   ArrowRight
 } from 'lucide-react';
-import { ruleService, aiService, listingService, externalImportService } from '../services/api';
+import { ruleService, aiService, listingService, externalImportService, mercariService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -32,7 +32,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
-import { resolvePoshmarkCategory } from '../utils/categoryResolver';
+import { resolvePoshmarkCategory, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POSHMARK_COLORS = [
   'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
@@ -564,6 +564,7 @@ const PoshmarkCategoryDropdown = ({ value, onSelect, placeholder = 'Search Poshm
 
 const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter brand...' }) => {
   const [searchTerm, setSearchTerm] = useState(value || '');
+  const [suggestions, setSuggestions] = useState(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -579,11 +580,27 @@ const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredBrands = useMemo(() => {
-    const q = (searchTerm || '').trim().toLowerCase();
-    if (!q) return POPULAR_POSH_BRANDS;
-    return POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(q));
-  }, [searchTerm]);
+  const triggerBrandSearch = async (val) => {
+    setSearchTerm(val);
+    onChange(val);
+    setIsOpen(true);
+    if (!val.trim()) {
+      setSuggestions(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
+      return;
+    }
+    try {
+      const response = await mercariService.suggestBrands(val);
+      if (response.data && response.data.success && response.data.brands?.length > 0) {
+        setSuggestions(response.data.brands);
+      } else {
+        const localMatches = POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(val.toLowerCase())).map(b => ({ name: b }));
+        setSuggestions(localMatches);
+      }
+    } catch (err) {
+      const localMatches = POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(val.toLowerCase())).map(b => ({ name: b }));
+      setSuggestions(localMatches);
+    }
+  };
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -591,31 +608,30 @@ const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter
         type="text"
         className="w-full px-3 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
         value={searchTerm}
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          onChange(e.target.value);
+        onChange={(e) => triggerBrandSearch(e.target.value)}
+        onFocus={() => {
           setIsOpen(true);
+          if (!searchTerm.trim()) setSuggestions(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
         }}
-        onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
       />
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
-          {filteredBrands.map((b) => (
+          {suggestions.map((b) => (
             <button
-              key={b}
+              key={b.id || b.name}
               type="button"
               onClick={() => {
-                setSearchTerm(b);
-                onChange(b);
+                setSearchTerm(b.name);
+                onChange(b.name);
                 setIsOpen(false);
               }}
               className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
             >
-              {b}
+              {b.name}
             </button>
           ))}
-          {searchTerm.trim() && !filteredBrands.includes(searchTerm.trim()) && (
+          {searchTerm.trim() && !suggestions.some(s => s.name.toLowerCase() === searchTerm.trim().toLowerCase()) && (
             <button
               type="button"
               onClick={() => {
@@ -880,13 +896,14 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           result.title || prev.title,
           result.brand || prev.brand
         );
+        const cleanedDesc = cleanHtmlDescription(result.description);
         setFormData(prev => ({
           ...prev,
           title: result.title || prev.title,
           brand: result.brand || prev.brand,
           price: result.price || prev.price,
           originalPrice: result.originalPrice || prev.originalPrice,
-          description: result.description || prev.description,
+          description: cleanedDesc || result.description || prev.description,
           category: result.poshmark_category_name || resolvedCat.path || result.category_name || result.category || prev.category,
           subcategory: result.subcategory || prev.subcategory,
           department: result.department || resolvedCat.department || prev.department,

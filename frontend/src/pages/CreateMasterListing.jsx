@@ -56,7 +56,8 @@ import {
   resolveMercariCategory, 
   resolvePoshmarkCategory, 
   resolveEbayCategoryFallback, 
-  resolveEtsyCategoryFallback 
+  resolveEtsyCategoryFallback,
+  cleanHtmlDescription
 } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
@@ -734,6 +735,7 @@ const PoshmarkCategoryDropdown = ({ value, onSelect, placeholder = 'Search Poshm
 
 const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter brand...' }) => {
   const [searchTerm, setSearchTerm] = useState(value || '');
+  const [suggestions, setSuggestions] = useState(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -749,11 +751,27 @@ const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredBrands = useMemo(() => {
-    const q = (searchTerm || '').trim().toLowerCase();
-    if (!q) return POPULAR_POSH_BRANDS;
-    return POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(q));
-  }, [searchTerm]);
+  const triggerBrandSearch = async (val) => {
+    setSearchTerm(val);
+    onChange(val);
+    setIsOpen(true);
+    if (!val.trim()) {
+      setSuggestions(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
+      return;
+    }
+    try {
+      const response = await mercariService.suggestBrands(val);
+      if (response.data && response.data.success && response.data.brands?.length > 0) {
+        setSuggestions(response.data.brands);
+      } else {
+        const localMatches = POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(val.toLowerCase())).map(b => ({ name: b }));
+        setSuggestions(localMatches);
+      }
+    } catch (err) {
+      const localMatches = POPULAR_POSH_BRANDS.filter(b => b.toLowerCase().includes(val.toLowerCase())).map(b => ({ name: b }));
+      setSuggestions(localMatches);
+    }
+  };
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -761,31 +779,30 @@ const PoshmarkBrandDropdown = ({ value, onChange, placeholder = 'Search or enter
         type="text"
         className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
         value={searchTerm}
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          onChange(e.target.value);
+        onChange={(e) => triggerBrandSearch(e.target.value)}
+        onFocus={() => {
           setIsOpen(true);
+          if (!searchTerm.trim()) setSuggestions(POPULAR_POSH_BRANDS.map(b => ({ name: b })));
         }}
-        onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
       />
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999] max-h-52 overflow-y-auto py-1">
-          {filteredBrands.map((b) => (
+          {suggestions.map((b) => (
             <button
-              key={b}
+              key={b.id || b.name}
               type="button"
               onClick={() => {
-                setSearchTerm(b);
-                onChange(b);
+                setSearchTerm(b.name);
+                onChange(b.name);
                 setIsOpen(false);
               }}
               className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 font-semibold text-xs truncate"
             >
-              {b}
+              {b.name}
             </button>
           ))}
-          {searchTerm.trim() && !filteredBrands.includes(searchTerm.trim()) && (
+          {searchTerm.trim() && !suggestions.some(s => s.name.toLowerCase() === searchTerm.trim().toLowerCase()) && (
             <button
               type="button"
               onClick={() => {
@@ -1278,10 +1295,21 @@ const CreateMasterListing = ({
   }, [formData.mercariShippingWeightLbs, formData.mercariShippingWeightOz, formData.mercariShippingFitsShoebox, formData.mercariShippingLength, formData.mercariShippingWidth, formData.mercariShippingHeight]);
 
   const mercariActiveSizes = useMemo(() => {
-    if (!formData.mercariCategory) return [];
-    const match = mercariCategoryOptions.find(o => o.label === formData.mercariCategory);
-    if (!match || !match.itemSizeGroupId) return [];
-    return MERCARI_SIZES_BY_GROUP[match.itemSizeGroupId] || [];
+    if (formData.mercariCategory) {
+      const match = mercariCategoryOptions.find(o => o.label === formData.mercariCategory || o.name === formData.mercariCategory);
+      if (match && match.itemSizeGroupId && MERCARI_SIZES_BY_GROUP[match.itemSizeGroupId]?.length > 0) {
+        return MERCARI_SIZES_BY_GROUP[match.itemSizeGroupId];
+      }
+    }
+    const catLower = (formData.mercariCategory || '').toLowerCase();
+    if (catLower.startsWith('women')) {
+      return MERCARI_SIZES_BY_GROUP['1'] || [];
+    }
+    if (catLower.startsWith('kids')) {
+      return MERCARI_SIZES_BY_GROUP['8'] || [];
+    }
+    // Default to Men's / Standard Apparel sizes (S, M, L, XL, etc.)
+    return MERCARI_SIZES_BY_GROUP['4'] || MERCARI_SIZES_BY_GROUP['1'] || [];
   }, [formData.mercariCategory, mercariCategoryOptions]);
 
   // Initial Fetching
@@ -1379,7 +1407,7 @@ const CreateMasterListing = ({
         brand: extractedBrand || prev.brand,
         size: extractedSize || prev.size,
         color: extractedColor || prev.color,
-        description: extractedDescription || prev.description,
+        description: cleanHtmlDescription(extractedDescription) || prev.description,
 
         // eBay
         ebayCategory: resolveEbayCategoryFallback(
@@ -1608,12 +1636,24 @@ const CreateMasterListing = ({
           brandVal || prev.brand
         );
 
+        if (Array.isArray(res.aspects) && res.aspects.length > 0) {
+          setEbayAspects(res.aspects);
+        }
+
+        const rawSpecifics = res.item_specifics || (typeof res.aspects === 'object' && !Array.isArray(res.aspects) ? res.aspects : {});
+        const formattedAspects = {};
+        Object.entries(rawSpecifics).forEach(([k, v]) => {
+          if (v) formattedAspects[k] = Array.isArray(v) ? v : [String(v)];
+        });
+
+        const cleanedDesc = cleanHtmlDescription(res.description);
+
         setFormData(prev => ({
           ...prev,
           title: res.title || prev.title,
           price: res.price || prev.price,
           originalPrice: res.originalPrice || prev.originalPrice,
-          description: res.description || prev.description,
+          description: cleanedDesc || res.description || prev.description,
           brand: brandVal,
           size: sizeVal,
           color: colorVal,
@@ -1628,7 +1668,7 @@ const CreateMasterListing = ({
             ...(brandVal ? { Brand: [brandVal] } : {}),
             ...(sizeVal ? { Size: [sizeVal] } : {}),
             ...(colorVal ? { Color: [colorVal] } : {}),
-            ...(res.item_specifics || res.aspects || {}) 
+            ...formattedAspects
           },
 
           // Poshmark
