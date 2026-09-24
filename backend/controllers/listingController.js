@@ -1147,6 +1147,13 @@ exports.publishListing = async (req, res) => {
     if (listing.size && !isAspectValueInvalid(listing.size) && !aspects['Size']) aspects['Size'] = [listing.size];
     if (listing.material && !isAspectValueInvalid(listing.material) && !aspects['Material']) aspects['Material'] = [listing.material];
 
+    const ebData = listing.platformData?.ebay || {};
+    const countryOrigin = listing.countryOfOrigin || ebData.countryOfOrigin;
+    if (countryOrigin && !isAspectValueInvalid(countryOrigin)) {
+      if (!aspects['Country/Region of Manufacture']) aspects['Country/Region of Manufacture'] = [countryOrigin];
+      if (!aspects['Country of Origin']) aspects['Country of Origin'] = [countryOrigin];
+    }
+
     // 5. Structure weight and dimensions
     const packageWeightAndSize = {};
 
@@ -1314,18 +1321,44 @@ exports.publishListing = async (req, res) => {
 
     let offerId;
     if (!publishedFromExisting) {
+      const ebPlatformData = listing.platformData?.ebay || {};
+      const chosenFormat = listing.format || ebPlatformData.format || 'FIXED_PRICE';
+      const allowOffers = listing.allowOffers || ebPlatformData.allowOffers;
+      const minOfferPrice = listing.minOfferPrice || ebPlatformData.minOfferPrice;
+      const autoAcceptPrice = listing.autoAcceptPrice || ebPlatformData.autoAcceptPrice;
+
+      const pricingSummary = {
+        price: {
+          value: String(listing.price),
+          currency: 'USD'
+        }
+      };
+
+      if (allowOffers) {
+        pricingSummary.bestOfferTerms = {
+          bestOfferEnabled: true
+        };
+        if (autoAcceptPrice && parseFloat(autoAcceptPrice) > 0) {
+          pricingSummary.bestOfferTerms.autoAcceptPrice = {
+            value: String(parseFloat(autoAcceptPrice).toFixed(2)),
+            currency: 'USD'
+          };
+        }
+        if (minOfferPrice && parseFloat(minOfferPrice) > 0) {
+          pricingSummary.bestOfferTerms.autoDeclinePrice = {
+            value: String(parseFloat(minOfferPrice).toFixed(2)),
+            currency: 'USD'
+          };
+        }
+      }
+
       // 9. Create Offer
       const offerData = {
         sku: sku,
         marketplaceId: 'EBAY_US',
-        format: 'FIXED_PRICE',
+        format: chosenFormat === 'AUCTION' ? 'AUCTION' : 'FIXED_PRICE',
         availableQuantity: listing.quantity || 1,
-        pricingSummary: {
-          price: {
-            value: String(listing.price),
-            currency: 'USD'
-          }
-        },
+        pricingSummary: pricingSummary,
         listingDescription: sanitizeEbayDescription(listing.description),
         categoryId: listing.categoryId || '26315',
         merchantLocationKey: locationKey,
@@ -1335,6 +1368,20 @@ exports.publishListing = async (req, res) => {
           returnPolicyId
         }
       };
+
+      const scheduleListing = listing.scheduleListing || ebPlatformData.scheduleListing;
+      const scheduleDate = listing.scheduleDate || ebPlatformData.scheduleDate;
+      const scheduleTime = listing.scheduleTime || ebPlatformData.scheduleTime;
+      if (scheduleListing && scheduleDate) {
+        try {
+          const scheduleDateTime = new Date(`${scheduleDate}T${scheduleTime || '12:00'}:00Z`);
+          if (!isNaN(scheduleDateTime.getTime()) && scheduleDateTime.getTime() > Date.now()) {
+            offerData.listingStartDate = scheduleDateTime.toISOString();
+          }
+        } catch (sErr) {
+          console.warn('[EBAY PUBLISH] Failed to parse listingStartDate:', sErr.message);
+        }
+      }
 
       console.log('[EBAY PUBLISH] Creating new offer on eBay...');
       const createOfferRes = await ebayService.createOffer(token, offerData);

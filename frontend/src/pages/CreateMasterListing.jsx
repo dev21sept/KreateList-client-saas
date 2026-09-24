@@ -104,7 +104,31 @@ const COUNTRIES_LIST = [
   { id: 'BR', label: 'Brazil' },
   { id: 'ES', label: 'Spain' },
   { id: 'PT', label: 'Portugal' },
-  { id: 'TW', label: 'Taiwan' }
+  { id: 'TW', label: 'Taiwan' },
+  { id: 'KH', label: 'Cambodia' },
+  { id: 'LK', label: 'Sri Lanka' },
+  { id: 'PH', label: 'Philippines' },
+  { id: 'MY', label: 'Malaysia' },
+  { id: 'AU', label: 'Australia' },
+  { id: 'NZ', label: 'New Zealand' },
+  { id: 'NL', label: 'Netherlands' },
+  { id: 'CH', label: 'Switzerland' },
+  { id: 'PE', label: 'Peru' },
+  { id: 'CO', label: 'Colombia' },
+  { id: 'PL', label: 'Poland' },
+  { id: 'RO', label: 'Romania' },
+  { id: 'EG', label: 'Egypt' },
+  { id: 'MA', label: 'Morocco' },
+  { id: 'HN', label: 'Honduras' },
+  { id: 'GT', label: 'Guatemala' },
+  { id: 'DO', label: 'Dominican Republic' },
+  { id: 'SV', label: 'El Salvador' },
+  { id: 'MG', label: 'Madagascar' },
+  { id: 'ZA', label: 'South Africa' },
+  { id: 'SE', label: 'Sweden' },
+  { id: 'BE', label: 'Belgium' },
+  { id: 'AT', label: 'Austria' },
+  { id: 'IE', label: 'Ireland' }
 ];
 
 const CHARITY_ORGS = [
@@ -1185,9 +1209,9 @@ const CreateMasterListing = ({
     ebayScheduleTime: '12:00',
     ebayIrregularPackage: false,
     ebayDisplayUkSite: false,
-    ebayCountryOfOrigin: 'China',
-    ebayItemLocationZip: '23294',
-    ebayItemLocationCity: 'Henrico, Virginia, United States',
+    ebayCountryOfOrigin: '',
+    ebayItemLocationZip: '',
+    ebayItemLocationCity: '',
     ebayProductDocumentsEnabled: false,
     ebayProductDocType: 'User Guide',
     ebayProductDocUrl: '',
@@ -1362,12 +1386,20 @@ const CreateMasterListing = ({
         if (policiesRes.data?.success) {
           const pData = policiesRes.data.data || {};
           setEbayPolicies(pData);
+          const firstLoc = pData.locations?.[0];
+          const locAddr = firstLoc?.location?.address;
+          const locZip = locAddr?.postalCode || '';
+          const locCity = [locAddr?.city, locAddr?.stateOrProvince, locAddr?.country].filter(Boolean).join(', ');
+          const locKey = firstLoc?.merchantLocationKey || '';
+
           setFormData(prev => ({
             ...prev,
             fulfillmentPolicyId: prev.fulfillmentPolicyId || pData.fulfillment?.[0]?.fulfillmentPolicyId || '',
             paymentPolicyId: prev.paymentPolicyId || pData.payment?.[0]?.paymentPolicyId || '',
             returnPolicyId: prev.returnPolicyId || pData.returns?.[0]?.returnPolicyId || '',
-            locationKey: prev.locationKey || pData.locations?.[0]?.merchantLocationKey || ''
+            locationKey: prev.locationKey || locKey,
+            ebayItemLocationZip: prev.ebayItemLocationZip || locZip,
+            ebayItemLocationCity: prev.ebayItemLocationCity || locCity
           }));
         }
       } catch (err) {
@@ -1471,9 +1503,9 @@ const CreateMasterListing = ({
         ebayScheduleTime: ebData.scheduleTime || prev.ebayScheduleTime,
         ebayIrregularPackage: ebData.irregularPackage !== undefined ? ebData.irregularPackage : prev.ebayIrregularPackage,
         ebayDisplayUkSite: ebData.displayUkSite !== undefined ? ebData.displayUkSite : prev.displayUkSite,
-        ebayCountryOfOrigin: ebData.countryOfOrigin || prev.ebayCountryOfOrigin,
-        ebayItemLocationZip: ebData.itemLocationZip || prev.ebayItemLocationZip,
-        ebayItemLocationCity: ebData.itemLocationCity || prev.ebayItemLocationCity,
+        ebayCountryOfOrigin: ebData.countryOfOrigin || listing.countryOfOrigin || rawAspects['Country/Region of Manufacture']?.[0] || rawAspects['Country of Origin']?.[0] || prev.ebayCountryOfOrigin || '',
+        ebayItemLocationZip: ebData.itemLocationZip || listing.itemLocationZip || prev.ebayItemLocationZip,
+        ebayItemLocationCity: ebData.itemLocationCity || listing.itemLocationCity || prev.ebayItemLocationCity,
         ebayProductDocumentsEnabled: ebData.productDocumentsEnabled !== undefined ? ebData.productDocumentsEnabled : prev.ebayProductDocumentsEnabled,
         ebayProductDocType: ebData.productDocType || prev.ebayProductDocType,
         ebayProductDocUrl: ebData.productDocUrl || prev.ebayProductDocUrl,
@@ -1740,13 +1772,21 @@ const CreateMasterListing = ({
   };
 
   const handleAspectChange = (aspectName, value) => {
-    setFormData(prev => ({
-      ...prev,
-      ebayAspects: {
-        ...prev.ebayAspects,
-        [aspectName]: Array.isArray(value) ? value : [value]
+    const valArr = Array.isArray(value) ? value : [value];
+    const singleVal = valArr[0] || '';
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        ebayAspects: {
+          ...prev.ebayAspects,
+          [aspectName]: valArr
+        }
+      };
+      if (aspectName.toLowerCase() === 'country/region of manufacture' || aspectName.toLowerCase() === 'country of origin') {
+        updated.ebayCountryOfOrigin = singleVal;
       }
-    }));
+      return updated;
+    });
   };
 
   const handleAddCustomAspect = () => {
@@ -2921,8 +2961,20 @@ const CreateMasterListing = ({
                     <SearchableDropdown 
                       value={formData.ebayCountryOfOrigin}
                       options={COUNTRIES_LIST}
-                      onSelect={(opt) => setFormData(prev => ({ ...prev, ebayCountryOfOrigin: opt.label || opt.name }))}
-                      placeholder="Select country..."
+                      onSelect={(opt) => {
+                        const countryVal = opt.label || opt.name || opt.id || '';
+                        setFormData(prev => ({
+                          ...prev,
+                          ebayCountryOfOrigin: countryVal,
+                          ebayAspects: {
+                            ...prev.ebayAspects,
+                            'Country/Region of Manufacture': countryVal ? [countryVal] : [],
+                            'Country of Origin': countryVal ? [countryVal] : []
+                          }
+                        }));
+                      }}
+                      placeholder="Select country of origin..."
+                      allowCustom={true}
                     />
                   </div>
 
@@ -2933,7 +2985,7 @@ const CreateMasterListing = ({
                         type="text"
                         value={formData.ebayItemLocationZip}
                         onChange={(e) => setFormData(prev => ({ ...prev, ebayItemLocationZip: e.target.value }))}
-                        placeholder="23294"
+                        placeholder="Enter ZIP code..."
                         className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
                       />
                     </div>
@@ -2943,7 +2995,7 @@ const CreateMasterListing = ({
                         type="text"
                         value={formData.ebayItemLocationCity}
                         onChange={(e) => setFormData(prev => ({ ...prev, ebayItemLocationCity: e.target.value }))}
-                        placeholder="Henrico, VA, USA"
+                        placeholder="Enter City, State, Country..."
                         className="w-full px-2.5 h-8 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-slate-800"
                       />
                     </div>
