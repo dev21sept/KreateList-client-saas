@@ -3160,7 +3160,7 @@ const NewListings = () => {
     let isSold = false;
 
     const itemStatusLower = item.status?.toLowerCase();
-    const isMasterSold = itemStatusLower === 'sold' || item.soldOn || item.soldPlatform || (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
+    const isMasterSold = itemStatusLower === 'sold';
     const isSoldPlatform = isMasterSold && (
       rawPlatformStatus === 'sold' ||
       item.soldOn === platformName ||

@@ -133,21 +133,61 @@ async function reconcileOrdersAndMasterListings(userId) {
         l.soldPlatform = null;
         l.errorMessage = null;
 
-        // Restore platform statuses
-        if (l.ebayListingId && l.ebayStatus === 'sold') l.ebayStatus = 'published';
-        if (l.poshmarkListingId && l.poshmarkStatus === 'sold') l.poshmarkStatus = 'published';
-        if (l.mercariListingId && l.mercariStatus === 'sold') l.mercariStatus = 'published';
-        if (l.etsyListingId && l.etsyStatus === 'sold') l.etsyStatus = 'published';
-        if (l.depopListingId && l.depopStatus === 'sold') l.depopStatus = 'published';
+        // Restore platform statuses for all connected platforms (both 'sold' and 'delisted' false positives)
+        if (l.ebayListingId && (l.ebayStatus === 'sold' || l.ebayStatus === 'delisted')) {
+          l.ebayStatus = 'published';
+          if (l.platformData?.ebay) l.platformData.ebay.status = 'published';
+          if (l.listingsMap?.ebay) l.listingsMap.ebay.status = 'published';
+        }
+        if (l.poshmarkListingId && (l.poshmarkStatus === 'sold' || l.poshmarkStatus === 'delisted')) {
+          l.poshmarkStatus = 'published';
+          if (l.platformData?.poshmark) l.platformData.poshmark.status = 'published';
+          if (l.listingsMap?.poshmark) l.listingsMap.poshmark.status = 'published';
+        }
+        if (l.mercariListingId && (l.mercariStatus === 'sold' || l.mercariStatus === 'delisted')) {
+          l.mercariStatus = 'published';
+          if (l.platformData?.mercari) l.platformData.mercari.status = 'published';
+          if (l.listingsMap?.mercari) l.listingsMap.mercari.status = 'published';
+        }
+        if (l.etsyListingId && (l.etsyStatus === 'sold' || l.etsyStatus === 'delisted')) {
+          l.etsyStatus = 'published';
+          if (l.platformData?.etsy) l.platformData.etsy.status = 'published';
+          if (l.listingsMap?.etsy) l.listingsMap.etsy.status = 'published';
+        }
+        if (l.depopListingId && (l.depopStatus === 'sold' || l.depopStatus === 'delisted')) {
+          l.depopStatus = 'published';
+          if (l.platformData?.depop) l.platformData.depop.status = 'published';
+          if (l.listingsMap?.depop) l.listingsMap.depop.status = 'published';
+        }
 
         l.markModified('platformData');
         l.markModified('listingsMap');
         await l.save();
         restoredCount++;
+      } else if (l.status === 'published' && !matchedListingIds.has(l._id.toString())) {
+        // Also self-heal any published/active master listing whose channel status was falsely left as 'sold' or 'delisted'
+        let platChanged = false;
+        const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop'];
+        for (const p of platforms) {
+          const idField = `${p}ListingId`;
+          const statusField = `${p}Status`;
+          if (l[idField] && (l[statusField] === 'sold' || l[statusField] === 'delisted')) {
+            l[statusField] = 'published';
+            if (l.platformData?.[p]) l.platformData[p].status = 'published';
+            if (l.listingsMap?.[p]) l.listingsMap[p].status = 'published';
+            platChanged = true;
+          }
+        }
+        if (platChanged) {
+          l.markModified('platformData');
+          l.markModified('listingsMap');
+          await l.save();
+          restoredCount++;
+        }
       }
     }
 
-    console.log(`[Order Reconciler] User: ${userId} => Reconciled ${reconciledCount} real sold items, Restored ${restoredCount} false sold items.`);
+    console.log(`[Order Reconciler] User: ${userId} => Reconciled ${reconciledCount} real sold items, Restored/Fixed ${restoredCount} listings.`);
   } catch (err) {
     console.error('[Order Reconciler] Error reconciling orders with listings:', err.message);
   }
