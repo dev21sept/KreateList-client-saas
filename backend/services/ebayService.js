@@ -185,8 +185,8 @@ async function getOffers(token, sku) {
         return response.data.offers || [];
     } catch (error) {
         const errData = error.response?.data;
-        const isOfferNotAvail = errData?.errors?.some(e => e.errorId === 25713 || String(e.message || '').includes('not available'));
-        if (!isOfferNotAvail) {
+        const isOfferNotAvailable = errData?.errors?.[0]?.errorId === 25713 || error.response?.status === 404;
+        if (!isOfferNotAvailable) {
             console.warn(`[eBay Offers] Notice for SKU ${sku}:`, errData?.errors?.[0]?.message || error.message);
         }
         return [];
