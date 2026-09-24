@@ -8,6 +8,7 @@ const { syncMercariOrders } = require('./mercariService');
 const { syncPoshmarkOrders } = require('./poshmarkOrderService');
 const { syncEtsyInventory } = require('../controllers/etsyController');
 const { scrapePoshmarkCloset } = require('./externalImportService');
+const { findBestMatchingListing } = require('../utils/listingMatcher');
 
 let isOrdersSyncRunning = false;
 let isInventorySyncRunning = false;
@@ -16,7 +17,7 @@ let ordersCronTask = null;
 let inventoryCronTask = null;
 
 /**
- * Reconciles all Orders for a user with Master Listings with STRICT MATCHING ONLY.
+ * Reconciles all Orders for a user with Master Listings with SMART MULTI-TIER MATCHING.
  * - Ensures genuine sold orders accurately reflect as `status: 'sold'` in Master Crosslisting.
  * - Sets the selling channel as 'sold' and all other connected channels as 'delisted'.
  * - Self-heals/restores any false-positive sold listings that do not match a genuine order.
@@ -31,33 +32,30 @@ async function reconcileOrdersAndMasterListings(userId) {
 
     for (const order of orders) {
       const lineItem = order.lineItems?.[0];
-      const ordSku = (lineItem?.sku || order.sku || '').trim().toLowerCase();
+      const ordSku = lineItem?.sku || order.sku || '';
       const ordItemId = String(lineItem?.legacyItemId || lineItem?.lineItemId || order.platformListingId || '').trim();
+      const ordTitle = lineItem?.title || order.title || order.productTitle || '';
       const normPlatform = String(order.platform || 'ebay').toLowerCase();
 
-      // Find matching listing STRICTLY (NO loose title tokens or duplicate claims)
-      let match = null;
+      // Find matching listing using multi-tier matching (Listing ID -> SKU -> Exact Title -> Prefix -> Token Overlap)
+      let match = findBestMatchingListing(listings, {
+        listingId: ordItemId,
+        sku: ordSku,
+        title: ordTitle,
+        platform: normPlatform
+      });
 
-      // 1. By Exact Platform Listing ID (Highest precision)
-      if (ordItemId && ordItemId !== '___NONE___' && ordItemId !== 'undefined' && ordItemId !== 'null') {
-        match = listings.find(l => 
-          (l.ebayListingId && String(l.ebayListingId).trim() === ordItemId) ||
-          (l.poshmarkListingId && String(l.poshmarkListingId).trim() === ordItemId) ||
-          (l.mercariListingId && String(l.mercariListingId).trim() === ordItemId) ||
-          (l.etsyListingId && String(l.etsyListingId).trim() === ordItemId) ||
-          (l.depopListingId && String(l.depopListingId).trim() === ordItemId) ||
-          (l.platformData?.ebay?.liveId && String(l.platformData.ebay.liveId).trim() === ordItemId) ||
-          (l.platformData?.poshmark?.liveId && String(l.platformData.poshmark.liveId).trim() === ordItemId) ||
-          (l.platformData?.mercari?.liveId && String(l.platformData.mercari.liveId).trim() === ordItemId) ||
-          (l.platformData?.etsy?.liveId && String(l.platformData.etsy.liveId).trim() === ordItemId) ||
-          (l.platformData?.depop?.liveId && String(l.platformData.depop.liveId).trim() === ordItemId)
-        );
-      }
-
-      // 2. By Exact Custom SKU Match (Must be a specific unique SKU >= 3 chars, not placeholder)
-      const isInvalidSku = !ordSku || ordSku === '-' || ordSku === 'none' || ordSku === 'null' || ordSku === 'undefined' || ordSku === 'custom' || ordSku === 'default' || ordSku === 'sku' || ordSku.length < 3;
-      if (!match && !isInvalidSku) {
-        match = listings.find(l => l.sku && l.sku.trim().toLowerCase() === ordSku);
+      // If not found and order has multiple line items, check each line item
+      if (!match && Array.isArray(order.lineItems) && order.lineItems.length > 1) {
+        for (const item of order.lineItems) {
+          match = findBestMatchingListing(listings, {
+            listingId: item.lineItemId || item.legacyItemId,
+            sku: item.sku,
+            title: item.title,
+            platform: normPlatform
+          });
+          if (match) break;
+        }
       }
 
       if (match) {

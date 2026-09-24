@@ -6,6 +6,7 @@ const { deactivateMercariListing } = require('./mercariService');
 const { delistPoshmarkListing, delistDepopListing } = require('./backendPublishService');
 const { updateListingState: updateEtsyListingState } = require('./etsyService');
 const ebayService = require('./ebayService');
+const { findBestMatchingListing } = require('../utils/listingMatcher');
 
 /**
  * Handles cross-platform auto-delisting when an item sells on any channel.
@@ -36,38 +37,14 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       return results;
     }
 
-    // 1. Locate Master Listing in Listing Collection
-    let masterListing = null;
-
-    // Priority 1: Direct Marketplace Listing ID (Highest precision)
-    if (listingId && String(listingId).trim() && String(listingId).trim() !== '___NONE___' && String(listingId).trim() !== 'undefined' && String(listingId).trim() !== 'null') {
-      const cleanId = String(listingId).trim();
-      masterListing = await Listing.findOne({
-        user: userId,
-        $or: [
-          { ebayListingId: cleanId },
-          { mercariListingId: cleanId },
-          { poshmarkListingId: cleanId },
-          { depopListingId: cleanId },
-          { etsyListingId: cleanId },
-          { 'platformData.ebay.liveId': cleanId },
-          { 'platformData.poshmark.liveId': cleanId },
-          { 'platformData.mercari.liveId': cleanId },
-          { 'platformData.etsy.liveId': cleanId },
-          { 'platformData.depop.liveId': cleanId }
-        ]
-      });
-    }
-
-    // Priority 2: Exact Custom SKU Match (Must be a specific unique SKU >= 3 chars, not placeholder)
-    const isInvalidSku = !sku || String(sku).trim() === '-' || String(sku).trim().toLowerCase() === 'none' || String(sku).trim().toLowerCase() === 'null' || String(sku).trim().toLowerCase() === 'undefined' || String(sku).trim().toLowerCase() === 'custom' || String(sku).trim().toLowerCase() === 'default' || String(sku).trim().toLowerCase() === 'sku' || String(sku).trim().length < 3;
-    if (!masterListing && !isInvalidSku) {
-      const cleanSku = String(sku).trim();
-      masterListing = await Listing.findOne({
-        user: userId,
-        sku: { $regex: new RegExp(`^${cleanSku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-      });
-    }
+    // 1. Locate Master Listing using multi-tier matching (Listing ID -> SKU -> Exact Title -> Prefix -> Token Overlap)
+    const userListings = await Listing.find({ user: userId });
+    const masterListing = findBestMatchingListing(userListings, {
+      listingId,
+      sku,
+      title,
+      platform: normPlatform
+    });
 
     if (masterListing) {
       results.foundListing = true;
