@@ -1275,32 +1275,65 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   }
 }
 
-async function deletePoshmarkListing(listingId, poshmarkAccount) {
-  const sessionCookie = poshmarkAccount.sessionCookie;
-  const csrfToken = poshmarkAccount.csrfToken;
+/**
+ * Delists a Poshmark listing by marking it as "Not for Sale" (never deletes).
+ */
+async function delistPoshmarkListing(listingId, poshmarkAccount) {
+  const sessionCookie = poshmarkAccount?.sessionCookie;
+  const csrfToken = poshmarkAccount?.csrfToken;
+  if (!sessionCookie) {
+    throw new Error('Poshmark session cookie missing');
+  }
   const domain = getDomainFromCookie(sessionCookie);
-  
   const headers = getPoshmarkHeaders(sessionCookie, csrfToken);
-  // Remove origin/content-type for DELETE request to bypass CloudFront WAF
-  delete headers['origin'];
-  delete headers['content-type'];
 
-  const config = getAxiosConfig({
-    method: 'DELETE',
-    url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
-    headers
-  });
+  console.log(`[Poshmark Delister] Setting listing ${listingId} to 'Not for Sale' (NFS) on Poshmark...`);
   
-  const response = await axios(config);
-  return response.data;
+  // 1. Try PUT status/not_for_sale endpoint
+  try {
+    const config = getAxiosConfig({
+      method: 'PUT',
+      url: `https://${domain}/vm-rest/posts/${listingId}/status/not_for_sale?app_version=2.55&pm_version=2026.23.01`,
+      headers,
+      data: {}
+    });
+    const response = await axios(config);
+    return response.data;
+  } catch (err) {
+    console.warn(`[Poshmark Delister] PUT status/not_for_sale notice: ${err.message}. Trying direct post inventory status update...`);
+    
+    // 2. Fallback to POST /vm-rest/posts/${listingId} with inventory status not_for_sale
+    try {
+      const postConfig = getAxiosConfig({
+        method: 'POST',
+        url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.23.01`,
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
+        data: {
+          post: {
+            inventory: {
+              status: 'not_for_sale'
+            }
+          }
+        }
+      });
+      const postRes = await axios(postConfig);
+      return postRes.data;
+    } catch (postErr) {
+      console.warn(`[Poshmark Delister] Inventory status update fallback error:`, postErr.response?.data || postErr.message);
+      throw postErr;
+    }
+  }
 }
 
-async function deleteDepopListing(listingId, depopAccount) {
-  const accessToken = depopAccount.accessToken;
-  const sessionCookie = depopAccount.sessionCookie;
+/**
+ * Delists a Depop listing by setting quantity to 0 / state to inactive (never deletes).
+ */
+async function delistDepopListing(listingId, depopAccount) {
+  const accessToken = depopAccount?.accessToken;
+  const sessionCookie = depopAccount?.sessionCookie;
 
   if (!accessToken) {
-    throw new Error('Depop access token is missing. Please connect your Depop account.');
+    throw new Error('Depop access token is missing.');
   }
 
   const headers = {
@@ -1313,24 +1346,49 @@ async function deleteDepopListing(listingId, depopAccount) {
     headers['Cookie'] = sessionCookie;
   }
 
-  // Set origin and referer to mimic Depop website request
   headers['Origin'] = 'https://www.depop.com';
   headers['Referer'] = 'https://www.depop.com/';
 
-  const config = {
-    method: 'DELETE',
-    url: `https://webapi.depop.com/api/v1/products/${listingId}/`,
-    headers
-  };
-
-  console.log(`[Depop Publisher] Direct deleting product ${listingId} from Depop...`);
-  const response = await axios(config);
-  return response.data;
+  console.log(`[Depop Delister] Setting product ${listingId} to inactive/delisted on Depop...`);
+  try {
+    const config = {
+      method: 'PATCH',
+      url: `https://webapi.depop.com/api/v1/products/${listingId}/`,
+      headers,
+      data: {
+        status: 'INACTIVE',
+        quantity: 0
+      }
+    };
+    const response = await axios(config);
+    return response.data;
+  } catch (err) {
+    console.warn(`[Depop Delister] PATCH inactive notice: ${err.message}. Trying status endpoint...`);
+    try {
+      const configPut = {
+        method: 'PUT',
+        url: `https://webapi.depop.com/api/v1/products/${listingId}/status/`,
+        headers,
+        data: { status: 'INACTIVE' }
+      };
+      const response = await axios(configPut);
+      return response.data;
+    } catch (putErr) {
+      console.warn(`[Depop Delister] Status PUT error:`, putErr.response?.data || putErr.message);
+      throw putErr;
+    }
+  }
 }
+
+// Aliases to ensure backward compatibility with all calling services
+const deletePoshmarkListing = delistPoshmarkListing;
+const deleteDepopListing = delistDepopListing;
 
 module.exports = {
   publishToDepop,
   publishToPoshmark,
+  delistPoshmarkListing,
+  delistDepopListing,
   deletePoshmarkListing,
   deleteDepopListing
 };

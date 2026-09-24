@@ -9,6 +9,15 @@ const { syncPoshmarkOrders } = require('../services/poshmarkOrderService');
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Run reconciliation on demand to make sure all orders and listings are in sync
+    try {
+      const { reconcileOrdersAndMasterListings } = require('../services/backgroundSyncService');
+      await reconcileOrdersAndMasterListings(userId);
+    } catch (reconcileErr) {
+      console.warn('[OrderController] Quick reconcile warning:', reconcileErr.message);
+    }
+
     const query = { user: userId };
 
     if (req.query.onlyMaster === 'true') {
@@ -163,7 +172,17 @@ exports.syncOrders = async (req, res) => {
       poshmarkSyncStatus = 'failed';
     }
 
-    const updatedOrders = await Order.find({ user: userId }).sort({ createdDate: -1 });
+    // 4. Reconcile all orders with Master Listings
+    try {
+      const { reconcileOrdersAndMasterListings } = require('../services/backgroundSyncService');
+      await reconcileOrdersAndMasterListings(userId);
+    } catch (reconcileErr) {
+      console.warn('[OrderController] Post-sync reconcile warning:', reconcileErr.message);
+    }
+
+    const updatedOrders = await Order.find({ user: userId })
+      .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
+      .sort({ createdDate: -1 });
 
     return res.status(200).json({
       success: true,

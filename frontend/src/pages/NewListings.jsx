@@ -360,14 +360,32 @@ const groupListingsBySku = (rawListings) => {
         if (item.conditionNote) existing.conditionNote = item.conditionNote;
       }
 
+      // Merge sold metadata if either item is sold
+      if (item.status === 'sold' || existing.status === 'sold') {
+        existing.status = 'sold';
+      }
+      if (item.soldOn) existing.soldOn = item.soldOn;
+      if (item.soldPlatform) existing.soldPlatform = item.soldPlatform;
+      if (item.soldOrderId) existing.soldOrderId = item.soldOrderId;
+      if (item.soldAt) existing.soldAt = item.soldAt;
+      if (item.soldPrice) existing.soldPrice = item.soldPrice;
+      if (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on')) {
+        existing.errorMessage = item.errorMessage;
+      }
+      if (item.autoDelistLog) {
+        existing.autoDelistLog = { ...(existing.autoDelistLog || {}), ...item.autoDelistLog };
+      }
+
       // If existing SKU is '-' but incoming item has real SKU, use it
       if (existing.sku === '-' && sku) {
         existing.sku = sku;
       }
 
       const statusLower = item.status?.toLowerCase();
-      if (statusLower === 'active' || statusLower === 'published' || existing.status === 'Active' || existing.status === 'Published') {
-        existing.status = 'Active';
+      if (existing.status !== 'sold') {
+        if (statusLower === 'active' || statusLower === 'published' || existing.status === 'Active' || existing.status === 'Published') {
+          existing.status = 'Active';
+        }
       }
       
       // Keep track of all sub-document IDs in a list for deletion

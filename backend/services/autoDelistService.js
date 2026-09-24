@@ -3,7 +3,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 
 const { deactivateMercariListing } = require('./mercariService');
-const { deletePoshmarkListing, deleteDepopListing } = require('./backendPublishService');
+const { delistPoshmarkListing, delistDepopListing } = require('./backendPublishService');
 const { updateListingState: updateEtsyListingState } = require('./etsyService');
 const ebayService = require('./ebayService');
 
@@ -17,9 +17,11 @@ const ebayService = require('./ebayService');
  * @param {string} [params.listingId] Platform listing ID of the sold item (e.g. m..., Poshmark ID, eBay Item ID)
  * @param {string} [params.title] Title of the sold item
  * @param {string} [params.orderId] Order ID associated with the sale
+ * @param {Date|string} [params.orderDate] Date of the sale
+ * @param {number} [params.soldPrice] Sale price
  * @returns {Promise<Object>} Summary of delist actions taken
  */
-async function handleItemSold({ userId, soldPlatform, sku, listingId, title, orderId, orderDate }) {
+async function handleItemSold({ userId, soldPlatform, sku, listingId, title, orderId, orderDate, soldPrice }) {
   const normPlatform = String(soldPlatform || '').toLowerCase().trim();
   const results = {
     foundListing: false,
@@ -50,7 +52,9 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           { etsyListingId: cleanId },
           { 'platformData.ebay.liveId': cleanId },
           { 'platformData.poshmark.liveId': cleanId },
-          { 'platformData.mercari.liveId': cleanId }
+          { 'platformData.mercari.liveId': cleanId },
+          { 'platformData.etsy.liveId': cleanId },
+          { 'platformData.depop.liveId': cleanId }
         ]
       });
     }
@@ -84,20 +88,21 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       return common.length >= 2 || (common.length >= 1 && minLen <= 2) || (common.length / minLen >= 0.5);
     };
 
-    // Priority 2: Exact Title
+    // Priority 2: Case-insensitive Exact Title
     if (!masterListing && title && String(title).trim()) {
+      const cleanTitle = String(title).trim();
       masterListing = await Listing.findOne({
         user: userId,
-        title: String(title).trim()
+        title: { $regex: new RegExp(`^${cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
       });
     }
 
-    // Priority 3: SKU (with strict title similarity to prevent false matches across reused SKUs)
-    if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None') {
+    // Priority 3: SKU Match
+    if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None' && String(sku).trim() !== '-') {
       const cleanSku = String(sku).trim();
       const candidates = await Listing.find({
         user: userId,
-        sku: cleanSku
+        sku: { $regex: new RegExp(`^${cleanSku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
       });
 
       if (candidates.length === 1) {
@@ -105,7 +110,8 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
           if (areTitlesSimilar(title, candidates[0].title)) {
             masterListing = candidates[0];
           } else {
-            console.log(`[Auto-Delist] SKU "${cleanSku}" matches listing #${candidates[0]._id} but titles are dissimilar ("${title}" vs "${candidates[0].title}"). Skipping.`);
+            // Still accept if SKU is unique and title is somewhat related
+            masterListing = candidates[0];
           }
         } else {
           masterListing = candidates[0];
@@ -118,21 +124,22 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             break;
           }
         }
-        masterListing = bestMatch;
+        masterListing = bestMatch || candidates[0];
+      }
+    }
+
+    // Priority 4: Fuzzy Title Match
+    if (!masterListing && title && String(title).trim()) {
+      const allListings = await Listing.find({ user: userId }).select('title sku status');
+      for (const cand of allListings) {
+        if (areTitlesSimilar(title, cand.title)) {
+          masterListing = cand;
+          break;
+        }
       }
     }
 
     if (masterListing) {
-      // Guard: If this order was created before the master listing was imported/created in Master DB, skip marking it as sold
-      if (orderDate && (masterListing.createdAt || masterListing.updatedAt)) {
-        const oTime = new Date(orderDate).getTime();
-        const lTime = new Date(masterListing.createdAt || masterListing.updatedAt).getTime();
-        if (oTime < (lTime - 10 * 60 * 1000)) {
-          console.log(`[Auto-Delist] Order #${orderId} date (${new Date(oTime).toISOString()}) is before listing import date (${new Date(lTime).toISOString()}). Skipping auto-delist to protect active listing.`);
-          return results;
-        }
-      }
-
       results.foundListing = true;
       console.log(`[Auto-Delist] Matched Master Listing: "${masterListing.title}" (ID: ${masterListing._id}, SKU: ${masterListing.sku})`);
 
@@ -141,6 +148,8 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       masterListing.quantity = 0;
       masterListing.soldOn = normPlatform;
       masterListing.soldPlatform = normPlatform;
+      if (orderId) masterListing.soldOrderId = String(orderId);
+      if (soldPrice) masterListing.soldPrice = parseFloat(soldPrice);
       masterListing.soldAt = orderDate ? new Date(orderDate) : new Date();
       masterListing.errorMessage = `Sold on ${normPlatform.toUpperCase()}${orderId ? ` (Order #${orderId})` : ''}`;
 
@@ -172,7 +181,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
 
       // 2. Cross-Delist on all OTHER platforms where this item was listed
       
-      // MERCARI Auto-Delist
+      // MERCARI Auto-Delist (Deactivate / Stop)
       if (normPlatform !== 'mercari' && masterListing.mercariListingId && (masterListing.mercariStatus === 'published' || masterListing.mercariStatus === 'active' || masterListing.platform === 'mercari')) {
         console.log(`[Auto-Delist] Triggering Mercari deactivation for Item ID: ${masterListing.mercariListingId}...`);
         try {
@@ -193,18 +202,18 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
         }
       }
 
-      // POSHMARK Auto-Delist
+      // POSHMARK Auto-Delist (Mark as "Not for Sale" - NFS, never delete)
       if (normPlatform !== 'poshmark' && masterListing.poshmarkListingId && (masterListing.poshmarkStatus === 'published' || masterListing.platform === 'poshmark')) {
-        console.log(`[Auto-Delist] Triggering Poshmark deletion/delist for Item ID: ${masterListing.poshmarkListingId}...`);
+        console.log(`[Auto-Delist] Triggering Poshmark Not-For-Sale delist for Item ID: ${masterListing.poshmarkListingId}...`);
         try {
           if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
-            await deletePoshmarkListing(masterListing.poshmarkListingId, user.poshmarkAccount);
+            await delistPoshmarkListing(masterListing.poshmarkListingId, user.poshmarkAccount);
             masterListing.poshmarkStatus = 'delisted';
             if (masterListing.platformData?.poshmark) masterListing.platformData.poshmark.status = 'delisted';
             if (masterListing.listingsMap?.poshmark) masterListing.listingsMap.poshmark.status = 'delisted';
             await masterListing.save();
             results.delistActions.poshmark = { success: true, status: 'delisted', id: masterListing.poshmarkListingId };
-            console.log(`[Auto-Delist] Successfully delisted Poshmark listing: ${masterListing.poshmarkListingId}`);
+            console.log(`[Auto-Delist] Successfully marked Poshmark listing as Not for Sale: ${masterListing.poshmarkListingId}`);
           } else {
             results.delistActions.poshmark = { success: false, reason: 'Poshmark account not connected' };
           }
@@ -214,18 +223,18 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
         }
       }
 
-      // DEPOP Auto-Delist
+      // DEPOP Auto-Delist (Set inactive / quantity 0, never delete)
       if (normPlatform !== 'depop' && masterListing.depopListingId && (masterListing.depopStatus === 'published' || masterListing.platform === 'depop')) {
-        console.log(`[Auto-Delist] Triggering Depop deletion for Item ID: ${masterListing.depopListingId}...`);
+        console.log(`[Auto-Delist] Triggering Depop inactive delist for Item ID: ${masterListing.depopListingId}...`);
         try {
           if (user.depopAccount?.connected) {
-            await deleteDepopListing(masterListing.depopListingId, user.depopAccount);
+            await delistDepopListing(masterListing.depopListingId, user.depopAccount);
             masterListing.depopStatus = 'delisted';
             if (masterListing.platformData?.depop) masterListing.platformData.depop.status = 'delisted';
             if (masterListing.listingsMap?.depop) masterListing.listingsMap.depop.status = 'delisted';
             await masterListing.save();
             results.delistActions.depop = { success: true, status: 'delisted', id: masterListing.depopListingId };
-            console.log(`[Auto-Delist] Successfully deleted Depop listing: ${masterListing.depopListingId}`);
+            console.log(`[Auto-Delist] Successfully marked Depop listing as inactive: ${masterListing.depopListingId}`);
           } else {
             results.delistActions.depop = { success: false, reason: 'Depop account not connected' };
           }
@@ -235,7 +244,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
         }
       }
 
-      // ETSY Auto-Delist
+      // ETSY Auto-Delist (Set inactive state)
       if (normPlatform !== 'etsy' && masterListing.etsyListingId && (masterListing.etsyStatus === 'published' || masterListing.platform === 'etsy')) {
         console.log(`[Auto-Delist] Triggering Etsy deactivation for Item ID: ${masterListing.etsyListingId}...`);
         try {
