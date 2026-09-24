@@ -39,8 +39,8 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
     // 1. Locate Master Listing in Listing Collection
     let masterListing = null;
 
-    // Priority 1: Direct Marketplace Listing ID
-    if (listingId && String(listingId).trim()) {
+    // Priority 1: Direct Marketplace Listing ID (Highest precision)
+    if (listingId && String(listingId).trim() && String(listingId).trim() !== '___NONE___' && String(listingId).trim() !== 'undefined' && String(listingId).trim() !== 'null') {
       const cleanId = String(listingId).trim();
       masterListing = await Listing.findOne({
         user: userId,
@@ -59,17 +59,9 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
     }
 
-    // Priority 2: Case-insensitive 100% Exact Title
-    if (!masterListing && title && String(title).trim()) {
-      const cleanTitle = String(title).trim();
-      masterListing = await Listing.findOne({
-        user: userId,
-        title: { $regex: new RegExp(`^${cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-      });
-    }
-
-    // Priority 3: Exact SKU Match (Must be a real SKU, not '-' or 'none')
-    if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None' && String(sku).trim() !== '-') {
+    // Priority 2: Exact Custom SKU Match (Must be a specific unique SKU >= 3 chars, not placeholder)
+    const isInvalidSku = !sku || String(sku).trim() === '-' || String(sku).trim().toLowerCase() === 'none' || String(sku).trim().toLowerCase() === 'null' || String(sku).trim().toLowerCase() === 'undefined' || String(sku).trim().toLowerCase() === 'custom' || String(sku).trim().toLowerCase() === 'default' || String(sku).trim().toLowerCase() === 'sku' || String(sku).trim().length < 3;
+    if (!masterListing && !isInvalidSku) {
       const cleanSku = String(sku).trim();
       masterListing = await Listing.findOne({
         user: userId,

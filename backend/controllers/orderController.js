@@ -9,6 +9,7 @@ const { syncPoshmarkOrders } = require('../services/poshmarkOrderService');
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+    const isOnlyMaster = req.query.onlyMaster === 'true' || req.query.master === 'true';
 
     // Run reconciliation on demand to make sure all orders and listings are in sync
     try {
@@ -18,27 +19,15 @@ exports.getOrders = async (req, res) => {
       console.warn('[OrderController] Quick reconcile warning:', reconcileErr.message);
     }
 
-    // Only include orders that are linked to Master Crosslisting products
-    const query = { user: userId, listingId: { $ne: null } };
+    if (isOnlyMaster) {
+      // SOLD TRACKER TAB: ONLY return genuinely sold products from Master Crosslisting (Listing collection)
+      const Listing = require('../models/Listing');
+      const soldListings = await Listing.find({
+        user: userId,
+        status: 'sold'
+      }).sort({ soldAt: -1, updatedAt: -1 });
 
-    const orders = await Order.find(query)
-      .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
-      .sort({ createdDate: -1 });
-
-    let allSoldRecords = [...orders];
-
-    // Also include any Master Listings marked 'sold' that may not have an Order document linked yet
-    const Listing = require('../models/Listing');
-    const linkedListingIds = orders.map(o => o.listingId?._id?.toString()).filter(Boolean);
-
-    const unlinkedSoldListings = await Listing.find({
-      user: userId,
-      status: 'sold',
-      _id: { $nin: linkedListingIds }
-    });
-
-    unlinkedSoldListings.forEach(l => {
-      allSoldRecords.push({
+      const soldRecords = soldListings.map(l => ({
         _id: l._id,
         orderId: l.soldOrderId || `SOLD-${l._id.toString().substring(0, 8)}`,
         platform: l.soldPlatform || l.soldOn || l.platform || 'ebay',
@@ -50,52 +39,69 @@ exports.getOrders = async (req, res) => {
         lineItems: [{
           title: l.title,
           sku: l.sku,
-          thumbnail: l.thumbnail || (l.images && l.images[0]),
+          thumbnail: l.thumbnail || (l.images && l.images[0]) || '',
           price: parseFloat(l.soldPrice || l.price || 0),
           quantity: 1
         }]
+      }));
+
+      // Calculate quick stats for Sold Tracker
+      let totalRevenue = 0;
+      let totalDelistedProtections = 0;
+      const platformBreakdown = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
+
+      soldRecords.forEach(o => {
+        const amt = Number(o.totalAmount || 0);
+        if (!isNaN(amt)) totalRevenue += amt;
+        const plat = (o.platform || 'ebay').toLowerCase();
+        if (platformBreakdown[plat] !== undefined) platformBreakdown[plat]++;
+
+        if (o.delistActions && typeof o.delistActions === 'object') {
+          Object.keys(o.delistActions).forEach(p => {
+            if (o.delistActions[p]?.success || o.delistActions[p]?.status === 'delisted' || o.delistActions[p]?.status === 'inactive') {
+              totalDelistedProtections++;
+            }
+          });
+        }
       });
-    });
 
-    allSoldRecords.sort((a, b) => new Date(b.createdDate || b.createdAt) - new Date(a.createdDate || a.createdAt));
+      return res.status(200).json({
+        success: true,
+        count: soldRecords.length,
+        stats: {
+          totalRevenue: Math.round(totalRevenue * 100) / 100,
+          totalSold: soldRecords.length,
+          totalDelistedProtections,
+          platformBreakdown
+        },
+        data: soldRecords
+      });
+    }
 
-    // Calculate quick stats
+    // ORDERS PAGE: Return all marketplace orders from eBay, Mercari, Poshmark, Etsy
+    const orders = await Order.find({ user: userId })
+      .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
+      .sort({ createdDate: -1 });
+
     let totalRevenue = 0;
-    let totalDelistedProtections = 0;
     const platformBreakdown = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
-
-    allSoldRecords.forEach(o => {
+    orders.forEach(o => {
       const amt = Number(o.totalAmount || 0);
       if (!isNaN(amt)) totalRevenue += amt;
       const plat = (o.platform || 'ebay').toLowerCase();
       if (platformBreakdown[plat] !== undefined) platformBreakdown[plat]++;
-
-      // Count delist actions
-      if (o.delistActions && typeof o.delistActions === 'object') {
-        Object.keys(o.delistActions).forEach(p => {
-          if (o.delistActions[p]?.success || o.delistActions[p]?.status === 'delisted' || o.delistActions[p]?.status === 'inactive') {
-            totalDelistedProtections++;
-          }
-        });
-      } else if (o.listingId?.autoDelistLog && typeof o.listingId.autoDelistLog === 'object') {
-        Object.keys(o.listingId.autoDelistLog).forEach(p => {
-          if (o.listingId.autoDelistLog[p]?.success || o.listingId.autoDelistLog[p]?.status === 'delisted' || o.listingId.autoDelistLog[p]?.status === 'inactive') {
-            totalDelistedProtections++;
-          }
-        });
-      }
     });
 
     return res.status(200).json({
       success: true,
-      count: allSoldRecords.length,
+      count: orders.length,
       stats: {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
-        totalSold: allSoldRecords.length,
-        totalDelistedProtections,
+        totalSold: orders.length,
+        totalDelistedProtections: 0,
         platformBreakdown
       },
-      data: allSoldRecords
+      data: orders
     });
   } catch (error) {
     console.error('Error fetching orders:', error.message);

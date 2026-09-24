@@ -31,41 +31,33 @@ async function reconcileOrdersAndMasterListings(userId) {
 
     for (const order of orders) {
       const lineItem = order.lineItems?.[0];
-      const ordTitle = (lineItem?.title || order.title || '').trim().toLowerCase();
       const ordSku = (lineItem?.sku || order.sku || '').trim().toLowerCase();
-      const ordPlatId = String(lineItem?.legacyItemId || lineItem?.lineItemId || order.platformListingId || order.ebayOrderId || order.orderId || '').trim();
+      const ordItemId = String(lineItem?.legacyItemId || lineItem?.lineItemId || order.platformListingId || '').trim();
       const normPlatform = String(order.platform || 'ebay').toLowerCase();
 
-      // Find matching listing STRICTLY (NO loose fuzzy tokens)
+      // Find matching listing STRICTLY (NO loose title tokens or duplicate claims)
       let match = null;
 
-      // 1. By Exact Platform Listing ID
-      if (ordPlatId) {
+      // 1. By Exact Platform Listing ID (Highest precision)
+      if (ordItemId && ordItemId !== '___NONE___' && ordItemId !== 'undefined' && ordItemId !== 'null') {
         match = listings.find(l => 
-          (l.ebayListingId && String(l.ebayListingId).trim() === ordPlatId) ||
-          (l.poshmarkListingId && String(l.poshmarkListingId).trim() === ordPlatId) ||
-          (l.mercariListingId && String(l.mercariListingId).trim() === ordPlatId) ||
-          (l.etsyListingId && String(l.etsyListingId).trim() === ordPlatId) ||
-          (l.depopListingId && String(l.depopListingId).trim() === ordPlatId) ||
-          (l.platformData?.ebay?.liveId && String(l.platformData.ebay.liveId).trim() === ordPlatId) ||
-          (l.platformData?.poshmark?.liveId && String(l.platformData.poshmark.liveId).trim() === ordPlatId) ||
-          (l.platformData?.mercari?.liveId && String(l.platformData.mercari.liveId).trim() === ordPlatId)
+          (l.ebayListingId && String(l.ebayListingId).trim() === ordItemId) ||
+          (l.poshmarkListingId && String(l.poshmarkListingId).trim() === ordItemId) ||
+          (l.mercariListingId && String(l.mercariListingId).trim() === ordItemId) ||
+          (l.etsyListingId && String(l.etsyListingId).trim() === ordItemId) ||
+          (l.depopListingId && String(l.depopListingId).trim() === ordItemId) ||
+          (l.platformData?.ebay?.liveId && String(l.platformData.ebay.liveId).trim() === ordItemId) ||
+          (l.platformData?.poshmark?.liveId && String(l.platformData.poshmark.liveId).trim() === ordItemId) ||
+          (l.platformData?.mercari?.liveId && String(l.platformData.mercari.liveId).trim() === ordItemId) ||
+          (l.platformData?.etsy?.liveId && String(l.platformData.etsy.liveId).trim() === ordItemId) ||
+          (l.platformData?.depop?.liveId && String(l.platformData.depop.liveId).trim() === ordItemId)
         );
       }
 
-      // 2. By Direct Valid listingId on Order
-      if (!match && order.listingId) {
-        match = listings.find(l => l._id.toString() === order.listingId.toString());
-      }
-
-      // 3. By Exact SKU Match (Must be a real SKU, not '-' or 'none')
-      if (!match && ordSku && ordSku !== '-' && ordSku !== 'none') {
+      // 2. By Exact Custom SKU Match (Must be a specific unique SKU >= 3 chars, not placeholder)
+      const isInvalidSku = !ordSku || ordSku === '-' || ordSku === 'none' || ordSku === 'null' || ordSku === 'undefined' || ordSku === 'custom' || ordSku === 'default' || ordSku === 'sku' || ordSku.length < 3;
+      if (!match && !isInvalidSku) {
         match = listings.find(l => l.sku && l.sku.trim().toLowerCase() === ordSku);
-      }
-
-      // 4. By 100% Full Exact Title Match
-      if (!match && ordTitle && ordTitle.length > 5) {
-        match = listings.find(l => l.title && l.title.trim().toLowerCase() === ordTitle);
       }
 
       if (match) {
@@ -130,29 +122,30 @@ async function reconcileOrdersAndMasterListings(userId) {
       }
     }
 
-    // Self-healing: If a listing was previously falsely marked as 'sold' but has NO matching order in Order collection
-    // and is actually active on marketplace products, restore it to 'published'
+    // Self-healing: If a master listing is marked 'sold' but is NOT in matchedListingIds,
+    // restore it immediately to 'published' with quantity 1
     let restoredCount = 0;
     for (const l of listings) {
       if (l.status === 'sold' && !matchedListingIds.has(l._id.toString())) {
-        // Check if user has an actual order with this soldOrderId
-        let hasRealOrder = false;
-        if (l.soldOrderId) {
-          hasRealOrder = orders.some(o => o.orderId === l.soldOrderId);
-        }
-        if (!hasRealOrder) {
-          l.status = 'published';
-          l.quantity = 1;
-          l.soldOn = null;
-          l.soldOrderId = null;
-          l.soldAt = null;
-          l.soldPlatform = null;
-          l.errorMessage = null;
-          l.markModified('platformData');
-          l.markModified('listingsMap');
-          await l.save();
-          restoredCount++;
-        }
+        l.status = 'published';
+        l.quantity = 1;
+        l.soldOn = null;
+        l.soldOrderId = null;
+        l.soldAt = null;
+        l.soldPlatform = null;
+        l.errorMessage = null;
+
+        // Restore platform statuses
+        if (l.ebayListingId && l.ebayStatus === 'sold') l.ebayStatus = 'published';
+        if (l.poshmarkListingId && l.poshmarkStatus === 'sold') l.poshmarkStatus = 'published';
+        if (l.mercariListingId && l.mercariStatus === 'sold') l.mercariStatus = 'published';
+        if (l.etsyListingId && l.etsyStatus === 'sold') l.etsyStatus = 'published';
+        if (l.depopListingId && l.depopStatus === 'sold') l.depopStatus = 'published';
+
+        l.markModified('platformData');
+        l.markModified('listingsMap');
+        await l.save();
+        restoredCount++;
       }
     }
 
