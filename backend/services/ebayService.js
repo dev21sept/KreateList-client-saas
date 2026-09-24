@@ -176,7 +176,7 @@ async function createOffer(token, offerData) {
  */
 async function getOffers(token, sku) {
     try {
-        const response = await axios.get(`${API_BASE_URL}/sell/inventory/v1/offer?sku=${sku}`, {
+        const response = await axios.get(`${API_BASE_URL}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Language': 'en-US'
@@ -184,7 +184,11 @@ async function getOffers(token, sku) {
         });
         return response.data.offers || [];
     } catch (error) {
-        console.error(`Error fetching offers for SKU ${sku}:`, error.response?.data || error.message);
+        const errData = error.response?.data;
+        const isOfferNotAvail = errData?.errors?.some(e => e.errorId === 25713 || String(e.message || '').includes('not available'));
+        if (!isOfferNotAvail) {
+            console.warn(`[eBay Offers] Notice for SKU ${sku}:`, errData?.errors?.[0]?.message || error.message);
+        }
         return [];
     }
 }
