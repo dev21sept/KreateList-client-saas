@@ -1086,19 +1086,23 @@ const NewListings = () => {
         }
       }
 
-      if (platform === 'mercari' || targetItem.platform === 'mercari' || targetItem.source === 'mercari' || targetItem.mercariListingId) {
+      // Only enrich Mercari details if the user explicitly clicked Preview for Mercari
+      if (platform === 'mercari') {
         const mercId = targetItem.mercariListingId || (targetItem.sku && targetItem.sku.startsWith('M-m') ? targetItem.sku.replace('M-', '') : targetItem._id);
         if (mercId && (!targetItem.images || targetItem.images.length <= 1 || !targetItem.description || targetItem.description === targetItem.title)) {
           mercariService.getItemDetails(mercId).then(res => {
             if (res.data?.success && res.data?.data) {
               const fullData = res.data.data;
-              setPreviewListing(prev => ({
-                ...prev,
-                ...fullData,
-                platform: 'mercari',
-                status: fullData.status === 'active' ? 'published' : 'delisted',
-                url: fullData.mercariUrl || prev?.url
-              }));
+              setPreviewListing(prev => {
+                if (!prev || prev.platform !== 'mercari') return prev; // Do not re-open if closed or switched
+                return {
+                  ...prev,
+                  ...fullData,
+                  platform: 'mercari',
+                  status: fullData.status === 'active' ? 'published' : 'delisted',
+                  url: fullData.mercariUrl || prev?.url
+                };
+              });
               if (fullData.images && fullData.images.length > 0) {
                 setActiveImage(fullData.images[0]);
               }
@@ -2784,9 +2788,9 @@ const NewListings = () => {
         <button
           type="button"
           onClick={() => handleDelistAllPlatforms(item)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer text-left"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
         >
-          <XCircle size={13} className="text-amber-500" />
+          <XCircle size={13} className="text-slate-400" />
           <span>Delist from All Marketplaces</span>
         </button>
 
@@ -2796,9 +2800,9 @@ const NewListings = () => {
             setActiveMasterDropdown(null);
             handleDelete(item);
           }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer text-left"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
         >
-          <Trash2 size={13} className="text-rose-500" />
+          <Trash2 size={13} className="text-slate-400" />
           <span>Delete Item</span>
         </button>
       </div>,

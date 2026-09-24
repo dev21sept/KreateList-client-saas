@@ -18,11 +18,8 @@ exports.getOrders = async (req, res) => {
       console.warn('[OrderController] Quick reconcile warning:', reconcileErr.message);
     }
 
-    const query = { user: userId };
-
-    if (req.query.onlyMaster === 'true') {
-      query.listingId = { $ne: null };
-    }
+    // Only include orders that are linked to Master Crosslisting products
+    const query = { user: userId, listingId: { $ne: null } };
 
     const orders = await Order.find(query)
       .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
@@ -30,39 +27,37 @@ exports.getOrders = async (req, res) => {
 
     let allSoldRecords = [...orders];
 
-    // If onlyMaster is true, also include any Master Listings marked 'sold' that may not have an Order document yet
-    if (req.query.onlyMaster === 'true') {
-      const Listing = require('../models/Listing');
-      const linkedListingIds = orders.map(o => o.listingId?._id?.toString()).filter(Boolean);
+    // Also include any Master Listings marked 'sold' that may not have an Order document linked yet
+    const Listing = require('../models/Listing');
+    const linkedListingIds = orders.map(o => o.listingId?._id?.toString()).filter(Boolean);
 
-      const unlinkedSoldListings = await Listing.find({
-        user: userId,
-        status: 'sold',
-        _id: { $nin: linkedListingIds }
+    const unlinkedSoldListings = await Listing.find({
+      user: userId,
+      status: 'sold',
+      _id: { $nin: linkedListingIds }
+    });
+
+    unlinkedSoldListings.forEach(l => {
+      allSoldRecords.push({
+        _id: l._id,
+        orderId: l.soldOrderId || `SOLD-${l._id.toString().substring(0, 8)}`,
+        platform: l.soldPlatform || l.soldOn || l.platform || 'ebay',
+        totalAmount: parseFloat(l.soldPrice || l.price || 0),
+        createdDate: l.soldAt || l.updatedAt || l.createdAt,
+        createdAt: l.soldAt || l.updatedAt || l.createdAt,
+        listingId: l,
+        delistActions: l.autoDelistLog || {},
+        lineItems: [{
+          title: l.title,
+          sku: l.sku,
+          thumbnail: l.thumbnail || (l.images && l.images[0]),
+          price: parseFloat(l.soldPrice || l.price || 0),
+          quantity: 1
+        }]
       });
+    });
 
-      unlinkedSoldListings.forEach(l => {
-        allSoldRecords.push({
-          _id: l._id,
-          orderId: l.soldOrderId || `SOLD-${l._id.toString().substring(0, 8)}`,
-          platform: l.soldPlatform || l.soldOn || l.platform || 'ebay',
-          totalAmount: parseFloat(l.soldPrice || l.price || 0),
-          createdDate: l.soldAt || l.updatedAt || l.createdAt,
-          createdAt: l.soldAt || l.updatedAt || l.createdAt,
-          listingId: l,
-          delistActions: l.autoDelistLog || {},
-          lineItems: [{
-            title: l.title,
-            sku: l.sku,
-            thumbnail: l.thumbnail || (l.images && l.images[0]),
-            price: parseFloat(l.soldPrice || l.price || 0),
-            quantity: 1
-          }]
-        });
-      });
-
-      allSoldRecords.sort((a, b) => new Date(b.createdDate || b.createdAt) - new Date(a.createdDate || a.createdAt));
-    }
+    allSoldRecords.sort((a, b) => new Date(b.createdDate || b.createdAt) - new Date(a.createdDate || a.createdAt));
 
     // Calculate quick stats
     let totalRevenue = 0;

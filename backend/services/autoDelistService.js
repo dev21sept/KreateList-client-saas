@@ -59,36 +59,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
     }
 
-    // Helper for title keyword tokenization
-    const getSignificantTokens = (t) => {
-      if (!t) return [];
-      const stopWords = new Set([
-        'mens', 'men', 'womens', 'women', 'shirt', 'pants', 'pant', 'jacket', 'coat', 'sweater',
-        'shoes', 'boots', 'size', 'with', 'and', 'the', 'for', 'good', 'preowned', 'cotton',
-        'vintage', 'black', 'white', 'blue', 'gray', 'grey', 'brown', 'red', 'green', 'yellow',
-        'used', 'new', 'condition', 'long', 'sleeve', 'short', 'front', 'back', 'neck', 'fit'
-      ]);
-      return String(t)
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .filter(w => w.length > 2 && !stopWords.has(w));
-    };
-
-    const areTitlesSimilar = (t1, t2) => {
-      if (!t1 || !t2) return false;
-      const tok1 = getSignificantTokens(t1);
-      const tok2 = getSignificantTokens(t2);
-      if (tok1.length === 0 || tok2.length === 0) {
-        return t1.trim().toLowerCase() === t2.trim().toLowerCase();
-      }
-      const set2 = new Set(tok2);
-      const common = tok1.filter(w => set2.has(w));
-      const minLen = Math.min(tok1.length, tok2.length);
-      return common.length >= 2 || (common.length >= 1 && minLen <= 2) || (common.length / minLen >= 0.5);
-    };
-
-    // Priority 2: Case-insensitive Exact Title
+    // Priority 2: Case-insensitive 100% Exact Title
     if (!masterListing && title && String(title).trim()) {
       const cleanTitle = String(title).trim();
       masterListing = await Listing.findOne({
@@ -97,46 +68,13 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       });
     }
 
-    // Priority 3: SKU Match
+    // Priority 3: Exact SKU Match (Must be a real SKU, not '-' or 'none')
     if (!masterListing && sku && String(sku).trim() && String(sku).trim() !== 'None' && String(sku).trim() !== '-') {
       const cleanSku = String(sku).trim();
-      const candidates = await Listing.find({
+      masterListing = await Listing.findOne({
         user: userId,
         sku: { $regex: new RegExp(`^${cleanSku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
       });
-
-      if (candidates.length === 1) {
-        if (title) {
-          if (areTitlesSimilar(title, candidates[0].title)) {
-            masterListing = candidates[0];
-          } else {
-            // Still accept if SKU is unique and title is somewhat related
-            masterListing = candidates[0];
-          }
-        } else {
-          masterListing = candidates[0];
-        }
-      } else if (candidates.length > 1 && title) {
-        let bestMatch = null;
-        for (const cand of candidates) {
-          if (areTitlesSimilar(title, cand.title)) {
-            bestMatch = cand;
-            break;
-          }
-        }
-        masterListing = bestMatch || candidates[0];
-      }
-    }
-
-    // Priority 4: Fuzzy Title Match
-    if (!masterListing && title && String(title).trim()) {
-      const allListings = await Listing.find({ user: userId }).select('title sku status');
-      for (const cand of allListings) {
-        if (areTitlesSimilar(title, cand.title)) {
-          masterListing = cand;
-          break;
-        }
-      }
     }
 
     if (masterListing) {
@@ -153,27 +91,22 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       masterListing.soldAt = orderDate ? new Date(orderDate) : new Date();
       masterListing.errorMessage = `Sold on ${normPlatform.toUpperCase()}${orderId ? ` (Order #${orderId})` : ''}`;
 
-      // Set platform status on the channel where it was sold
-      if (normPlatform === 'poshmark') {
-        masterListing.poshmarkStatus = 'sold';
-        if (masterListing.platformData?.poshmark) masterListing.platformData.poshmark.status = 'sold';
-        if (masterListing.listingsMap?.poshmark) masterListing.listingsMap.poshmark.status = 'sold';
-      } else if (normPlatform === 'ebay') {
-        masterListing.ebayStatus = 'sold';
-        if (masterListing.platformData?.ebay) masterListing.platformData.ebay.status = 'sold';
-        if (masterListing.listingsMap?.ebay) masterListing.listingsMap.ebay.status = 'sold';
-      } else if (normPlatform === 'mercari') {
-        masterListing.mercariStatus = 'sold';
-        if (masterListing.platformData?.mercari) masterListing.platformData.mercari.status = 'sold';
-        if (masterListing.listingsMap?.mercari) masterListing.listingsMap.mercari.status = 'sold';
-      } else if (normPlatform === 'etsy') {
-        masterListing.etsyStatus = 'sold';
-        if (masterListing.platformData?.etsy) masterListing.platformData.etsy.status = 'sold';
-        if (masterListing.listingsMap?.etsy) masterListing.listingsMap.etsy.status = 'sold';
-      } else if (normPlatform === 'depop') {
-        masterListing.depopStatus = 'sold';
-        if (masterListing.platformData?.depop) masterListing.platformData.depop.status = 'sold';
-        if (masterListing.listingsMap?.depop) masterListing.listingsMap.depop.status = 'sold';
+      // Set platform status on the channel where it was sold as 'sold'
+      const platField = `${normPlatform}Status`;
+      masterListing[platField] = 'sold';
+      if (masterListing.platformData?.[normPlatform]) masterListing.platformData[normPlatform].status = 'sold';
+      if (masterListing.listingsMap?.[normPlatform]) masterListing.listingsMap[normPlatform].status = 'sold';
+
+      // Set other platform statuses to 'delisted' (never 'sold' on multiple platforms)
+      const otherPlatforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon'].filter(p => p !== normPlatform);
+      for (const op of otherPlatforms) {
+        const opStatusField = `${op}Status`;
+        const opIdField = `${op}ListingId`;
+        if (masterListing[opIdField] || masterListing[opStatusField] === 'published' || masterListing[opStatusField] === 'active') {
+          masterListing[opStatusField] = 'delisted';
+          if (masterListing.platformData?.[op]) masterListing.platformData[op].status = 'delisted';
+          if (masterListing.listingsMap?.[op]) masterListing.listingsMap[op].status = 'delisted';
+        }
       }
       
       await masterListing.save();

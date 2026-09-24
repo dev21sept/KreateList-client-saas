@@ -15,97 +15,69 @@ let lastOrdersSyncTime = null;
 let ordersCronTask = null;
 let inventoryCronTask = null;
 
-// Helper: Significant tokens for title matching
-const getSignificantTokens = (t) => {
-  if (!t) return [];
-  const stopWords = new Set([
-    'mens', 'men', 'womens', 'women', 'shirt', 'pants', 'pant', 'jacket', 'coat', 'sweater',
-    'shoes', 'boots', 'size', 'with', 'and', 'the', 'for', 'good', 'preowned', 'cotton',
-    'vintage', 'black', 'white', 'blue', 'gray', 'grey', 'brown', 'red', 'green', 'yellow',
-    'used', 'new', 'condition', 'long', 'sleeve', 'short', 'front', 'back', 'neck', 'fit'
-  ]);
-  return String(t)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
-};
-
-const areTitlesSimilar = (t1, t2) => {
-  if (!t1 || !t2) return false;
-  const tok1 = getSignificantTokens(t1);
-  const tok2 = getSignificantTokens(t2);
-  if (tok1.length === 0 || tok2.length === 0) {
-    return t1.trim().toLowerCase() === t2.trim().toLowerCase();
-  }
-  const set2 = new Set(tok2);
-  const common = tok1.filter(w => set2.has(w));
-  const minLen = Math.min(tok1.length, tok2.length);
-  return common.length >= 2 || (common.length >= 1 && minLen <= 2) || (common.length / minLen >= 0.5);
-};
-
 /**
- * Reconciles all Orders for a user with Master Listings to guarantee that
- * every sold order accurately reflects as `status: 'sold'` in Master Crosslisting.
+ * Reconciles all Orders for a user with Master Listings with STRICT MATCHING ONLY.
+ * - Ensures genuine sold orders accurately reflect as `status: 'sold'` in Master Crosslisting.
+ * - Sets the selling channel as 'sold' and all other connected channels as 'delisted'.
+ * - Self-heals/restores any false-positive sold listings that do not match a genuine order.
  */
 async function reconcileOrdersAndMasterListings(userId) {
   try {
     const orders = await Order.find({ user: userId });
     const listings = await Listing.find({ user: userId });
 
+    const matchedListingIds = new Set();
     let reconciledCount = 0;
+
     for (const order of orders) {
       const lineItem = order.lineItems?.[0];
-      const ordTitle = lineItem?.title || order.title || '';
-      const ordSku = lineItem?.sku || order.sku || '';
+      const ordTitle = (lineItem?.title || order.title || '').trim().toLowerCase();
+      const ordSku = (lineItem?.sku || order.sku || '').trim().toLowerCase();
       const ordPlatId = String(lineItem?.legacyItemId || lineItem?.lineItemId || order.platformListingId || order.ebayOrderId || order.orderId || '').trim();
       const normPlatform = String(order.platform || 'ebay').toLowerCase();
 
-      // Find matching listing
+      // Find matching listing STRICTLY (NO loose fuzzy tokens)
       let match = null;
 
-      // 1. By ID
+      // 1. By Exact Platform Listing ID
       if (ordPlatId) {
         match = listings.find(l => 
-          l.ebayListingId === ordPlatId ||
-          l.poshmarkListingId === ordPlatId ||
-          l.mercariListingId === ordPlatId ||
-          l.etsyListingId === ordPlatId ||
-          l.depopListingId === ordPlatId ||
-          l.platformData?.ebay?.liveId === ordPlatId ||
-          l.platformData?.poshmark?.liveId === ordPlatId ||
-          l.platformData?.mercari?.liveId === ordPlatId
+          (l.ebayListingId && String(l.ebayListingId).trim() === ordPlatId) ||
+          (l.poshmarkListingId && String(l.poshmarkListingId).trim() === ordPlatId) ||
+          (l.mercariListingId && String(l.mercariListingId).trim() === ordPlatId) ||
+          (l.etsyListingId && String(l.etsyListingId).trim() === ordPlatId) ||
+          (l.depopListingId && String(l.depopListingId).trim() === ordPlatId) ||
+          (l.platformData?.ebay?.liveId && String(l.platformData.ebay.liveId).trim() === ordPlatId) ||
+          (l.platformData?.poshmark?.liveId && String(l.platformData.poshmark.liveId).trim() === ordPlatId) ||
+          (l.platformData?.mercari?.liveId && String(l.platformData.mercari.liveId).trim() === ordPlatId)
         );
       }
 
-      // 2. By direct listingId on order
+      // 2. By Direct Valid listingId on Order
       if (!match && order.listingId) {
         match = listings.find(l => l._id.toString() === order.listingId.toString());
       }
 
-      // 3. By exact title (case-insensitive)
-      if (!match && ordTitle) {
-        match = listings.find(l => l.title && l.title.trim().toLowerCase() === ordTitle.trim().toLowerCase());
+      // 3. By Exact SKU Match (Must be a real SKU, not '-' or 'none')
+      if (!match && ordSku && ordSku !== '-' && ordSku !== 'none') {
+        match = listings.find(l => l.sku && l.sku.trim().toLowerCase() === ordSku);
       }
 
-      // 4. By SKU
-      if (!match && ordSku && ordSku !== '-' && ordSku !== 'None') {
-        match = listings.find(l => l.sku && l.sku.trim().toLowerCase() === ordSku.trim().toLowerCase());
-      }
-
-      // 5. By fuzzy title
-      if (!match && ordTitle) {
-        match = listings.find(l => areTitlesSimilar(ordTitle, l.title));
+      // 4. By 100% Full Exact Title Match
+      if (!match && ordTitle && ordTitle.length > 5) {
+        match = listings.find(l => l.title && l.title.trim().toLowerCase() === ordTitle);
       }
 
       if (match) {
+        matchedListingIds.add(match._id.toString());
+
         // Link order
         if (!order.listingId || order.listingId.toString() !== match._id.toString()) {
           order.listingId = match._id;
           await order.save();
         }
 
-        // Mark listing as sold
+        // Mark Master Listing as Sold
         let listingChanged = false;
         if (match.status !== 'sold') {
           match.status = 'sold';
@@ -119,6 +91,7 @@ async function reconcileOrdersAndMasterListings(userId) {
           listingChanged = true;
         }
 
+        // Set Sold Platform as 'sold'
         const platField = `${normPlatform}Status`;
         if (match[platField] !== 'sold') {
           match[platField] = 'sold';
@@ -127,18 +100,63 @@ async function reconcileOrdersAndMasterListings(userId) {
           listingChanged = true;
         }
 
+        // Set ALL OTHER platforms as 'delisted' (never 'sold' on multiple platforms)
+        const otherPlatforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon'].filter(p => p !== normPlatform);
+        for (const op of otherPlatforms) {
+          const opStatusField = `${op}Status`;
+          const opIdField = `${op}ListingId`;
+          if (match[opIdField] || match[opStatusField] === 'published' || match[opStatusField] === 'active') {
+            if (match[opStatusField] !== 'delisted') {
+              match[opStatusField] = 'delisted';
+              if (match.platformData?.[op]) match.platformData[op].status = 'delisted';
+              if (match.listingsMap?.[op]) match.listingsMap[op].status = 'delisted';
+              listingChanged = true;
+            }
+          }
+        }
+
         if (listingChanged) {
           match.markModified('platformData');
           match.markModified('listingsMap');
           await match.save();
           reconciledCount++;
         }
+      } else {
+        // If order does not match any Master Crosslisting listing, un-link listingId
+        if (order.listingId) {
+          order.listingId = null;
+          await order.save();
+        }
       }
     }
 
-    if (reconciledCount > 0) {
-      console.log(`[Order Reconciler] Linked and marked ${reconciledCount} master listing(s) as SOLD for User: ${userId}`);
+    // Self-healing: If a listing was previously falsely marked as 'sold' but has NO matching order in Order collection
+    // and is actually active on marketplace products, restore it to 'published'
+    let restoredCount = 0;
+    for (const l of listings) {
+      if (l.status === 'sold' && !matchedListingIds.has(l._id.toString())) {
+        // Check if user has an actual order with this soldOrderId
+        let hasRealOrder = false;
+        if (l.soldOrderId) {
+          hasRealOrder = orders.some(o => o.orderId === l.soldOrderId);
+        }
+        if (!hasRealOrder) {
+          l.status = 'published';
+          l.quantity = 1;
+          l.soldOn = null;
+          l.soldOrderId = null;
+          l.soldAt = null;
+          l.soldPlatform = null;
+          l.errorMessage = null;
+          l.markModified('platformData');
+          l.markModified('listingsMap');
+          await l.save();
+          restoredCount++;
+        }
+      }
     }
+
+    console.log(`[Order Reconciler] User: ${userId} => Reconciled ${reconciledCount} real sold items, Restored ${restoredCount} false sold items.`);
   } catch (err) {
     console.error('[Order Reconciler] Error reconciling orders with listings:', err.message);
   }
