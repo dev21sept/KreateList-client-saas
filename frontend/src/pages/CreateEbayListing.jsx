@@ -115,7 +115,7 @@ const mapEbayCondition = (condition) => {
   return '5000';
 };
 
-const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false }) => {
+const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Select...', disabled = false, error = false, className = '', allowCustom = false, size = 'md' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -128,33 +128,59 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleToggle = () => {
+    if (disabled) return;
+    if (!isOpen) {
+      setSearchTerm('');
+    }
+    setIsOpen(!isOpen);
+  };
+
   const filteredOptions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter(opt => {
-      const label = String(opt?.label || opt?.name || '').toLowerCase();
+    const hasHierarchy = options.some(opt => opt?.label && opt.label.includes(' > '));
+
+    if (!q) {
+      if (hasHierarchy) {
+        return options.filter(opt => opt.level === undefined || opt.level === 0);
+      }
+      return options;
+    }
+
+    if (hasHierarchy && q.includes('>')) {
+      const normalizedQ = q.replace(/\s*>\s*/g, ' > ');
+      return options.filter(opt => {
+        const normalizedLabel = (opt.label || opt.name || opt.value || '').toLowerCase().replace(/\s*>\s*/g, ' > ');
+        return normalizedLabel.startsWith(normalizedQ) || normalizedLabel.includes(normalizedQ);
+      });
+    }
+
+    return options.filter((opt) => {
+      const label = String(opt?.label || opt?.name || opt?.localizedValue || opt?.value || opt || '').toLowerCase();
       const desc = String(opt?.description || '').toLowerCase();
       return label.includes(q) || desc.includes(q);
     });
   }, [options, searchTerm]);
 
+  const heightClass = size === 'sm' ? 'h-9 px-2.5 rounded-lg text-xs' : 'h-11 px-3 rounded-xl text-xs';
+
   return (
-    <div className="relative w-full" ref={wrapperRef}>
+    <div className={`relative w-full ${className}`} ref={wrapperRef}>
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full h-11 px-3 bg-white border ${
+        onClick={handleToggle}
+        className={`w-full ${heightClass} bg-white border ${
           error ? 'border-rose-500 ring-2 ring-rose-500/10' : 'border-slate-200 hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/5'
-        } rounded-xl text-left flex items-center justify-between text-xs font-bold text-slate-800 disabled:opacity-60 transition-all`}
+        } text-left flex items-center justify-between font-semibold text-slate-800 disabled:opacity-60 transition-all outline-none`}
       >
-        <span className="truncate pr-2">{value || placeholder}</span>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <span className="truncate pr-2">{value || <span className="text-slate-400 font-normal">{placeholder}</span>}</span>
+        <div className="flex items-center gap-1 shrink-0">
           {value && !disabled && (
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                onSelect({ id: '', label: '' });
+                onSelect({ id: '', label: '', name: '' });
                 setSearchTerm('');
               }}
               className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-slate-600 transition-colors"
@@ -162,7 +188,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
               <X className="w-3.5 h-3.5" />
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
@@ -174,29 +200,60 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search..."
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
+              className="w-full h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-medium outline-none focus:border-slate-800"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
-            {filteredOptions.length > 0 ? filteredOptions.map((opt) => (
+          <div className="max-h-60 overflow-y-auto divide-y divide-slate-50 py-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt, idx) => {
+                const optLabel = typeof opt === 'object' ? (opt.label || opt.name || opt.localizedValue || opt.value || '') : String(opt);
+                const optId = typeof opt === 'object' ? (opt.id || optLabel) : optLabel;
+                const isSelected = String(value || '').toLowerCase() === optLabel.toLowerCase();
+
+                return (
+                  <button
+                    key={optId || idx}
+                    type="button"
+                    onClick={() => {
+                      const hasChildren = options.some(o => o?.label && o.label.startsWith(optLabel + ' > '));
+                      if (hasChildren) {
+                        setSearchTerm(optLabel + ' > ');
+                      } else {
+                        onSelect(typeof opt === 'object' ? opt : { id: optLabel, label: optLabel, name: optLabel });
+                        setIsOpen(false);
+                        setSearchTerm('');
+                      }
+                    }}
+                    className={`w-full text-left px-3.5 py-2 hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition-colors flex items-center justify-between text-xs font-semibold ${
+                      isSelected ? 'bg-slate-100 font-bold text-slate-900' : ''
+                    }`}
+                  >
+                    <div className="truncate pr-2">
+                      <div>{optLabel}</div>
+                      {opt.description && <div className="text-[10px] text-slate-400 font-normal">{opt.description}</div>}
+                    </div>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-4 text-xs text-slate-400 text-center">No options found</div>
+            )}
+            {allowCustom && searchTerm.trim() && !filteredOptions.some(o => {
+              const l = typeof o === 'object' ? (o.label || o.name || o.localizedValue || o.value || '') : String(o);
+              return l.toLowerCase() === searchTerm.trim().toLowerCase();
+            }) && (
               <button
-                key={opt.id || opt.label}
                 type="button"
                 onClick={() => {
-                  onSelect(opt);
+                  onSelect({ id: searchTerm.trim(), label: searchTerm.trim(), name: searchTerm.trim() });
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`w-full text-left px-3.5 py-2.5 hover:bg-slate-100 text-slate-700 hover:text-slate-900 transition-colors flex items-center justify-between text-xs font-semibold ${value === opt.label ? 'bg-slate-100 font-bold text-slate-900' : ''}`}
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-100 text-xs font-bold text-slate-900 border-t border-slate-100 flex items-center gap-1"
               >
-                <div className="truncate pr-2">
-                  <div>{opt.label || opt.name}</div>
-                  {opt.description && <div className="text-[10px] text-slate-400 font-normal">{opt.description}</div>}
-                </div>
-                {value === opt.label && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
+                <span>Use</span> <span className="underline">"{searchTerm.trim()}"</span>
               </button>
-            )) : (
-              <div className="p-4 text-xs text-slate-400 text-center">No options found</div>
             )}
           </div>
         </div>
@@ -706,6 +763,22 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
       return;
     }
 
+    if (publishMode === 'direct' && aspects.length > 0) {
+      const missingRequired = aspects.filter(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        if (!isRequired) return false;
+        const name = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+        const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name];
+        return !val || !String(val).trim();
+      });
+
+      if (missingRequired.length > 0) {
+        const missingNames = missingRequired.map(a => a.localizedAspectName || a.name).join(', ');
+        toast.error(`Please fill in required eBay Item Specifics: ${missingNames}`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const payload = {
@@ -1204,29 +1277,49 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 aspects.map((aspect) => {
                   const aspectName = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
                   const currentVal = formData.selectedAspects[aspectName]?.[0] || formData.selectedAspects[aspectName] || '';
-                  const isRequired = aspect.aspectConstraint?.aspectRequired || false;
-                  const hasValues = aspect.aspectValues && aspect.aspectValues.length > 0;
-                  const listId = `ebay-single-aspect-${aspectName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                  const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED' || false;
+                  const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+                  const vals = aspect.aspectValues || aspect.values || [];
+                  const hasValues = vals.length > 0;
+
+                  let hasDropdownError = false;
+                  if ((isRequired || isRecommended) && hasValues && currentVal) {
+                    const matchesDropdown = vals.some(v => {
+                      const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                      return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
+                    });
+                    if (!matchesDropdown) {
+                      hasDropdownError = true;
+                    }
+                  }
 
                   return (
                     <div key={aspectName} className="space-y-1">
                       <label className="block text-[11px] font-bold text-slate-700 truncate" title={aspectName}>
                         {aspectName} {isRequired && <span className="text-rose-500">*</span>}
+                        {isRecommended && <span className="text-[9px] text-slate-400 font-normal ml-0.5">(Rec)</span>}
                       </label>
-                      <input 
-                        type="text"
-                        list={hasValues ? listId : undefined}
-                        className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                        value={currentVal}
-                        onChange={(e) => handleAspectChange(aspectName, e.target.value)}
-                        placeholder={`Enter ${aspectName}...`}
-                      />
-                      {hasValues && (
-                        <datalist id={listId}>
-                          {aspect.aspectValues.map((v, i) => (
-                            <option key={i} value={v.localizedValue || v.value || v} />
-                          ))}
-                        </datalist>
+                      {hasValues ? (
+                        <SearchableDropdown
+                          value={currentVal}
+                          onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
+                          options={vals.map(v => {
+                            const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                            return { id: text, label: text };
+                          })}
+                          placeholder={`Select ${aspectName}...`}
+                          error={hasDropdownError}
+                          allowCustom={true}
+                          size="sm"
+                        />
+                      ) : (
+                        <input 
+                          type="text"
+                          className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                          value={currentVal}
+                          onChange={(e) => handleAspectChange(aspectName, e.target.value)}
+                          placeholder={`Enter ${aspectName}...`}
+                        />
                       )}
                     </div>
                   );
