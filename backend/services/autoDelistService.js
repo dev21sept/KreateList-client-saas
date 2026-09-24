@@ -48,6 +48,40 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
 
     if (masterListing) {
       results.foundListing = true;
+
+      // Check which platforms actually need delisting (only if published/active and not already successfully delisted)
+      const shouldDelistMercari = normPlatform !== 'mercari' &&
+        Boolean(masterListing.mercariListingId) &&
+        (masterListing.mercariStatus === 'published' || masterListing.mercariStatus === 'active') &&
+        !masterListing.autoDelistLog?.mercari?.success;
+
+      const shouldDelistPoshmark = normPlatform !== 'poshmark' &&
+        Boolean(masterListing.poshmarkListingId) &&
+        (masterListing.poshmarkStatus === 'published' || masterListing.poshmarkStatus === 'active') &&
+        !masterListing.autoDelistLog?.poshmark?.success;
+
+      const shouldDelistDepop = normPlatform !== 'depop' &&
+        Boolean(masterListing.depopListingId) &&
+        (masterListing.depopStatus === 'published' || masterListing.depopStatus === 'active') &&
+        !masterListing.autoDelistLog?.depop?.success;
+
+      const shouldDelistEtsy = normPlatform !== 'etsy' &&
+        Boolean(masterListing.etsyListingId) &&
+        (masterListing.etsyStatus === 'published' || masterListing.etsyStatus === 'active') &&
+        !masterListing.autoDelistLog?.etsy?.success;
+
+      const shouldDelistEbay = normPlatform !== 'ebay' &&
+        Boolean(masterListing.ebayListingId || masterListing.platformData?.ebay?.liveId) &&
+        (masterListing.ebayStatus === 'published' || masterListing.ebayStatus === 'active') &&
+        !masterListing.autoDelistLog?.ebay?.success;
+
+      const hasAnyPlatformToDelist = shouldDelistMercari || shouldDelistPoshmark || shouldDelistDepop || shouldDelistEtsy || shouldDelistEbay;
+
+      // If already marked as sold and no other connected platforms need delisting, skip redundant operations
+      if (masterListing.status === 'sold' && !hasAnyPlatformToDelist) {
+        return results;
+      }
+
       console.log(`[Auto-Delist] Matched Master Listing: "${masterListing.title}" (ID: ${masterListing._id}, SKU: ${masterListing.sku})`);
 
       // Update Local Database master listing to Sold
@@ -81,10 +115,15 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       await masterListing.save();
       results.updatedMasterListing = true;
 
+      // Initialize delist actions from existing log if present
+      results.delistActions = typeof masterListing.autoDelistLog === 'object' && !Array.isArray(masterListing.autoDelistLog)
+        ? { ...masterListing.autoDelistLog }
+        : {};
+
       // 2. Cross-Delist on all OTHER platforms where this item was listed
       
       // MERCARI Auto-Delist (Deactivate / Stop)
-      if (normPlatform !== 'mercari' && masterListing.mercariListingId && (masterListing.mercariStatus === 'published' || masterListing.mercariStatus === 'active' || masterListing.platform === 'mercari')) {
+      if (shouldDelistMercari) {
         console.log(`[Auto-Delist] Triggering Mercari deactivation for Item ID: ${masterListing.mercariListingId}...`);
         try {
           if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
@@ -92,8 +131,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             masterListing.mercariStatus = 'delisted';
             if (masterListing.platformData?.mercari) masterListing.platformData.mercari.status = 'delisted';
             if (masterListing.listingsMap?.mercari) masterListing.listingsMap.mercari.status = 'delisted';
-            await masterListing.save();
-            results.delistActions.mercari = { success: true, status: 'delisted', id: masterListing.mercariListingId };
+            results.delistActions.mercari = { success: true, status: 'delisted', id: masterListing.mercariListingId, timestamp: new Date() };
             console.log(`[Auto-Delist] Successfully deactivated Mercari listing: ${masterListing.mercariListingId}`);
           } else {
             results.delistActions.mercari = { success: false, reason: 'Mercari account not connected' };
@@ -105,7 +143,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       }
 
       // POSHMARK Auto-Delist (Mark as "Not for Sale" - NFS, never delete)
-      if (normPlatform !== 'poshmark' && masterListing.poshmarkListingId && (masterListing.poshmarkStatus === 'published' || masterListing.platform === 'poshmark')) {
+      if (shouldDelistPoshmark) {
         console.log(`[Auto-Delist] Triggering Poshmark Not-For-Sale delist for Item ID: ${masterListing.poshmarkListingId}...`);
         try {
           if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
@@ -113,8 +151,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             masterListing.poshmarkStatus = 'delisted';
             if (masterListing.platformData?.poshmark) masterListing.platformData.poshmark.status = 'delisted';
             if (masterListing.listingsMap?.poshmark) masterListing.listingsMap.poshmark.status = 'delisted';
-            await masterListing.save();
-            results.delistActions.poshmark = { success: true, status: 'delisted', id: masterListing.poshmarkListingId };
+            results.delistActions.poshmark = { success: true, status: 'delisted', id: masterListing.poshmarkListingId, timestamp: new Date() };
             console.log(`[Auto-Delist] Successfully marked Poshmark listing as Not for Sale: ${masterListing.poshmarkListingId}`);
           } else {
             results.delistActions.poshmark = { success: false, reason: 'Poshmark account not connected' };
@@ -126,7 +163,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       }
 
       // DEPOP Auto-Delist (Set inactive / quantity 0, never delete)
-      if (normPlatform !== 'depop' && masterListing.depopListingId && (masterListing.depopStatus === 'published' || masterListing.platform === 'depop')) {
+      if (shouldDelistDepop) {
         console.log(`[Auto-Delist] Triggering Depop inactive delist for Item ID: ${masterListing.depopListingId}...`);
         try {
           if (user.depopAccount?.connected) {
@@ -134,8 +171,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             masterListing.depopStatus = 'delisted';
             if (masterListing.platformData?.depop) masterListing.platformData.depop.status = 'delisted';
             if (masterListing.listingsMap?.depop) masterListing.listingsMap.depop.status = 'delisted';
-            await masterListing.save();
-            results.delistActions.depop = { success: true, status: 'delisted', id: masterListing.depopListingId };
+            results.delistActions.depop = { success: true, status: 'delisted', id: masterListing.depopListingId, timestamp: new Date() };
             console.log(`[Auto-Delist] Successfully marked Depop listing as inactive: ${masterListing.depopListingId}`);
           } else {
             results.delistActions.depop = { success: false, reason: 'Depop account not connected' };
@@ -147,7 +183,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       }
 
       // ETSY Auto-Delist (Set inactive state)
-      if (normPlatform !== 'etsy' && masterListing.etsyListingId && (masterListing.etsyStatus === 'published' || masterListing.platform === 'etsy')) {
+      if (shouldDelistEtsy) {
         console.log(`[Auto-Delist] Triggering Etsy deactivation for Item ID: ${masterListing.etsyListingId}...`);
         try {
           if (user.etsyAccount?.connected) {
@@ -157,8 +193,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
               masterListing.etsyStatus = 'delisted';
               if (masterListing.platformData?.etsy) masterListing.platformData.etsy.status = 'delisted';
               if (masterListing.listingsMap?.etsy) masterListing.listingsMap.etsy.status = 'delisted';
-              await masterListing.save();
-              results.delistActions.etsy = { success: true, status: 'inactive', id: masterListing.etsyListingId };
+              results.delistActions.etsy = { success: true, status: 'inactive', id: masterListing.etsyListingId, timestamp: new Date() };
               console.log(`[Auto-Delist] Successfully deactivated Etsy listing: ${masterListing.etsyListingId}`);
             }
           } else {
@@ -171,7 +206,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       }
 
       // EBAY Auto-Delist
-      if (normPlatform !== 'ebay' && (masterListing.ebayListingId || masterListing.sku || masterListing.platform === 'ebay')) {
+      if (shouldDelistEbay) {
         console.log(`[Auto-Delist] Triggering eBay delist for Item ID: ${masterListing.ebayListingId} / SKU: ${masterListing.sku}...`);
         try {
           const ebayToken = await ebayService.getValidEbayToken(userId);
@@ -223,8 +258,7 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
             if (masterListing.listingsMap?.ebay) {
               masterListing.listingsMap.ebay.status = 'delisted';
             }
-            await masterListing.save();
-            results.delistActions.ebay = { success: true, status: 'delisted', id: masterListing.ebayListingId };
+            results.delistActions.ebay = { success: true, status: 'delisted', id: masterListing.ebayListingId, timestamp: new Date() };
             console.log(`[Auto-Delist] eBay status marked as delisted for ${masterListing._id}`);
           } else {
             results.delistActions.ebay = { success: false, reason: 'eBay token unavailable' };

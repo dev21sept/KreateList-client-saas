@@ -188,7 +188,10 @@ const listingSchema = new mongoose.Schema({
   soldAt: Date,
   soldPrice: String,
   soldOrderId: String,
-  autoDelistLog: [mongoose.Schema.Types.Mixed],
+  autoDelistLog: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   platformData: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

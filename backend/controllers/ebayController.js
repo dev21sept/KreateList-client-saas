@@ -363,23 +363,25 @@ exports.syncOrders = async (req, res) => {
         { upsert: true, returnDocument: 'after' }
       );
 
-      // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold
-      try {
-        const { handleItemSold } = require('../services/autoDelistService');
-        for (const item of lineItems) {
-          handleItemSold({
-            userId,
-            soldPlatform: 'ebay',
-            sku: item.sku,
-            listingId: item.legacyItemId || item.lineItemId,
-            title: item.title,
-            orderId: o.orderId,
-            orderDate: o.creationDate,
-            soldPrice: item.price || o.totalFeeBasisAmount?.value
-          }).catch(e => console.error('[eBay Order Sync] Auto-delist hook error:', e.message));
+      // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold (only for new or unlinked orders)
+      if (isNewOrder || !existingOrder?.listingId) {
+        try {
+          const { handleItemSold } = require('../services/autoDelistService');
+          for (const item of lineItems) {
+            handleItemSold({
+              userId,
+              soldPlatform: 'ebay',
+              sku: item.sku,
+              listingId: item.legacyItemId || item.lineItemId,
+              title: item.title,
+              orderId: o.orderId,
+              orderDate: o.creationDate,
+              soldPrice: item.price || o.totalFeeBasisAmount?.value
+            }).catch(e => console.error('[eBay Order Sync] Auto-delist hook error:', e.message));
+          }
+        } catch (hookErr) {
+          console.warn('[eBay Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
         }
-      } catch (hookErr) {
-        console.warn('[eBay Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
       }
 
       syncedCount++;

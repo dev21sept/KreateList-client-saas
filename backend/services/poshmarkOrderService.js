@@ -317,23 +317,25 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
         { upsert: true, returnDocument: 'after' }
       );
 
-      // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold
-      try {
-        const { handleItemSold } = require('./autoDelistService');
-        for (const item of lineItems) {
-          handleItemSold({
-            userId,
-            soldPlatform: 'poshmark',
-            sku: item.sku,
-            listingId: item.lineItemId,
-            title: item.title,
-            orderId: String(orderId),
-            orderDate: createdDate,
-            soldPrice: item.price || totalAmount
-          }).catch(e => console.error('[Poshmark Order Sync] Auto-delist hook error:', e.message));
+      // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold (only for new or unlinked orders)
+      if (isNewOrder || !existingOrder?.listingId) {
+        try {
+          const { handleItemSold } = require('./autoDelistService');
+          for (const item of lineItems) {
+            handleItemSold({
+              userId,
+              soldPlatform: 'poshmark',
+              sku: item.sku,
+              listingId: item.lineItemId,
+              title: item.title,
+              orderId: String(orderId),
+              orderDate: createdDate,
+              soldPrice: item.price || totalAmount
+            }).catch(e => console.error('[Poshmark Order Sync] Auto-delist hook error:', e.message));
+          }
+        } catch (hookErr) {
+          console.warn('[Poshmark Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
         }
-      } catch (hookErr) {
-        console.warn('[Poshmark Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
       }
 
       syncedCount++;

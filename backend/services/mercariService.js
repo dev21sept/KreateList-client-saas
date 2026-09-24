@@ -1846,21 +1846,23 @@ async function syncMercariOrders(credentials = {}, userId = null) {
           { upsert: true, returnDocument: 'after' }
         );
 
-        // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold
-        try {
-          const { handleItemSold } = require('./autoDelistService');
-          handleItemSold({
-            userId,
-            soldPlatform: 'mercari',
-            sku: item.sku || `M-${item.id}`,
-            listingId: item.id,
-            title: item.name,
-            orderId,
-            orderDate: createdDate,
-            soldPrice: totalAmount
-          }).catch(e => console.error('[Mercari Order Sync] Auto-delist hook error:', e.message));
-        } catch (hookErr) {
-          console.warn('[Mercari Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
+        // Trigger Cross-Platform Auto-Delist and mark Master Listing as Sold (only for new or unlinked orders)
+        if (isNewOrder || !existingOrder?.listingId) {
+          try {
+            const { handleItemSold } = require('./autoDelistService');
+            handleItemSold({
+              userId,
+              soldPlatform: 'mercari',
+              sku: item.sku || `M-${item.id}`,
+              listingId: item.id,
+              title: item.name,
+              orderId,
+              orderDate: createdDate,
+              soldPrice: totalAmount
+            }).catch(e => console.error('[Mercari Order Sync] Auto-delist hook error:', e.message));
+          } catch (hookErr) {
+            console.warn('[Mercari Order Sync] Failed to dispatch auto-delist hook:', hookErr.message);
+          }
         }
       }
 
