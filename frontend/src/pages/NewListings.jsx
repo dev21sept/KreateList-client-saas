@@ -732,8 +732,10 @@ const NewListings = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const fetchListings = async () => {
-    setLoading(true);
+  const fetchListings = async (silent = false) => {
+    if (!silent && listings.length === 0) {
+      setLoading(true);
+    }
     try {
       const [listingsRes, statsRes] = await Promise.all([
         listingService.getAll().catch(() => ({ data: { success: false, data: [] } })),
@@ -768,14 +770,16 @@ const NewListings = () => {
       }
     } catch (error) {
       console.error('Error loading listings:', error);
-      setListings(MOCK_LISTINGS);
-      setStats({
-        total: 2456,
-        published: 1982,
-        draft: 215,
-        failed: 70,
-        unlisted: 189
-      });
+      if (listings.length === 0) {
+        setListings(MOCK_LISTINGS);
+        setStats({
+          total: 2456,
+          published: 1982,
+          draft: 215,
+          failed: 70,
+          unlisted: 189
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -792,12 +796,14 @@ const NewListings = () => {
     return false;
   };
 
-  const fetchChannelInventory = async () => {
+  const fetchChannelInventory = async (silent = false) => {
     if (!isChannelConnected()) {
       setChannelProducts([]);
       return;
     }
-    setChannelLoading(true);
+    if (!silent && channelProducts.length === 0) {
+      setChannelLoading(true);
+    }
     try {
       if (selectedChannel === 'ebay') {
         const res = await ebayService.getInventory();
@@ -827,8 +833,10 @@ const NewListings = () => {
     }
   };
 
-  const fetchSoldOrders = async () => {
-    setSoldLoading(true);
+  const fetchSoldOrders = async (silent = false) => {
+    if (!silent && soldOrders.length === 0) {
+      setSoldLoading(true);
+    }
     try {
       const res = await orderService.getAll({ onlyMaster: true });
       if (res.data?.success) {
@@ -983,7 +991,7 @@ const NewListings = () => {
 
   useEffect(() => {
     if (activeTab === 'sold') {
-      fetchSoldOrders();
+      fetchSoldOrders(true);
     }
   }, [activeTab]);
 
@@ -3722,6 +3730,7 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
+              fetchListings(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'local'
@@ -3735,6 +3744,7 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('channel');
               localStorage.setItem('elister_active_listings_tab', 'channel');
+              fetchChannelInventory(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'channel'
@@ -3748,7 +3758,7 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('sold');
               localStorage.setItem('elister_active_listings_tab', 'sold');
-              fetchSoldOrders();
+              fetchSoldOrders(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'sold'

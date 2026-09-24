@@ -11,21 +11,13 @@ exports.getOrders = async (req, res) => {
     const userId = req.user.id;
     const isOnlyMaster = req.query.onlyMaster === 'true' || req.query.master === 'true';
 
-    // Run reconciliation on demand to make sure all orders and listings are in sync
-    try {
-      const { reconcileOrdersAndMasterListings } = require('../services/backgroundSyncService');
-      await reconcileOrdersAndMasterListings(userId);
-    } catch (reconcileErr) {
-      console.warn('[OrderController] Quick reconcile warning:', reconcileErr.message);
-    }
-
     if (isOnlyMaster) {
       // SOLD TRACKER TAB: ONLY return genuinely sold products from Master Crosslisting (Listing collection)
       const Listing = require('../models/Listing');
       const soldListings = await Listing.find({
         user: userId,
         status: 'sold'
-      }).sort({ soldAt: -1, updatedAt: -1 });
+      }).sort({ soldAt: -1, updatedAt: -1 }).lean();
 
       const soldRecords = soldListings.map(l => ({
         _id: l._id,
