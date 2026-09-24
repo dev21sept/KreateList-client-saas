@@ -41,6 +41,7 @@ import Button from '../components/ui/Button';
 import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/categoryResolver';
+import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
@@ -116,26 +117,17 @@ const DEFAULT_COMMON_ASPECTS = [
   'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
 ];
 
-const EBAY_CONDITIONS = [
-  { id: '1000', label: 'New with tags', description: 'A brand-new, unused, and unworn item with original tags.' },
-  { id: '1500', label: 'New without tags', description: 'A brand-new, unused, and unworn item without original tags.' },
-  { id: '1750', label: 'New with defects', description: 'A brand-new, unused item with defects.' },
-  { id: '3000', label: 'Pre-owned - Like New', description: 'An item that has been used but is in mint condition.' },
-  { id: '4000', label: 'Pre-owned - Very Good', description: 'An item that has been used but shows minimal signs of wear.' },
-  { id: '5000', label: 'Pre-owned - Good', description: 'An item that shows moderate wear and is fully functional.' },
-  { id: '6000', label: 'Pre-owned - Fair', description: 'An item with obvious wear but functions properly.' }
-];
-
 const mapEbayCondition = (condition) => {
   if (!condition) return '5000';
   const c = String(condition).toLowerCase();
-  if (c.includes('new with tag') || c === '1000' || c === 'new') return '1000';
-  if (c.includes('without tag') || c === '1500') return '1500';
+  const matched = EBAY_CONDITIONS.find(cond => cond.id === condition || cond.label.toLowerCase() === c || cond.label.toLowerCase().includes(c));
+  if (matched) return matched.id;
+  if (c.includes('new with tag') || c === '1000_nwt' || c === '1000') return '1000_nwt';
+  if (c.includes('without tag') || c === '1000_nwot' || c === '1500') return '1000_nwot';
   if (c.includes('defect') || c === '1750') return '1750';
-  if (c.includes('like new') || c === '3000') return '3000';
-  if (c.includes('very good') || c === '4000') return '4000';
-  if (c.includes('good') || c === '5000') return '5000';
-  if (c.includes('fair') || c.includes('acceptable') || c === '6000') return '6000';
+  if (c.includes('excellent') || c.includes('like new') || c === '3000' || c === '1000_c') return '1000_c';
+  if (c.includes('fair') || c.includes('acceptable') || c === '6000' || c === '1000_f') return '1000_f';
+  if (c.includes('good') || c === '5000' || c === '1000_g') return '1000_g';
   return '5000';
 };
 
@@ -1233,6 +1225,29 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   value={formData.sku}
                   onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
                   placeholder="Optional SKU"
+                />
+              </div>
+            </div>
+
+            {/* Condition & Condition Note */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">eBay Condition *</label>
+                <SearchableDropdown 
+                  value={EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
+                  onSelect={(opt) => setFormData(prev => ({ ...prev, conditionId: opt.id }))}
+                  options={EBAY_CONDITIONS}
+                  placeholder="Select eBay condition..."
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Condition Description / Note</label>
+                <input 
+                  type="text"
+                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.conditionNote}
+                  onChange={(e) => setFormData(prev => ({ ...prev, conditionNote: e.target.value }))}
+                  placeholder="e.g. Minor wear, intact and fully functional"
                 />
               </div>
             </div>

@@ -59,6 +59,7 @@ import {
   resolveEtsyCategoryFallback,
   cleanHtmlDescription
 } from '../utils/categoryResolver';
+import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
@@ -1172,6 +1173,7 @@ const CreateMasterListing = ({
     selectedRule: '',
     selectedCondition: 'Good (Gently Used)',
     conditionId: 'good',
+    conditionNote: '',
     title: '',
     price: '',
     originalPrice: '',
@@ -1192,6 +1194,7 @@ const CreateMasterListing = ({
     ebayFormat: 'Buy It Now',
     ebayYourCost: '',
     ebayCondition: 'Pre-owned - Good',
+    ebayConditionNote: '',
     ebayAspects: {},
     fulfillmentPolicyId: '',
     paymentPolicyId: '',
@@ -1674,28 +1677,28 @@ const CreateMasterListing = ({
 
       if (response.data?.success) {
         const res = response.data.data;
-        const brandVal = res.brand || prev.brand || '';
-        const sizeVal = res.size || prev.size || '';
-        const colorVal = res.color || prev.color || '';
+        const brandVal = res.brand || formData.brand || '';
+        const sizeVal = res.size || formData.size || '';
+        const colorVal = res.color || formData.color || '';
         const resolvedEbay = resolveEbayCategoryFallback(
           res.ebay_category_name || res.category_name || res.category || '',
-          res.title || prev.title,
-          brandVal || prev.brand
+          res.title || formData.title,
+          brandVal || formData.brand
         );
         const resolvedPosh = resolvePoshmarkCategory(
           res.poshmark_category_name || res.category_name || res.category || '',
-          res.title || prev.title,
-          brandVal || prev.brand
+          res.title || formData.title,
+          brandVal || formData.brand
         );
         const resolvedMercari = resolveMercariCategory(
           res.mercari_category_name || res.category_name || res.category || '',
-          res.title || prev.title,
-          brandVal || prev.brand
+          res.title || formData.title,
+          brandVal || formData.brand
         );
         const resolvedEtsy = resolveEtsyCategoryFallback(
           res.etsy_category_name || res.category_name || res.category || '',
-          res.title || prev.title,
-          brandVal || prev.brand
+          res.title || formData.title,
+          brandVal || formData.brand
         );
 
         if (Array.isArray(res.aspects) && res.aspects.length > 0) {
@@ -1925,7 +1928,9 @@ const CreateMasterListing = ({
           description: formData.description,
           category: formData.ebayCategory,
           categoryId: formData.ebayCategoryId,
-          selectedCondition: formData.ebayCondition,
+          selectedCondition: formData.ebayCondition || formData.selectedCondition,
+          conditionId: formData.conditionId,
+          conditionNote: formData.ebayConditionNote || formData.conditionNote || '',
           itemSpecifics: compiledAspects,
           aspects: compiledAspects,
           fulfillmentPolicyId: formData.fulfillmentPolicyId,
@@ -2358,8 +2363,8 @@ const CreateMasterListing = ({
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Condition</label>
                   <SearchableDropdown 
                     value={formData.selectedCondition}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedCondition: opt.label, conditionId: opt.id }))}
-                    options={MASTER_CONDITIONS}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedCondition: opt.label, conditionId: opt.id, ebayCondition: opt.label }))}
+                    options={EBAY_CONDITIONS}
                     placeholder="Select condition..."
                   />
                 </div>
@@ -2563,6 +2568,29 @@ const CreateMasterListing = ({
                       value={formData.ebayYourCost}
                       onChange={(e) => setFormData(prev => ({ ...prev, ebayYourCost: e.target.value }))}
                       className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* eBay Condition & Condition Note */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">eBay Condition *</label>
+                    <SearchableDropdown 
+                      value={formData.ebayCondition || formData.selectedCondition}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, ebayCondition: opt.label, conditionId: opt.id }))}
+                      options={EBAY_CONDITIONS}
+                      placeholder="Select eBay condition..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">eBay Condition Description / Note</label>
+                    <input 
+                      type="text"
+                      className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                      value={formData.ebayConditionNote || formData.conditionNote || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, ebayConditionNote: e.target.value }))}
+                      placeholder="e.g. Minor wear, intact and fully functional"
                     />
                   </div>
                 </div>

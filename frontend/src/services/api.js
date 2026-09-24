@@ -84,6 +84,7 @@ export const ruleService = {
 
 export const aiService = {
   analyze: (data) => API.post('/ai/analyze', data),
+  ebayAnalyze: (data) => API.post('/ai/analyze', { ...data, platform: 'ebay' }),
   poshmarkAnalyze: (data) => API.post('/ai/poshmark-analyze', data),
   poshmarkSuggestCategories: (query) => API.get(`/ai/poshmark-categories?query=${encodeURIComponent(query)}`),
   mercariAnalyze: (data) => API.post('/ai/mercari-analyze', data),

@@ -542,8 +542,8 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         const result = response.data.data;
         const resolvedMercari = resolveMercariCategory(
           result.mercari_category_name || result.category_name || result.category || '',
-          result.title || prev.title,
-          result.brand || prev.brand
+          result.title || formData.title,
+          result.brand || formData.brand
         );
         setFormData(prev => ({
           ...prev,

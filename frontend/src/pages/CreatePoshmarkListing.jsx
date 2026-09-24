@@ -893,8 +893,8 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
         const result = response.data.data;
         const resolvedCat = resolvePoshmarkCategory(
           result.poshmark_category_name || result.category_name || result.category || '',
-          result.title || prev.title,
-          result.brand || prev.brand
+          result.title || formData.title,
+          result.brand || formData.brand
         );
         const cleanedDesc = cleanHtmlDescription(result.description);
         setFormData(prev => ({
