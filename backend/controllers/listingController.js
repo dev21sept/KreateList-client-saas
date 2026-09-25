@@ -5052,9 +5052,9 @@ exports.cleanGhostChannels = async (req, res) => {
 
     // --- STEP 2: Gather Valid Active Products ---
     const [ebayProds, poshProds, mercariProds] = await Promise.all([
-      Product.find({ user: userId, source: 'ebay', status: 'active' }).lean(),
-      Product.find({ user: userId, source: 'poshmark', status: 'active' }).lean(),
-      Product.find({ user: userId, source: 'mercari', status: 'active' }).lean()
+      Product.find({ user: userId, $or: [{ source: 'ebay' }, { platform: 'ebay' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'poshmark' }, { platform: 'poshmark' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'mercari' }, { platform: 'mercari' }], status: { $in: ['active', 'live', 'published'] } }).lean()
     ]);
 
     console.log(`[Clean Ghost Channels] Verified Active Products: eBay=${ebayProds.length}, Poshmark=${poshProds.length}, Mercari=${mercariProds.length}`);
@@ -5403,10 +5403,10 @@ exports.cleanGhostChannels = async (req, res) => {
     const finalReport = {
       user: email,
       products: {
-        ebayActive: await Product.countDocuments({ user: userId, source: 'ebay', status: 'active' }),
-        poshmarkActive: await Product.countDocuments({ user: userId, source: 'poshmark', status: 'active' }),
-        mercariActive: await Product.countDocuments({ user: userId, source: 'mercari', status: 'active' }),
-        etsyActive: await Product.countDocuments({ user: userId, source: 'etsy', status: 'active' }),
+        ebayActive: await Product.countDocuments({ user: userId, $or: [{ source: 'ebay' }, { platform: 'ebay' }], status: { $in: ['active', 'live', 'published'] } }),
+        poshmarkActive: await Product.countDocuments({ user: userId, $or: [{ source: 'poshmark' }, { platform: 'poshmark' }], status: { $in: ['active', 'live', 'published'] } }),
+        mercariActive: await Product.countDocuments({ user: userId, $or: [{ source: 'mercari' }, { platform: 'mercari' }], status: { $in: ['active', 'live', 'published'] } }),
+        etsyActive: await Product.countDocuments({ user: userId, $or: [{ source: 'etsy' }, { platform: 'etsy' }], status: { $in: ['active', 'live', 'published'] } }),
       },
       listings: {
         ebayPublished: await Listing.countDocuments({ user: userId, ebayStatus: 'published' }),
