@@ -5059,29 +5059,169 @@ exports.cleanGhostChannels = async (req, res) => {
 
     console.log(`[Clean Ghost Channels] Verified Active Products: eBay=${ebayProds.length}, Poshmark=${poshProds.length}, Mercari=${mercariProds.length}`);
 
-    // --- STEP 3: Clean Rebuild of Master Listings ---
-    const normalizeTitle = (t) => (t || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    // --- STEP 3: Multi-Signal Title, Image, and Price Matching Engine (ZERO SKU DEPENDENCY) ---
+    const GARMENT_TYPES = [
+      'jacket', 'coat', 'hoodie', 'sweater', 'sweatshirt', 'cardigan', 'vest', 'windbreaker', 'puffer', 'fleece',
+      'jeans', 'pants', 'shorts', 'sweatpants', 'joggers', 'trousers', 'chinos', 'chino', 'overalls',
+      'shirt', 'tee', 't-shirt', 'polo', 'button', 'top', 'jersey', 'tank',
+      'shoes', 'sneakers', 'boots', 'sandals', 'slides', 'loafers',
+      'hat', 'cap', 'beanie', 'belt', 'bag', 'backpack', 'wallet', 'dress', 'skirt'
+    ];
+
+    const COMMON_COLORS = new Set([
+      'black', 'white', 'blue', 'pink', 'red', 'green', 'yellow', 'purple', 'orange',
+      'grey', 'gray', 'brown', 'beige', 'khaki', 'navy', 'olive', 'teal', 'burgundy',
+      'maroon', 'tan', 'cream', 'gold', 'silver'
+    ]);
+
+    const cleanUnicode = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizeTitle = (t) => {
+      if (!t) return '';
+      return cleanUnicode(t).toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+
     const normalizeStr = (s) => (s || '').trim().toLowerCase();
-    const isRealCustomSku = (s) => {
-      const norm = normalizeStr(s);
-      return Boolean(norm && norm !== '-' && !norm.startsWith('sku-mu') && !norm.startsWith('p-') && !norm.startsWith('m-'));
+
+    const extractGarmentType = (text) => {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      for (const t of GARMENT_TYPES) {
+        const reg = new RegExp(`\\b${t}\\b`, 'i');
+        if (reg.test(lower)) return t;
+      }
+      return null;
+    };
+
+    const extractSize = (text) => {
+      if (!text) return null;
+      const lower = String(text).toLowerCase();
+      const dimMatch = lower.match(/\b(\d{2})x(\d{2})\b/);
+      if (dimMatch) return dimMatch[0];
+      const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|xxxl)\b/);
+      if (letterMatch) return letterMatch[1];
+      const numMatch = lower.match(/\b(28|29|30|31|32|33|34|35|36|38|40|42|44)\b/);
+      if (numMatch) return numMatch[1];
+      return null;
+    };
+
+    const extractColorPattern = (text) => {
+      if (!text) return '';
+      const lower = String(text).toLowerCase();
+      const words = lower.replace(/[^\w\s]/g, ' ').split(/\s+/);
+      const found = words.filter(w => COMMON_COLORS.has(w));
+      return found.join('_');
+    };
+
+    const extractUniqueImageKey = (imgUrl) => {
+      if (!imgUrl || typeof imgUrl !== 'string') return '';
+      const cleanUrl = imgUrl.split('?')[0].trim();
+      const ebayMatch = cleanUrl.match(/i\.ebayimg\.com\/images\/g\/([^\/]+)/i);
+      if (ebayMatch && ebayMatch[1] && ebayMatch[1].length >= 8) return `ebay_${ebayMatch[1]}`;
+      const poshMatch = cleanUrl.match(/cloudfront\.net\/posts\/[^\/]+\/([^\/]+)\.jpe?g/i);
+      if (poshMatch && poshMatch[1] && poshMatch[1].length >= 10) return `posh_${poshMatch[1]}`;
+      const mercariMatch = cleanUrl.match(/images\.mercari\.com\/photos\/([^\/]+)/i);
+      if (mercariMatch && mercariMatch[1] && mercariMatch[1].length >= 8) return `mercari_${mercariMatch[1]}`;
+      return '';
+    };
+
+    const checkImageMatch = (images1, images2) => {
+      if (!images1 || !images2) return false;
+      const list1 = Array.isArray(images1) ? images1 : [images1];
+      const list2 = Array.isArray(images2) ? images2 : [images2];
+      const keys1 = list1.map(img => extractUniqueImageKey(typeof img === 'string' ? img : img?.url)).filter(Boolean);
+      const keys2 = list2.map(img => extractUniqueImageKey(typeof img === 'string' ? img : img?.url)).filter(Boolean);
+      if (keys1.length === 0 || keys2.length === 0) return false;
+      const set2 = new Set(keys2);
+      return keys1.some(k => set2.has(k));
     };
 
     const masterItems = [];
-    const masterByTitle = new Map();
-    const masterBySku = new Map();
 
-    const registerMasterItem = (m) => {
-      const norm = normalizeTitle(m.title);
-      if (norm) {
-        if (!masterByTitle.has(norm)) masterByTitle.set(norm, []);
-        masterByTitle.get(norm).push(m);
+    const matchProductToGroup = (p, platformKey) => {
+      const pTitleNorm = normalizeTitle(p.title);
+      const pPrice = parseFloat(p.selling_price || p.price || 0) || 0;
+      const pGarment = extractGarmentType(p.title);
+      const pSize = extractSize(p.size || p.title);
+      const pColor = extractColorPattern(p.color || p.title);
+      const pBrand = normalizeStr(p.brand);
+      const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []);
+
+      // 1. Exact Image CDN Hash Match
+      for (const g of masterItems) {
+        if (g[`${platformKey}Status`] === 'published') continue;
+        const gImages = (g.images || []).concat(g.thumbnail ? [g.thumbnail] : []);
+        if (checkImageMatch(pImages, gImages)) {
+          return g;
+        }
       }
-      if (isRealCustomSku(m.sku)) {
-        const sNorm = normalizeStr(m.sku);
-        if (!masterBySku.has(sNorm)) masterBySku.set(sNorm, []);
-        masterBySku.get(sNorm).push(m);
+
+      // 2. Exact Title Match (Normalized)
+      if (pTitleNorm) {
+        const candidates = masterItems.filter(g => {
+          if (g[`${platformKey}Status`] === 'published') return false;
+          const gNorm = normalizeTitle(g.title);
+          if (gNorm !== pTitleNorm) return false;
+          const gGarment = extractGarmentType(g.title);
+          if (pGarment && gGarment && pGarment !== gGarment) return false;
+          const gBrand = normalizeStr(g.brand);
+          if (pBrand && gBrand && pBrand !== gBrand) return false;
+          return true;
+        });
+
+        if (candidates.length === 1) {
+          return candidates[0];
+        } else if (candidates.length > 1) {
+          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pPrice) - Math.abs((parseFloat(b.price) || 0) - pPrice));
+          return candidates[0];
+        }
       }
+
+      // 3. Poshmark 50-Character Prefix Match (when length >= 25)
+      if (pTitleNorm.length >= 25) {
+        const candidates = masterItems.filter(g => {
+          if (g[`${platformKey}Status`] === 'published') return false;
+          const gNorm = normalizeTitle(g.title);
+          if (!gNorm) return false;
+
+          const isPrefix = (gNorm.length > pTitleNorm.length && gNorm.startsWith(pTitleNorm)) ||
+                           (pTitleNorm.length > gNorm.length && pTitleNorm.startsWith(gNorm) && gNorm.length >= 25);
+          if (!isPrefix) return false;
+
+          const gGarment = extractGarmentType(g.title);
+          if (pGarment && gGarment && pGarment !== gGarment) return false;
+
+          const gSize = extractSize(g.size || g.title);
+          if (pSize && gSize && pSize !== gSize) return false;
+
+          const gColor = extractColorPattern(g.color || g.title);
+          if (pColor && gColor && pColor !== gColor) return false;
+
+          const gBrand = normalizeStr(g.brand);
+          if (pBrand && gBrand && pBrand !== gBrand) return false;
+
+          if (pPrice > 0 && (parseFloat(g.price) || 0) > 0 && Math.abs((parseFloat(g.price) || 0) - pPrice) > 15) return false;
+
+          return true;
+        });
+
+        if (candidates.length === 1) {
+          return candidates[0];
+        } else if (candidates.length > 1) {
+          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pPrice) - Math.abs((parseFloat(b.price) || 0) - pPrice));
+          return candidates[0];
+        }
+      }
+
+      return null;
     };
 
     // 3A. Initialize Master Items from Active eBay Products
@@ -5089,7 +5229,7 @@ exports.cleanGhostChannels = async (req, res) => {
       const eid = e.ebayListingId || e.itemId || e.liveListingId;
       if (!eid) continue;
       const eTitle = e.title || 'eBay Listing';
-      const ePrice = String(e.selling_price || 0);
+      const ePrice = String(e.selling_price || e.price || 0);
       const eSku = e.sku || '';
 
       const m = {
@@ -5126,7 +5266,6 @@ exports.cleanGhostChannels = async (req, res) => {
       };
 
       masterItems.push(m);
-      registerMasterItem(m);
     }
 
     // 3B. Match and Attach Active Poshmark Products
@@ -5135,59 +5274,10 @@ exports.cleanGhostChannels = async (req, res) => {
       if (!pid) continue;
 
       const pTitle = p.title || '';
-      const pNorm = normalizeTitle(pTitle);
       const pSku = p.sku || '';
-      const pBrand = normalizeStr(p.brand);
-      const pSize = normalizeStr(p.size);
-      const pPrice = String(p.selling_price || 0);
-      const pNumPrice = parseFloat(p.selling_price || 0);
+      const pPrice = String(p.selling_price || p.price || 0);
 
-      let matchedMaster = null;
-
-      // 1. Custom SKU Match
-      if (isRealCustomSku(pSku) && masterBySku.has(normalizeStr(pSku))) {
-        const candidates = masterBySku.get(normalizeStr(pSku)).filter(m => m.poshmarkStatus !== 'published');
-        const match = candidates.find(m => {
-          const mBrand = normalizeStr(m.brand);
-          return !pBrand || !mBrand || pBrand === mBrand;
-        });
-        if (match) matchedMaster = match;
-      }
-
-      // 2. Exact Title Match
-      if (!matchedMaster && pNorm && masterByTitle.has(pNorm)) {
-        const candidates = masterByTitle.get(pNorm).filter(m => m.poshmarkStatus !== 'published');
-        const eligible = candidates.filter(m => {
-          const mBrand = normalizeStr(m.brand);
-          if (pBrand && mBrand && pBrand !== mBrand) return false;
-          const mSize = normalizeStr(m.size);
-          if (pSize && mSize && pSize !== mSize) return false;
-          return true;
-        });
-        if (eligible.length > 0) {
-          eligible.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pNumPrice) - Math.abs((parseFloat(b.price) || 0) - pNumPrice));
-          matchedMaster = eligible[0];
-        }
-      }
-
-      // 3. Poshmark 50-Character Prefix Truncation Match
-      if (!matchedMaster && pNorm.length >= 25) {
-        const candidates = masterItems.filter(m => {
-          if (m.poshmarkStatus === 'published') return false;
-          const mNorm = normalizeTitle(m.title);
-          if (!mNorm || mNorm.length <= pNorm.length) return false;
-          if (!mNorm.startsWith(pNorm)) return false;
-          const mBrand = normalizeStr(m.brand);
-          if (pBrand && mBrand && pBrand !== mBrand) return false;
-          const mSize = normalizeStr(m.size);
-          if (pSize && mSize && pSize !== mSize) return false;
-          return true;
-        });
-        if (candidates.length > 0) {
-          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pNumPrice) - Math.abs((parseFloat(b.price) || 0) - pNumPrice));
-          matchedMaster = candidates[0];
-        }
-      }
+      const matchedMaster = matchProductToGroup(p, 'poshmark');
 
       if (matchedMaster) {
         matchedMaster.poshmarkListingId = pid;
@@ -5201,9 +5291,6 @@ exports.cleanGhostChannels = async (req, res) => {
           price: pPrice,
           url: matchedMaster.poshmarkUrl
         };
-        if ((!matchedMaster.sku || matchedMaster.sku === '-') && isRealCustomSku(pSku)) {
-          matchedMaster.sku = pSku;
-        }
       } else {
         // Standalone Poshmark Master Listing
         const newM = {
@@ -5214,6 +5301,7 @@ exports.cleanGhostChannels = async (req, res) => {
           sku: pSku,
           brand: p.brand || '',
           size: p.size || '',
+          color: p.color || '',
           price: pPrice,
           poshmarkPrice: pPrice,
           poshmarkListingId: pid,
@@ -5238,7 +5326,6 @@ exports.cleanGhostChannels = async (req, res) => {
           updatedAt: new Date()
         };
         masterItems.push(newM);
-        registerMasterItem(newM);
       }
     }
 
@@ -5248,59 +5335,10 @@ exports.cleanGhostChannels = async (req, res) => {
       if (!mid) continue;
 
       const mTitle = m.title || '';
-      const mNorm = normalizeTitle(mTitle);
       const mSku = m.sku || '';
-      const mBrand = normalizeStr(m.brand);
-      const mSize = normalizeStr(m.size);
-      const mPrice = String(m.selling_price || 0);
-      const mNumPrice = parseFloat(m.selling_price || 0);
+      const mPrice = String(m.selling_price || m.price || 0);
 
-      let matchedMaster = null;
-
-      // 1. Custom SKU Match
-      if (isRealCustomSku(mSku) && masterBySku.has(normalizeStr(mSku))) {
-        const candidates = masterBySku.get(normalizeStr(mSku)).filter(item => item.mercariStatus !== 'published');
-        const match = candidates.find(item => {
-          const itemBrand = normalizeStr(item.brand);
-          return !mBrand || !itemBrand || mBrand === itemBrand;
-        });
-        if (match) matchedMaster = match;
-      }
-
-      // 2. Exact Title Match
-      if (!matchedMaster && mNorm && masterByTitle.has(mNorm)) {
-        const candidates = masterByTitle.get(mNorm).filter(item => item.mercariStatus !== 'published');
-        const eligible = candidates.filter(item => {
-          const itemBrand = normalizeStr(item.brand);
-          if (mBrand && itemBrand && mBrand !== itemBrand) return false;
-          const itemSize = normalizeStr(item.size);
-          if (mSize && itemSize && mSize !== itemSize) return false;
-          return true;
-        });
-        if (eligible.length > 0) {
-          eligible.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - mNumPrice) - Math.abs((parseFloat(b.price) || 0) - mNumPrice));
-          matchedMaster = eligible[0];
-        }
-      }
-
-      // 3. Mercari Truncation Prefix Match
-      if (!matchedMaster && mNorm.length >= 35) {
-        const candidates = masterItems.filter(item => {
-          if (item.mercariStatus === 'published') return false;
-          const itemNorm = normalizeTitle(item.title);
-          if (!itemNorm || itemNorm.length <= mNorm.length) return false;
-          if (!itemNorm.startsWith(mNorm)) return false;
-          const itemBrand = normalizeStr(item.brand);
-          if (mBrand && itemBrand && mBrand !== itemBrand) return false;
-          const itemSize = normalizeStr(item.size);
-          if (mSize && itemSize && mSize !== itemSize) return false;
-          return true;
-        });
-        if (candidates.length > 0) {
-          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - mNumPrice) - Math.abs((parseFloat(b.price) || 0) - mNumPrice));
-          matchedMaster = candidates[0];
-        }
-      }
+      const matchedMaster = matchProductToGroup(m, 'mercari');
 
       if (matchedMaster) {
         matchedMaster.mercariListingId = mid;
@@ -5314,9 +5352,6 @@ exports.cleanGhostChannels = async (req, res) => {
           price: mPrice,
           url: matchedMaster.mercariUrl
         };
-        if ((!matchedMaster.sku || matchedMaster.sku === '-') && isRealCustomSku(mSku)) {
-          matchedMaster.sku = mSku;
-        }
       } else {
         // Standalone Mercari Master Listing
         const newM = {
@@ -5327,6 +5362,7 @@ exports.cleanGhostChannels = async (req, res) => {
           sku: mSku,
           brand: m.brand || '',
           size: m.size || '',
+          color: m.color || '',
           price: mPrice,
           mercariPrice: mPrice,
           mercariListingId: mid,
@@ -5351,7 +5387,6 @@ exports.cleanGhostChannels = async (req, res) => {
           updatedAt: new Date()
         };
         masterItems.push(newM);
-        registerMasterItem(newM);
       }
     }
 
