@@ -285,8 +285,6 @@ exports.syncOrders = async (req, res) => {
       if (res) return res.status(401).json({ success: false, error: 'No valid token' });
       return { success: false, error: 'No valid token' };
     }
-
-    console.log(`--- STARTING EBAY ORDERS SYNC FOR USER: ${userId} ---`);
     const data = await ebayService.getOrders(token);
     const orders = data.orders || [];
     
@@ -387,7 +385,9 @@ exports.syncOrders = async (req, res) => {
       syncedCount++;
     }
 
-    console.log(`--- ORDERS SYNC COMPLETE: ${syncedCount} orders processed ---`);
+    if (syncedCount > 0) {
+      console.log(`[eBay Orders] Synced ${syncedCount} orders for user: ${userId}`);
+    }
     if (res) {
       return res.status(200).json({ success: true, count: syncedCount });
     }
@@ -412,8 +412,6 @@ exports.syncInventory = async (req, res) => {
       if (res) return res.status(401).json({ success: false, error: 'No valid token' });
       return { success: false, error: 'No valid token' };
     }
-
-    console.log(`--- STARTING EBAY INVENTORY SYNC FOR USER: ${userId} ---`);
 
     // NOTE: eBay's Sell Inventory API has no bulk "list all offers" endpoint -
     // GET /sell/inventory/v1/offer requires a `sku` query param per call. Offer

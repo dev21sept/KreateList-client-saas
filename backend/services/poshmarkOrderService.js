@@ -81,8 +81,6 @@ function normalizePoshmarkOrderStatus(statusStr, displayStatusStr) {
  * @returns {Promise<Object>} Outcome metrics
  */
 async function syncPoshmarkOrders(credentials = {}, userId = null) {
-  console.log(`[Poshmark Order Sync] Initializing order sync for User: ${userId}...`);
-
   if (!credentials.sessionCookie) {
     throw new Error('Poshmark session cookie is missing.');
   }
@@ -112,7 +110,6 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
   let poshmarkUserId = getUserIdFromSessionCookie(credentials.sessionCookie);
   if (!poshmarkUserId && credentials.username) {
     try {
-      console.log(`[Poshmark Order Sync] Attempting to resolve User ID for ${credentials.username}...`);
       const selfRes = await axios.get(`https://${domain}/vm-rest/users/${credentials.username}`, {
         headers,
         timeout: 10000
@@ -125,7 +122,6 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
 
   // Fallback to username if ID still not found
   const userIdentifier = poshmarkUserId || credentials.username || 'self';
-  console.log(`[Poshmark Order Sync] Querying Poshmark sales endpoint for user identifier: ${userIdentifier}`);
 
   let allSales = [];
   let maxId = null;
@@ -344,7 +340,9 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
     }
   }
 
-  console.log(`[Poshmark Order Sync] Finished. Synced ${syncedCount} orders.`);
+  if (syncedCount > 0) {
+    console.log(`[Poshmark Orders] Synced ${syncedCount} orders for user: ${userId}`);
+  }
   return { success: true, count: syncedCount };
 }
 

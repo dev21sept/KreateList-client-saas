@@ -187,7 +187,9 @@ async function reconcileOrdersAndMasterListings(userId) {
       }
     }
 
-    console.log(`[Order Reconciler] User: ${userId} => Reconciled ${reconciledCount} real sold items, Restored/Fixed ${restoredCount} listings.`);
+    if (reconciledCount > 0 || restoredCount > 0) {
+      console.log(`[Order Reconciler] User: ${userId} => Reconciled ${reconciledCount} real sold items, Restored/Fixed ${restoredCount} listings.`);
+    }
   } catch (err) {
     console.error('[Order Reconciler] Error reconciling orders with listings:', err.message);
   }
@@ -199,7 +201,6 @@ async function reconcileOrdersAndMasterListings(userId) {
 async function recheckMasterListingStatuses(userId) {
   try {
     const listings = await Listing.find({ user: userId });
-    console.log(`[Status Recheck] Rechecking platform statuses for ${listings.length} listings (User: ${userId})...`);
 
     let updatedCount = 0;
     for (const listing of listings) {
@@ -346,7 +347,6 @@ async function runBackgroundSyncCycle() {
 
   isOrdersSyncRunning = true;
   lastOrdersSyncTime = Date.now();
-  console.log('[Background Sales Worker] Starting 24/7 automated multi-channel sales & auto-delist sync cycle...');
 
   try {
     const users = await User.find({
@@ -360,21 +360,17 @@ async function runBackgroundSyncCycle() {
       ]
     });
 
-    console.log(`[Background Sales Worker] Found ${users.length} users with connected marketplaces.`);
-
     for (const user of users) {
       try {
         const userId = user._id.toString();
-        console.log(`[Background Sales Worker] Syncing sales for: ${user.email} (ID: ${userId})`);
 
         // 1. eBay Orders Sync
         const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
         if (isEbayConnected) {
           try {
-            console.log(`[Background Sales Worker] Syncing eBay orders for ${user.email}...`);
             await syncEbayOrders({ user: { id: userId } }, null);
           } catch (ebayErr) {
-            console.warn(`[Background Sales Worker] eBay sales sync error for ${user.email}:`, ebayErr.message);
+            console.warn(`[Background Sales Worker] eBay sales sync notice for ${user.email}:`, ebayErr.message);
           }
         }
 
@@ -383,7 +379,7 @@ async function runBackgroundSyncCycle() {
           try {
             await syncMercariOrders(user.mercariAccount, userId);
           } catch (mercErr) {
-            console.warn(`[Background Sales Worker] Mercari sales sync error for ${user.email}:`, mercErr.message);
+            console.warn(`[Background Sales Worker] Mercari sales sync notice for ${user.email}:`, mercErr.message);
           }
         }
 
@@ -392,7 +388,7 @@ async function runBackgroundSyncCycle() {
           try {
             await syncPoshmarkOrders(user.poshmarkAccount, userId);
           } catch (poshErr) {
-            console.warn(`[Background Sales Worker] Poshmark sales sync error for ${user.email}:`, poshErr.message);
+            console.warn(`[Background Sales Worker] Poshmark sales sync notice for ${user.email}:`, poshErr.message);
           }
         }
 
@@ -403,8 +399,6 @@ async function runBackgroundSyncCycle() {
         console.error(`[Background Sales Worker] Error processing user ${user.email}:`, userErr.message);
       }
     }
-
-    console.log('[Background Sales Worker] Sales sync cycle completed successfully.');
   } catch (err) {
     console.error('[Background Sales Worker] Fatal error during sales sync cycle:', err.message);
   } finally {
@@ -417,12 +411,10 @@ async function runBackgroundSyncCycle() {
  */
 async function runBackgroundInventorySyncCycle() {
   if (isInventorySyncRunning) {
-    console.log('[Background Inventory Worker] Previous inventory sync is still running. Skipping this tick.');
     return;
   }
 
   isInventorySyncRunning = true;
-  console.log('[Background Inventory Worker] Starting 30-min automated All-Platform Inventory Sync & Status Recheck...');
 
   try {
     const users = await User.find({
@@ -437,31 +429,26 @@ async function runBackgroundInventorySyncCycle() {
       ]
     });
 
-    console.log(`[Background Inventory Worker] Found ${users.length} users with connected marketplaces to sync inventory.`);
-
     for (const user of users) {
       try {
         const userId = user._id.toString();
-        console.log(`[Background Inventory Worker] Syncing inventory for user: ${user.email}`);
 
         // 1. eBay Inventory Sync
         const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
         if (isEbayConnected) {
           try {
-            console.log(`[Background Inventory Worker] Syncing eBay inventory for ${user.email}...`);
             await syncEbayInventory({ user: { id: userId } }, null);
           } catch (ebayErr) {
-            console.warn(`[Background Inventory Worker] eBay inventory sync error:`, ebayErr.message);
+            console.warn(`[Background Inventory Worker] eBay inventory sync notice:`, ebayErr.message);
           }
         }
 
         // 2. Etsy Inventory Sync
         if (user.etsyAccount?.connected && user.etsyAccount?.shopId) {
           try {
-            console.log(`[Background Inventory Worker] Syncing Etsy inventory for ${user.email}...`);
             await syncEtsyInventory({ user: { id: userId } }, null);
           } catch (etsyErr) {
-            console.warn(`[Background Inventory Worker] Etsy inventory sync error:`, etsyErr.message);
+            console.warn(`[Background Inventory Worker] Etsy inventory sync notice:`, etsyErr.message);
           }
         }
 

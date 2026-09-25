@@ -1664,7 +1664,6 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
  * @returns {Promise<Object>} Sync outcome metrics
  */
 async function syncMercariOrders(credentials = {}, userId = null) {
-  console.log(`[Mercari Order Sync] Fetching orders (trading & sold_out) for User ${userId}...`);
   let browser = null;
   const Order = require('../models/Order');
 
@@ -1718,7 +1717,6 @@ async function syncMercariOrders(credentials = {}, userId = null) {
 
     const { token, sellerId } = extractMercariAuth(credentials);
 
-    console.log(`[Mercari Order Sync] Navigating to Mercari home (sellerId: ${sellerId})...`);
     await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await new Promise(r => setTimeout(r, 1500));
 
@@ -1884,7 +1882,9 @@ async function syncMercariOrders(credentials = {}, userId = null) {
       else completedCount++;
     }
 
-    console.log(`[Mercari Order Sync] Successfully saved ${syncedCount} Mercari orders (${inProgressCount} in-progress, ${completedCount} completed).`);
+    if (syncedCount > 0) {
+      console.log(`[Mercari Orders] Synced ${syncedCount} orders (${inProgressCount} in-progress, ${completedCount} completed) for user: ${userId}`);
+    }
 
     return {
       success: true,

@@ -446,7 +446,6 @@ exports.poshmarkGetLive = async (req, res) => {
     const forceRefresh = req.query.forceRefresh === 'true' || req.query.refresh === 'true';
     const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark' }).sort({ updated_at: -1, createdAt: -1 });
     if (dbProducts.length > 0 && !forceRefresh) {
-      console.log(`[Poshmark Controller] Returning ${dbProducts.length} synced Poshmark products from database for user ${req.user.id}`);
       const mappedListings = dbProducts.map(p => ({
         _id: p._id,
         title: p.title,
