@@ -591,6 +591,7 @@ exports.syncInventory = async (req, res) => {
     }
 
     // --- STEP 2: Sync all Active Listings via Trading API (legacy, web & mobile active listings) ---
+    const activeTradingIds = new Set();
     try {
       console.log(`[SYNC] Fetching active listings via Trading API for user: ${userId}`);
       let tradingPage = 1;
@@ -604,6 +605,8 @@ exports.syncInventory = async (req, res) => {
         console.log(`[SYNC] Trading API Active Page ${tradingPage}/${totalPages}: found ${tradingItems.length} active items`);
 
         for (const item of tradingItems) {
+          if (item.itemId) activeTradingIds.add(String(item.itemId));
+
           const tombstoneMatch = await DeletedProduct.findOne({
             user: userId,
             $or: [
@@ -727,10 +730,14 @@ exports.syncInventory = async (req, res) => {
             });
           }
 
+          const isCurrentlyActive = item.itemId && activeTradingIds.has(String(item.itemId));
+
           if (existingProduct) {
-            // Only set to inactive if it was not already active (e.g. if it was relisted and active)
-            if (existingProduct.status !== 'active') {
-              existingProduct.status = 'inactive';
+            if (!isCurrentlyActive) {
+              if (existingProduct.status !== 'inactive') {
+                existingProduct.status = 'inactive';
+                existingProduct.updated_at = Date.now();
+              }
             }
             if (item.price && !existingProduct.selling_price) existingProduct.selling_price = item.price;
             if (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) {
@@ -751,7 +758,7 @@ exports.syncInventory = async (req, res) => {
               images: item.images || [],
               selling_price: item.price || 0,
               source: 'ebay',
-              status: 'inactive',
+              status: isCurrentlyActive ? 'active' : 'inactive',
               ebayListingId: item.itemId,
               ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
               updated_at: Date.now()

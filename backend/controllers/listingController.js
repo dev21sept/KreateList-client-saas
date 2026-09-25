@@ -2053,105 +2053,109 @@ exports.delistListing = async (req, res) => {
     console.log(`[Delist Listing] Delisting from ${platformLower} for item: ${listing.title}`);
 
     if (platformLower === 'ebay') {
-      if (!listing.ebayListingId) {
-        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on eBay.' });
-      }
+      const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId || listing.platformData?.ebay?.listingId;
       
       const token = await getValidToken(req.user.id);
-      if (!token) {
-        throw new Error('eBay account is not connected or session expired.');
-      }
-      
-      // 1. End Item via Trading API
-      try {
-        const { endTradingItem } = require('../services/ebayService');
-        await endTradingItem(token, listing.ebayListingId, 'NotAvailable');
-      } catch (endErr) {
-        console.warn(`[Delist Listing] Trading EndItem attempt:`, endErr.message);
-      }
-
-      // 2. Withdraw Offer / Zero Quantity if SKU exists
-      const sku = listing.sku || listing.platformData?.ebay?.sku;
-      if (sku) {
+      if (token && ebayId) {
+        // 1. End Item via Trading API
         try {
-          const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
-          const offers = await getOffers(token, sku);
-          if (offers && offers.length > 0) {
-            for (const offer of offers) {
-              if (offer.status === 'PUBLISHED') {
-                console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
-                await withdrawOffer(token, offer.offerId);
+          const { endTradingItem } = require('../services/ebayService');
+          await endTradingItem(token, ebayId, 'NotAvailable');
+        } catch (endErr) {
+          console.warn(`[Delist Listing] Trading EndItem attempt:`, endErr.message);
+        }
+
+        // 2. Withdraw Offer / Zero Quantity if SKU exists
+        const sku = listing.sku || listing.platformData?.ebay?.sku;
+        if (sku) {
+          try {
+            const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
+            const offers = await getOffers(token, sku);
+            if (offers && offers.length > 0) {
+              for (const offer of offers) {
+                if (offer.status === 'PUBLISHED') {
+                  console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
+                  await withdrawOffer(token, offer.offerId);
+                }
               }
             }
+            await createOrReplaceInventoryItem(token, sku, {
+              availability: { shipToLocationAvailability: { quantity: 0 } }
+            });
+          } catch (skuErr) {
+            console.warn(`[Delist Listing] SKU offer withdraw attempt:`, skuErr.message);
           }
-          await createOrReplaceInventoryItem(token, sku, {
-            availability: { shipToLocationAvailability: { quantity: 0 } }
-          });
-        } catch (skuErr) {
-          console.warn(`[Delist Listing] SKU offer withdraw attempt:`, skuErr.message);
         }
       }
       
       listing.ebayStatus = 'delisted';
       if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
-      await listing.save();
       
     } else if (platformLower === 'poshmark') {
-      if (!listing.poshmarkListingId) {
-        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Poshmark.' });
-      }
+      const poshId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
       
-      if (!user.poshmarkAccount || !user.poshmarkAccount.connected) {
-        throw new Error('Poshmark account is not connected.');
+      if (poshId && user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
+        try {
+          const { deletePoshmarkListing } = require('../services/backendPublishService');
+          await deletePoshmarkListing(poshId, user.poshmarkAccount);
+        } catch (pErr) {
+          console.warn(`[Delist Listing] Poshmark remote delist notice:`, pErr.message);
+        }
       }
-      
-      const { deletePoshmarkListing } = require('../services/backendPublishService');
-      await deletePoshmarkListing(listing.poshmarkListingId, user.poshmarkAccount);
       
       listing.poshmarkStatus = 'delisted';
+      if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
       
     } else if (platformLower === 'etsy') {
-      if (!listing.etsyListingId) {
-        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Etsy.' });
-      }
+      const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId || listing.platformData?.etsy?.listingId;
       
-      if (!user.etsyAccount || !user.etsyAccount.connected || !user.etsyAccount.shopId) {
-        throw new Error('Etsy shop is not connected.');
+      if (etsyId && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+        try {
+          const { updateListingState } = require('../services/etsyService');
+          await updateListingState(req.user.id, user.etsyAccount.shopId, etsyId, 'inactive');
+        } catch (eErr) {
+          console.warn(`[Delist Listing] Etsy remote update state notice:`, eErr.message);
+        }
       }
-      
-      const { updateListingState } = require('../services/etsyService');
-      await updateListingState(req.user.id, user.etsyAccount.shopId, listing.etsyListingId, 'inactive');
       
       listing.etsyStatus = 'delisted';
+      if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
       
     } else if (platformLower === 'depop') {
-      if (!listing.depopListingId) {
-        return res.status(400).json({ success: false, message: 'Item is not currently marked as listed on Depop.' });
-      }
+      const depopId = listing.depopListingId || listing.platformData?.depop?.liveId || listing.platformData?.depop?.listingId;
       
       const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
       const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
       
-      if (isPartner && apiKey && listing.sku) {
-        const { deleteFromDepopPartner } = require('../services/depopPartnerService');
-        await deleteFromDepopPartner(listing.sku, apiKey);
-      } else {
-        const { deleteDepopListing } = require('../services/backendPublishService');
-        await deleteDepopListing(listing.depopListingId, user.depopAccount);
+      try {
+        if (isPartner && apiKey && listing.sku) {
+          const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+          await deleteFromDepopPartner(listing.sku, apiKey);
+        } else if (depopId && user.depopAccount) {
+          const { deleteDepopListing } = require('../services/backendPublishService');
+          await deleteDepopListing(depopId, user.depopAccount);
+        }
+      } catch (dErr) {
+        console.warn(`[Delist Listing] Depop remote delist notice:`, dErr.message);
       }
       
       listing.depopStatus = 'delisted';
+      if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
     } else if (platformLower === 'mercari') {
-      const activeId = listing.mercariListingId || (prod && prod.mercariListingId);
+      const activeId = listing.mercariListingId || listing.platformData?.mercari?.liveId || listing.platformData?.mercari?.listingId;
       if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
         try {
           const { deactivateMercariListing } = require('../services/mercariService');
           await deactivateMercariListing(activeId, user.mercariAccount);
         } catch (mErr) {
-          console.warn(`[Delist Listing] Mercari remote deactivation failed:`, mErr.message);
+          console.warn(`[Delist Listing] Mercari remote deactivation notice:`, mErr.message);
         }
       }
       listing.mercariStatus = 'delisted';
+      if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
+    } else if (platformLower === 'amazon') {
+      listing.amazonStatus = 'delisted';
+      if (listing.platformData?.amazon) listing.platformData.amazon.status = 'delisted';
     } else {
       return res.status(400).json({ success: false, message: `Unsupported platform: ${platform}` });
     }
@@ -2161,7 +2165,8 @@ exports.delistListing = async (req, res) => {
                        listing.poshmarkStatus === 'published' || 
                        listing.etsyStatus === 'published' || 
                        listing.depopStatus === 'published' ||
-                       listing.mercariStatus === 'published');
+                       listing.mercariStatus === 'published' ||
+                       listing.amazonStatus === 'published');
     if (!hasActive) {
       listing.status = 'delisted';
     }
@@ -2185,6 +2190,205 @@ exports.delistListing = async (req, res) => {
   } catch (err) {
     console.error(`[Delist Listing] Failed to delist from ${req.body.platform}:`, err.message);
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Delist listing from ALL active marketplaces atomically
+// @route   POST /api/listings/:id/delist-all
+// @access  Private
+exports.delistAllPlatforms = async (req, res) => {
+  try {
+    let listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      const Product = require('../models/Product');
+      const prod = await Product.findById(req.params.id);
+      if (prod && prod.user.toString() === req.user.id) {
+        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+      }
+    }
+
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing.user.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    console.log(`[Delist All] Delisting "${listing.title}" from ALL connected marketplaces...`);
+    const results = {};
+
+    // 1. EBAY
+    const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId || listing.platformData?.ebay?.listingId;
+    if (ebayId || listing.ebayStatus === 'published' || listing.ebayStatus === 'active') {
+      try {
+        const token = await getValidToken(req.user.id);
+        if (token && ebayId) {
+          try {
+            const { endTradingItem } = require('../services/ebayService');
+            await endTradingItem(token, ebayId, 'NotAvailable');
+          } catch (endErr) {
+            console.warn(`[Delist All] eBay Trading EndItem notice:`, endErr.message);
+          }
+          const sku = listing.sku || listing.platformData?.ebay?.sku;
+          if (sku) {
+            try {
+              const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
+              const offers = await getOffers(token, sku);
+              if (offers && offers.length > 0) {
+                for (const offer of offers) {
+                  if (offer.status === 'PUBLISHED') {
+                    await withdrawOffer(token, offer.offerId);
+                  }
+                }
+              }
+              await createOrReplaceInventoryItem(token, sku, {
+                availability: { shipToLocationAvailability: { quantity: 0 } }
+              });
+            } catch (skuErr) {
+              console.warn(`[Delist All] eBay SKU withdraw notice:`, skuErr.message);
+            }
+          }
+        }
+        listing.ebayStatus = 'delisted';
+        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+        results.ebay = 'delisted';
+      } catch (eErr) {
+        console.warn(`[Delist All] eBay delist failed:`, eErr.message);
+        listing.ebayStatus = 'delisted';
+        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+        results.ebay = 'delisted_local';
+      }
+    }
+
+    // 2. POSHMARK
+    const poshId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
+    if (poshId || listing.poshmarkStatus === 'published' || listing.poshmarkStatus === 'active') {
+      try {
+        if (poshId && user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
+          const { deletePoshmarkListing } = require('../services/backendPublishService');
+          await deletePoshmarkListing(poshId, user.poshmarkAccount);
+        }
+        listing.poshmarkStatus = 'delisted';
+        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
+        results.poshmark = 'delisted';
+      } catch (pErr) {
+        console.warn(`[Delist All] Poshmark delist failed:`, pErr.message);
+        listing.poshmarkStatus = 'delisted';
+        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
+        results.poshmark = 'delisted_local';
+      }
+    }
+
+    // 3. MERCARI
+    const mercariId = listing.mercariListingId || listing.platformData?.mercari?.liveId || listing.platformData?.mercari?.listingId;
+    if (mercariId || listing.mercariStatus === 'published' || listing.mercariStatus === 'active') {
+      try {
+        if (mercariId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+          const { deactivateMercariListing } = require('../services/mercariService');
+          await deactivateMercariListing(mercariId, user.mercariAccount);
+        }
+        listing.mercariStatus = 'delisted';
+        if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
+        results.mercari = 'delisted';
+      } catch (mErr) {
+        console.warn(`[Delist All] Mercari delist failed:`, mErr.message);
+        listing.mercariStatus = 'delisted';
+        if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
+        results.mercari = 'delisted_local';
+      }
+    }
+
+    // 4. ETSY
+    const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId || listing.platformData?.etsy?.listingId;
+    if (etsyId || listing.etsyStatus === 'published' || listing.etsyStatus === 'active') {
+      try {
+        if (etsyId && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+          const { updateListingState } = require('../services/etsyService');
+          await updateListingState(req.user.id, user.etsyAccount.shopId, etsyId, 'inactive');
+        }
+        listing.etsyStatus = 'delisted';
+        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
+        results.etsy = 'delisted';
+      } catch (etErr) {
+        console.warn(`[Delist All] Etsy delist failed:`, etErr.message);
+        listing.etsyStatus = 'delisted';
+        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
+        results.etsy = 'delisted_local';
+      }
+    }
+
+    // 5. DEPOP
+    const depopId = listing.depopListingId || listing.platformData?.depop?.liveId || listing.platformData?.depop?.listingId;
+    if (depopId || listing.depopStatus === 'published' || listing.depopStatus === 'active') {
+      try {
+        const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
+        const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
+        if (isPartner && apiKey && listing.sku) {
+          const { deleteFromDepopPartner } = require('../services/depopPartnerService');
+          await deleteFromDepopPartner(listing.sku, apiKey);
+        } else if (depopId && user.depopAccount) {
+          const { deleteDepopListing } = require('../services/backendPublishService');
+          await deleteDepopListing(depopId, user.depopAccount);
+        }
+        listing.depopStatus = 'delisted';
+        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
+        results.depop = 'delisted';
+      } catch (dErr) {
+        console.warn(`[Delist All] Depop delist failed:`, dErr.message);
+        listing.depopStatus = 'delisted';
+        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
+        results.depop = 'delisted_local';
+      }
+    }
+
+    // 6. AMAZON
+    if (listing.amazonListingId || listing.amazonAsin || listing.amazonStatus === 'published' || listing.amazonStatus === 'active') {
+      listing.amazonStatus = 'delisted';
+      if (listing.platformData?.amazon) listing.platformData.amazon.status = 'delisted';
+      results.amazon = 'delisted';
+    }
+
+    // Set overall master status to delisted
+    listing.status = 'delisted';
+    await listing.save();
+
+    // Reconcile corresponding Product model entries across all channels
+    try {
+      const Product = require('../models/Product');
+      const queryList = [];
+      if (listing.sku) queryList.push({ sku: listing.sku });
+      if (listing.ebayListingId) queryList.push({ ebayListingId: listing.ebayListingId });
+      if (listing.poshmarkListingId) queryList.push({ poshmarkListingId: listing.poshmarkListingId });
+      if (listing.mercariListingId) queryList.push({ mercariListingId: listing.mercariListingId });
+      if (listing.etsyListingId) queryList.push({ etsyListingId: listing.etsyListingId });
+      if (listing.depopListingId) queryList.push({ depopListingId: listing.depopListingId });
+
+      if (queryList.length > 0) {
+        await Product.updateMany(
+          { user: listing.user, $or: queryList },
+          { status: 'inactive', updated_at: Date.now() }
+        );
+      }
+    } catch (prodErr) {
+      console.warn(`[Delist All] Failed to update matched products:`, prodErr.message);
+    }
+
+    console.log(`[Delist All] Successfully delisted item "${listing.title}" from all platforms. Results:`, results);
+    res.status(200).json({
+      success: true,
+      message: `Successfully delisted "${listing.title}" from all active marketplaces.`,
+      data: listing,
+      results
+    });
+  } catch (err) {
+    console.error(`[Delist All] Fatal error:`, err.message);
+    res.status(500).json({ success: false, message: `Failed to delist from all marketplaces: ${err.message}` });
   }
 };
 

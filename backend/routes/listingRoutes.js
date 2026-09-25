@@ -10,6 +10,7 @@ const {
   checkDuplicateListing,
   verifyListingLive,
   delistListing,
+  delistAllPlatforms,
   deletePlatformListing,
   moveToNewItem,
   mergeChannel,
@@ -44,6 +45,7 @@ router.route('/:id')
 
 router.post('/:id/publish', requireActiveSubscription, publishListing);
 router.post('/:id/delist', requireActiveSubscription, delistListing);
+router.post('/:id/delist-all', requireActiveSubscription, delistAllPlatforms);
 router.post('/:id/delete-platform', requireActiveSubscription, deletePlatformListing);
 router.post('/:id/move-to-new-item', requireActiveSubscription, moveToNewItem);
 router.post('/:id/verify-live', verifyListingLive);

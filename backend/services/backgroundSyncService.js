@@ -216,7 +216,7 @@ async function recheckMasterListingStatuses(userId) {
               if (listing.platformData?.ebay) listing.platformData.ebay.status = targetStat;
               changed = true;
             }
-          } else if (ebayProd.status === 'active' && listing.status !== 'sold') {
+          } else if ((ebayProd.status === 'active' || ebayProd.status === 'live') && listing.status !== 'sold') {
             if (listing.ebayStatus !== 'published') {
               listing.ebayStatus = 'published';
               if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
@@ -237,7 +237,7 @@ async function recheckMasterListingStatuses(userId) {
               if (listing.platformData?.poshmark) listing.platformData.poshmark.status = targetStat;
               changed = true;
             }
-          } else if (poshProd.status === 'active' && listing.status !== 'sold') {
+          } else if ((poshProd.status === 'active' || poshProd.status === 'live') && listing.status !== 'sold') {
             if (listing.poshmarkStatus !== 'published') {
               listing.poshmarkStatus = 'published';
               if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'published';
@@ -258,7 +258,7 @@ async function recheckMasterListingStatuses(userId) {
               if (listing.platformData?.mercari) listing.platformData.mercari.status = targetStat;
               changed = true;
             }
-          } else if (mercProd.status === 'active' && listing.status !== 'sold') {
+          } else if ((mercProd.status === 'active' || mercProd.status === 'live') && listing.status !== 'sold') {
             if (listing.mercariStatus !== 'published') {
               listing.mercariStatus = 'published';
               if (listing.platformData?.mercari) listing.platformData.mercari.status = 'published';
@@ -279,10 +279,31 @@ async function recheckMasterListingStatuses(userId) {
               if (listing.platformData?.etsy) listing.platformData.etsy.status = targetStat;
               changed = true;
             }
-          } else if (etsyProd.status === 'active' && listing.status !== 'sold') {
+          } else if ((etsyProd.status === 'active' || etsyProd.status === 'live') && listing.status !== 'sold') {
             if (listing.etsyStatus !== 'published') {
               listing.etsyStatus = 'published';
               if (listing.platformData?.etsy) listing.platformData.etsy.status = 'published';
+              changed = true;
+            }
+          }
+        }
+      }
+
+      // 5. Check Depop status
+      if (listing.depopListingId) {
+        const depopProd = await Product.findOne({ user: userId, depopListingId: listing.depopListingId, source: 'depop' });
+        if (depopProd) {
+          if (depopProd.status === 'inactive' || depopProd.status === 'sold') {
+            const targetStat = depopProd.status === 'sold' ? 'sold' : 'delisted';
+            if (listing.depopStatus !== targetStat) {
+              listing.depopStatus = targetStat;
+              if (listing.platformData?.depop) listing.platformData.depop.status = targetStat;
+              changed = true;
+            }
+          } else if ((depopProd.status === 'active' || depopProd.status === 'live') && listing.status !== 'sold') {
+            if (listing.depopStatus !== 'published') {
+              listing.depopStatus = 'published';
+              if (listing.platformData?.depop) listing.platformData.depop.status = 'published';
               changed = true;
             }
           }

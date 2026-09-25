@@ -193,6 +193,9 @@ exports.poshmarkImportCloset = async (req, res) => {
     let duplicateCount = 0;
     const importedItems = [];
 
+    const scrapedPoshmarkIds = new Set(scrapedListings.map(s => s.poshmarkListingId).filter(Boolean));
+    const scrapedSkus = new Set(scrapedListings.map(s => s.sku).filter(Boolean));
+
     for (const item of scrapedListings) {
       // Check for duplicate in DB for this user in Product collection
       let existingProduct = null;
@@ -252,6 +255,20 @@ exports.poshmarkImportCloset = async (req, res) => {
       const newProduct = await Product.create(productPayload);
       importedItems.push(newProduct);
       importCount++;
+    }
+
+    // Reconcile any existing Poshmark products not returned or not active in the latest closet scrape
+    if (scrapedListings.length > 0) {
+      const allDbProducts = await Product.find({ user: req.user.id, source: 'poshmark' });
+      for (const dbP of allDbProducts) {
+        const matched = (dbP.poshmarkListingId && scrapedPoshmarkIds.has(dbP.poshmarkListingId)) ||
+                        (dbP.sku && scrapedSkus.has(dbP.sku));
+        if (!matched && (dbP.status === 'live' || dbP.status === 'active')) {
+          dbP.status = 'inactive';
+          dbP.updated_at = Date.now();
+          await dbP.save();
+        }
+      }
     }
 
     res.status(200).json({
@@ -404,9 +421,10 @@ exports.poshmarkGetLive = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Poshmark account is not connected.' });
     }
     
-    // 1. First return existing synced products from database if available
+    // 1. First return existing synced products from database if available (unless forceRefresh is requested)
+    const forceRefresh = req.query.forceRefresh === 'true' || req.query.refresh === 'true';
     const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark' }).sort({ updated_at: -1, createdAt: -1 });
-    if (dbProducts.length > 0) {
+    if (dbProducts.length > 0 && !forceRefresh) {
       console.log(`[Poshmark Controller] Returning ${dbProducts.length} synced Poshmark products from database for user ${req.user.id}`);
       const mappedListings = dbProducts.map(p => ({
         _id: p._id,
@@ -446,6 +464,9 @@ exports.poshmarkGetLive = async (req, res) => {
       await user.save();
       console.log(`[Poshmark Controller] Saved resolved username (${poshAccount.username}) to DB in getLive`);
     }
+
+    const scrapedPoshmarkIds = new Set(liveListings.map(s => s.poshmarkListingId).filter(Boolean));
+    const scrapedSkus = new Set(liveListings.map(s => s.sku).filter(Boolean));
 
     const savedProducts = [];
     for (const item of liveListings) {
@@ -496,6 +517,20 @@ exports.poshmarkGetLive = async (req, res) => {
         };
         const newProduct = await Product.create(productPayload);
         savedProducts.push(newProduct);
+      }
+    }
+
+    // Reconcile missing products
+    if (liveListings.length > 0) {
+      const allDbProducts = await Product.find({ user: req.user.id, source: 'poshmark' });
+      for (const dbP of allDbProducts) {
+        const matched = (dbP.poshmarkListingId && scrapedPoshmarkIds.has(dbP.poshmarkListingId)) ||
+                        (dbP.sku && scrapedSkus.has(dbP.sku));
+        if (!matched && (dbP.status === 'live' || dbP.status === 'active')) {
+          dbP.status = 'inactive';
+          dbP.updated_at = Date.now();
+          await dbP.save();
+        }
       }
     }
     

@@ -677,14 +677,28 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           const fullUrl = post.share_url || `https://poshmark.com/listing/${post.id}`;
           const generatedSku = (post.sku && String(post.sku).trim()) ? String(post.sku).trim() : '';
 
-          // Real marketplace status from Poshmark's own API: a post is only
-          // truly active if it's published, flagged as an active item, and its
-          // inventory is available (not sold out / not-for-sale).
-          const inventoryStatus = post.inventory?.status;
-          const isActive = post.status === 'published'
-            && post.active_item !== false
-            && inventoryStatus !== 'sold_out'
-            && inventoryStatus !== 'not_for_sale';
+          // Real marketplace status from Poshmark's API: a post is only
+          // truly active if it's published, flagged as active, and its
+          // inventory is available (not sold out / not-for-sale / 0 quantity).
+          const rawInvStatus = String(post.inventory?.status || post.inventory_status || post.inventory?.status_v2 || '').toLowerCase();
+          const rawPostStatus = String(post.status || post.listing_status || '').toLowerCase();
+          const availQty = post.inventory?.available_quantity;
+          const isZeroQty = typeof availQty === 'number' && availQty <= 0;
+          const isNFSOrSold = 
+            rawInvStatus === 'not_for_sale' || 
+            rawInvStatus === 'sold_out' || 
+            rawInvStatus === 'nfs' || 
+            rawInvStatus === 'reserved' ||
+            rawPostStatus === 'not_for_sale' || 
+            rawPostStatus === 'sold' || 
+            rawPostStatus === 'sold_out' || 
+            rawPostStatus === 'archived' || 
+            rawPostStatus === 'deleted' ||
+            post.active_item === false ||
+            post.not_for_sale === true ||
+            isZeroQty;
+
+          const isActive = !isNFSOrSold && (rawPostStatus === 'published' || rawPostStatus === 'active' || !rawPostStatus);
 
           listings.push({
             title: title.trim(),
@@ -711,8 +725,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
     }
   }
 
-  // 2. Fallback to public page scraping
-  const targetUrl = `https://poshmark.com/closet/${cleanUsername}`;
+  // 2. Fallback to public page scraping (filter explicitly for available items)
+  const targetUrl = `https://poshmark.com/closet/${cleanUsername}?availability=available`;
   console.log(`[Import Scraper] Fetching public Poshmark closet for ${cleanUsername} at ${targetUrl}`);
   
   const config = getRequestConfig(targetUrl);
@@ -763,6 +777,10 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
               const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
               const generatedSku = '';
 
+              const availability = item.offers?.availability || item.offers?.[0]?.availability || '';
+              const isOutOfStock = String(availability).includes('OutOfStock') || String(availability).includes('Discontinued') || String(availability).includes('SoldOut');
+              const isSchemaActive = !isOutOfStock;
+
               listings.push({
                 title: title.trim(),
                 description: description.trim(),
@@ -777,8 +795,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
                 brand: item.brand?.name || item.brand || '',
                 size: item.size || '',
                 quantity: 1,
-                // The public closet page only ever lists currently-available items.
-                status: 'active'
+                status: isSchemaActive ? 'active' : 'inactive'
               });
             }
           }
@@ -812,6 +829,11 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
       const generatedSku = '';
 
+      const tileText = $(el).text().toLowerCase();
+      const hasSoldBadge = $(el).find('.sold-tag, .not-for-sale-tag, .item-status, .sold-out, [data-post-status="sold_out"], [data-post-status="not_for_sale"]').length > 0;
+      const isNFSOrSold = hasSoldBadge || tileText.includes('not for sale') || tileText.includes('sold out') || tileText.includes('reserved');
+      const isTileActive = !isNFSOrSold;
+
       if (title && !listings.some(l => l.poshmarkUrl === fullUrl)) {
         listings.push({
           title: title,
@@ -825,8 +847,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           poshmarkListingId: poshmarkId,
           poshmarkUrl: fullUrl,
           quantity: 1,
-          // The public closet page only ever lists currently-available items.
-          status: 'active'
+          status: isTileActive ? 'active' : 'inactive'
         });
       }
     });

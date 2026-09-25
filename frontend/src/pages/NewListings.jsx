@@ -2705,6 +2705,11 @@ const NewListings = () => {
     setActiveMasterDropdown(null);
     setActiveListedDropdown(null);
 
+    if (String(item._id).startsWith('mock-')) {
+      toast.info('Mock item cannot be delisted from real platforms.');
+      return;
+    }
+
     const confirmDelist = await confirm(
       `Are you sure you want to delist "${item.title}" from ALL active marketplaces (eBay, Poshmark, Mercari, Etsy, Amazon)? This will end the active listings on all connected platforms.`,
       {
@@ -2716,28 +2721,42 @@ const NewListings = () => {
 
     toast.info("Delisting from all marketplaces...");
     try {
-      const platformsToDelist = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
-      const promises = platformsToDelist.map(async (plat) => {
-        const platSpecific = item.listingsMap ? item.listingsMap[plat] : null;
-        const rawSt = (platSpecific ? platSpecific.status : item[`${plat}Status`])?.toLowerCase();
-        const liveId = item[`${plat}ListingId`] || platSpecific?.listingId || item.platformData?.[plat]?.liveId;
-        
-        const isLive = (rawSt === 'published' || rawSt === 'active') || (liveId && liveId !== '-');
-        if (isLive) {
-          try {
-            await listingService.delist(platSpecific?._id || item._id, plat);
-          } catch (e) {
-            console.warn(`Delisting on ${plat} failed:`, e);
+      const res = await listingService.delistAll(item._id);
+      if (res.data?.success) {
+        toast.success(`Successfully delisted "${item.title}" from all marketplaces!`);
+      } else {
+        toast.success("Successfully sent delist requests to all marketplaces!");
+      }
+      await fetchListings();
+      if (typeof fetchChannelInventory === 'function') {
+        fetchChannelInventory();
+      }
+    } catch (err) {
+      console.warn("Unified delist-all failed, falling back to sequential delist:", err);
+      try {
+        const platformsToDelist = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+        for (const plat of platformsToDelist) {
+          const platSpecific = item.listingsMap ? item.listingsMap[plat] : null;
+          const rawSt = (platSpecific ? platSpecific.status : item[`${plat}Status`])?.toLowerCase();
+          const liveId = item[`${plat}ListingId`] || platSpecific?.listingId || item.platformData?.[plat]?.liveId;
+          const isLive = (rawSt === 'published' || rawSt === 'active') || (liveId && liveId !== '-');
+          if (isLive) {
+            try {
+              await listingService.delist(platSpecific?._id || item._id, plat);
+            } catch (e) {
+              console.warn(`Delisting on ${plat} failed:`, e);
+            }
           }
         }
-      });
-
-      await Promise.allSettled(promises);
-      toast.success("Successfully sent delist requests to all marketplaces!");
-      fetchListings();
-    } catch (err) {
-      console.error("Error delisting from all:", err);
-      toast.error("Failed to delist from all marketplaces.");
+        toast.success("Successfully delisted from active marketplaces!");
+        await fetchListings();
+        if (typeof fetchChannelInventory === 'function') {
+          fetchChannelInventory();
+        }
+      } catch (seqErr) {
+        console.error("Error delisting from all:", seqErr);
+        toast.error(err.response?.data?.message || "Failed to delist from all marketplaces.");
+      }
     }
   };
 
