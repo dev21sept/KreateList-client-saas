@@ -4925,9 +4925,10 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: p.title || 'eBay Listing',
           description: p.description || p.title || '',
+          category: p.category || 'Clothing & Accessories',
           sku: p.sku || '',
-          price: p.selling_price || 0,
-          ebayPrice: p.selling_price || 0,
+          price: String(p.selling_price || 0),
+          ebayPrice: String(p.selling_price || 0),
           ebayListingId: eid,
           ebayUrl: p.ebayUrl || `https://www.ebay.com/itm/${eid}`,
           ebayStatus: 'published',
@@ -4980,9 +4981,10 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: p.title || 'Poshmark Listing',
           description: p.description || p.title || '',
+          category: p.category || 'Clothing & Accessories',
           sku: p.sku || '',
-          price: p.selling_price || 0,
-          poshmarkPrice: p.selling_price || 0,
+          price: String(p.selling_price || 0),
+          poshmarkPrice: String(p.selling_price || 0),
           poshmarkListingId: pid,
           poshmarkUrl: p.poshmarkUrl || `https://poshmark.com/listing/${pid}`,
           poshmarkStatus: 'published',
@@ -5035,9 +5037,10 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: p.title || 'Mercari Listing',
           description: p.description || p.title || '',
+          category: p.category || 'Clothing & Accessories',
           sku: p.sku || '',
-          price: p.selling_price || 0,
-          mercariPrice: p.selling_price || 0,
+          price: String(p.selling_price || 0),
+          mercariPrice: String(p.selling_price || 0),
           mercariListingId: mid,
           mercariUrl: p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`,
           mercariStatus: 'published',
@@ -5103,38 +5106,66 @@ exports.cleanGhostChannels = async (req, res) => {
     }
 
     // Save all modified existing listings in parallel / batch
-    const saveOps = existingListings.map(l => ({
-      updateOne: {
-        filter: { _id: l._id },
-        update: {
-          $set: {
-            ebayStatus: l.ebayStatus || 'none',
-            ebayListingId: l.ebayListingId || null,
-            ebayUrl: l.ebayUrl || null,
-            ebayPrice: l.ebayPrice || null,
-            poshmarkStatus: l.poshmarkStatus || 'none',
-            poshmarkListingId: l.poshmarkListingId || null,
-            poshmarkUrl: l.poshmarkUrl || null,
-            poshmarkPrice: l.poshmarkPrice || null,
-            mercariStatus: l.mercariStatus || 'none',
-            mercariListingId: l.mercariListingId || null,
-            mercariUrl: l.mercariUrl || null,
-            mercariPrice: l.mercariPrice || null,
-            etsyStatus: 'none',
-            etsyListingId: null,
-            amazonStatus: 'none',
-            amazonListingId: null,
-            status: l.status
-          },
-          $unset: {
-            'listingsMap.etsy': "",
-            'listingsMap.amazon': "",
-            'platformData.etsy': "",
-            'platformData.amazon': ""
+    const saveOps = existingListings.map(l => {
+      const setFields = {
+        ebayStatus: l.ebayStatus || 'none',
+        poshmarkStatus: l.poshmarkStatus || 'none',
+        mercariStatus: l.mercariStatus || 'none',
+        etsyStatus: 'none',
+        amazonStatus: 'none',
+        status: l.status
+      };
+      const unsetFields = {
+        'listingsMap.etsy': "",
+        'listingsMap.amazon': "",
+        'platformData.etsy': "",
+        'platformData.amazon': "",
+        etsyListingId: "",
+        etsyUrl: "",
+        amazonListingId: "",
+        amazonUrl: ""
+      };
+
+      if (l.ebayListingId) {
+        setFields.ebayListingId = l.ebayListingId;
+        if (l.ebayUrl) setFields.ebayUrl = l.ebayUrl;
+        if (l.ebayPrice) setFields.ebayPrice = l.ebayPrice;
+      } else {
+        unsetFields.ebayListingId = "";
+        unsetFields.ebayUrl = "";
+        unsetFields.ebayPrice = "";
+      }
+
+      if (l.poshmarkListingId) {
+        setFields.poshmarkListingId = l.poshmarkListingId;
+        if (l.poshmarkUrl) setFields.poshmarkUrl = l.poshmarkUrl;
+        if (l.poshmarkPrice) setFields.poshmarkPrice = l.poshmarkPrice;
+      } else {
+        unsetFields.poshmarkListingId = "";
+        unsetFields.poshmarkUrl = "";
+        unsetFields.poshmarkPrice = "";
+      }
+
+      if (l.mercariListingId) {
+        setFields.mercariListingId = l.mercariListingId;
+        if (l.mercariUrl) setFields.mercariUrl = l.mercariUrl;
+        if (l.mercariPrice) setFields.mercariPrice = l.mercariPrice;
+      } else {
+        unsetFields.mercariListingId = "";
+        unsetFields.mercariUrl = "";
+        unsetFields.mercariPrice = "";
+      }
+
+      return {
+        updateOne: {
+          filter: { _id: l._id },
+          update: {
+            $set: setFields,
+            $unset: unsetFields
           }
         }
-      }
-    }));
+      };
+    });
 
     if (saveOps.length > 0) {
       await Listing.bulkWrite(saveOps, { ordered: false });
