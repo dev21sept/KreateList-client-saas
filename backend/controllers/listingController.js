@@ -4880,31 +4880,90 @@ exports.cleanGhostChannels = async (req, res) => {
     }
 
     const userId = user._id;
+    const shouldSync = req.query.sync === 'true';
 
-    // --- STEP 1: Live Sync Active Channels ---
+    // --- STEP 1: Live Sync Active Channels (only if explicitly requested via sync=true) ---
+    if (shouldSync) {
+      // 1A. eBay Live Active Sync via Trading API (ActiveList)
+      const liveActiveEbayIds = new Set();
+      try {
+        if (user.ebayAccount?.refreshToken || user.ebayAccount?.accessToken) {
+          const token = await ebayService.getValidEbayToken(userId);
+          if (token) {
+            console.log(`[Clean Ghost Channels] Fetching live active eBay listings from Trading API...`);
+            let page = 1;
+            let hasMore = true;
+            const ebayBulkOps = [];
 
-    // 1A. eBay Live Active Sync via Trading API (ActiveList)
-    const liveActiveEbayIds = new Set();
-    try {
-      if (user.ebayAccount?.refreshToken || user.ebayAccount?.accessToken) {
-        const token = await ebayService.getValidEbayToken(userId);
-        if (token) {
-          console.log(`[Clean Ghost Channels] Fetching live active eBay listings from Trading API...`);
-          let page = 1;
-          let hasMore = true;
-          const ebayBulkOps = [];
+            while (hasMore && page <= 25) {
+              const tradingData = await ebayService.getTradingListings(token, 'ActiveList', page, 100);
+              const items = tradingData?.items || [];
+              const totalPages = tradingData?.totalPages || 1;
 
-          while (hasMore && page <= 25) {
-            const tradingData = await ebayService.getTradingListings(token, 'ActiveList', page, 100);
-            const items = tradingData?.items || [];
-            const totalPages = tradingData?.totalPages || 1;
+              for (const item of items) {
+                if (item.itemId) {
+                  liveActiveEbayIds.add(String(item.itemId));
+                  ebayBulkOps.push({
+                    updateOne: {
+                      filter: { user: userId, source: 'ebay', ebayListingId: String(item.itemId) },
+                      update: {
+                        $set: {
+                          title: item.title,
+                          selling_price: parseFloat(item.price) || 0,
+                          sku: item.sku || '',
+                          images: item.images || [],
+                          status: 'active',
+                          ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                          updated_at: Date.now()
+                        }
+                      },
+                      upsert: true
+                    }
+                  });
+                }
+              }
 
-            for (const item of items) {
-              if (item.itemId) {
-                liveActiveEbayIds.add(String(item.itemId));
-                ebayBulkOps.push({
+              if (page >= totalPages || items.length < 100) {
+                hasMore = false;
+              } else {
+                page++;
+              }
+            }
+
+            if (ebayBulkOps.length > 0) {
+              await Product.bulkWrite(ebayBulkOps, { ordered: false });
+            }
+
+            if (liveActiveEbayIds.size > 0) {
+              await Product.updateMany(
+                { user: userId, source: 'ebay', ebayListingId: { $nin: Array.from(liveActiveEbayIds) } },
+                { $set: { status: 'inactive' } }
+              );
+            }
+            console.log(`[Clean Ghost Channels] Live active eBay listings: ${liveActiveEbayIds.size}`);
+          }
+        }
+      } catch (ebayErr) {
+        console.warn(`[Clean Ghost Channels] eBay sync notice:`, ebayErr.message);
+      }
+
+      // 1B. Poshmark Live Active Sync
+      const liveActivePoshIds = new Set();
+      try {
+        if (user.poshmarkAccount?.username) {
+          const username = user.poshmarkAccount.username;
+          console.log(`[Clean Ghost Channels] Fetching live active Poshmark closet for @${username}...`);
+          const scrapedPosh = await scrapePoshmarkCloset(username, user.poshmarkAccount);
+          if (Array.isArray(scrapedPosh) && scrapedPosh.length > 0) {
+            const activePoshList = scrapedPosh.filter(p => p.status === 'active');
+            const poshOps = [];
+
+            activePoshList.forEach(item => {
+              if (item.poshmarkListingId) {
+                liveActivePoshIds.add(String(item.poshmarkListingId));
+                poshOps.push({
                   updateOne: {
-                    filter: { user: userId, source: 'ebay', ebayListingId: String(item.itemId) },
+                    filter: { user: userId, source: 'poshmark', poshmarkListingId: String(item.poshmarkListingId) },
                     update: {
                       $set: {
                         title: item.title,
@@ -4912,7 +4971,7 @@ exports.cleanGhostChannels = async (req, res) => {
                         sku: item.sku || '',
                         images: item.images || [],
                         status: 'active',
-                        ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                        poshmarkUrl: item.poshmarkUrl,
                         updated_at: Date.now()
                       }
                     },
@@ -4920,133 +4979,75 @@ exports.cleanGhostChannels = async (req, res) => {
                   }
                 });
               }
+            });
+
+            if (poshOps.length > 0) {
+              await Product.bulkWrite(poshOps, { ordered: false });
             }
 
-            if (page >= totalPages || items.length < 100) {
-              hasMore = false;
-            } else {
-              page++;
+            if (liveActivePoshIds.size > 0) {
+              await Product.updateMany(
+                { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(liveActivePoshIds) } },
+                { $set: { status: 'inactive' } }
+              );
             }
+            console.log(`[Clean Ghost Channels] Live active Poshmark listings: ${liveActivePoshIds.size}`);
           }
-
-          if (ebayBulkOps.length > 0) {
-            await Product.bulkWrite(ebayBulkOps, { ordered: false });
-          }
-
-          if (liveActiveEbayIds.size > 0) {
-            // Mark any other eBay product not in live active list as inactive
-            await Product.updateMany(
-              { user: userId, source: 'ebay', ebayListingId: { $nin: Array.from(liveActiveEbayIds) } },
-              { $set: { status: 'inactive' } }
-            );
-          }
-          console.log(`[Clean Ghost Channels] Live active eBay listings: ${liveActiveEbayIds.size}`);
         }
+      } catch (poshErr) {
+        console.warn(`[Clean Ghost Channels] Poshmark sync notice:`, poshErr.message);
       }
-    } catch (ebayErr) {
-      console.warn(`[Clean Ghost Channels] eBay sync notice:`, ebayErr.message);
-    }
 
-    // 1B. Poshmark Live Active Sync
-    const liveActivePoshIds = new Set();
-    try {
-      if (user.poshmarkAccount?.username) {
-        const username = user.poshmarkAccount.username;
-        console.log(`[Clean Ghost Channels] Fetching live active Poshmark closet for @${username}...`);
-        const scrapedPosh = await scrapePoshmarkCloset(username, user.poshmarkAccount);
-        if (Array.isArray(scrapedPosh) && scrapedPosh.length > 0) {
-          const activePoshList = scrapedPosh.filter(p => p.status === 'active');
-          const poshOps = [];
+      // 1C. Mercari Live Active Sync
+      const liveActiveMercIds = new Set();
+      try {
+        if (user.mercariAccount?.sessionCookie || user.mercariAccount?.connected) {
+          const username = user.mercariAccount?.username || 'user';
+          console.log(`[Clean Ghost Channels] Fetching live active Mercari closet for ${username}...`);
+          const scrapedMerc = await scrapeMercariCloset(username, user.mercariAccount);
+          if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
+            const activeMercList = scrapedMerc.filter(p => p.status === 'active');
+            const mercOps = [];
 
-          activePoshList.forEach(item => {
-            if (item.poshmarkListingId) {
-              liveActivePoshIds.add(String(item.poshmarkListingId));
-              poshOps.push({
-                updateOne: {
-                  filter: { user: userId, source: 'poshmark', poshmarkListingId: String(item.poshmarkListingId) },
-                  update: {
-                    $set: {
-                      title: item.title,
-                      selling_price: parseFloat(item.price) || 0,
-                      sku: item.sku || '',
-                      images: item.images || [],
-                      status: 'active',
-                      poshmarkUrl: item.poshmarkUrl,
-                      updated_at: Date.now()
-                    }
-                  },
-                  upsert: true
-                }
-              });
+            activeMercList.forEach(item => {
+              if (item.mercariListingId) {
+                liveActiveMercIds.add(String(item.mercariListingId));
+                mercOps.push({
+                  updateOne: {
+                    filter: { user: userId, source: 'mercari', mercariListingId: String(item.mercariListingId) },
+                    update: {
+                      $set: {
+                        title: item.title,
+                        selling_price: parseFloat(item.price) || 0,
+                        sku: item.sku || '',
+                        images: item.images || [],
+                        status: 'active',
+                        mercariUrl: item.mercariUrl,
+                        updated_at: Date.now()
+                      }
+                    },
+                    upsert: true
+                  }
+                });
+              }
+            });
+
+            if (mercOps.length > 0) {
+              await Product.bulkWrite(mercOps, { ordered: false });
             }
-          });
 
-          if (poshOps.length > 0) {
-            await Product.bulkWrite(poshOps, { ordered: false });
-          }
-
-          if (liveActivePoshIds.size > 0) {
-            await Product.updateMany(
-              { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(liveActivePoshIds) } },
-              { $set: { status: 'inactive' } }
-            );
-          }
-          console.log(`[Clean Ghost Channels] Live active Poshmark listings: ${liveActivePoshIds.size}`);
-        }
-      }
-    } catch (poshErr) {
-      console.warn(`[Clean Ghost Channels] Poshmark sync notice:`, poshErr.message);
-    }
-
-    // 1C. Mercari Live Active Sync
-    const liveActiveMercIds = new Set();
-    try {
-      if (user.mercariAccount?.sessionCookie || user.mercariAccount?.connected) {
-        const username = user.mercariAccount?.username || 'user';
-        console.log(`[Clean Ghost Channels] Fetching live active Mercari closet for ${username}...`);
-        const scrapedMerc = await scrapeMercariCloset(username, user.mercariAccount);
-        if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
-          const activeMercList = scrapedMerc.filter(p => p.status === 'active');
-          const mercOps = [];
-
-          activeMercList.forEach(item => {
-            if (item.mercariListingId) {
-              liveActiveMercIds.add(String(item.mercariListingId));
-              mercOps.push({
-                updateOne: {
-                  filter: { user: userId, source: 'mercari', mercariListingId: String(item.mercariListingId) },
-                  update: {
-                    $set: {
-                      title: item.title,
-                      selling_price: parseFloat(item.price) || 0,
-                      sku: item.sku || '',
-                      images: item.images || [],
-                      status: 'active',
-                      mercariUrl: item.mercariUrl,
-                      updated_at: Date.now()
-                    }
-                  },
-                  upsert: true
-                }
-              });
+            if (liveActiveMercIds.size > 0) {
+              await Product.updateMany(
+                { user: userId, source: 'mercari', mercariListingId: { $nin: Array.from(liveActiveMercIds) } },
+                { $set: { status: 'inactive' } }
+              );
             }
-          });
-
-          if (mercOps.length > 0) {
-            await Product.bulkWrite(mercOps, { ordered: false });
+            console.log(`[Clean Ghost Channels] Live active Mercari listings: ${liveActiveMercIds.size}`);
           }
-
-          if (liveActiveMercIds.size > 0) {
-            await Product.updateMany(
-              { user: userId, source: 'mercari', mercariListingId: { $nin: Array.from(liveActiveMercIds) } },
-              { $set: { status: 'inactive' } }
-            );
-          }
-          console.log(`[Clean Ghost Channels] Live active Mercari listings: ${liveActiveMercIds.size}`);
         }
+      } catch (mercErr) {
+        console.warn(`[Clean Ghost Channels] Mercari sync notice:`, mercErr.message);
       }
-    } catch (mercErr) {
-      console.warn(`[Clean Ghost Channels] Mercari sync notice:`, mercErr.message);
     }
 
     // --- STEP 2: Gather Valid Active Products ---
