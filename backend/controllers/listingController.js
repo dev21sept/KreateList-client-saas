@@ -4887,7 +4887,7 @@ exports.cleanGhostChannels = async (req, res) => {
     const liveActiveEbayIds = new Set();
     try {
       if (user.ebayAccount?.refreshToken || user.ebayAccount?.accessToken) {
-        const token = await ebayService.getValidUserToken(user);
+        const token = await ebayService.getValidEbayToken(userId);
         if (token) {
           console.log(`[Clean Ghost Channels] Fetching live active eBay listings from Trading API...`);
           let page = 1;
