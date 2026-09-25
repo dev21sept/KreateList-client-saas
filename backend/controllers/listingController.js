@@ -5056,26 +5056,42 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     }
 
-    // 7. Clear ghost IDs on existing listings
+    // 7. Clear ghost IDs and deduplicate on existing listings
+    const seenEbayIds = new Set();
+    const seenPoshIds = new Set();
+    const seenMercIds = new Set();
+
     for (const l of existingListings) {
-      if (l.ebayListingId && !activeEbayIds.has(l.ebayListingId)) {
+      if (l.ebayListingId && activeEbayIds.has(l.ebayListingId) && !seenEbayIds.has(l.ebayListingId)) {
+        l.ebayStatus = 'published';
+        seenEbayIds.add(l.ebayListingId);
+      } else {
         l.ebayStatus = 'none';
         l.ebayListingId = undefined;
         l.ebayUrl = undefined;
         l.ebayPrice = undefined;
       }
-      if (l.poshmarkListingId && !activePoshmarkIds.has(l.poshmarkListingId)) {
+
+      if (l.poshmarkListingId && activePoshmarkIds.has(l.poshmarkListingId) && !seenPoshIds.has(l.poshmarkListingId)) {
+        l.poshmarkStatus = 'published';
+        seenPoshIds.add(l.poshmarkListingId);
+      } else {
         l.poshmarkStatus = 'none';
         l.poshmarkListingId = undefined;
         l.poshmarkUrl = undefined;
         l.poshmarkPrice = undefined;
       }
-      if (l.mercariListingId && !activeMercariIds.has(l.mercariListingId)) {
+
+      if (l.mercariListingId && activeMercariIds.has(l.mercariListingId) && !seenMercIds.has(l.mercariListingId)) {
+        l.mercariStatus = 'published';
+        seenMercIds.add(l.mercariListingId);
+      } else {
         l.mercariStatus = 'none';
         l.mercariListingId = undefined;
         l.mercariUrl = undefined;
         l.mercariPrice = undefined;
       }
+
       l.etsyStatus = 'none';
       l.etsyListingId = undefined;
       l.amazonStatus = 'none';
@@ -5146,14 +5162,8 @@ exports.cleanGhostChannels = async (req, res) => {
         totalListings: await Listing.countDocuments({ user: userId })
       },
       cleaned: {
-        cleanedMercariCount,
-        cleanedPoshmarkCount,
-        cleanedEtsyCount,
-        cleanedAmazonCount,
-        updatedListingsCount: bulkListingOps.length,
-        unlinkedEbayCount: unlinkedEbay.length,
-        unlinkedPoshCount: unlinkedPosh.length,
-        unlinkedMercCount: unlinkedMerc.length
+        updatedListingsCount: saveOps.length,
+        newListingsCreatedCount: newListingDocs.length
       }
     };
 
