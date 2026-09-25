@@ -657,17 +657,11 @@ function normalizePoshmarkIds(deptId, catId) {
   return { departmentId: resolvedDeptId, categoryId: resolvedCatId };
 }
 
-function resolvePoshmarkCategory(path) {
-  const defaultRes = {
-    department: '01008c10d97b4e1245005764', // Men
-    category: '07008c10d97b4e1245005764', // Shirts
-    subcategories: []
-  };
-
-  if (!path || typeof path !== 'string') return defaultRes;
+function resolvePoshmarkCategory(path, listingTitle = '') {
+  const combinedText = `${path || ''} ${listingTitle || ''}`.toLowerCase();
 
   // Try to find matching taxonomy entry in POSHMARK_TAXONOMY
-  const cleanPath = path.toLowerCase().replace(/\s+/g, ' ');
+  const cleanPath = String(path || '').toLowerCase().replace(/\s+/g, ' ');
   const matched = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase().replace(/\s+/g, ' ') === cleanPath);
   if (matched) {
     return {
@@ -677,111 +671,89 @@ function resolvePoshmarkCategory(path) {
     };
   }
 
-  const parts = path.split('>').map(p => p.trim());
-  if (parts.length === 0) return defaultRes;
-
-  // Resolve Department
-  const deptName = parts[0].toLowerCase();
-  const DEPARTMENTS = {
-    'men': '01008c10d97b4e1245005764',
-    'women': '000e8975d97b4e80ef00a955',
-    'kids': '20008c10d97b4e1245005764',
-    'home': '5b3b13d30640fd0aeb9c5cb6',
-    'pets': 'af08bf904024037d7a7b5fad',
-    'electronics': '583c7d134024035188906153',
-    'beauty': '5d1cb37951e70e1762c90bc7'
-  };
-  
-  // Support matching by name or by legacy ID strings
-  let deptId = DEPARTMENTS[deptName] || DEPARTMENTS['men'];
-  if (deptName.includes('women') || deptName === '01008c10d97b4e1245005763') {
+  // 1. Detect Department
+  let deptId = '01008c10d97b4e1245005764'; // Default Men
+  if (combinedText.includes('women') || combinedText.includes('female') || combinedText.includes('lady') || combinedText.includes('ladies')) {
     deptId = '000e8975d97b4e80ef00a955';
-  } else if (deptName.includes('kids') || deptName === '01008c10d97b4e1245005765') {
+  } else if (combinedText.includes('kid') || combinedText.includes('child') || combinedText.includes('baby') || combinedText.includes('toddler') || combinedText.includes('youth') || combinedText.includes('infant')) {
     deptId = '20008c10d97b4e1245005764';
-  } else if (deptName.includes('home') || deptName === '5c464bf26e4757c3d221aa90') {
+  } else if (combinedText.includes('home') || combinedText.includes('kitchen') || combinedText.includes('bedding') || combinedText.includes('decor')) {
     deptId = '5b3b13d30640fd0aeb9c5cb6';
-  } else if (deptName.includes('pets') || deptName === '60abfaa1a415ff1c2ee1df39') {
+  } else if (combinedText.includes('pet') || combinedText.includes('dog') || combinedText.includes('cat')) {
     deptId = 'af08bf904024037d7a7b5fad';
-  } else if (deptName.includes('electronics') || deptName === '60abfa98bfd32f1465e902b7') {
+  } else if (combinedText.includes('electronics') || combinedText.includes('phone') || combinedText.includes('gadget') || combinedText.includes('audio')) {
     deptId = '583c7d134024035188906153';
+  } else if (combinedText.includes('beauty') || combinedText.includes('makeup') || combinedText.includes('skincare')) {
+    deptId = '5d1cb37951e70e1762c90bc7';
   }
 
-  if (parts.length < 2) {
-    return { department: deptId, category: '', subcategories: [] };
-  }
+  // 2. Detect Category
+  let catId = '';
+  let subcats = [];
 
-  const catName = parts[1];
-  
-  // Hardcoded fallback list for standard categories
-  const getFallbackCategory = (dId, cName) => {
-    const normName = String(cName || '').toLowerCase();
-    
-    const womenCategories = {
-      'accessories': '002a8975d97b4e80ef00a955',
-      'bags': '00248975d97b4e80ef00a955',
-      'dresses': '00108975d97b4e80ef00a955',
-      'intimates & sleepwear': '00208975d97b4e80ef00a955',
-      'jackets & coats': '00148975d97b4e80ef00a955',
-      'jeans': '001a8975d97b4e80ef00a955',
-      'jewelry': '00288975d97b4e80ef00a955',
-      'makeup': '002c8975d97b4e80ef00a955',
-      'pants & jumpsuits': '001c8975d97b4e80ef00a955',
-      'pants': '001c8975d97b4e80ef00a955',
-      'shoes': '00268975d97b4e80ef00a955',
-      'shorts': '001e8975d97b4e80ef00a955',
-      'skirts': '00128975d97b4e80ef00a955',
-      'sweaters': '00168975d97b4e80ef00a955',
-      'swim': '00228975d97b4e80ef00a955',
-      'tops': '00188975d97b4e80ef00a955',
-      'shirts': '00188975d97b4e80ef00a955'
-    };
-
-    const menCategories = {
-      'accessories': '02008c10d97b4e1245005764',
-      'bags': '03008c10d97b4e1245005764',
-      'jackets & coats': '04008c10d97b4e1245005764',
-      'jeans': '05008c10d97b4e1245005764',
-      'pants': '06008c10d97b4e1245005764',
-      'shirts': '07008c10d97b4e1245005764',
-      'tops': '07008c10d97b4e1245005764',
-      'shoes': '08008c10d97b4e1245005764',
-      'shorts': '09008c10d97b4e1245005764',
-      'suits & blazers': '0a008c10d97b4e1245005764',
-      'sweaters': '0b008c10d97b4e1245005764',
-      'swim': '0d008c10d97b4e1245005764',
-      'underwear & socks': '0e008c10d97b4e1245005764'
-    };
-
-    const kidsCategories = {
-      'accessories': '21008c10d97b4e1245005764',
-      'dresses': '22008c10d97b4e1245005764',
-      'jackets & coats': '23008c10d97b4e1245005764',
-      'one pieces': '25008c10d97b4e1245005764',
-      'matching sets': '26008c10d97b4e1245005764',
-      'pajamas': '27008c10d97b4e1245005764',
-      'shoes': '29008c10d97b4e1245005764',
-      'swim': '2d008c10d97b4e1245005764',
-      'shirts & tops': '2e008c10d97b4e1245005764',
-      'tops': '2e008c10d97b4e1245005764',
-      'shirts': '2e008c10d97b4e1245005764',
-      'costumes': '30008c10d97b4e1245005764'
-    };
-
-    if (dId === '000e8975d97b4e80ef00a955') {
-      return womenCategories[normName] || womenCategories['shirts'];
-    } else if (dId === '20008c10d97b4e1245005764') {
-      return kidsCategories[normName] || kidsCategories['shirts'];
+  if (deptId === '000e8975d97b4e80ef00a955') {
+    // Women
+    if (combinedText.includes('jacket') || combinedText.includes('coat') || combinedText.includes('blazer') || combinedText.includes('parka') || combinedText.includes('windbreaker') || combinedText.includes('vest') || combinedText.includes('outerwear') || combinedText.includes('apfu')) {
+      catId = '00148975d97b4e80ef00a955'; // Jackets & Coats
+      if (combinedText.includes('windbreaker')) subcats = ['0c009813d97b4e3995005764'];
+    } else if (combinedText.includes('dress') || combinedText.includes('gown')) {
+      catId = '00108975d97b4e80ef00a955';
+    } else if (combinedText.includes('bag') || combinedText.includes('purse') || combinedText.includes('handbag') || combinedText.includes('tote')) {
+      catId = '00248975d97b4e80ef00a955';
+    } else if (combinedText.includes('shoe') || combinedText.includes('boot') || combinedText.includes('sneaker') || combinedText.includes('heel') || combinedText.includes('sandal')) {
+      catId = '00268975d97b4e80ef00a955';
+    } else if (combinedText.includes('jean') || combinedText.includes('denim')) {
+      catId = '001a8975d97b4e80ef00a955';
+    } else if (combinedText.includes('pant') || combinedText.includes('legging') || combinedText.includes('trouser') || combinedText.includes('sweatpant') || combinedText.includes('jogger')) {
+      catId = '001c8975d97b4e80ef00a955';
+    } else if (combinedText.includes('sweater') || combinedText.includes('cardigan') || combinedText.includes('knit') || combinedText.includes('pullover')) {
+      catId = '00168975d97b4e80ef00a955';
+    } else if (combinedText.includes('short')) {
+      catId = '001e8975d97b4e80ef00a955';
+    } else if (combinedText.includes('skirt')) {
+      catId = '00128975d97b4e80ef00a955';
     } else {
-      return menCategories[normName] || menCategories['shirts'];
+      catId = '00188975d97b4e80ef00a955'; // Tops
     }
-  };
-
-  const mappedCatId = getFallbackCategory(deptId, catName);
+  } else if (deptId === '20008c10d97b4e1245005764') {
+    // Kids
+    if (combinedText.includes('jacket') || combinedText.includes('coat') || combinedText.includes('outerwear') || combinedText.includes('apfu')) {
+      catId = '23008c10d97b4e1245005764';
+    } else if (combinedText.includes('dress')) {
+      catId = '22008c10d97b4e1245005764';
+    } else if (combinedText.includes('shoe') || combinedText.includes('boot') || combinedText.includes('sneaker')) {
+      catId = '29008c10d97b4e1245005764';
+    } else {
+      catId = '2e008c10d97b4e1245005764'; // Shirts & Tops
+    }
+  } else {
+    // Men
+    if (combinedText.includes('jacket') || combinedText.includes('coat') || combinedText.includes('windbreaker') || combinedText.includes('vest') || combinedText.includes('outerwear') || combinedText.includes('apfu') || combinedText.includes('chevron')) {
+      catId = '04008c10d97b4e1245005764'; // Men > Jackets & Coats
+      if (combinedText.includes('windbreaker') || combinedText.includes('apfu')) subcats = ['1d009813d97b4e3995005764'];
+    } else if (combinedText.includes('shoe') || combinedText.includes('boot') || combinedText.includes('sneaker') || combinedText.includes('loafer')) {
+      catId = '08008c10d97b4e1245005764'; // Shoes
+    } else if (combinedText.includes('bag') || combinedText.includes('backpack') || combinedText.includes('duffel') || combinedText.includes('briefcase')) {
+      catId = '03008c10d97b4e1245005764'; // Bags
+    } else if (combinedText.includes('jean') || combinedText.includes('denim')) {
+      catId = '05008c10d97b4e1245005764'; // Jeans
+    } else if (combinedText.includes('pant') || combinedText.includes('trouser') || combinedText.includes('sweatpant') || combinedText.includes('jogger') || combinedText.includes('chino')) {
+      catId = '06008c10d97b4e1245005764'; // Pants
+    } else if (combinedText.includes('short')) {
+      catId = '09008c10d97b4e1245005764'; // Shorts
+    } else if (combinedText.includes('sweater') || combinedText.includes('cardigan') || combinedText.includes('hoodie') || combinedText.includes('sweatshirt') || combinedText.includes('pullover')) {
+      catId = '0b008c10d97b4e1245005764'; // Sweaters
+    } else if (combinedText.includes('suit') || combinedText.includes('blazer') || combinedText.includes('tuxedo')) {
+      catId = '0a008c10d97b4e1245005764'; // Suits & Blazers
+    } else {
+      catId = '07008c10d97b4e1245005764'; // Shirts
+    }
+  }
 
   return {
     department: deptId,
-  category: mappedCatId,
-    subcategories: []
+    category: catId,
+    subcategories: subcats
   };
 }
 
@@ -1080,13 +1052,15 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   let effectiveDeptId = listing.departmentId || listing.platformData?.poshmark?.departmentId;
   let effectiveCatId = listing.categoryId || listing.platformData?.poshmark?.categoryId;
 
-  if (!effectiveDeptId || !effectiveCatId || (!String(effectiveDeptId).endsWith('00a955') && !String(effectiveDeptId).endsWith('005764') && !String(effectiveDeptId).startsWith('5') && !String(effectiveDeptId).startsWith('a'))) {
-    const rawCat = listing.category || listing.platformData?.poshmark?.category || listing.title || '';
-    const resolved = resolvePoshmarkCategory(rawCat);
-    if (!effectiveDeptId || (!String(effectiveDeptId).endsWith('00a955') && !String(effectiveDeptId).endsWith('005764'))) {
+  const isPoshmarkHexId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+
+  if (!isPoshmarkHexId(effectiveDeptId) || !isPoshmarkHexId(effectiveCatId)) {
+    const rawCat = listing.category || listing.platformData?.poshmark?.category || '';
+    const resolved = resolvePoshmarkCategory(rawCat, listing.title);
+    if (!isPoshmarkHexId(effectiveDeptId)) {
       effectiveDeptId = resolved.department;
     }
-    if (!effectiveCatId || (!String(effectiveCatId).endsWith('00a955') && !String(effectiveCatId).endsWith('005764'))) {
+    if (!isPoshmarkHexId(effectiveCatId)) {
       effectiveCatId = resolved.category;
     }
     if (resolvedSubcats.length === 0 && resolved.subcategories?.length > 0) {
