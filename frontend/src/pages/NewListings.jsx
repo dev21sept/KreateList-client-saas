@@ -1797,6 +1797,99 @@ const NewListings = () => {
     return matchesSearch && matchesStatus && matchesListedOn && matchesNoListedOn;
   });
 
+  // Dynamic count calculator for platform columns in the crosslisting table
+  const getListingPlatformState = (item, platformName) => {
+    const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
+    const isMasterListing = platformSpecificItem && platformSpecificItem._id === item._id;
+    const rawPlatformStatus = (platformSpecificItem && !isMasterListing)
+      ? platformSpecificItem.status?.toLowerCase() 
+      : item[`${platformName}Status`]?.toLowerCase();
+
+    let isListed = false;
+    let isDraft = false;
+    let isDelisted = false;
+    let isFailed = false;
+    let isSold = false;
+
+    const itemStatusLower = item.status?.toLowerCase();
+    const isMasterSold = itemStatusLower === 'sold';
+    const isSoldPlatform = isMasterSold && (
+      rawPlatformStatus === 'sold' ||
+      item.soldOn === platformName ||
+      item.soldPlatform === platformName ||
+      (item.errorMessage && item.errorMessage.toLowerCase().includes(platformName.toLowerCase()))
+    );
+
+    if (rawPlatformStatus === 'sold' || isSoldPlatform) {
+      isSold = true;
+    } else if (rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted') {
+      isListed = false;
+      isDraft = false;
+      isDelisted = false;
+      isFailed = false;
+      isSold = false;
+    } else if (rawPlatformStatus === 'delisted' || (isMasterSold && (item[`${platformName}ListingId`] || platformSpecificItem))) {
+      isDelisted = true;
+    } else if (rawPlatformStatus === 'published' || rawPlatformStatus === 'active') {
+      isListed = true;
+    } else if (rawPlatformStatus === 'draft') {
+      isDraft = true;
+    } else if (rawPlatformStatus === 'failed') {
+      isFailed = true;
+    } else if (!rawPlatformStatus) {
+      const specificStatus = platformSpecificItem?.status?.toLowerCase();
+      if (specificStatus && specificStatus !== 'none' && specificStatus !== 'unlisted') {
+        if (specificStatus === 'sold') isSold = true;
+        else if (specificStatus === 'published' || specificStatus === 'active') isListed = true;
+        else if (specificStatus === 'draft') isDraft = true;
+        else if (specificStatus === 'delisted') isDelisted = true;
+        else if (specificStatus === 'failed') isFailed = true;
+      } else if (item.platform === platformName) {
+        if (itemStatusLower === 'sold') isSold = true;
+        else if (itemStatusLower === 'active' || itemStatusLower === 'published') isListed = true;
+        else if (itemStatusLower === 'draft') isDraft = true;
+        else if (itemStatusLower === 'delisted') isDelisted = true;
+        else if (itemStatusLower === 'failed') isFailed = true;
+      }
+    }
+
+    const liveId = item[`${platformName}ListingId`] || platformSpecificItem?.listingId;
+    const hasLiveId = Boolean(liveId && liveId !== '-');
+    const hasPlatform = hasLiveId || isListed || isSold || isDelisted || isDraft || isFailed || item.platform === platformName;
+
+    return { isListed, isDraft, isDelisted, isFailed, isSold, hasPlatform };
+  };
+
+  const platformHeaderCounts = React.useMemo(() => {
+    const counts = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0 };
+    const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+
+    filteredListings.forEach((item) => {
+      platforms.forEach((p) => {
+        const state = getListingPlatformState(item, p);
+        if (statusFilter === 'all') {
+          if (state.hasPlatform || state.isListed || state.isSold || state.isDelisted || state.isDraft || state.isFailed) {
+            counts[p]++;
+          }
+        } else if (statusFilter === 'active') {
+          if (state.isListed) counts[p]++;
+        } else if (statusFilter === 'sold') {
+          if (state.isSold) counts[p]++;
+        } else if (statusFilter === 'delisted') {
+          if (state.isDelisted) counts[p]++;
+        } else if (statusFilter === 'draft') {
+          if (state.isDraft) counts[p]++;
+        } else if (statusFilter === 'error' || statusFilter === 'failed') {
+          if (state.isFailed) counts[p]++;
+        } else {
+          if (state.hasPlatform || state.isListed) counts[p]++;
+        }
+      });
+    });
+
+    return counts;
+  }, [filteredListings, statusFilter]);
+
   // Sort listings
   const sortedListings = [...filteredListings].sort((a, b) => {
     const timeA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0).getTime();
@@ -4341,32 +4434,37 @@ const NewListings = () => {
                       <th className="px-4 py-3.5 text-xs font-black text-slate-500 tracking-wider min-w-[280px] w-[32%]">Item</th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
-                          <img src="/ebay.png" className="w-4 h-4 object-contain" alt="" />
+                          <img src="/ebay.png" className="w-5 h-5 object-contain shrink-0" alt="eBay" />
                           <span>eBay</span>
+                          <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.ebay})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
-                          <img src="/poshmark.png" className="w-4 h-4 object-contain" alt="" />
+                          <img src="/poshmark.png" className="w-5 h-5 object-contain shrink-0" alt="Poshmark" />
                           <span>Poshmark</span>
+                          <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.poshmark})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
-                          <img src="/mercari.png" className="w-4 h-4 object-contain" alt="" />
+                          <img src="/mercari.png" className="w-5 h-5 object-contain shrink-0" alt="Mercari" />
                           <span>Mercari</span>
+                          <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.mercari})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
-                          <img src="/etsy.png" className="w-4 h-4 object-contain" alt="" />
+                          <img src="/etsy.png" className="w-5 h-5 object-contain shrink-0" alt="Etsy" />
                           <span>Etsy</span>
+                          <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.etsy})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
                         <div className="flex items-center justify-center gap-1.5">
-                          <img src="/amazon.png" className="w-4 h-4 object-contain" alt="" />
+                          <img src="/amazon.png" className="w-5 h-5 object-contain shrink-0" alt="Amazon" />
                           <span>Amazon</span>
+                          <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.amazon})</span>
                         </div>
                       </th>
                     </tr>

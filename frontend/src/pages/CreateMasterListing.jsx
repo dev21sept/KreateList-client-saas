@@ -1032,11 +1032,38 @@ const MercariBrandDropdown = ({ value, onChange, placeholder = 'Search or enter 
 };
 
 const detectActivePlatforms = (listing) => {
-  if (!listing) return ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+  if (!listing) return ['ebay'];
   
   const platforms = new Set();
   
-  // 1. Direct platform field
+  // 1. Explicit channel IDs (most authoritative indicator)
+  if (listing.ebayListingId && listing.ebayListingId !== '-' && listing.ebayListingId !== '') platforms.add('ebay');
+  if (listing.poshmarkListingId && listing.poshmarkListingId !== '-' && listing.poshmarkListingId !== '') platforms.add('poshmark');
+  if (listing.mercariListingId && listing.mercariListingId !== '-' && listing.mercariListingId !== '') platforms.add('mercari');
+  if (listing.etsyListingId && listing.etsyListingId !== '-' && listing.etsyListingId !== '') platforms.add('etsy');
+  if ((listing.amazonListingId && listing.amazonListingId !== '-') || (listing.amazonAsin && listing.amazonAsin !== '-')) platforms.add('amazon');
+
+  // 2. Explicit channel published/active status
+  const validLiveStatuses = ['published', 'active', 'live'];
+  if (listing.ebayStatus && validLiveStatuses.includes(listing.ebayStatus.toLowerCase())) platforms.add('ebay');
+  if (listing.poshmarkStatus && validLiveStatuses.includes(listing.poshmarkStatus.toLowerCase())) platforms.add('poshmark');
+  if (listing.mercariStatus && validLiveStatuses.includes(listing.mercariStatus.toLowerCase())) platforms.add('mercari');
+  if (listing.etsyStatus && validLiveStatuses.includes(listing.etsyStatus.toLowerCase())) platforms.add('etsy');
+  if (listing.amazonStatus && validLiveStatuses.includes(listing.amazonStatus.toLowerCase())) platforms.add('amazon');
+
+  // 3. listingsMap (from grouped SKU rows in inventory)
+  if (listing.listingsMap && typeof listing.listingsMap === 'object') {
+    Object.entries(listing.listingsMap).forEach(([pKey, sub]) => {
+      const p = pKey.toLowerCase();
+      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(p)) {
+        if (sub && (sub.listingId || validLiveStatuses.includes(sub.status?.toLowerCase()))) {
+          platforms.add(p);
+        }
+      }
+    });
+  }
+
+  // 4. Direct source platform field
   if (listing.platform && typeof listing.platform === 'string') {
     const p = listing.platform.toLowerCase();
     if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(p)) {
@@ -1044,70 +1071,32 @@ const detectActivePlatforms = (listing) => {
     }
   }
 
-  // 2. platformData keys
-  if (listing.platformData && typeof listing.platformData === 'object') {
-    Object.keys(listing.platformData).forEach(p => {
-      const pLower = p.toLowerCase();
-      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(pLower)) {
-        const data = listing.platformData[p];
-        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-          if (data.status || data.liveId || data.price || data.title || data.category || data.sku) {
-            platforms.add(pLower);
-          }
+  // 5. Explicit boolean platforms flags (only if explicitly true)
+  if (listing.platforms && typeof listing.platforms === 'object') {
+    Object.entries(listing.platforms).forEach(([pKey, val]) => {
+      const p = pKey.toLowerCase();
+      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(p)) {
+        if (val === true || (val && typeof val === 'object' && (val.status === 'published' || val.status === 'active' || val.listingId))) {
+          platforms.add(p);
         }
       }
     });
   }
 
-  // 3. platforms map
-  if (listing.platforms && typeof listing.platforms === 'object') {
-    Object.keys(listing.platforms).forEach(p => {
-      const pLower = p.toLowerCase();
-      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(pLower)) {
-        platforms.add(pLower);
-      }
-    });
+  // 6. platformData keys ONLY if they have real channel-specific data configured
+  if (listing.platformData && typeof listing.platformData === 'object') {
+    if (listing.platformData.ebay?.categoryId || listing.platformData.ebay?.price) platforms.add('ebay');
+    if (listing.platformData.poshmark?.department || listing.platformData.poshmark?.category || listing.platformData.poshmark?.poshmarkListingId) platforms.add('poshmark');
+    if (listing.platformData.mercari?.categoryId || listing.platformData.mercari?.shippingPayer) platforms.add('mercari');
+    if (listing.platformData.etsy?.taxonomyId || listing.platformData.etsy?.shippingProfileId) platforms.add('etsy');
+    if (listing.platformData.amazon?.productType || listing.platformData.amazon?.asin) platforms.add('amazon');
   }
-
-  // 4. listingsMap (from grouped SKU rows)
-  if (listing.listingsMap && typeof listing.listingsMap === 'object') {
-    Object.keys(listing.listingsMap).forEach(p => {
-      const pLower = p.toLowerCase();
-      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(pLower)) {
-        platforms.add(pLower);
-      }
-    });
-  }
-
-  // 5. publishedPlatforms / connectedMarketplaces arrays
-  if (Array.isArray(listing.publishedPlatforms)) {
-    listing.publishedPlatforms.forEach(p => {
-      const pLower = String(p).toLowerCase();
-      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(pLower)) {
-        platforms.add(pLower);
-      }
-    });
-  }
-  if (Array.isArray(listing.connectedMarketplaces)) {
-    listing.connectedMarketplaces.forEach(p => {
-      const pLower = String(p).toLowerCase();
-      if (['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'].includes(pLower)) {
-        platforms.add(pLower);
-      }
-    });
-  }
-
-  // 6. Explicit channel IDs and status fields
-  if (listing.ebayListingId || (listing.ebayStatus && listing.ebayStatus !== 'none')) platforms.add('ebay');
-  if (listing.poshmarkListingId || (listing.poshmarkStatus && listing.poshmarkStatus !== 'none')) platforms.add('poshmark');
-  if (listing.mercariListingId || (listing.mercariStatus && listing.mercariStatus !== 'none')) platforms.add('mercari');
-  if (listing.etsyListingId || (listing.etsyStatus && listing.etsyStatus !== 'none')) platforms.add('etsy');
-  if (listing.amazonAsin || listing.amazonListingId || (listing.amazonStatus && listing.amazonStatus !== 'none')) platforms.add('amazon');
 
   if (platforms.size > 0) {
     return Array.from(platforms);
   }
-  return ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+
+  return [listing.platform || 'ebay'];
 };
 
 const CreateMasterListing = ({
@@ -1134,11 +1123,12 @@ const CreateMasterListing = ({
       const detected = detectActivePlatforms(initialListing);
       if (detected.length > 0) return detected;
     }
-    return ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+    return [initialListing?.platform || 'ebay'];
   });
 
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishingPlat, setPublishingPlat] = useState(null); // 'all' or specific platform id
   const [descriptionMode, setDescriptionMode] = useState('edit');
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
@@ -2070,7 +2060,7 @@ const CreateMasterListing = ({
     }
   };
 
-  const handlePublishOrUpdateAll = async () => {
+  const handlePublishPlatforms = async (targetPlatforms = selectedPlatforms) => {
     if (!formData.title) {
       toast.warning("Please enter a Listing Title.");
       return;
@@ -2079,12 +2069,12 @@ const CreateMasterListing = ({
       toast.warning("Please upload at least one image.");
       return;
     }
-    if (selectedPlatforms.length === 0) {
+    if (!targetPlatforms || targetPlatforms.length === 0) {
       toast.warning("Please select at least one target platform.");
       return;
     }
 
-    if (selectedPlatforms.includes('ebay') && ebayAspects.length > 0) {
+    if (targetPlatforms.includes('ebay') && ebayAspects.length > 0) {
       const missingRequired = ebayAspects.filter(aspect => {
         const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
         if (!isRequired) return false;
@@ -2100,6 +2090,8 @@ const CreateMasterListing = ({
       }
     }
 
+    const platKey = targetPlatforms.length === 1 ? targetPlatforms[0] : 'all';
+    setPublishingPlat(platKey);
     setPublishing(true);
     const payload = buildListingPayload('published');
 
@@ -2112,30 +2104,30 @@ const CreateMasterListing = ({
       const savedListing = res.data?.data;
       const targetListingId = activeId || savedListing?._id || savedListing?.id;
 
-      toast.info(`Publishing to ${selectedPlatforms.map(p => p.toUpperCase()).join(', ')}...`);
+      toast.info(`Updating on ${targetPlatforms.map(p => p.toUpperCase()).join(', ')}...`);
 
       const syncResults = await Promise.allSettled(
-        selectedPlatforms.map(async (plat) => {
+        targetPlatforms.map(async (plat) => {
           if (plat === 'ebay') {
             return await listingService.publish(targetListingId);
           } else if (plat === 'etsy') {
-            return await etsyService.publish(targetListingId, payload.platformData.etsy);
+            return await etsyService.publish(targetListingId, payload.platformData?.etsy);
           } else if (plat === 'poshmark') {
-            return await externalImportService.publish(targetListingId, { platform: 'poshmark', ...payload.platformData.poshmark });
+            return await externalImportService.publish(targetListingId, { platform: 'poshmark', ...payload.platformData?.poshmark });
           } else if (plat === 'mercari') {
-            return await externalImportService.publish(targetListingId, { platform: 'mercari', ...payload.platformData.mercari });
+            return await externalImportService.publish(targetListingId, { platform: 'mercari', ...payload.platformData?.mercari });
           } else if (plat === 'amazon') {
-            return await amazonService.publish(targetListingId, payload.platformData.amazon);
+            return await amazonService.publish(targetListingId, payload.platformData?.amazon);
           }
         })
       );
 
       let successCount = 0;
       syncResults.forEach((result, idx) => {
-        const plat = selectedPlatforms[idx];
+        const plat = targetPlatforms[idx];
         if (result.status === 'fulfilled' && (result.value?.data?.success || result.value?.status === 200)) {
           successCount++;
-          toast.success(`? Synced on ${plat.toUpperCase()}`);
+          toast.success(`✓ Synced on ${plat.toUpperCase()}`);
         } else {
           const errMsg = result.reason?.response?.data?.message || result.value?.data?.message || "Sync error";
           toast.warning(`${plat.toUpperCase()} sync note: ${errMsg}`);
@@ -2143,7 +2135,7 @@ const CreateMasterListing = ({
       });
 
       if (successCount > 0) {
-        toast.success(`Listing successfully published across ${successCount}/${selectedPlatforms.length} platforms!`);
+        toast.success(`Listing successfully published across ${successCount}/${targetPlatforms.length} platforms!`);
       }
 
       if (onSyncSuccess) onSyncSuccess();
@@ -2154,6 +2146,7 @@ const CreateMasterListing = ({
       toast.error(err.response?.data?.message || "Failed to publish on platforms.");
     } finally {
       setPublishing(false);
+      setPublishingPlat(null);
     }
   };
 
@@ -2166,7 +2159,7 @@ const CreateMasterListing = ({
           <button 
             type="button" 
             onClick={() => onClose ? onClose() : navigate(-1)}
-            className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors"
+            className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors cursor-pointer"
             title="Go Back"
           >
             <ChevronLeft size={20} />
@@ -2176,7 +2169,7 @@ const CreateMasterListing = ({
               <h1 className="text-xl font-bold text-slate-900">
                 {isEditMode ? 'Edit Master Listing' : 'Create Master Listing'}
               </h1>
-              <span className="px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold rounded-md uppercase">
+              <span className="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-md uppercase">
                 Multi-Platform Sync
               </span>
             </div>
@@ -2186,7 +2179,7 @@ const CreateMasterListing = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -2196,15 +2189,40 @@ const CreateMasterListing = ({
           >
             Save Draft
           </Button>
+
+          {/* Individual Platform Update Buttons */}
+          {selectedPlatforms.map((platId) => {
+            const pConfig = PLATFORMS_CONFIG.find(p => p.id === platId);
+            if (!pConfig) return null;
+            const isSingleLoading = publishingPlat === platId;
+            return (
+              <Button
+                key={platId}
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePublishPlatforms([platId])}
+                loading={isSingleLoading}
+                disabled={publishing}
+                className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
+                icon={<img src={pConfig.logo} className="w-3.5 h-3.5 object-contain" alt="" />}
+              >
+                {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+              </Button>
+            );
+          })}
+
+          {/* Update All Platforms Button */}
           <Button
             type="button"
             variant="primary"
             size="sm"
-            onClick={handlePublishOrUpdateAll}
-            loading={publishing}
+            onClick={() => handlePublishPlatforms(selectedPlatforms)}
+            loading={publishingPlat === 'all' || (publishing && !publishingPlat)}
+            disabled={publishing}
             icon={<ShoppingBag size={14} />}
           >
-            {isEditMode ? 'Update All Platforms' : `List on ${selectedPlatforms.length} Platforms`}
+            {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
           </Button>
         </div>
       </div>
@@ -2224,10 +2242,10 @@ const CreateMasterListing = ({
                   key={p.id}
                   type="button"
                   onClick={() => togglePlatform(p.id)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                     isSelected 
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs' 
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm hover:bg-indigo-700' 
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   <img src={p.logo} className="w-4 h-4 object-contain" alt="" />
@@ -3670,7 +3688,7 @@ const CreateMasterListing = ({
           )}
 
           {/* Action Footer */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+          <div className="pt-4 flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-200">
             <Button
               type="button"
               variant="outline"
@@ -3680,15 +3698,40 @@ const CreateMasterListing = ({
             >
               Save Draft
             </Button>
+
+            {/* Individual Platform Update Buttons */}
+            {selectedPlatforms.map((platId) => {
+              const pConfig = PLATFORMS_CONFIG.find(p => p.id === platId);
+              if (!pConfig) return null;
+              const isSingleLoading = publishingPlat === platId;
+              return (
+                <Button
+                  key={platId}
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => handlePublishPlatforms([platId])}
+                  loading={isSingleLoading}
+                  disabled={publishing}
+                  className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
+                  icon={<img src={pConfig.logo} className="w-4 h-4 object-contain" alt="" />}
+                >
+                  {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+                </Button>
+              );
+            })}
+
+            {/* Update All Platforms Button */}
             <Button
               type="button"
               variant="primary"
               size="md"
-              onClick={handlePublishOrUpdateAll}
-              loading={publishing}
+              onClick={() => handlePublishPlatforms(selectedPlatforms)}
+              loading={publishingPlat === 'all' || (publishing && !publishingPlat)}
+              disabled={publishing}
               icon={<ShoppingBag size={14} />}
             >
-              {isEditMode ? 'Update All Platforms' : `List on ${selectedPlatforms.length} Platforms`}
+              {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
             </Button>
           </div>
 
