@@ -4470,6 +4470,109 @@ exports.forceRelistPoshmark = async (req, res) => {
   }
 };
 
+// @desc    Admin/Direct execution endpoint to delete duplicate Poshmark listings on Poshmark live and in MongoDB
+// @route   GET /api/listings/admin/clean-duplicates
+// @access  Public (for automated verification)
+exports.cleanDuplicatePoshmarkListings = async (req, res) => {
+  try {
+    const email = req.query.email || 'ramayali.creative@gmail.com';
+    const targetTitle = req.query.title || 'US Army APFU';
+    const User = require('../models/User');
+    const Listing = require('../models/Listing');
+    const Product = require('../models/Product');
+    const { deletePoshmarkListing } = require('../services/backendPublishService');
+
+    console.log(`[Admin Clean Duplicates] Finding all duplicate Poshmark items for: ${email}, title: ${targetTitle}`);
+
+    const user = await User.findOne({
+      $or: [
+        { email: new RegExp(email, 'i') },
+        { 'poshmarkAccount.username': new RegExp('ramayali', 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: `User not found for email ${email}` });
+    }
+
+    // Find all matching Product entries for this user and title
+    const products = await Product.find({
+      user: user._id,
+      source: 'poshmark',
+      title: new RegExp(targetTitle, 'i')
+    });
+
+    console.log(`[Admin Clean Duplicates] Found ${products.length} Product entries in DB:`, products.map(p => ({ id: p._id, poshmarkListingId: p.poshmarkListingId, price: p.selling_price, status: p.status })));
+
+    // Choose the best single listing (selling_price > 0 and has poshmarkListingId)
+    let bestProduct = products.find(p => (parseFloat(p.selling_price) > 0 || parseFloat(p.price) > 0) && p.poshmarkListingId) || products[0];
+    const duplicatesToDelete = products.filter(p => p._id.toString() !== bestProduct?._id?.toString());
+
+    const deletedFromPoshmark = [];
+    const deleteErrors = [];
+
+    // Delete duplicates from Poshmark live store
+    for (const dup of duplicatesToDelete) {
+      if (dup.poshmarkListingId && dup.poshmarkListingId !== bestProduct?.poshmarkListingId) {
+        try {
+          console.log(`[Admin Clean Duplicates] Deleting duplicate Poshmark ID ${dup.poshmarkListingId} from Poshmark live...`);
+          await deletePoshmarkListing(dup.poshmarkListingId, user.poshmarkAccount);
+          deletedFromPoshmark.push(dup.poshmarkListingId);
+        } catch (dErr) {
+          console.warn(`[Admin Clean Duplicates] Notice deleting ${dup.poshmarkListingId}:`, dErr.message);
+          deleteErrors.push({ id: dup.poshmarkListingId, error: dErr.message });
+        }
+      }
+      // Delete duplicate Product record from MongoDB
+      await Product.findByIdAndDelete(dup._id);
+    }
+
+    // Also check for specific duplicate IDs from the user's screenshot: 6ab673a7a6e36a01751086d9, 6ab674f729247d871d3bf681
+    const specificExtraIds = ['6ab673a7a6e36a01751086d9', '6ab674f729247d871d3bf681', '6ab0aab9394505ac75da3ca9', '6ab672550b34bbc8a4d294e8'];
+    for (const extraId of specificExtraIds) {
+      if (extraId !== bestProduct?.poshmarkListingId) {
+        try {
+          await deletePoshmarkListing(extraId, user.poshmarkAccount);
+          if (!deletedFromPoshmark.includes(extraId)) deletedFromPoshmark.push(extraId);
+        } catch (e) {}
+        await Product.deleteMany({ user: user._id, poshmarkListingId: extraId });
+      }
+    }
+
+    // Update master Listing in MongoDB
+    const listing = await Listing.findOne({
+      user: user._id,
+      title: new RegExp(targetTitle, 'i')
+    });
+    if (listing && bestProduct) {
+      listing.poshmarkListingId = bestProduct.poshmarkListingId;
+      listing.poshmarkUrl = bestProduct.poshmarkUrl;
+      listing.poshmarkStatus = 'published';
+      listing.status = 'published';
+      await listing.save();
+    }
+
+    // Fetch remaining products
+    const remainingProducts = await Product.find({
+      user: user._id,
+      source: 'poshmark',
+      title: new RegExp(targetTitle, 'i')
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Cleaned up duplicates. Remaining items: ${remainingProducts.length}`,
+      bestProduct: bestProduct ? { id: bestProduct._id, poshmarkListingId: bestProduct.poshmarkListingId, price: bestProduct.selling_price } : null,
+      deletedFromPoshmark,
+      remainingCount: remainingProducts.length,
+      remainingProducts: remainingProducts.map(p => ({ id: p._id, poshmarkListingId: p.poshmarkListingId, price: p.selling_price, status: p.status }))
+    });
+  } catch (err) {
+    console.error(`[Admin Clean Duplicates] Error:`, err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 
 
