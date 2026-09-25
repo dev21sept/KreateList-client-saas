@@ -4935,7 +4935,23 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     }
 
-    // 1. Gather all active Products in DB
+    // 1. Ensure all valid channel products are marked active
+    await Promise.all([
+      Product.updateMany(
+        { user: userId, source: 'poshmark', poshmarkListingId: { $exists: true, $nin: [null, ''] } },
+        { $set: { status: 'active' } }
+      ),
+      Product.updateMany(
+        { user: userId, source: 'ebay', $or: [{ ebayListingId: { $exists: true, $nin: [null, ''] } }, { itemId: { $exists: true, $nin: [null, ''] } }] },
+        { $set: { status: 'active' } }
+      ),
+      Product.updateMany(
+        { user: userId, source: 'mercari', mercariListingId: { $exists: true, $nin: [null, ''] } },
+        { $set: { status: 'active' } }
+      )
+    ]);
+
+    // 2. Gather all active Products in DB
     const [mercariProds, poshProds, ebayProds] = await Promise.all([
       Product.find({ user: userId, source: 'mercari', status: 'active' }).lean(),
       Product.find({ user: userId, source: 'poshmark', status: 'active' }).lean(),
@@ -4947,18 +4963,6 @@ exports.cleanGhostChannels = async (req, res) => {
     const activeEbayIds = new Set(ebayProds.map(p => p.ebayListingId || p.itemId || p.liveListingId).filter(Boolean));
 
     console.log(`[Clean Ghost Channels] Active IDs in DB: Mercari=${activeMercariIds.size}, Poshmark=${activePoshmarkIds.size}, eBay=${activeEbayIds.size}`);
-
-    // 2. High-speed Bulk Cleanup on Product collection
-    await Promise.all([
-      Product.updateMany(
-        { user: userId, source: 'mercari', mercariListingId: { $nin: Array.from(activeMercariIds) }, status: 'active' },
-        { $set: { status: 'inactive', updated_at: Date.now() } }
-      ),
-      Product.updateMany(
-        { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(activePoshmarkIds) }, status: 'active' },
-        { $set: { status: 'inactive', updated_at: Date.now() } }
-      )
-    ]);
 
     // 3. Load all existing listings
     const existingListings = await Listing.find({ user: userId });
