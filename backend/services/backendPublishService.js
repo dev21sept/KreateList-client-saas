@@ -1276,7 +1276,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 }
 
 /**
- * Delists a Poshmark listing by marking it as "Not for Sale" (never deletes).
+ * Delists a Poshmark listing by marking it as "Not for Sale" or deleting it.
  */
 async function delistPoshmarkListing(listingId, poshmarkAccount) {
   const sessionCookie = poshmarkAccount?.sessionCookie;
@@ -1289,7 +1289,6 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
 
   console.log(`[Poshmark Delister] Delisting listing ${listingId} on Poshmark (${domain})...`);
   
-  let success = false;
   let lastError = null;
 
   // 1. Try Draft-based Not For Sale Inventory Update (Standard Poshmark Post Mutation Flow)
@@ -1305,9 +1304,11 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
         headers: getHeaders
       }));
-      existingPost = getRes.data?.post || getRes.data;
+      if (getRes.data && !getRes.data.error) {
+        existingPost = getRes.data.post || getRes.data;
+      }
     } catch (gErr) {
-      console.warn(`[Poshmark Delister] Could not fetch existing post:`, gErr.message);
+      console.warn(`[Poshmark Delister] Could not fetch existing post:`, gErr.response?.data || gErr.message);
     }
 
     console.log(`[Poshmark Delister] Step 2: Creating draft session from listing ${listingId}...`);
@@ -1318,39 +1319,105 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       data: {}
     });
     const draftRes = await axios(draftConfig);
+    if (draftRes.data?.error) {
+      throw new Error(`Draft Creation Error: ${draftRes.data.error.errorMessage || JSON.stringify(draftRes.data.error)}`);
+    }
+
     const draftId = draftRes.data?.post?.id || draftRes.data?.id;
 
     if (draftId) {
-      console.log(`[Poshmark Delister] Draft ${draftId} created. Saving Not For Sale inventory status...`);
+      console.log(`[Poshmark Delister] Draft ${draftId} created. Constructing Not For Sale payload...`);
       
-      let postPayload = {};
-      if (existingPost) {
-        postPayload = JSON.parse(JSON.stringify(existingPost));
-        delete postPayload.id;
-        delete postPayload.created_at;
-        delete postPayload.updated_at;
-        delete postPayload.status_changed_at;
-      }
-      if (!postPayload.inventory) postPayload.inventory = {};
-      postPayload.inventory.status = 'not_for_sale';
-      postPayload.inventory.available_quantity = 0;
-      if (Array.isArray(postPayload.inventory.size_quantities)) {
-        postPayload.inventory.size_quantities.forEach(sq => {
-          sq.quantity = 0;
-          sq.available_quantity = 0;
-        });
-      }
-      postPayload.not_for_sale = true;
+      const postObj = existingPost?.post || existingPost || {};
+      
+      const rawPics = postObj.pictures || [];
+      const cleanPics = rawPics.map(p => ({ id: p.id || p }));
+      const cleanCover = postObj.cover_shot ? { id: postObj.cover_shot.id || postObj.cover_shot } : (cleanPics.length > 0 ? cleanPics[0] : null);
 
+      let priceVal = 10;
+      if (postObj.price_amount?.val) {
+        priceVal = Math.round(parseFloat(postObj.price_amount.val));
+      } else if (postObj.price) {
+        priceVal = Math.round(parseFloat(postObj.price));
+      }
+      if (isNaN(priceVal) || priceVal < 3) priceVal = 10;
+
+      let origPriceVal = 0;
+      if (postObj.original_price_amount?.val) {
+        origPriceVal = Math.round(parseFloat(postObj.original_price_amount.val));
+      } else if (postObj.original_price) {
+        origPriceVal = Math.round(parseFloat(postObj.original_price));
+      }
+      if (isNaN(origPriceVal)) origPriceVal = 0;
+      if (origPriceVal > 0 && origPriceVal < priceVal) origPriceVal = priceVal;
+
+      let sizeQuantities = postObj.inventory?.size_quantities || [];
+      if (Array.isArray(sizeQuantities) && sizeQuantities.length > 0) {
+        sizeQuantities = sizeQuantities.map(sq => ({
+          ...sq,
+          quantity_available: 0,
+          quantity: 0
+        }));
+      } else {
+        sizeQuantities = [{
+          size_id: "OS",
+          quantity_available: 0,
+          quantity: 0
+        }];
+      }
+
+      const catalog = postObj.catalog || {};
+      const deptId = catalog.department || postObj.department || null;
+      const catId = catalog.category || postObj.category || null;
+      const catFeatures = Array.isArray(catalog.category_features) ? catalog.category_features : (Array.isArray(postObj.category_features) ? postObj.category_features : []);
+
+      const savePayload = {
+        post: {
+          title: postObj.title || 'Listing',
+          description: postObj.description || '',
+          brand: postObj.brand || 'Original',
+          price_amount: { val: priceVal, currency_code: 'USD', currency_symbol: '$' },
+          original_price_amount: { val: origPriceVal, currency_code: 'USD', currency_symbol: '$' },
+          catalog: {
+            department: deptId,
+            category: catId,
+            category_features: catFeatures
+          },
+          colors: Array.isArray(postObj.colors) ? postObj.colors : [],
+          style_tags: Array.isArray(postObj.style_tags) ? postObj.style_tags : [],
+          pictures: cleanPics,
+          cover_shot: cleanCover,
+          inventory: {
+            status: 'not_for_sale',
+            multi_item: postObj.inventory?.multi_item || false,
+            size_quantity_revision: (postObj.inventory?.size_quantity_revision || 0) + 1,
+            size_quantities: sizeQuantities
+          },
+          not_for_sale: true,
+          offer_auto_actions_v2_enabled: false,
+          seller_private_info: {},
+          autolist_draft: false,
+          seller_shipping_discount: { id: null }
+        }
+      };
+
+      if (postObj.condition) {
+        savePayload.post.condition = postObj.condition;
+      }
+
+      console.log(`[Poshmark Delister] Saving draft ${draftId} with Not For Sale inventory status...`);
       const saveConfig = getAxiosConfig({
         method: 'POST',
         url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
         headers: getPoshmarkHeaders(sessionCookie, csrfToken),
-        data: { post: postPayload }
+        data: savePayload
       });
-      await axios(saveConfig);
+      const saveRes = await axios(saveConfig);
+      if (saveRes.data?.error) {
+        throw new Error(`Draft Save Error: ${saveRes.data.error.errorMessage || JSON.stringify(saveRes.data.error)}`);
+      }
 
-      // Publish draft to apply Not For Sale status
+      console.log(`[Poshmark Delister] Publishing draft ${draftId} to finalize Not For Sale state...`);
       const publishConfig = getAxiosConfig({
         method: 'PUT',
         url: `https://${domain}/vm-rest/posts/${draftId}/status/published?app_version=2.55&pm_version=2026.26.01`,
@@ -1358,36 +1425,31 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         data: {}
       });
       const pubRes = await axios(publishConfig);
+      if (pubRes.data?.error) {
+        throw new Error(`Draft Publish Error: ${pubRes.data.error.errorMessage || JSON.stringify(pubRes.data.error)}`);
+      }
+
       console.log(`[Poshmark Delister] Listing ${listingId} successfully set to Not For Sale via draft mutation.`);
       return pubRes.data || { success: true };
     }
   } catch (draftErr) {
-    console.warn(`[Poshmark Delister] Draft NFS mutation notice: ${draftErr.message}. Trying direct REST status endpoints...`);
+    console.warn(`[Poshmark Delister] Draft NFS mutation notice: ${draftErr.message}. Trying direct DELETE API...`);
     lastError = draftErr;
   }
 
-  // 2. Direct REST status / delete endpoints
+  // 2. Direct REST DELETE endpoint
   try {
-    const config = getAxiosConfig({
-      method: 'PUT',
-      url: `https://${domain}/vm-rest/posts/${listingId}/status/not_for_sale?app_version=2.55&pm_version=2026.26.01`,
-      headers,
-      data: {}
-    });
-    const response = await axios(config);
-    return response.data;
-  } catch (err) {
-    console.warn(`[Poshmark Delister] PUT status/not_for_sale notice: ${err.message}. Trying DELETE endpoint...`);
-    lastError = err;
-  }
-
-  try {
+    const delHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+    delHeaders['referer'] = `https://${domain}/edit-listing/${listingId}`;
     const delConfig = getAxiosConfig({
       method: 'DELETE',
       url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
-      headers
+      headers: delHeaders
     });
     const delRes = await axios(delConfig);
+    if (delRes.data?.error) {
+      throw new Error(`Direct DELETE Error: ${delRes.data.error.errorMessage || JSON.stringify(delRes.data.error)}`);
+    }
     if (delRes.status === 200 || delRes.status === 204) {
       console.log(`[Poshmark Delister] Direct DELETE on listing ${listingId} succeeded.`);
       return delRes.data || { success: true };
@@ -1434,12 +1496,16 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         if (!trimmed) continue;
         const eqIdx = trimmed.indexOf('=');
         if (eqIdx === -1) continue;
-        parsedCookies.push({
-          name: trimmed.substring(0, eqIdx),
-          value: trimmed.substring(eqIdx + 1),
-          domain: `.${domain.replace(/^www\./i, '')}`,
-          path: '/'
-        });
+        const cName = trimmed.substring(0, eqIdx).trim();
+        const cVal = trimmed.substring(eqIdx + 1).trim();
+        if (cName) {
+          parsedCookies.push({
+            name: cName,
+            value: cVal,
+            domain: `.${domain.replace(/^www\./i, '')}`,
+            path: '/'
+          });
+        }
       }
       if (parsedCookies.length > 0) {
         await page.setCookie(...parsedCookies);
@@ -1448,7 +1514,7 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       const editUrl = `https://${domain}/edit-listing/${listingId}`;
       console.log(`[Poshmark Delister] Navigating to: ${editUrl}`);
       await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 2500));
 
       const outcome = await page.evaluate(async (targetId, token) => {
         try {
@@ -1457,7 +1523,8 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
             headers: { 'x-csrf-token': token || '', 'accept': 'application/json' },
             credentials: 'include'
           });
-          if (res.ok) return { success: true, method: 'page_fetch_delete' };
+          const json = await res.json().catch(() => null);
+          if (res.ok && !json?.error) return { success: true, method: 'page_fetch_delete' };
         } catch (e) {}
 
         try {
@@ -1473,13 +1540,28 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
           }
         } catch (e) {}
 
+        // Alternative: change availability to not for sale
+        try {
+          const availSelect = document.querySelector('select[name="availability"], select#availability');
+          if (availSelect) {
+            availSelect.value = 'not_for_sale';
+            availSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const submitBtn = document.querySelector('button[data-et-name="submit_listing"], button[type="submit"], .form__actions button.btn--primary');
+            if (submitBtn) {
+              submitBtn.click();
+              await new Promise(r => setTimeout(r, 2000));
+              return { success: true, method: 'ui_select_not_for_sale' };
+            }
+          }
+        } catch (e) {}
+
         return { success: false };
       }, listingId, csrfToken);
 
       console.log(`[Poshmark Delister] Puppeteer browser outcome for ${listingId}:`, outcome);
       await browser.close();
 
-      if (outcome.success) {
+      if (outcome && outcome.success) {
         return outcome;
       }
     } catch (bErr) {
