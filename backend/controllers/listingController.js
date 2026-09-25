@@ -4269,6 +4269,7 @@ exports.forceDelistPoshmark = async (req, res) => {
 
     // Step 3: Verify Live Status directly from Poshmark API
     let liveCheck = { isLive: false, status: 'unknown' };
+    let rawPmData = null;
     if (user.poshmarkAccount?.sessionCookie) {
       try {
         const domain = user.poshmarkAccount.domain || 'poshmark.com';
@@ -4281,21 +4282,42 @@ exports.forceDelistPoshmark = async (req, res) => {
           headers
         });
         const pmRes = await axios(config);
+        rawPmData = pmRes.data;
         const post = pmRes.data?.post || pmRes.data;
-        const rawInvStatus = String(post?.inventory?.status || post?.inventory_status || '').toLowerCase();
-        const rawPostStatus = String(post?.status || '').toLowerCase();
-        const availQty = post?.inventory?.available_quantity;
-        const isNFS = rawInvStatus === 'not_for_sale' || rawInvStatus === 'sold_out' || post?.not_for_sale === true || (typeof availQty === 'number' && availQty <= 0);
 
-        liveCheck = {
-          isLive: !isNFS,
-          invStatus: rawInvStatus,
-          postStatus: rawPostStatus,
-          availQty,
-          not_for_sale: post?.not_for_sale
-        };
+        if (pmRes.data?.error || !post?.id) {
+          liveCheck = {
+            isLive: false,
+            status: 'not_found_or_deleted',
+            error: pmRes.data?.error || 'Post has no ID / deleted'
+          };
+        } else {
+          const rawInvStatus = String(post?.inventory?.status || post?.inventory_status || post?.inventory?.status_v2 || '').toLowerCase();
+          const rawPostStatus = String(post?.status || post?.listing_status || '').toLowerCase();
+          const availQty = post?.inventory?.available_quantity;
+          const isZeroQty = typeof availQty === 'number' && availQty <= 0;
+          const isNFS = (
+            rawInvStatus === 'not_for_sale' ||
+            rawInvStatus === 'sold_out' ||
+            rawInvStatus === 'nfs' ||
+            rawPostStatus === 'not_for_sale' ||
+            rawPostStatus === 'sold' ||
+            rawPostStatus === 'deleted' ||
+            post?.active_item === false ||
+            post?.not_for_sale === true ||
+            isZeroQty
+          );
+
+          liveCheck = {
+            isLive: !isNFS && (rawPostStatus === 'published' || rawPostStatus === 'active' || rawInvStatus === 'available'),
+            invStatus: rawInvStatus,
+            postStatus: rawPostStatus,
+            availQty,
+            not_for_sale: post?.not_for_sale
+          };
+        }
       } catch (vErr) {
-        liveCheck = { error: vErr.message, status: vErr.response?.status };
+        liveCheck = { isLive: false, error: vErr.message, status: vErr.response?.status };
       }
     }
 
@@ -4306,7 +4328,8 @@ exports.forceDelistPoshmark = async (req, res) => {
       listing: listing ? { id: listing._id, title: listing.title, poshmarkStatus: listing.poshmarkStatus } : null,
       delistOutcome,
       delistError,
-      liveCheck
+      liveCheck,
+      rawPmData
     });
   } catch (err) {
     console.error(`[Admin Force Delist] Error:`, err.message);
