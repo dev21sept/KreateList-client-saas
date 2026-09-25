@@ -1546,6 +1546,7 @@ exports.checkDuplicateListing = async (req, res) => {
 const axios = require('axios');
 
 async function checkUrlActive(url) {
+  if (!url) return false;
   try {
     const response = await axios.get(url, {
       headers: {
@@ -1553,7 +1554,7 @@ async function checkUrlActive(url) {
         'Accept-Language': 'en-US,en;q=0.5',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'
       },
-      timeout: 5000,
+      timeout: 7000,
       maxRedirects: 5
     });
 
@@ -1569,17 +1570,93 @@ async function checkUrlActive(url) {
       console.log(`[Verify Live] eBay listing URL redirected to: ${finalUrl}`);
       return false;
     }
+    // If it's a Mercari listing URL, and redirected:
+    if (url.includes('/item/') && !finalUrl.includes('/item/')) {
+      console.log(`[Verify Live] Mercari listing URL redirected to: ${finalUrl}`);
+      return false;
+    }
+
+    const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const htmlLower = html.toLowerCase();
+
+    // Check Poshmark HTML indicators (Poshmark returns 200 even for NFS/Sold listings)
+    if (url.includes('poshmark.com')) {
+      if (
+        htmlLower.includes('not for sale') ||
+        htmlLower.includes('not_for_sale') ||
+        htmlLower.includes('sold out') ||
+        htmlLower.includes('sold_out') ||
+        htmlLower.includes('"inventory":{"status":"not_for_sale"') ||
+        htmlLower.includes('"inventory_status":"not_for_sale"') ||
+        htmlLower.includes('"status":"not_for_sale"') ||
+        htmlLower.includes('"not_for_sale":true') ||
+        htmlLower.includes('itemavailability":"https://schema.org/outofstock') ||
+        htmlLower.includes('itemavailability":"http://schema.org/outofstock')
+      ) {
+        console.log(`[Verify Live] Poshmark URL HTML indicates NFS/Sold/Delisted: ${url}`);
+        return false;
+      }
+    }
+
+    // Check eBay HTML indicators:
+    if (url.includes('ebay.com')) {
+      if (
+        htmlLower.includes('this listing was ended by the seller') ||
+        htmlLower.includes('this listing has ended') ||
+        htmlLower.includes('this item is out of stock') ||
+        htmlLower.includes('ended:') ||
+        htmlLower.includes('item is no longer available')
+      ) {
+        console.log(`[Verify Live] eBay URL HTML indicates Ended/Out of Stock: ${url}`);
+        return false;
+      }
+    }
+
+    // Check Mercari HTML indicators:
+    if (url.includes('mercari.com')) {
+      if (
+        htmlLower.includes('this item is sold out') ||
+        htmlLower.includes('sold out') ||
+        htmlLower.includes('this item is no longer available') ||
+        htmlLower.includes('"status":"sold_out"') ||
+        htmlLower.includes('"status":"stop"')
+      ) {
+        console.log(`[Verify Live] Mercari URL HTML indicates Sold/Inactive: ${url}`);
+        return false;
+      }
+    }
+
+    // Check Etsy HTML indicators:
+    if (url.includes('etsy.com')) {
+      if (
+        htmlLower.includes('sorry, this item is unavailable') ||
+        htmlLower.includes('this item is sold out') ||
+        htmlLower.includes('this item is out of stock')
+      ) {
+        console.log(`[Verify Live] Etsy URL HTML indicates Inactive/Sold: ${url}`);
+        return false;
+      }
+    }
+
+    // Check Depop HTML indicators:
+    if (url.includes('depop.com')) {
+      if (
+        htmlLower.includes('this item has sold') ||
+        htmlLower.includes('item no longer available')
+      ) {
+        console.log(`[Verify Live] Depop URL HTML indicates Inactive/Sold: ${url}`);
+        return false;
+      }
+    }
 
     return true;
   } catch (err) {
-    // Only mark as dead if we get a definitive 404 Not Found
     if (err.response && err.response.status === 404) {
       console.log(`[Verify Live] URL explicitly returned 404: ${url}`);
       return false;
     }
-    // If it's a 403 (Forbidden due to Bot protection), 503, 429, or network timeout, assume it's still alive (or we got blocked)
-    console.log(`[Verify Live] Request to ${url} failed with status ${err.response?.status || 'Network Error'}. Assuming still active.`);
-    return true;
+    console.log(`[Verify Live] Request to ${url} failed with ${err.message}. Assuming inactive.`);
+    return false;
   }
 }
 
@@ -1676,11 +1753,12 @@ exports.verifyListingLive = async (req, res) => {
             const itemDetails = await getTradingItemDetails(token, ebayId);
             if (itemDetails) {
               const statusStr = (itemDetails.listingStatus || '').toLowerCase();
-              if (statusStr === 'active') {
+              const qtyAvail = itemDetails.quantityAvailable !== undefined ? Number(itemDetails.quantityAvailable) : (itemDetails.quantity !== undefined ? Number(itemDetails.quantity) : 1);
+              if (statusStr === 'active' && qtyAvail > 0) {
                 isLive = true;
                 listing.ebayListingId = ebayId;
                 listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
-              } else if (statusStr === 'ended' || statusStr === 'completed') {
+              } else if (statusStr === 'ended' || statusStr === 'completed' || qtyAvail === 0) {
                 isLive = false;
                 listing.ebayStatus = 'delisted';
                 if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
@@ -1709,9 +1787,11 @@ exports.verifyListingLive = async (req, res) => {
             for (const sku of skusToCheck) {
               try {
                 const offers = await getOffers(token, sku);
-                const isOfferActive = (o) => o.listing?.listingStatus
-                  ? o.listing.listingStatus === 'ACTIVE'
-                  : o.status === 'PUBLISHED';
+                const isOfferActive = (o) => {
+                  const st = o.listing?.listingStatus ? o.listing.listingStatus === 'ACTIVE' : o.status === 'PUBLISHED';
+                  const hasQty = o.availableQuantity === undefined || Number(o.availableQuantity) > 0;
+                  return st && hasQty;
+                };
 
                 let activeOffer = offers && offers.find(isOfferActive);
                 if (activeOffer) {
@@ -1784,26 +1864,10 @@ exports.verifyListingLive = async (req, res) => {
     else if (platform === 'poshmark') {
       const pmId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId;
       const pmUrlToCheck = listing.poshmarkUrl || (pmId ? `https://poshmark.com/listing/${pmId}` : null);
+      let checkedViaApi = false;
 
-      // Check 1: Real-time Live URL check (404 = Deleted/Delisted)
-      if (pmUrlToCheck) {
-        const urlIsActive = await checkUrlActive(pmUrlToCheck);
-        if (urlIsActive) {
-          isLive = true;
-          listing.poshmarkUrl = pmUrlToCheck;
-          if (pmId) listing.poshmarkListingId = pmId;
-        } else {
-          console.log(`[Verify Live] Poshmark URL is 404/dead: ${pmUrlToCheck}`);
-          isLive = false;
-          // Mark product in DB as inactive so local cache reflects reality
-          if (pmId) {
-            await Product.updateMany({ user: req.user.id, poshmarkListingId: pmId }, { status: 'inactive' });
-          }
-        }
-      }
-
-      // Check 2: Direct Poshmark API if not resolved and connected
-      if (!isLive && pmId && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie) {
+      // Check 1: Direct Poshmark API (Authoritative source of truth)
+      if (pmId && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie) {
         try {
           const { getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
           const domain = user.poshmarkAccount.domain || 'poshmark.com';
@@ -1817,12 +1881,55 @@ exports.verifyListingLive = async (req, res) => {
             headers
           });
           const pmRes = await axios(config);
-          const postStatus = pmRes.data?.status || pmRes.data?.post?.status || pmRes.data?.post?.inventory?.status;
-          if (postStatus === 'available' || postStatus === 'published') {
+          checkedViaApi = true;
+          const post = pmRes.data?.post || pmRes.data;
+          const rawInvStatus = String(post?.inventory?.status || post?.inventory_status || post?.inventory?.status_v2 || '').toLowerCase();
+          const rawPostStatus = String(post?.status || post?.listing_status || '').toLowerCase();
+          const availQty = post?.inventory?.available_quantity;
+          const isZeroQty = typeof availQty === 'number' && availQty <= 0;
+
+          const isNFSOrSold = (
+            rawInvStatus === 'not_for_sale' ||
+            rawInvStatus === 'sold_out' ||
+            rawInvStatus === 'nfs' ||
+            rawInvStatus === 'reserved' ||
+            rawPostStatus === 'not_for_sale' ||
+            rawPostStatus === 'sold' ||
+            rawPostStatus === 'sold_out' ||
+            rawPostStatus === 'archived' ||
+            rawPostStatus === 'deleted' ||
+            post?.active_item === false ||
+            post?.not_for_sale === true ||
+            isZeroQty
+          );
+
+          if (!isNFSOrSold && (rawPostStatus === 'published' || rawPostStatus === 'active' || rawInvStatus === 'available')) {
             isLive = true;
+            listing.poshmarkUrl = pmUrlToCheck || `https://poshmark.com/listing/${pmId}`;
+            listing.poshmarkListingId = pmId;
+          } else {
+            console.log(`[Verify Live] Poshmark API confirmed listing ${pmId} is delisted/NFS (invStatus: ${rawInvStatus}, postStatus: ${rawPostStatus}, availQty: ${availQty})`);
+            isLive = false;
           }
         } catch (err) {
           console.warn(`[Verify Live] Poshmark API check failed:`, err.message);
+          if (err.response?.status === 404) {
+            checkedViaApi = true;
+            isLive = false;
+          }
+        }
+      }
+
+      // Check 2: Live Web Page check if not checked via API
+      if (!checkedViaApi && pmUrlToCheck) {
+        const urlIsActive = await checkUrlActive(pmUrlToCheck);
+        if (urlIsActive) {
+          isLive = true;
+          listing.poshmarkUrl = pmUrlToCheck;
+          if (pmId) listing.poshmarkListingId = pmId;
+        } else {
+          console.log(`[Verify Live] Poshmark URL check confirmed delisted/dead: ${pmUrlToCheck}`);
+          isLive = false;
         }
       }
 
@@ -1832,6 +1939,13 @@ exports.verifyListingLive = async (req, res) => {
         if (!listing.platformData.poshmark) listing.platformData.poshmark = {};
         listing.platformData.poshmark.status = 'published';
         if (pmId) listing.platformData.poshmark.liveId = pmId;
+        if (pmId) {
+          await Product.updateMany({ user: req.user.id, poshmarkListingId: pmId }, { status: 'active' });
+        }
+      } else {
+        if (pmId) {
+          await Product.updateMany({ user: req.user.id, poshmarkListingId: pmId }, { status: 'inactive' });
+        }
       }
     } 
     // -------------------------------------------------------------
@@ -1839,6 +1953,7 @@ exports.verifyListingLive = async (req, res) => {
     // -------------------------------------------------------------
     else if (platform === 'etsy') {
       const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId;
+      let checkedViaApi = false;
 
       if (etsyId && user.etsyAccount && user.etsyAccount.connected) {
         try {
@@ -1852,19 +1967,23 @@ exports.verifyListingLive = async (req, res) => {
                 'Authorization': `Bearer ${accessToken}`
               }
             });
-            if (response.data && response.data.state === 'active') {
+            checkedViaApi = true;
+            if (response.data && response.data.state === 'active' && (response.data.quantity === undefined || response.data.quantity > 0)) {
               isLive = true;
+            } else {
+              isLive = false;
             }
           }
         } catch (err) {
           console.warn(`[Verify Live] Etsy API check failed:`, err.response?.data || err.message);
-          if (err.response && err.response.status !== 404) {
-            isLive = true; 
+          if (err.response?.status === 404) {
+            checkedViaApi = true;
+            isLive = false;
           }
         }
       }
 
-      if (!isLive && listing.etsyUrl) {
+      if (!checkedViaApi && listing.etsyUrl) {
         isLive = await checkUrlActive(listing.etsyUrl);
       }
 
@@ -1909,13 +2028,15 @@ exports.verifyListingLive = async (req, res) => {
             listing.mercariListingId = undefined;
             listing.mercariUrl = undefined;
             await Product.findOneAndDelete({ user: req.user.id, mercariListingId: activeId });
+          } else {
+            isLive = false;
           }
         } catch (err) {
           console.warn(`[Verify Live] Mercari API check failed:`, err.message);
         }
       }
 
-      if (!isLive && listing.mercariUrl) {
+      if (!isLive && listing.mercariUrl && listing.mercariStatus !== 'none') {
         isLive = await checkUrlActive(listing.mercariUrl);
       }
 
