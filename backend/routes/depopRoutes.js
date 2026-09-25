@@ -7,7 +7,7 @@ const {
   depopGetLive 
 } = require('../controllers/depopController');
 const { protect } = require('../middleware/auth');
-const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
+const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ router.use(protect);
 
 router.post('/connect', depopConnect);
 router.post('/connect-interactive', depopConnectInteractive);
-router.post('/import', requireWithinFetchLimit, depopImportCloset);
+router.post('/import', requireActiveSubscription, depopImportCloset);
 router.post('/publish/:id', depopPublish);
 router.get('/live', depopGetLive);
 

@@ -76,11 +76,11 @@ exports.requireWithinListingLimit = async (req, res, next) => {
 
     const limit = planLimits[plan.toLowerCase()] || 0;
 
-    // Count active listings created by the user (exclude imported channel items)
+    // Count active AI-generated listings created by the user (exclude imported channel items)
     const listingsCount = await Listing.countDocuments({
       user: req.user.id,
       status: 'published',
-      source: { $ne: 'channel_import' }
+      source: { $in: ['ai_listing', 'ai', 'manual'] }
     });
 
     if (listingsCount >= limit) {
@@ -108,8 +108,6 @@ exports.requireWithinFetchLimit = async (req, res, next) => {
     }
 
     const sub = req.user.subscription;
-    
-    // Check if subscription status is active
     if (!sub || sub.status !== 'active') {
       return res.status(403).json({
         success: false,
@@ -117,7 +115,6 @@ exports.requireWithinFetchLimit = async (req, res, next) => {
       });
     }
 
-    // Check if subscription has expired
     if (sub.expiresAt && new Date(sub.expiresAt) < new Date()) {
       req.user.subscription.status = 'inactive';
       await req.user.save();
@@ -140,7 +137,7 @@ exports.requireWithinFetchLimit = async (req, res, next) => {
     // Count total AI listings created/fetched by the user in the database (exclude external imported items)
     const fetchesCount = await Listing.countDocuments({
       user: req.user.id,
-      source: { $ne: 'channel_import' }
+      source: { $in: ['ai_listing', 'ai', 'manual'] }
     });
 
     if (fetchesCount >= limit) {

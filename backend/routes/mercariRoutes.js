@@ -17,7 +17,7 @@ const {
   mercariGetItemDetails
 } = require('../controllers/mercariController');
 const { protect } = require('../middleware/auth');
-const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
+const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
@@ -31,7 +31,7 @@ router.post('/initiate-login', mercariInitiateLogin);
 router.get('/session-status/:sessionId', mercariSessionStatus);
 router.post('/submit-2fa-stream', mercariSubmit2faStream);
 router.post('/trigger-verification-method', mercariTriggerVerificationMethod);
-router.post('/import', requireWithinFetchLimit, mercariImportCloset);
+router.post('/import', requireActiveSubscription, mercariImportCloset);
 router.post('/publish/:id', mercariPublish);
 router.post('/delist/:id', mercariDelist);
 router.post('/delete/:id', mercariDelete);
