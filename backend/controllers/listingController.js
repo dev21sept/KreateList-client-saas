@@ -4848,35 +4848,6 @@ exports.cleanGhostChannels = async (req, res) => {
 
     console.log(`[Clean Ghost Channels] Active IDs in DB: Mercari=${activeMercariIds.size}, Poshmark=${activePoshmarkIds.size}, eBay=${activeEbayIds.size}`);
 
-    // Map active products by SKU, Title, and ID for instant O(1) matching
-    const ebayBySku = new Map();
-    const ebayByTitle = new Map();
-    const ebayById = new Map();
-    ebayProds.forEach(p => {
-      const eid = p.ebayListingId || p.itemId || p.liveListingId;
-      if (p.sku && p.sku !== '-') ebayBySku.set(p.sku.trim().toLowerCase(), p);
-      if (p.title) ebayByTitle.set(p.title.trim().toLowerCase(), p);
-      if (eid) ebayById.set(eid, p);
-    });
-
-    const poshBySku = new Map();
-    const poshByTitle = new Map();
-    const poshById = new Map();
-    poshProds.forEach(p => {
-      if (p.sku && p.sku !== '-') poshBySku.set(p.sku.trim().toLowerCase(), p);
-      if (p.title) poshByTitle.set(p.title.trim().toLowerCase(), p);
-      if (p.poshmarkListingId) poshById.set(p.poshmarkListingId, p);
-    });
-
-    const mercBySku = new Map();
-    const mercByTitle = new Map();
-    const mercById = new Map();
-    mercariProds.forEach(p => {
-      if (p.sku && p.sku !== '-') mercBySku.set(p.sku.trim().toLowerCase(), p);
-      if (p.title) mercByTitle.set(p.title.trim().toLowerCase(), p);
-      if (p.mercariListingId) mercById.set(p.mercariListingId, p);
-    });
-
     // 2. High-speed Bulk Cleanup on Product collection
     await Promise.all([
       Product.updateMany(
@@ -4889,246 +4860,273 @@ exports.cleanGhostChannels = async (req, res) => {
       )
     ]);
 
-    // 3. High-speed Bulk Cleanup & Link on Listing collection
-    const bulkListingOps = [];
-    const listings = await Listing.find({ user: userId }).lean();
-    const matchedEbayProductIds = new Set();
-    const matchedPoshProductIds = new Set();
-    const matchedMercProductIds = new Set();
+    // 3. Load all existing listings
+    const existingListings = await Listing.find({ user: userId });
+    
+    // Index existing listings by ID, platform live IDs, SKU, and Title
+    const listingByEbayId = new Map();
+    const listingByPoshId = new Map();
+    const listingByMercId = new Map();
+    const availableListingBySku = new Map();
+    const availableListingByTitle = new Map();
 
-    let cleanedMercariCount = 0;
-    let cleanedPoshmarkCount = 0;
-    let cleanedEtsyCount = 0;
-    let cleanedAmazonCount = 0;
+    existingListings.forEach(l => {
+      if (l.ebayListingId) listingByEbayId.set(l.ebayListingId, l);
+      if (l.poshmarkListingId) listingByPoshId.set(l.poshmarkListingId, l);
+      if (l.mercariListingId) listingByMercId.set(l.mercariListingId, l);
 
-    for (const listing of listings) {
-      const setFields = {};
-      const unsetFields = {};
-      let needsUpdate = false;
+      const s = (l.sku || '').trim().toLowerCase();
+      const t = (l.title || '').trim().toLowerCase();
+      if (s && s !== '-') {
+        if (!availableListingBySku.has(s)) availableListingBySku.set(s, []);
+        availableListingBySku.get(s).push(l);
+      }
+      if (t) {
+        if (!availableListingByTitle.has(t)) availableListingByTitle.set(t, []);
+        availableListingByTitle.get(t).push(l);
+      }
+    });
 
-      const cleanSku = (listing.sku || '').trim().toLowerCase();
-      const cleanTitle = (listing.title || '').trim().toLowerCase();
+    // 4. Guaranteed 1-to-1 mapping for all active eBay products
+    const assignedEbayListingIds = new Set();
+    const newListingDocs = [];
 
-      // --- EBAY ---
-      let matchingEbay = listing.ebayListingId ? ebayById.get(listing.ebayListingId) : null;
-      if (!matchingEbay && cleanSku && cleanSku !== '-') matchingEbay = ebayBySku.get(cleanSku);
-      if (!matchingEbay && cleanTitle) matchingEbay = ebayByTitle.get(cleanTitle);
+    for (const p of ebayProds) {
+      const eid = p.ebayListingId || p.itemId || p.liveListingId;
+      if (!eid) continue;
 
-      if (matchingEbay) {
-        const eid = matchingEbay.ebayListingId || matchingEbay.itemId || matchingEbay.liveListingId;
-        matchedEbayProductIds.add(matchingEbay._id.toString());
-        if (listing.ebayStatus !== 'published' || listing.ebayListingId !== eid) {
-          setFields.ebayStatus = 'published';
-          setFields.ebayListingId = eid;
-          setFields.ebayUrl = matchingEbay.ebayUrl || `https://www.ebay.com/itm/${eid}`;
-          if (matchingEbay.selling_price) setFields.ebayPrice = matchingEbay.selling_price;
-          needsUpdate = true;
+      let targetListing = listingByEbayId.get(eid);
+
+      if (!targetListing) {
+        const s = (p.sku || '').trim().toLowerCase();
+        if (s && s !== '-') {
+          const candidates = availableListingBySku.get(s) || [];
+          targetListing = candidates.find(l => !l.ebayListingId || !activeEbayIds.has(l.ebayListingId));
         }
-      } else if (listing.ebayListingId && !activeEbayIds.has(listing.ebayListingId)) {
-        if (listing.ebayStatus !== 'none') {
-          setFields.ebayStatus = 'none';
-          unsetFields.ebayListingId = "";
-          unsetFields.ebayUrl = "";
-          unsetFields['listingsMap.ebay'] = "";
-          unsetFields['platformData.ebay'] = "";
-          needsUpdate = true;
+      }
+
+      if (!targetListing) {
+        const t = (p.title || '').trim().toLowerCase();
+        if (t) {
+          const candidates = availableListingByTitle.get(t) || [];
+          targetListing = candidates.find(l => !l.ebayListingId || !activeEbayIds.has(l.ebayListingId));
         }
       }
 
-      // --- POSHMARK ---
-      let matchingPosh = listing.poshmarkListingId ? poshById.get(listing.poshmarkListingId) : null;
-      if (!matchingPosh && cleanSku && cleanSku !== '-') matchingPosh = poshBySku.get(cleanSku);
-      if (!matchingPosh && cleanTitle) matchingPosh = poshByTitle.get(cleanTitle);
-
-      if (matchingPosh) {
-        matchedPoshProductIds.add(matchingPosh._id.toString());
-        if (listing.poshmarkStatus !== 'published' || listing.poshmarkListingId !== matchingPosh.poshmarkListingId) {
-          setFields.poshmarkStatus = 'published';
-          setFields.poshmarkListingId = matchingPosh.poshmarkListingId;
-          setFields.poshmarkUrl = matchingPosh.poshmarkUrl || `https://poshmark.com/listing/${matchingPosh.poshmarkListingId}`;
-          if (matchingPosh.selling_price) setFields.poshmarkPrice = matchingPosh.selling_price;
-          needsUpdate = true;
-        }
-      } else if (listing.poshmarkListingId && !activePoshmarkIds.has(listing.poshmarkListingId)) {
-        setFields.poshmarkStatus = 'none';
-        unsetFields.poshmarkListingId = "";
-        unsetFields.poshmarkUrl = "";
-        unsetFields.poshmarkPrice = "";
-        unsetFields['listingsMap.poshmark'] = "";
-        unsetFields['platformData.poshmark'] = "";
-        cleanedPoshmarkCount++;
-        needsUpdate = true;
-      } else if (listing.poshmarkStatus && listing.poshmarkStatus !== 'none' && !matchingPosh) {
-        setFields.poshmarkStatus = 'none';
-        needsUpdate = true;
-      }
-
-      // --- MERCARI ---
-      let matchingMerc = listing.mercariListingId ? mercById.get(listing.mercariListingId) : null;
-      if (!matchingMerc && cleanSku && cleanSku !== '-') matchingMerc = mercBySku.get(cleanSku);
-      if (!matchingMerc && cleanTitle) matchingMerc = mercByTitle.get(cleanTitle);
-
-      if (matchingMerc) {
-        matchedMercProductIds.add(matchingMerc._id.toString());
-        if (listing.mercariStatus !== 'published' || listing.mercariListingId !== matchingMerc.mercariListingId) {
-          setFields.mercariStatus = 'published';
-          setFields.mercariListingId = matchingMerc.mercariListingId;
-          setFields.mercariUrl = matchingMerc.mercariUrl || `https://www.mercari.com/us/item/${matchingMerc.mercariListingId}/`;
-          if (matchingMerc.selling_price) setFields.mercariPrice = matchingMerc.selling_price;
-          needsUpdate = true;
-        }
-      } else if (listing.mercariListingId && !activeMercariIds.has(listing.mercariListingId)) {
-        setFields.mercariStatus = 'none';
-        unsetFields.mercariListingId = "";
-        unsetFields.mercariUrl = "";
-        unsetFields.mercariPrice = "";
-        unsetFields['listingsMap.mercari'] = "";
-        unsetFields['platformData.mercari'] = "";
-        cleanedMercariCount++;
-        needsUpdate = true;
-      } else if (listing.mercariStatus && listing.mercariStatus !== 'none' && !matchingMerc) {
-        setFields.mercariStatus = 'none';
-        needsUpdate = true;
-      }
-
-      // --- ETSY (0) ---
-      if (listing.etsyListingId || (listing.etsyStatus && listing.etsyStatus !== 'none')) {
-        setFields.etsyStatus = 'none';
-        unsetFields.etsyListingId = "";
-        unsetFields.etsyUrl = "";
-        unsetFields.etsyPrice = "";
-        unsetFields['listingsMap.etsy'] = "";
-        unsetFields['platformData.etsy'] = "";
-        cleanedEtsyCount++;
-        needsUpdate = true;
-      }
-
-      // --- AMAZON (0) ---
-      if (listing.amazonListingId || (listing.amazonStatus && listing.amazonStatus !== 'none')) {
-        setFields.amazonStatus = 'none';
-        unsetFields.amazonListingId = "";
-        unsetFields.amazonUrl = "";
-        unsetFields.amazonPrice = "";
-        unsetFields['listingsMap.amazon'] = "";
-        unsetFields['platformData.amazon'] = "";
-        cleanedAmazonCount++;
-        needsUpdate = true;
-      }
-
-      // Overall status
-      const ebayPublished = (setFields.ebayStatus !== undefined ? setFields.ebayStatus : listing.ebayStatus) === 'published';
-      const poshPublished = (setFields.poshmarkStatus !== undefined ? setFields.poshmarkStatus : listing.poshmarkStatus) === 'published';
-      const mercPublished = (setFields.mercariStatus !== undefined ? setFields.mercariStatus : listing.mercariStatus) === 'published';
-      const isAnyPublished = ebayPublished || poshPublished || mercPublished;
-      const isAnySold = (listing.status === 'sold');
-      const isAnyDelisted = (listing.status === 'delisted');
-
-      let targetOverallStatus = 'draft';
-      if (isAnyPublished) targetOverallStatus = 'published';
-      else if (isAnySold) targetOverallStatus = 'sold';
-      else if (isAnyDelisted) targetOverallStatus = 'delisted';
-
-      if (listing.status !== targetOverallStatus) {
-        setFields.status = targetOverallStatus;
-        needsUpdate = true;
-      }
-
-      if (needsUpdate) {
-        const updateDoc = {};
-        if (Object.keys(setFields).length > 0) updateDoc.$set = setFields;
-        if (Object.keys(unsetFields).length > 0) updateDoc.$unset = unsetFields;
-        bulkListingOps.push({
-          updateOne: {
-            filter: { _id: listing._id },
-            update: updateDoc
-          }
+      if (targetListing) {
+        targetListing.ebayListingId = eid;
+        targetListing.ebayStatus = 'published';
+        targetListing.ebayUrl = p.ebayUrl || `https://www.ebay.com/itm/${eid}`;
+        if (p.selling_price) targetListing.ebayPrice = p.selling_price;
+        assignedEbayListingIds.add(targetListing._id.toString());
+        listingByEbayId.set(eid, targetListing);
+      } else {
+        newListingDocs.push({
+          user: userId,
+          title: p.title || 'eBay Listing',
+          description: p.description || p.title || '',
+          sku: p.sku || '',
+          price: p.selling_price || 0,
+          ebayPrice: p.selling_price || 0,
+          ebayListingId: eid,
+          ebayUrl: p.ebayUrl || `https://www.ebay.com/itm/${eid}`,
+          ebayStatus: 'published',
+          poshmarkStatus: 'none',
+          mercariStatus: 'none',
+          etsyStatus: 'none',
+          amazonStatus: 'none',
+          status: 'published',
+          images: p.images || [],
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          brand: p.brand || '',
+          size: p.size || '',
+          createdAt: p.createdAt || new Date(),
+          updatedAt: new Date()
         });
       }
     }
 
-    // 4. Create master Listing entries for any unlinked active Products
-    const unlinkedEbay = ebayProds.filter(p => !matchedEbayProductIds.has(p._id.toString()));
-    const unlinkedPosh = poshProds.filter(p => !matchedPoshProductIds.has(p._id.toString()));
-    const unlinkedMerc = mercariProds.filter(p => !matchedMercProductIds.has(p._id.toString()));
+    // 5. Guaranteed 1-to-1 mapping for all active Poshmark products
+    for (const p of poshProds) {
+      const pid = p.poshmarkListingId;
+      if (!pid) continue;
 
-    for (const p of unlinkedEbay) {
-      const eid = p.ebayListingId || p.itemId || p.liveListingId;
-      bulkListingOps.push({
-        insertOne: {
-          document: {
-            user: userId,
-            title: p.title || 'eBay Listing',
-            description: p.description || p.title || '',
-            sku: p.sku || '',
-            price: p.selling_price || 0,
-            ebayPrice: p.selling_price || 0,
-            ebayListingId: eid,
-            ebayUrl: p.ebayUrl || `https://www.ebay.com/itm/${eid}`,
-            ebayStatus: 'published',
-            status: 'published',
-            images: p.images || [],
-            thumbnail: p.images?.[0] || p.thumbnail || '',
-            brand: p.brand || '',
-            size: p.size || '',
-            createdAt: p.createdAt || new Date(),
-            updatedAt: new Date()
-          }
+      let targetListing = listingByPoshId.get(pid);
+
+      if (!targetListing) {
+        const s = (p.sku || '').trim().toLowerCase();
+        if (s && s !== '-') {
+          const candidates = availableListingBySku.get(s) || [];
+          targetListing = candidates.find(l => !l.poshmarkListingId || !activePoshmarkIds.has(l.poshmarkListingId));
         }
-      });
+      }
+
+      if (!targetListing) {
+        const t = (p.title || '').trim().toLowerCase();
+        if (t) {
+          const candidates = availableListingByTitle.get(t) || [];
+          targetListing = candidates.find(l => !l.poshmarkListingId || !activePoshmarkIds.has(l.poshmarkListingId));
+        }
+      }
+
+      if (targetListing) {
+        targetListing.poshmarkListingId = pid;
+        targetListing.poshmarkStatus = 'published';
+        targetListing.poshmarkUrl = p.poshmarkUrl || `https://poshmark.com/listing/${pid}`;
+        if (p.selling_price) targetListing.poshmarkPrice = p.selling_price;
+        listingByPoshId.set(pid, targetListing);
+      } else {
+        newListingDocs.push({
+          user: userId,
+          title: p.title || 'Poshmark Listing',
+          description: p.description || p.title || '',
+          sku: p.sku || '',
+          price: p.selling_price || 0,
+          poshmarkPrice: p.selling_price || 0,
+          poshmarkListingId: pid,
+          poshmarkUrl: p.poshmarkUrl || `https://poshmark.com/listing/${pid}`,
+          poshmarkStatus: 'published',
+          ebayStatus: 'none',
+          mercariStatus: 'none',
+          etsyStatus: 'none',
+          amazonStatus: 'none',
+          status: 'published',
+          images: p.images || [],
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          brand: p.brand || '',
+          size: p.size || '',
+          createdAt: p.createdAt || new Date(),
+          updatedAt: new Date()
+        });
+      }
     }
 
-    for (const p of unlinkedPosh) {
-      bulkListingOps.push({
-        insertOne: {
-          document: {
-            user: userId,
-            title: p.title || 'Poshmark Listing',
-            description: p.description || p.title || '',
-            sku: p.sku || '',
-            price: p.selling_price || 0,
-            poshmarkPrice: p.selling_price || 0,
-            poshmarkListingId: p.poshmarkListingId,
-            poshmarkUrl: p.poshmarkUrl || `https://poshmark.com/listing/${p.poshmarkListingId}`,
-            poshmarkStatus: 'published',
-            status: 'published',
-            images: p.images || [],
-            thumbnail: p.images?.[0] || p.thumbnail || '',
-            brand: p.brand || '',
-            size: p.size || '',
-            createdAt: p.createdAt || new Date(),
-            updatedAt: new Date()
-          }
+    // 6. Guaranteed 1-to-1 mapping for all active Mercari products
+    for (const p of mercariProds) {
+      const mid = p.mercariListingId;
+      if (!mid) continue;
+
+      let targetListing = listingByMercId.get(mid);
+
+      if (!targetListing) {
+        const s = (p.sku || '').trim().toLowerCase();
+        if (s && s !== '-') {
+          const candidates = availableListingBySku.get(s) || [];
+          targetListing = candidates.find(l => !l.mercariListingId || !activeMercariIds.has(l.mercariListingId));
         }
-      });
+      }
+
+      if (!targetListing) {
+        const t = (p.title || '').trim().toLowerCase();
+        if (t) {
+          const candidates = availableListingByTitle.get(t) || [];
+          targetListing = candidates.find(l => !l.mercariListingId || !activeMercariIds.has(l.mercariListingId));
+        }
+      }
+
+      if (targetListing) {
+        targetListing.mercariListingId = mid;
+        targetListing.mercariStatus = 'published';
+        targetListing.mercariUrl = p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`;
+        if (p.selling_price) targetListing.mercariPrice = p.selling_price;
+        listingByMercId.set(mid, targetListing);
+      } else {
+        newListingDocs.push({
+          user: userId,
+          title: p.title || 'Mercari Listing',
+          description: p.description || p.title || '',
+          sku: p.sku || '',
+          price: p.selling_price || 0,
+          mercariPrice: p.selling_price || 0,
+          mercariListingId: mid,
+          mercariUrl: p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`,
+          mercariStatus: 'published',
+          ebayStatus: 'none',
+          poshmarkStatus: 'none',
+          etsyStatus: 'none',
+          amazonStatus: 'none',
+          status: 'published',
+          images: p.images || [],
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          brand: p.brand || '',
+          size: p.size || '',
+          createdAt: p.createdAt || new Date(),
+          updatedAt: new Date()
+        });
+      }
     }
 
-    for (const p of unlinkedMerc) {
-      bulkListingOps.push({
-        insertOne: {
-          document: {
-            user: userId,
-            title: p.title || 'Mercari Listing',
-            description: p.description || p.title || '',
-            sku: p.sku || '',
-            price: p.selling_price || 0,
-            mercariPrice: p.selling_price || 0,
-            mercariListingId: p.mercariListingId,
-            mercariUrl: p.mercariUrl || `https://www.mercari.com/us/item/${p.mercariListingId}/`,
-            mercariStatus: 'published',
-            status: 'published',
-            images: p.images || [],
-            thumbnail: p.images?.[0] || p.thumbnail || '',
-            brand: p.brand || '',
-            size: p.size || '',
-            createdAt: p.createdAt || new Date(),
-            updatedAt: new Date()
-          }
-        }
-      });
+    // 7. Clear ghost IDs on existing listings
+    for (const l of existingListings) {
+      if (l.ebayListingId && !activeEbayIds.has(l.ebayListingId)) {
+        l.ebayStatus = 'none';
+        l.ebayListingId = undefined;
+        l.ebayUrl = undefined;
+        l.ebayPrice = undefined;
+      }
+      if (l.poshmarkListingId && !activePoshmarkIds.has(l.poshmarkListingId)) {
+        l.poshmarkStatus = 'none';
+        l.poshmarkListingId = undefined;
+        l.poshmarkUrl = undefined;
+        l.poshmarkPrice = undefined;
+      }
+      if (l.mercariListingId && !activeMercariIds.has(l.mercariListingId)) {
+        l.mercariStatus = 'none';
+        l.mercariListingId = undefined;
+        l.mercariUrl = undefined;
+        l.mercariPrice = undefined;
+      }
+      l.etsyStatus = 'none';
+      l.etsyListingId = undefined;
+      l.amazonStatus = 'none';
+      l.amazonListingId = undefined;
+
+      const isPub = l.ebayStatus === 'published' || l.poshmarkStatus === 'published' || l.mercariStatus === 'published';
+      if (isPub) l.status = 'published';
+      else if (l.status !== 'sold' && l.status !== 'delisted') l.status = 'draft';
     }
 
-    if (bulkListingOps.length > 0) {
-      await Listing.bulkWrite(bulkListingOps, { ordered: false });
+    // Save all modified existing listings in parallel / batch
+    const saveOps = existingListings.map(l => ({
+      updateOne: {
+        filter: { _id: l._id },
+        update: {
+          $set: {
+            ebayStatus: l.ebayStatus || 'none',
+            ebayListingId: l.ebayListingId || null,
+            ebayUrl: l.ebayUrl || null,
+            ebayPrice: l.ebayPrice || null,
+            poshmarkStatus: l.poshmarkStatus || 'none',
+            poshmarkListingId: l.poshmarkListingId || null,
+            poshmarkUrl: l.poshmarkUrl || null,
+            poshmarkPrice: l.poshmarkPrice || null,
+            mercariStatus: l.mercariStatus || 'none',
+            mercariListingId: l.mercariListingId || null,
+            mercariUrl: l.mercariUrl || null,
+            mercariPrice: l.mercariPrice || null,
+            etsyStatus: 'none',
+            etsyListingId: null,
+            amazonStatus: 'none',
+            amazonListingId: null,
+            status: l.status
+          },
+          $unset: {
+            'listingsMap.etsy': "",
+            'listingsMap.amazon': "",
+            'platformData.etsy': "",
+            'platformData.amazon': ""
+          }
+        }
+      }
+    }));
+
+    if (saveOps.length > 0) {
+      await Listing.bulkWrite(saveOps, { ordered: false });
+    }
+
+    if (newListingDocs.length > 0) {
+      const insertOps = newListingDocs.map(doc => ({ insertOne: { document: doc } }));
+      await Listing.bulkWrite(insertOps, { ordered: false });
     }
 
     // 5. Gather Final Counts
