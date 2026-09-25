@@ -353,241 +353,70 @@ const checkImageMatchStr = (images1, images2) => {
 };
 
 const groupListingsBySku = (rawListings) => {
+  if (!Array.isArray(rawListings) || rawListings.length === 0) return [];
+  
+  const idMap = new Map();
   const groups = [];
 
-  rawListings.forEach(item => {
+  for (let i = 0; i < rawListings.length; i++) {
+    const item = rawListings[i];
+    if (!item) continue;
+
+    const itemId = String(item._id || i);
     const rawSku = item.sku ? item.sku.trim() : '';
     const cleanSku = getDisplaySku(rawSku);
     const sku = cleanSku !== '-' ? cleanSku : '';
     const thumbnail = item.thumbnail || (item.images && item.images[0]) || '';
-    const itemTitle = (item.title || '').trim();
-    const titleNorm = normalizeTitleStr(itemTitle);
-    const itemBrand = (item.brand || '').trim().toLowerCase();
-    const itemSize = extractSizeStr(item.size || itemTitle);
-    const itemGarment = extractGarmentTypeStr(itemTitle);
-    const itemColor = extractColorPatternStr(item.color || itemTitle);
-    const itemPrice = parseFloat(item.price) || 0;
-    const itemImages = (item.images || []).concat(thumbnail ? [thumbnail] : []);
-    
-    // Find if there is an existing group that strictly matches
-    let matchedGroup = null;
 
-    // 1. Direct ID match if same MongoDB _id
-    matchedGroup = groups.find(g => String(g._id) === String(item._id));
-
-    // 2. Exact Image CDN Hash Match
-    if (!matchedGroup) {
-      for (const g of groups) {
-        const gImages = (g.images || []).concat(g.thumbnail ? [g.thumbnail] : []);
-        if (checkImageMatchStr(itemImages, gImages)) {
-          matchedGroup = g;
-          break;
-        }
-      }
-    }
-
-    // 3. Match by Exact Normalized Title (with garment/brand/size verification)
-    if (!matchedGroup && titleNorm) {
-      const candidates = groups.filter(g => {
-        const gNorm = normalizeTitleStr(g.title);
-        if (!gNorm || gNorm !== titleNorm) return false;
-        const gGarment = extractGarmentTypeStr(g.title);
-        if (itemGarment && gGarment && itemGarment !== gGarment) return false;
-        const gBrand = (g.brand || '').trim().toLowerCase();
-        if (itemBrand && gBrand && itemBrand !== gBrand) return false;
-        const gSize = extractSizeStr(g.size || g.title);
-        if (itemSize && gSize && itemSize !== gSize) return false;
-        return true;
-      });
-
-      if (candidates.length === 1) {
-        matchedGroup = candidates[0];
-      } else if (candidates.length > 1) {
-        candidates.sort((a, b) => {
-          const diffA = Math.abs((parseFloat(a.price || 0) || 0) - itemPrice);
-          const diffB = Math.abs((parseFloat(b.price || 0) || 0) - itemPrice);
-          return diffA - diffB;
-        });
-        matchedGroup = candidates[0];
-      }
-    }
-
-    // 4. Poshmark 50-Character Truncation Match (ONLY when length >= 25)
-    if (!matchedGroup && titleNorm.length >= 25) {
-      const candidates = groups.filter(g => {
-        const gNorm = normalizeTitleStr(g.title);
-        if (!gNorm) return false;
-        const isPrefix = (gNorm.length > titleNorm.length && gNorm.startsWith(titleNorm)) ||
-                         (titleNorm.length > gNorm.length && titleNorm.startsWith(gNorm) && gNorm.length >= 25);
-        if (!isPrefix) return false;
-        
-        const gGarment = extractGarmentTypeStr(g.title);
-        if (itemGarment && gGarment && itemGarment !== gGarment) return false;
-
-        const gSize = extractSizeStr(g.size || g.title);
-        if (itemSize && gSize && itemSize !== gSize) return false;
-
-        const gColor = extractColorPatternStr(g.color || g.title);
-        if (itemColor && gColor && itemColor !== gColor) return false;
-
-        const gBrand = (g.brand || '').trim().toLowerCase();
-        if (itemBrand && gBrand && itemBrand !== gBrand) return false;
-
-        if (itemPrice > 0 && (parseFloat(g.price) || 0) > 0 && Math.abs((parseFloat(g.price) || 0) - itemPrice) > 15) return false;
-
-        return true;
-      });
-
-      if (candidates.length > 0) {
-        candidates.sort((a, b) => {
-          const diffA = Math.abs((parseFloat(a.price || 0) || 0) - itemPrice);
-          const diffB = Math.abs((parseFloat(b.price || 0) || 0) - itemPrice);
-          return diffA - diffB;
-        });
-        matchedGroup = candidates[0];
-      }
-    }
-
-    if (matchedGroup) {
-      // Merge listing details
-      const existing = matchedGroup;
-      
-      // Add platform status documents or the item itself
+    if (idMap.has(itemId)) {
+      const existing = idMap.get(itemId);
       const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari', 'amazon'];
-      platforms.forEach(p => {
-        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed' || item[`${p}Status`] === 'delisted' || item[`${p}Status`] === 'active') {
-          if (!existing.listingsMap[p] || (new Date(item.createdAt || 0) > new Date(existing.listingsMap[p].createdAt || 0))) {
-            existing.listingsMap[p] = item;
+      for (let p = 0; p < platforms.length; p++) {
+        const plat = platforms[p];
+        if (item.platform === plat || item[`${plat}Status`] || item[`${plat}ListingId`]) {
+          if (!existing.listingsMap[plat] || (new Date(item.createdAt || 0) > new Date(existing.listingsMap[plat]?.createdAt || 0))) {
+            existing.listingsMap[plat] = item;
           }
         }
-      });
-
-      // Keep both SKUs and thumbnails in the group's match arrays
+      }
       if (sku && !existing.skus.includes(sku)) existing.skus.push(sku);
       if (thumbnail && !existing.thumbnails.includes(thumbnail)) existing.thumbnails.push(thumbnail);
-
-      // Merge listing IDs/URLs
-      if (item.ebayListingId) { existing.ebayListingId = item.ebayListingId; existing.ebayUrl = item.ebayUrl; }
-      if (item.poshmarkListingId) { existing.poshmarkListingId = item.poshmarkListingId; existing.poshmarkUrl = item.poshmarkUrl; }
-      if (item.depopListingId) { existing.depopListingId = item.depopListingId; existing.depopUrl = item.depopUrl; }
-      if (item.etsyListingId) { existing.etsyListingId = item.etsyListingId; existing.etsyUrl = item.etsyUrl; }
-      if (item.mercariListingId) { existing.mercariListingId = item.mercariListingId; existing.mercariUrl = item.mercariUrl; }
-      if (item.amazonListingId || item.amazonAsin) { existing.amazonListingId = item.amazonListingId; existing.amazonAsin = item.amazonAsin; existing.amazonUrl = item.amazonUrl; }
-
-      // Merge platform statuses if set
-      if (item.ebayStatus) existing.ebayStatus = item.ebayStatus;
-      if (item.poshmarkStatus) existing.poshmarkStatus = item.poshmarkStatus;
-      if (item.etsyStatus) existing.etsyStatus = item.etsyStatus;
-      if (item.mercariStatus) existing.mercariStatus = item.mercariStatus;
-      if (item.amazonStatus) existing.amazonStatus = item.amazonStatus;
-
-      // Merge platformData and platform-specific prices
-      if (!existing.platformData) existing.platformData = {};
-      if (item.platformData) {
-        existing.platformData = { ...existing.platformData, ...item.platformData };
-      }
-      if (item.platform && item.price) {
-        existing.platformData[item.platform] = { ...(existing.platformData[item.platform] || {}), price: item.price };
-      }
-      if (item.ebayPrice) {
-        existing.platformData.ebay = { ...(existing.platformData.ebay || {}), price: item.ebayPrice };
-      }
-      if (item.poshmarkPrice) {
-        existing.platformData.poshmark = { ...(existing.platformData.poshmark || {}), price: item.poshmarkPrice };
-      }
-      if (item.mercariPrice) {
-        existing.platformData.mercari = { ...(existing.platformData.mercari || {}), price: item.mercariPrice };
-      }
-      if (item.etsyPrice) {
-        existing.platformData.etsy = { ...(existing.platformData.etsy || {}), price: item.etsyPrice };
-      }
-      if (item.amazonPrice) {
-        existing.platformData.amazon = { ...(existing.platformData.amazon || {}), price: item.amazonPrice };
-      }
-
-      // If any of the listings is more recent, use its title/thumbnail/date and other details
-      const itemTime = new Date(item.updatedAt || item.updated_at || item.createdAt || item.created_at || 0).getTime();
-      const existingTime = new Date(existing.updatedAt || existing.updated_at || existing.createdAt || existing.created_at || 0).getTime();
-      if (itemTime > existingTime) {
-        existing.updatedAt = item.updatedAt || item.updated_at || item.createdAt;
-        existing.createdAt = item.createdAt || item.created_at || existing.createdAt;
-        if (item.title) existing.title = item.title;
-        if (item.thumbnail) existing.thumbnail = item.thumbnail;
-        if (item.size) existing.size = item.size;
-        if (item.brand) existing.brand = item.brand;
-        if (item.color) existing.color = item.color;
-        if (item.description) existing.description = item.description;
-        if (item.category) existing.category = item.category;
-        if (item.categoryId) existing.categoryId = item.categoryId;
-        if (item.itemSpecifics) existing.itemSpecifics = item.itemSpecifics;
-        if (item.conditionNote) existing.conditionNote = item.conditionNote;
-      }
-
-      // Merge sold metadata if either item is sold
-      if (item.status === 'sold' || existing.status === 'sold') {
-        existing.status = 'sold';
-      }
-      if (item.soldOn) existing.soldOn = item.soldOn;
-      if (item.soldPlatform) existing.soldPlatform = item.soldPlatform;
-      if (item.soldOrderId) existing.soldOrderId = item.soldOrderId;
-      if (item.soldAt) existing.soldAt = item.soldAt;
-      if (item.soldPrice) existing.soldPrice = item.soldPrice;
-      if (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on')) {
-        existing.errorMessage = item.errorMessage;
-      }
-      if (item.autoDelistLog) {
-        existing.autoDelistLog = { ...(existing.autoDelistLog || {}), ...item.autoDelistLog };
-      }
-
-      // If existing SKU is '-' but incoming item has real SKU, use it
-      if (existing.sku === '-' && sku) {
-        existing.sku = sku;
-      }
-
-      const statusLower = item.status?.toLowerCase();
-      if (existing.status !== 'sold') {
-        if (statusLower === 'active' || statusLower === 'published' || existing.status === 'Active' || existing.status === 'Published') {
-          existing.status = 'Active';
-        }
-      }
-      
-      // Keep track of all sub-document IDs in a list for deletion
-      if (!existing.allIds.includes(item._id)) {
-        existing.allIds.push(item._id);
-      }
-    } else {
-      // Create new group copying all listing document fields
-      const newGroup = {
-        ...item,
-        updatedAt: item.updatedAt || item.updated_at || item.createdAt,
-        createdAt: item.createdAt || item.created_at || item.updatedAt,
-        allIds: [item._id],
-        sku: (sku && sku !== '-') ? sku : '-',
-        skus: (sku && sku !== '-') ? [sku] : [],
-        thumbnails: thumbnail ? [thumbnail] : [],
-        platformData: {
-          ...(item.platformData || {}),
-          ...(item.platform && item.price ? { [item.platform]: { ...(item.platformData?.[item.platform] || {}), price: item.price } } : {}),
-          ...(item.ebayPrice ? { ebay: { ...(item.platformData?.ebay || {}), price: item.ebayPrice } } : {}),
-          ...(item.poshmarkPrice ? { poshmark: { ...(item.platformData?.poshmark || {}), price: item.poshmarkPrice } } : {}),
-          ...(item.mercariPrice ? { mercari: { ...(item.platformData?.mercari || {}), price: item.mercariPrice } } : {}),
-          ...(item.etsyPrice ? { etsy: { ...(item.platformData?.etsy || {}), price: item.etsyPrice } } : {}),
-          ...(item.amazonPrice ? { amazon: { ...(item.platformData?.amazon || {}), price: item.amazonPrice } } : {}),
-        },
-        listingsMap: {}
-      };
-
-      // Set the initial platform mappings
-      const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari', 'amazon'];
-      platforms.forEach(p => {
-        if (item.platform === p || item[`${p}Status`] === 'draft' || item[`${p}Status`] === 'published' || item[`${p}Status`] === 'failed' || item[`${p}Status`] === 'delisted' || item[`${p}Status`] === 'active') {
-          newGroup.listingsMap[p] = item;
-        }
-      });
-
-      groups.push(newGroup);
+      continue;
     }
-  });
+
+    const newGroup = {
+      ...item,
+      updatedAt: item.updatedAt || item.updated_at || item.createdAt,
+      createdAt: item.createdAt || item.created_at || item.updatedAt,
+      allIds: [item._id],
+      sku: (sku && sku !== '-') ? sku : '-',
+      skus: (sku && sku !== '-') ? [sku] : [],
+      thumbnails: thumbnail ? [thumbnail] : [],
+      platformData: {
+        ...(item.platformData || {}),
+        ...(item.platform && item.price ? { [item.platform]: { ...(item.platformData?.[item.platform] || {}), price: item.price } } : {}),
+        ...(item.ebayPrice ? { ebay: { ...(item.platformData?.ebay || {}), price: item.ebayPrice } } : {}),
+        ...(item.poshmarkPrice ? { poshmark: { ...(item.platformData?.poshmark || {}), price: item.poshmarkPrice } } : {}),
+        ...(item.mercariPrice ? { mercari: { ...(item.platformData?.mercari || {}), price: item.mercariPrice } } : {}),
+        ...(item.etsyPrice ? { etsy: { ...(item.platformData?.etsy || {}), price: item.etsyPrice } } : {}),
+        ...(item.amazonPrice ? { amazon: { ...(item.platformData?.amazon || {}), price: item.amazonPrice } } : {}),
+      },
+      listingsMap: item.listingsMap || {}
+    };
+
+    const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari', 'amazon'];
+    for (let p = 0; p < platforms.length; p++) {
+      const plat = platforms[p];
+      if (!newGroup.listingsMap[plat]) {
+        if (item.platform === plat || item[`${plat}Status`] || item[`${plat}ListingId`]) {
+          newGroup.listingsMap[plat] = item;
+        }
+      }
+    }
+
+    idMap.set(itemId, newGroup);
+    groups.push(newGroup);
+  }
 
   return groups;
 };
@@ -1130,7 +959,7 @@ const NewListings = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'sold') {
+    if (activeTab === 'sold' && soldOrders.length === 0) {
       fetchSoldOrders(true);
     }
   }, [activeTab]);
@@ -1705,8 +1534,8 @@ const NewListings = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'channel') {
-      fetchChannelInventory();
+    if (activeTab === 'channel' && channelProducts.length === 0) {
+      fetchChannelInventory(true);
     }
   }, [activeTab, selectedChannel, user]);
 
@@ -1892,68 +1721,75 @@ const NewListings = () => {
   }, [channelProducts, selectedChannel]);
 
   // Filter listings
-  const filteredListings = groupedListingsList.filter((item) => {
+  const filteredListings = React.useMemo(() => {
     const term = (searchTerm || '').trim().toLowerCase();
-    const matchesSearch = 
-      !term ||
-      item.title?.toLowerCase().includes(term) ||
-      item.sku?.toLowerCase().includes(term) ||
-      (item.brand && item.brand.toLowerCase().includes(term));
     
-    const statusLower = item.status?.toLowerCase();
-    const isSold =
-      statusLower === 'sold' ||
-      Boolean(item.soldOn) ||
-      Boolean(item.soldPlatform) ||
-      (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
-    const pCount = getActivePlatformCount(item);
+    return groupedListingsList.filter((item) => {
+      const matchesSearch = 
+        !term ||
+        item.title?.toLowerCase().includes(term) ||
+        item.sku?.toLowerCase().includes(term) ||
+        (item.brand && item.brand.toLowerCase().includes(term));
+      
+      if (!matchesSearch) return false;
 
-    let matchesStatus = false;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'active') {
-      matchesStatus = !isSold && (pCount > 0 || statusLower === 'active' || statusLower === 'published');
-    } else if (statusFilter === 'sold') {
-      matchesStatus = isSold;
-    } else if (statusFilter === 'delisted') {
-      matchesStatus = !isSold && statusLower === 'delisted';
-    } else if (statusFilter === 'draft') {
-      matchesStatus = !isSold && (statusLower === 'draft' || (!statusLower && pCount === 0));
-    } else if (statusFilter === 'error' || statusFilter === 'failed') {
-      matchesStatus = !isSold && (statusLower === 'failed' || statusLower === 'error');
-    } else if (statusFilter === 'favorite') {
-      matchesStatus = favoriteIds.includes(item._id) || item.isFavorite;
-    } else if (statusFilter === 'unlisted') {
-      matchesStatus = !isSold && pCount === 0 && statusLower !== 'active' && statusLower !== 'published';
-    }
+      const statusLower = item.status?.toLowerCase();
+      const isSold =
+        statusLower === 'sold' ||
+        Boolean(item.soldOn) ||
+        Boolean(item.soldPlatform) ||
+        (item.errorMessage && item.errorMessage.toLowerCase().startsWith('sold on'));
+      const pCount = getActivePlatformCount(item);
 
-    // Listed On platforms filter
-    let matchesListedOn = true;
-    if (filterListedOn.length > 0) {
-      matchesListedOn = Object.values(item.listingsMap || {}).some(sub => 
-        filterListedOn.includes(sub.platform?.toLowerCase()) && 
-        (sub.status?.toLowerCase() === 'active' || sub.status?.toLowerCase() === 'published')
-      ) || filterListedOn.some(p => {
-        const rawSt = item[`${p}Status`]?.toLowerCase();
-        const liveId = item[`${p}ListingId`];
-        return (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
-      });
-    }
+      let matchesStatus = false;
+      if (statusFilter === 'all') {
+        matchesStatus = true;
+      } else if (statusFilter === 'active') {
+        matchesStatus = !isSold && (pCount > 0 || statusLower === 'active' || statusLower === 'published');
+      } else if (statusFilter === 'sold') {
+        matchesStatus = isSold;
+      } else if (statusFilter === 'delisted') {
+        matchesStatus = !isSold && statusLower === 'delisted';
+      } else if (statusFilter === 'draft') {
+        matchesStatus = !isSold && (statusLower === 'draft' || (!statusLower && pCount === 0));
+      } else if (statusFilter === 'error' || statusFilter === 'failed') {
+        matchesStatus = !isSold && (statusLower === 'failed' || statusLower === 'error');
+      } else if (statusFilter === 'favorite') {
+        matchesStatus = favoriteIds.includes(item._id) || item.isFavorite;
+      } else if (statusFilter === 'unlisted') {
+        matchesStatus = !isSold && pCount === 0 && statusLower !== 'active' && statusLower !== 'published';
+      }
 
-    // No Listed On platforms filter
-    let matchesNoListedOn = true;
-    if (filterNoListedOn.length > 0) {
-      matchesNoListedOn = filterNoListedOn.every(p => {
-        const pSub = item.listingsMap?.[p];
-        const rawSt = pSub ? pSub.status?.toLowerCase() : item[`${p}Status`]?.toLowerCase();
-        const liveId = item[`${p}ListingId`] || pSub?.listingId;
-        const isLiveOnP = (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
-        return !isLiveOnP;
-      });
-    }
+      if (!matchesStatus) return false;
 
-    return matchesSearch && matchesStatus && matchesListedOn && matchesNoListedOn;
-  });
+      // Listed On platforms filter
+      if (filterListedOn.length > 0) {
+        const matchesListedOn = Object.values(item.listingsMap || {}).some(sub => 
+          filterListedOn.includes(sub.platform?.toLowerCase()) && 
+          (sub.status?.toLowerCase() === 'active' || sub.status?.toLowerCase() === 'published')
+        ) || filterListedOn.some(p => {
+          const rawSt = item[`${p}Status`]?.toLowerCase();
+          const liveId = item[`${p}ListingId`];
+          return (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
+        });
+        if (!matchesListedOn) return false;
+      }
+
+      // No Listed On platforms filter
+      if (filterNoListedOn.length > 0) {
+        const matchesNoListedOn = filterNoListedOn.every(p => {
+          const pSub = item.listingsMap?.[p];
+          const rawSt = pSub ? pSub.status?.toLowerCase() : item[`${p}Status`]?.toLowerCase();
+          const liveId = item[`${p}ListingId`] || pSub?.listingId;
+          const isLiveOnP = (rawSt === 'published' || rawSt === 'active') && liveId && liveId !== '-';
+          return !isLiveOnP;
+        });
+        if (!matchesNoListedOn) return false;
+      }
+
+      return true;
+    });
+  }, [groupedListingsList, searchTerm, statusFilter, filterListedOn, filterNoListedOn, favoriteIds]);
 
   // Dynamic count calculator for platform columns in the crosslisting table
   const getListingPlatformState = (item, platformName) => {
@@ -2049,113 +1885,107 @@ const NewListings = () => {
   }, [filteredListings, statusFilter]);
 
   // Sort listings
-  const sortedListings = [...filteredListings].sort((a, b) => {
-    const timeA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0).getTime();
-    const timeB = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0).getTime();
-    const countA = getSortPlatformCount(a);
-    const countB = getSortPlatformCount(b);
-    const priceA = parseFloat(a.price) || 0;
-    const priceB = parseFloat(b.price) || 0;
+  const sortedListings = React.useMemo(() => {
+    return [...filteredListings].sort((a, b) => {
+      const timeA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0).getTime();
+      const timeB = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0).getTime();
+      const countA = getSortPlatformCount(a);
+      const countB = getSortPlatformCount(b);
+      const priceA = parseFloat(a.price) || 0;
+      const priceB = parseFloat(b.price) || 0;
 
-    switch (sortOption) {
-      case 'crosslisted-desc':
-        return (countB - countA) || (timeB - timeA);
-      case 'crosslisted-asc':
-        return (countA - countB) || (timeB - timeA);
-      case 'newest':
-        return timeB - timeA;
-      case 'oldest':
-        return timeA - timeB;
-      case 'price-desc':
-        return priceB - priceA;
-      case 'price-asc':
-        return priceA - priceB;
-      case 'title-asc':
-        return (a.title || '').localeCompare(b.title || '');
-      case 'title-desc':
-        return (b.title || '').localeCompare(a.title || '');
-      case 'qty-desc':
-        return (b.quantity || 0) - (a.quantity || 0);
-      case 'qty-asc':
-        return (a.quantity || 0) - (b.quantity || 0);
-      default:
-        return (countB - countA) || (timeB - timeA);
-    }
-  });
+      switch (sortOption) {
+        case 'crosslisted-desc':
+          return (countB - countA) || (timeB - timeA);
+        case 'crosslisted-asc':
+          return (countA - countB) || (timeB - timeA);
+        case 'newest':
+          return timeB - timeA;
+        case 'oldest':
+          return timeA - timeB;
+        case 'price-desc':
+          return priceB - priceA;
+        case 'price-asc':
+          return priceA - priceB;
+        case 'title-asc':
+          return (a.title || '').localeCompare(b.title || '');
+        case 'title-desc':
+          return (b.title || '').localeCompare(a.title || '');
+        case 'qty-desc':
+          return (b.quantity || 0) - (a.quantity || 0);
+        case 'qty-asc':
+          return (a.quantity || 0) - (b.quantity || 0);
+        default:
+          return (countB - countA) || (timeB - timeA);
+      }
+    });
+  }, [filteredListings, sortOption]);
 
-  // Filter & Sort Channel Products
+  // Filter & Sort Channel Products (Optimized Schwartzian transform)
   const filteredAndSortedChannelProducts = React.useMemo(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     
-    // 1. Filter
-    const filtered = channelProducts.filter((product) => {
+    // 1. Single pass: parse details, filter, and pre-extract sort keys
+    const listWithDetails = [];
+    for (let i = 0; i < channelProducts.length; i++) {
+      const product = channelProducts[i];
       const details = getProductDetails(product);
       
-      const matchesSearch =
-        !term ||
-        (details.title && details.title.toLowerCase().includes(term)) ||
-        (details.sku && details.sku.toLowerCase().includes(term)) ||
-        (details.brand && details.brand.toLowerCase().includes(term)) ||
-        (details.liveId && details.liveId.toLowerCase().includes(term)) ||
-        (product.title && product.title.toLowerCase().includes(term)) ||
-        (product.sku && product.sku.toLowerCase().includes(term)) ||
-        (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
-        (product.etsyListingId && product.etsyListingId.toLowerCase().includes(term)) ||
-        (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
-        (product.depopListingId && product.depopListingId.toLowerCase().includes(term)) ||
-        (product.mercariListingId && product.mercariListingId.toLowerCase().includes(term));
-
-      let matchesStatus = true;
-      if (channelStatusFilter !== 'all') {
-        const normalizedStatus = details.status; // 'active' | 'delisted' | 'draft' | 'error'
-        matchesStatus = normalizedStatus === channelStatusFilter;
+      if (channelStatusFilter !== 'all' && details.status !== channelStatusFilter) {
+        continue;
       }
 
-      return matchesSearch && matchesStatus;
-    });
+      if (term) {
+        const matchesSearch =
+          (details.title && details.title.toLowerCase().includes(term)) ||
+          (details.sku && details.sku.toLowerCase().includes(term)) ||
+          (details.brand && details.brand.toLowerCase().includes(term)) ||
+          (details.liveId && details.liveId.toLowerCase().includes(term)) ||
+          (product.title && product.title.toLowerCase().includes(term)) ||
+          (product.sku && product.sku.toLowerCase().includes(term)) ||
+          (product.ebayListingId && product.ebayListingId.toLowerCase().includes(term)) ||
+          (product.etsyListingId && product.etsyListingId.toLowerCase().includes(term)) ||
+          (product.poshmarkListingId && product.poshmarkListingId.toLowerCase().includes(term)) ||
+          (product.depopListingId && product.depopListingId.toLowerCase().includes(term)) ||
+          (product.mercariListingId && product.mercariListingId.toLowerCase().includes(term));
 
-    // 2. Sort
-    return [...filtered].sort((a, b) => {
-      const detailsA = getProductDetails(a);
-      const detailsB = getProductDetails(b);
-
-      // In All Products view, always prioritize active listings over delisted ones
-      if (channelStatusFilter === 'all') {
-        const isActA = detailsA.status === 'active' ? 1 : 0;
-        const isActB = detailsB.status === 'active' ? 1 : 0;
-        if (isActA !== isActB) {
-          return isActB - isActA;
-        }
+        if (!matchesSearch) continue;
       }
 
-      const rawDateA = a.updated_at || a.updatedAt || a.createdAt || a.created_at || a.createdDate || a.created || a.updated || a.date_created || 0;
-      const rawDateB = b.updated_at || b.updatedAt || b.createdAt || b.created_at || b.createdDate || b.created || b.updated || b.date_created || 0;
-      const timeA = typeof rawDateA === 'number' ? (rawDateA < 1e11 ? rawDateA * 1000 : rawDateA) : new Date(rawDateA || 0).getTime();
-      const timeB = typeof rawDateB === 'number' ? (rawDateB < 1e11 ? rawDateB * 1000 : rawDateB) : new Date(rawDateB || 0).getTime();
+      const rawDate = product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || 0;
+      const time = typeof rawDate === 'number' ? (rawDate < 1e11 ? rawDate * 1000 : rawDate) : new Date(rawDate || 0).getTime();
+      const price = details.price || 0;
+      const title = (details.title || '').toLowerCase();
+      const isAct = details.status === 'active' ? 1 : 0;
 
-      const priceA = detailsA.price || 0;
-      const priceB = detailsB.price || 0;
+      listWithDetails.push({ product, details, time: isNaN(time) ? 0 : time, price, title, isAct });
+    }
 
-      const titleA = (detailsA.title || '').toLowerCase();
-      const titleB = (detailsB.title || '').toLowerCase();
+    // 2. Ultra-fast sort using pre-calculated primitive keys (0 allocations during sort)
+    listWithDetails.sort((a, b) => {
+      if (channelStatusFilter === 'all' && a.isAct !== b.isAct) {
+        return b.isAct - a.isAct;
+      }
 
       switch (channelSortOption) {
         case 'newest':
-          return (timeB || 0) - (timeA || 0);
+          return (b.time || 0) - (a.time || 0);
         case 'oldest':
-          return (timeA || 0) - (timeB || 0);
+          return (a.time || 0) - (b.time || 0);
         case 'price-asc':
-          return priceA - priceB;
+          return a.price - b.price;
         case 'price-desc':
-          return priceB - priceA;
+          return b.price - a.price;
         case 'title-asc':
-          return titleA.localeCompare(titleB);
+          return a.title.localeCompare(b.title);
         case 'title-desc':
-          return titleB.localeCompare(titleA);
+          return b.title.localeCompare(a.title);
         default:
-          return (timeB || 0) - (timeA || 0);
+          return (b.time || 0) - (a.time || 0);
       }
     });
+
+    return listWithDetails.map(item => item.product);
   }, [channelProducts, searchTerm, channelStatusFilter, channelSortOption, selectedChannel]);
 
   // Filter & Sort Sold Tracker Orders
@@ -3997,7 +3827,6 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('local');
               localStorage.setItem('elister_active_listings_tab', 'local');
-              fetchListings(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'local'
@@ -4011,7 +3840,6 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('channel');
               localStorage.setItem('elister_active_listings_tab', 'channel');
-              fetchChannelInventory(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'channel'
@@ -4025,7 +3853,6 @@ const NewListings = () => {
             onClick={() => {
               setActiveTab('sold');
               localStorage.setItem('elister_active_listings_tab', 'sold');
-              fetchSoldOrders(true);
             }}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'sold'
