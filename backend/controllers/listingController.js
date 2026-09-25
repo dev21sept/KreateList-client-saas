@@ -4987,15 +4987,38 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     });
 
-    // Helper: Smart multi-platform matching engine
+    // Precompute search indexes on existing listings for instant sub-millisecond lookups
+    const prefixMap = new Map();
+    const indexedListings = existingListings.map(l => {
+      const lTitle = (l.title || '').trim().toLowerCase();
+      const clean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      const prefix20 = clean.slice(0, 20);
+      const words = new Set(clean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
+      const images = (l.images || []).concat(l.thumbnail ? [l.thumbnail] : []).filter(Boolean);
+      const imgBases = new Set(images.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
+      
+      const itemWrapper = {
+        listing: l,
+        clean,
+        prefix20,
+        words,
+        imgBases
+      };
+
+      if (prefix20.length >= 8) {
+        if (!prefixMap.has(prefix20)) prefixMap.set(prefix20, []);
+        prefixMap.get(prefix20).push(itemWrapper);
+      }
+
+      return itemWrapper;
+    });
+
     const findCandidateListing = (p, platformKey) => {
       const liveIdKey = `${platformKey}ListingId`;
       const activeIdsSet = platformKey === 'ebay' ? activeEbayIds : (platformKey === 'poshmark' ? activePoshmarkIds : activeMercariIds);
-
-      // Helper to check if a listing is eligible to receive this platform's link
       const isEligible = (l) => !l[liveIdKey] || !activeIdsSet.has(l[liveIdKey]);
 
-      // 1. Direct Live ID Match
+      // 1. Direct Live ID Match (O(1))
       if (platformKey === 'ebay') {
         const id = p.ebayListingId || p.itemId || p.liveListingId;
         if (id && listingByEbayId.has(id)) {
@@ -5012,37 +5035,28 @@ exports.cleanGhostChannels = async (req, res) => {
         if (isEligible(l)) return l;
       }
 
-      // 2. Exact SKU Match
+      // 2. Exact SKU Match (O(1))
       const s = (p.sku || '').trim().toLowerCase();
       if (s && s !== '-' && availableListingBySku.has(s)) {
         const found = availableListingBySku.get(s).find(isEligible);
         if (found) return found;
       }
 
-      // 3. Exact Title Match
+      // 3. Exact Title Match (O(1))
       const pTitle = (p.title || '').trim().toLowerCase();
       if (pTitle && availableListingByTitle.has(pTitle)) {
         const found = availableListingByTitle.get(pTitle).find(isEligible);
         if (found) return found;
       }
 
-      // 4. Prefix / Substring Match (handles Poshmark 50-char limit)
+      // 4. Prefix / Substring Match (O(1) via prefixMap)
       const pClean = pTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
       const pPrefix20 = pClean.slice(0, 20);
 
-      if (pPrefix20.length >= 8) {
-        for (const l of existingListings) {
-          if (!isEligible(l)) continue;
-          const lTitle = (l.title || '').trim().toLowerCase();
-          const lClean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-          
-          if (lClean.startsWith(pClean) || pClean.startsWith(lClean)) {
-            return l;
-          }
-          if (lClean.slice(0, 20) === pPrefix20) {
-            return l;
-          }
-        }
+      if (pPrefix20.length >= 8 && prefixMap.has(pPrefix20)) {
+        const candidates = prefixMap.get(pPrefix20);
+        const match = candidates.find(c => isEligible(c.listing));
+        if (match) return match.listing;
       }
 
       // 5. Token / Word Overlap Matching
@@ -5051,40 +5065,32 @@ exports.cleanGhostChannels = async (req, res) => {
         let bestCandidate = null;
         let highestScore = 0;
 
-        for (const l of existingListings) {
-          if (!isEligible(l)) continue;
-          const lTitle = (l.title || '').trim().toLowerCase();
-          const lClean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-          const lWords = new Set(lClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
-          
+        for (const c of indexedListings) {
+          if (!isEligible(c.listing)) continue;
           let matchCount = 0;
           for (const w of pWords) {
-            if (lWords.has(w)) matchCount++;
+            if (c.words.has(w)) matchCount++;
           }
 
-          const score = matchCount / Math.max(1, Math.min(pWords.length, lWords.size));
+          const score = matchCount / Math.max(1, Math.min(pWords.length, c.words.size));
           if (score >= 0.55 && matchCount >= 2 && score > highestScore) {
             highestScore = score;
-            bestCandidate = l;
+            bestCandidate = c.listing;
           }
         }
 
         if (bestCandidate) return bestCandidate;
       }
 
-      // 6. Image Match (if they share any image URL filename)
+      // 6. Image Match
       const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []).filter(Boolean);
       if (pImages.length > 0) {
         const pImgBases = new Set(pImages.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
         if (pImgBases.size > 0) {
-          for (const l of existingListings) {
-            if (!isEligible(l)) continue;
-            const lImages = (l.images || []).concat(l.thumbnail ? [l.thumbnail] : []).filter(Boolean);
-            for (const img of lImages) {
-              const base = img.split('?')[0].split('/').pop();
-              if (base && pImgBases.has(base)) {
-                return l;
-              }
+          for (const c of indexedListings) {
+            if (!isEligible(c.listing)) continue;
+            for (const b of pImgBases) {
+              if (c.imgBases.has(b)) return c.listing;
             }
           }
         }
