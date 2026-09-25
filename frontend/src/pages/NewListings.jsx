@@ -277,12 +277,52 @@ const groupListingsBySku = (rawListings) => {
     const rawSku = item.sku ? item.sku.trim() : '';
     const cleanSku = getDisplaySku(rawSku);
     const sku = cleanSku !== '-' ? cleanSku : '';
-    const thumbnail = item.thumbnail ? item.thumbnail.trim() : '';
+    const titleClean = (item.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const titlePrefix20 = titleClean.slice(0, 20);
     
-    // Find if there is an existing group that matches by SKU
+    // Find if there is an existing group that matches by SKU, platform IDs, or Title similarity
     let matchedGroup = null;
     if (sku && sku !== '' && sku !== '-') {
       matchedGroup = groups.find(g => g.skus.includes(sku));
+    }
+
+    // Match by live platform ID
+    if (!matchedGroup) {
+      const eId = item.ebayListingId;
+      const pId = item.poshmarkListingId;
+      const mId = item.mercariListingId;
+      if (eId || pId || mId) {
+        matchedGroup = groups.find(g => 
+          (eId && g.ebayListingId === eId) ||
+          (pId && g.poshmarkListingId === pId) ||
+          (mId && g.mercariListingId === mId)
+        );
+      }
+    }
+
+    // Match by Title prefix / Substring (handles 50-char Poshmark limit)
+    if (!matchedGroup && titlePrefix20.length >= 8) {
+      matchedGroup = groups.find(g => {
+        const gTitleClean = (g.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        return gTitleClean.startsWith(titleClean) || titleClean.startsWith(gTitleClean) || (gTitleClean.slice(0, 20) === titlePrefix20);
+      });
+    }
+
+    // Match by Token similarity
+    if (!matchedGroup) {
+      const itemWords = titleClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w)));
+      if (itemWords.length >= 2) {
+        matchedGroup = groups.find(g => {
+          const gTitleClean = (g.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+          const gWords = new Set(gTitleClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
+          let matchCount = 0;
+          for (const w of itemWords) {
+            if (gWords.has(w)) matchCount++;
+          }
+          const score = matchCount / Math.max(1, Math.min(itemWords.length, gWords.size));
+          return score >= 0.55 && matchCount >= 2;
+        });
+      }
     }
 
     if (matchedGroup) {

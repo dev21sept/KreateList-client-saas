@@ -4988,6 +4988,112 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     });
 
+    // Helper: Smart multi-platform matching engine
+    const findCandidateListing = (p, platformKey) => {
+      const liveIdKey = `${platformKey}ListingId`;
+      const activeIdsSet = platformKey === 'ebay' ? activeEbayIds : (platformKey === 'poshmark' ? activePoshmarkIds : activeMercariIds);
+
+      // Helper to check if a listing is eligible to receive this platform's link
+      const isEligible = (l) => !l[liveIdKey] || !activeIdsSet.has(l[liveIdKey]);
+
+      // 1. Direct Live ID Match
+      if (platformKey === 'ebay') {
+        const id = p.ebayListingId || p.itemId || p.liveListingId;
+        if (id && listingByEbayId.has(id)) {
+          const l = listingByEbayId.get(id);
+          if (isEligible(l)) return l;
+        }
+      }
+      if (platformKey === 'poshmark' && p.poshmarkListingId && listingByPoshId.has(p.poshmarkListingId)) {
+        const l = listingByPoshId.get(p.poshmarkListingId);
+        if (isEligible(l)) return l;
+      }
+      if (platformKey === 'mercari' && p.mercariListingId && listingByMercId.has(p.mercariListingId)) {
+        const l = listingByMercId.get(p.mercariListingId);
+        if (isEligible(l)) return l;
+      }
+
+      // 2. Exact SKU Match
+      const s = (p.sku || '').trim().toLowerCase();
+      if (s && s !== '-' && availableListingBySku.has(s)) {
+        const found = availableListingBySku.get(s).find(isEligible);
+        if (found) return found;
+      }
+
+      // 3. Exact Title Match
+      const pTitle = (p.title || '').trim().toLowerCase();
+      if (pTitle && availableListingByTitle.has(pTitle)) {
+        const found = availableListingByTitle.get(pTitle).find(isEligible);
+        if (found) return found;
+      }
+
+      // 4. Prefix / Substring Match (handles Poshmark 50-char limit)
+      const pClean = pTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      const pPrefix20 = pClean.slice(0, 20);
+
+      if (pPrefix20.length >= 8) {
+        for (const l of existingListings) {
+          if (!isEligible(l)) continue;
+          const lTitle = (l.title || '').trim().toLowerCase();
+          const lClean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+          
+          if (lClean.startsWith(pClean) || pClean.startsWith(lClean)) {
+            return l;
+          }
+          if (lClean.slice(0, 20) === pPrefix20) {
+            return l;
+          }
+        }
+      }
+
+      // 5. Token / Word Overlap Matching
+      const pWords = pClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w)));
+      if (pWords.length >= 2) {
+        let bestCandidate = null;
+        let highestScore = 0;
+
+        for (const l of existingListings) {
+          if (!isEligible(l)) continue;
+          const lTitle = (l.title || '').trim().toLowerCase();
+          const lClean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+          const lWords = new Set(lClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
+          
+          let matchCount = 0;
+          for (const w of pWords) {
+            if (lWords.has(w)) matchCount++;
+          }
+
+          const score = matchCount / Math.max(1, Math.min(pWords.length, lWords.size));
+          if (score >= 0.55 && matchCount >= 2 && score > highestScore) {
+            highestScore = score;
+            bestCandidate = l;
+          }
+        }
+
+        if (bestCandidate) return bestCandidate;
+      }
+
+      // 6. Image Match (if they share any image URL filename)
+      const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []).filter(Boolean);
+      if (pImages.length > 0) {
+        const pImgBases = new Set(pImages.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
+        if (pImgBases.size > 0) {
+          for (const l of existingListings) {
+            if (!isEligible(l)) continue;
+            const lImages = (l.images || []).concat(l.thumbnail ? [l.thumbnail] : []).filter(Boolean);
+            for (const img of lImages) {
+              const base = img.split('?')[0].split('/').pop();
+              if (base && pImgBases.has(base)) {
+                return l;
+              }
+            }
+          }
+        }
+      }
+
+      return null;
+    };
+
     // 4. Guaranteed 1-to-1 mapping for all active eBay products
     const assignedEbayListingIds = new Set();
     const newListingDocs = [];
@@ -4996,23 +5102,7 @@ exports.cleanGhostChannels = async (req, res) => {
       const eid = p.ebayListingId || p.itemId || p.liveListingId;
       if (!eid) continue;
 
-      let targetListing = listingByEbayId.get(eid);
-
-      if (!targetListing) {
-        const s = (p.sku || '').trim().toLowerCase();
-        if (s && s !== '-') {
-          const candidates = availableListingBySku.get(s) || [];
-          targetListing = candidates.find(l => !l.ebayListingId || !activeEbayIds.has(l.ebayListingId));
-        }
-      }
-
-      if (!targetListing) {
-        const t = (p.title || '').trim().toLowerCase();
-        if (t) {
-          const candidates = availableListingByTitle.get(t) || [];
-          targetListing = candidates.find(l => !l.ebayListingId || !activeEbayIds.has(l.ebayListingId));
-        }
-      }
+      let targetListing = findCandidateListing(p, 'ebay');
 
       if (targetListing) {
         targetListing.ebayListingId = eid;
@@ -5029,7 +5119,7 @@ exports.cleanGhostChannels = async (req, res) => {
         assignedEbayListingIds.add(targetListing._id.toString());
         listingByEbayId.set(eid, targetListing);
       } else {
-        newListingDocs.push({
+        const newDoc = {
           user: userId,
           title: p.title || 'eBay Listing',
           description: p.description || p.title || '',
@@ -5059,7 +5149,10 @@ exports.cleanGhostChannels = async (req, res) => {
           },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
-        });
+        };
+        newListingDocs.push(newDoc);
+        existingListings.push(newDoc);
+        listingByEbayId.set(eid, newDoc);
       }
     }
 
@@ -5068,23 +5161,7 @@ exports.cleanGhostChannels = async (req, res) => {
       const pid = p.poshmarkListingId;
       if (!pid) continue;
 
-      let targetListing = listingByPoshId.get(pid);
-
-      if (!targetListing) {
-        const s = (p.sku || '').trim().toLowerCase();
-        if (s && s !== '-') {
-          const candidates = availableListingBySku.get(s) || [];
-          targetListing = candidates.find(l => !l.poshmarkListingId || !activePoshmarkIds.has(l.poshmarkListingId));
-        }
-      }
-
-      if (!targetListing) {
-        const t = (p.title || '').trim().toLowerCase();
-        if (t) {
-          const candidates = availableListingByTitle.get(t) || [];
-          targetListing = candidates.find(l => !l.poshmarkListingId || !activePoshmarkIds.has(l.poshmarkListingId));
-        }
-      }
+      let targetListing = findCandidateListing(p, 'poshmark');
 
       if (targetListing) {
         targetListing.poshmarkListingId = pid;
@@ -5100,7 +5177,7 @@ exports.cleanGhostChannels = async (req, res) => {
         };
         listingByPoshId.set(pid, targetListing);
       } else {
-        newListingDocs.push({
+        const newDoc = {
           user: userId,
           title: p.title || 'Poshmark Listing',
           description: p.description || p.title || '',
@@ -5130,7 +5207,10 @@ exports.cleanGhostChannels = async (req, res) => {
           },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
-        });
+        };
+        newListingDocs.push(newDoc);
+        existingListings.push(newDoc);
+        listingByPoshId.set(pid, newDoc);
       }
     }
 
@@ -5139,23 +5219,7 @@ exports.cleanGhostChannels = async (req, res) => {
       const mid = p.mercariListingId;
       if (!mid) continue;
 
-      let targetListing = listingByMercId.get(mid);
-
-      if (!targetListing) {
-        const s = (p.sku || '').trim().toLowerCase();
-        if (s && s !== '-') {
-          const candidates = availableListingBySku.get(s) || [];
-          targetListing = candidates.find(l => !l.mercariListingId || !activeMercariIds.has(l.mercariListingId));
-        }
-      }
-
-      if (!targetListing) {
-        const t = (p.title || '').trim().toLowerCase();
-        if (t) {
-          const candidates = availableListingByTitle.get(t) || [];
-          targetListing = candidates.find(l => !l.mercariListingId || !activeMercariIds.has(l.mercariListingId));
-        }
-      }
+      let targetListing = findCandidateListing(p, 'mercari');
 
       if (targetListing) {
         targetListing.mercariListingId = mid;
@@ -5171,7 +5235,7 @@ exports.cleanGhostChannels = async (req, res) => {
         };
         listingByMercId.set(mid, targetListing);
       } else {
-        newListingDocs.push({
+        const newDoc = {
           user: userId,
           title: p.title || 'Mercari Listing',
           description: p.description || p.title || '',
@@ -5201,7 +5265,10 @@ exports.cleanGhostChannels = async (req, res) => {
           },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
-        });
+        };
+        newListingDocs.push(newDoc);
+        existingListings.push(newDoc);
+        listingByMercId.set(mid, newDoc);
       }
     }
 
