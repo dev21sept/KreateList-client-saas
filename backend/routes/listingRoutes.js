@@ -20,7 +20,8 @@ const {
   bulkMergeListings,
   forceDelistPoshmark,
   forceRelistPoshmark,
-  cleanDuplicatePoshmarkListings
+  cleanDuplicatePoshmarkListings,
+  reconcileChannelInventory
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -30,6 +31,7 @@ const router = express.Router();
 router.get('/admin/force-delist-poshmark', forceDelistPoshmark);
 router.get('/admin/force-relist-poshmark', forceRelistPoshmark);
 router.get('/admin/clean-duplicates', cleanDuplicatePoshmarkListings);
+router.get('/admin/reconcile-all', reconcileChannelInventory);
 
 router.use(protect);
 

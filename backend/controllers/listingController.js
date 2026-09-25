@@ -4573,6 +4573,178 @@ exports.cleanDuplicatePoshmarkListings = async (req, res) => {
   }
 };
 
+// @desc    Admin/Automated Reconciliation of Live Channel Inventory vs MongoDB Product/Listing records
+// @route   GET /api/listings/admin/reconcile-all
+// @access  Public (for automated verification)
+exports.reconcileChannelInventory = async (req, res) => {
+  try {
+    const email = req.query.email || 'ramayali.creative@gmail.com';
+    const User = require('../models/User');
+    const Listing = require('../models/Listing');
+    const Product = require('../models/Product');
+    const { scrapePoshmarkCloset } = require('../services/externalImportService');
+    const { scrapeMercariCloset } = require('../services/mercariService');
+
+    console.log(`[Reconcile All] Starting complete channel reconciliation for user: ${email}`);
+
+    const user = await User.findOne({
+      $or: [
+        { email: new RegExp(email, 'i') },
+        { 'poshmarkAccount.username': new RegExp('ramayali', 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: `User not found for email ${email}` });
+    }
+
+    const userId = user._id;
+    const report = {
+      ebay: { beforeActive: 0, afterActive: 0 },
+      poshmark: { beforeActive: 0, afterActive: 0, liveScrapedActive: 0 },
+      mercari: { beforeActive: 0, afterActive: 0, liveScrapedActive: 0 }
+    };
+
+    // 1. Check Product collection counts before
+    report.ebay.beforeActive = await Product.countDocuments({ user: userId, source: 'ebay', status: 'active' });
+    report.poshmark.beforeActive = await Product.countDocuments({ user: userId, source: 'poshmark', status: 'active' });
+    report.mercari.beforeActive = await Product.countDocuments({ user: userId, source: 'mercari', status: 'active' });
+
+    // --- POSHMARK RECONCILIATION ---
+    if (user.poshmarkAccount?.connected || user.poshmarkAccount?.sessionCookie || user.poshmarkAccount?.username) {
+      try {
+        const username = user.poshmarkAccount?.username || 'ramayali';
+        console.log(`[Reconcile All] Fetching real live Poshmark closet for @${username}...`);
+        const scrapedPosh = await scrapePoshmarkCloset(username, user.poshmarkAccount);
+        if (Array.isArray(scrapedPosh) && scrapedPosh.length > 0) {
+          const activePoshList = scrapedPosh.filter(p => p.status === 'active');
+          const activePoshIds = new Set(activePoshList.map(p => p.poshmarkListingId).filter(Boolean));
+          report.poshmark.liveScrapedActive = activePoshIds.size;
+
+          console.log(`[Reconcile All] Found ${activePoshIds.size} live active Poshmark listings out of ${scrapedPosh.length} total scraped.`);
+
+          // Update scraped active items in Product collection
+          for (const item of scrapedPosh) {
+            const isItemActive = item.status === 'active';
+            await Product.updateOne(
+              { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
+              {
+                $set: {
+                  title: item.title,
+                  selling_price: parseFloat(item.price) || 0,
+                  images: item.images,
+                  status: isItemActive ? 'active' : 'inactive',
+                  poshmarkUrl: item.poshmarkUrl,
+                  updated_at: Date.now()
+                }
+              },
+              { upsert: isItemActive }
+            );
+          }
+
+          // Mark any Product in DB not in activePoshIds as inactive/delisted
+          if (activePoshIds.size > 0) {
+            await Product.updateMany(
+              {
+                user: userId,
+                source: 'poshmark',
+                status: 'active',
+                poshmarkListingId: { $nin: Array.from(activePoshIds) }
+              },
+              { $set: { status: 'inactive', updated_at: Date.now() } }
+            );
+
+            // Also clean master Listing collection
+            await Listing.updateMany(
+              {
+                user: userId,
+                poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                poshmarkStatus: { $in: ['published', 'active'] }
+              },
+              { $set: { poshmarkStatus: 'delisted' } }
+            );
+          }
+        }
+      } catch (poshErr) {
+        console.warn(`[Reconcile All] Poshmark reconciliation notice:`, poshErr.message);
+      }
+    }
+
+    // --- MERCARI RECONCILIATION ---
+    if (user.mercariAccount?.connected || user.mercariAccount?.sessionCookie || user.mercariAccount?.username) {
+      try {
+        const username = user.mercariAccount?.username || 'user';
+        console.log(`[Reconcile All] Scraping/verifying Mercari closet for ${username}...`);
+        const scrapedMerc = await scrapeMercariCloset(username, user.mercariAccount);
+        if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
+          const activeMercList = scrapedMerc.filter(p => p.status === 'active');
+          const activeMercIds = new Set(activeMercList.map(p => p.mercariListingId).filter(Boolean));
+          report.mercari.liveScrapedActive = activeMercIds.size;
+
+          console.log(`[Reconcile All] Found ${activeMercIds.size} live active Mercari listings out of ${scrapedMerc.length} total scraped.`);
+
+          // Update scraped active items in Product collection
+          for (const item of scrapedMerc) {
+            const isItemActive = item.status === 'active';
+            await Product.updateOne(
+              { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
+              {
+                $set: {
+                  title: item.title,
+                  selling_price: parseFloat(item.price) || 0,
+                  images: item.images,
+                  status: isItemActive ? 'active' : 'inactive',
+                  mercariUrl: item.mercariUrl,
+                  updated_at: Date.now()
+                }
+              },
+              { upsert: isItemActive }
+            );
+          }
+
+          // Mark any Product in DB not in activeMercIds as inactive
+          if (activeMercIds.size > 0) {
+            await Product.updateMany(
+              {
+                user: userId,
+                source: 'mercari',
+                status: 'active',
+                mercariListingId: { $nin: Array.from(activeMercIds) }
+              },
+              { $set: { status: 'inactive', updated_at: Date.now() } }
+            );
+
+            // Clean master Listing collection
+            await Listing.updateMany(
+              {
+                user: userId,
+                mercariListingId: { $nin: Array.from(activeMercIds) },
+                mercariStatus: { $in: ['published', 'active'] }
+              },
+              { $set: { mercariStatus: 'delisted' } }
+            );
+          }
+        }
+      } catch (mercErr) {
+        console.warn(`[Reconcile All] Mercari reconciliation notice:`, mercErr.message);
+      }
+    }
+
+    report.ebay.afterActive = await Product.countDocuments({ user: userId, source: 'ebay', status: 'active' });
+    report.poshmark.afterActive = await Product.countDocuments({ user: userId, source: 'poshmark', status: 'active' });
+    report.mercari.afterActive = await Product.countDocuments({ user: userId, source: 'mercari', status: 'active' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Channel inventory reconciliation complete.',
+      report
+    });
+  } catch (err) {
+    console.error(`[Reconcile All] Error:`, err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 
 

@@ -424,6 +424,36 @@ exports.syncInventory = async (req, res) => {
     let hasMore = true;
     let totalSynced = 0;
 
+    // Preload tombstones and existing eBay products to eliminate thousands of DB roundtrips
+    const tombstones = await DeletedProduct.find({ user: userId }).lean();
+    const deletedSkus = new Set(tombstones.map(t => t.sku?.toLowerCase()).filter(Boolean));
+    const deletedEbayIds = new Set(tombstones.map(t => String(t.ebayListingId || t.listingId || '')).filter(Boolean));
+    const deletedTitles = new Set(tombstones.filter(t => t.source === 'ebay').map(t => t.title?.trim().toLowerCase()).filter(Boolean));
+
+    const isTombstone = (sku, itemId, title) => {
+      if (sku && deletedSkus.has(sku.toLowerCase())) return true;
+      if (itemId && deletedEbayIds.has(String(itemId))) return true;
+      if (title && deletedTitles.has(title.trim().toLowerCase())) return true;
+      return false;
+    };
+
+    const existingEbayProducts = await Product.find({ user: userId, source: 'ebay' });
+    const productByEbayId = new Map();
+    const productBySku = new Map();
+
+    existingEbayProducts.forEach(p => {
+      if (p.ebayListingId) productByEbayId.set(String(p.ebayListingId), p);
+      if (p.sku) productBySku.set(String(p.sku), p);
+    });
+
+    const bulkOps = [];
+    const flushBulkOps = async () => {
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps, { ordered: false });
+        bulkOps.length = 0;
+      }
+    };
+
     // --- STEP 1: Sync via Sell Inventory API ---
     try {
       while (hasMore) {
@@ -439,14 +469,10 @@ exports.syncInventory = async (req, res) => {
             const offers = await ebayService.getOffers(token, item.sku);
             const published = (offers || []).find(o => o.status === 'PUBLISHED');
             const anyOffer = published || (offers || [])[0];
-            // The real eBay listing ID/status live under offer.listing, not top-level
-            // offer.listingId (which doesn't exist) - offer.status only reflects
-            // whether the offer was ever published, not whether it's still live.
             const listingId = anyOffer?.listing?.listingId || null;
             const isActive = anyOffer?.listing?.listingStatus === 'ACTIVE';
             const isInactive = anyOffer?.status === 'WITHDRAWN' || (listingId && !isActive);
             const resolvedStatus = isActive ? 'active' : (isInactive ? 'inactive' : 'draft');
-            
             const categoryId = anyOffer?.categoryId || null;
 
             offersMap[item.sku] = anyOffer
@@ -463,115 +489,78 @@ exports.syncInventory = async (req, res) => {
         }));
 
         for (const item of items) {
-          // Some eBay inventory items (e.g. malformed or group/variation entries)
-          // don't have a linked `product` object - skip them silently
-          if (!item.product) {
-            continue;
-          }
-
-          const tombstoneMatch = await DeletedProduct.findOne({
-            user: userId,
-            $or: [
-              item.sku ? { sku: item.sku } : null,
-              item.product?.title ? { title: item.product.title, source: 'ebay' } : null
-            ].filter(Boolean)
-          }).lean();
-
-          if (tombstoneMatch) {
-            continue;
-          }
+          if (!item.product) continue;
+          if (isTombstone(item.sku, null, item.product.title)) continue;
 
           const offerInfo = offersMap[item.sku] || { status: 'inactive', listingId: null };
-
           let sizeVal = '';
           let colorVal = '';
           let brandVal = item.product.brand || '';
           if (item.product.aspects) {
             const sizeKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'size' || k.toLowerCase().includes('size ('));
-            if (sizeKey && item.product.aspects[sizeKey] && item.product.aspects[sizeKey].length > 0) {
-              sizeVal = item.product.aspects[sizeKey][0];
-            }
+            if (sizeKey && item.product.aspects[sizeKey]?.[0]) sizeVal = item.product.aspects[sizeKey][0];
             const colorKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'color' || k.toLowerCase() === 'colour');
-            if (colorKey && item.product.aspects[colorKey] && item.product.aspects[colorKey].length > 0) {
-              colorVal = item.product.aspects[colorKey][0];
-            }
+            if (colorKey && item.product.aspects[colorKey]?.[0]) colorVal = item.product.aspects[colorKey][0];
             if (!brandVal) {
               const brandKey = Object.keys(item.product.aspects).find(k => k.toLowerCase() === 'brand');
-              if (brandKey && item.product.aspects[brandKey] && item.product.aspects[brandKey].length > 0) {
-                brandVal = item.product.aspects[brandKey][0];
-              }
+              if (brandKey && item.product.aspects[brandKey]?.[0]) brandVal = item.product.aspects[brandKey][0];
             }
           }
 
-          // Map eBay item to our Product model
-          const product = {
-            user: userId,
-            title: item.product.title,
-            description: item.product.description,
-            sku: item.sku,
-            brand: brandVal,
-            size: sizeVal,
-            color: colorVal,
-            categoryId: offerInfo.categoryId || '',
-            itemSpecifics: item.product.aspects || {},
-            images: item.product.imageUrls || [],
-            selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
-            source: 'ebay',
-            status: offerInfo.status,
-            ebayListingId: offerInfo.listingId,
-            ebayUrl: offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null,
-            updated_at: Date.now()
-          };
-
-          // Deduplication: match by the eBay listing ID first (unique per marketplace listing),
-          // then by SKU. Title matching is unreliable (duplicate/near-duplicate titles across
-          // distinct items) and was causing missing/duplicate rows, so it's no longer used.
-          let existingProduct = null;
-          if (offerInfo.listingId) {
-            existingProduct = await Product.findOne({ ebayListingId: offerInfo.listingId, user: userId, source: 'ebay' });
-          }
-          if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({
-              sku: item.sku,
-              user: userId,
-              source: 'ebay',
-              $or: [
-                { ebayListingId: { $exists: false } },
-                { ebayListingId: null },
-                { ebayListingId: '' },
-                { ebayListingId: offerInfo.listingId }
-              ]
-            });
-          }
+          const existingProduct = (offerInfo.listingId ? productByEbayId.get(String(offerInfo.listingId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
 
           if (existingProduct) {
-            existingProduct.ebayListingId = offerInfo.listingId;
-            existingProduct.ebayUrl = offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null;
-            if (offerInfo.price) {
-              existingProduct.selling_price = parseFloat(offerInfo.price);
-            }
-            
-            // Only update updated_at if status changed to preserve listing age
-            if (existingProduct.status !== offerInfo.status) {
-              existingProduct.status = offerInfo.status;
-              existingProduct.updated_at = Date.now();
-            }
-            
-            if (item.sku) existingProduct.sku = item.sku;
-            if (item.product.title) existingProduct.title = item.product.title;
-            if (item.product.description) existingProduct.description = item.product.description;
-            existingProduct.brand = brandVal;
-            existingProduct.size = sizeVal;
-            existingProduct.color = colorVal;
-            existingProduct.categoryId = offerInfo.categoryId || '';
-            existingProduct.itemSpecifics = item.product.aspects || {};
-            if (item.product.imageUrls && item.product.imageUrls.length > 0) existingProduct.images = item.product.imageUrls;
-            await existingProduct.save();
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: existingProduct._id },
+                update: {
+                  $set: {
+                    ebayListingId: offerInfo.listingId || existingProduct.ebayListingId,
+                    ebayUrl: offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : existingProduct.ebayUrl,
+                    selling_price: offerInfo.price ? parseFloat(offerInfo.price) : existingProduct.selling_price,
+                    status: offerInfo.status,
+                    sku: item.sku || existingProduct.sku,
+                    title: item.product.title || existingProduct.title,
+                    description: item.product.description || existingProduct.description,
+                    brand: brandVal || existingProduct.brand,
+                    size: sizeVal || existingProduct.size,
+                    color: colorVal || existingProduct.color,
+                    categoryId: offerInfo.categoryId || existingProduct.categoryId,
+                    itemSpecifics: item.product.aspects || existingProduct.itemSpecifics,
+                    images: (item.product.imageUrls && item.product.imageUrls.length > 0) ? item.product.imageUrls : existingProduct.images,
+                    updated_at: Date.now()
+                  }
+                }
+              }
+            });
           } else {
-            await Product.create(product);
+            bulkOps.push({
+              insertOne: {
+                document: {
+                  user: userId,
+                  title: item.product.title,
+                  description: item.product.description,
+                  sku: item.sku,
+                  brand: brandVal,
+                  size: sizeVal,
+                  color: colorVal,
+                  categoryId: offerInfo.categoryId || '',
+                  itemSpecifics: item.product.aspects || {},
+                  images: item.product.imageUrls || [],
+                  selling_price: offerInfo.price ? parseFloat(offerInfo.price) : 0,
+                  source: 'ebay',
+                  status: offerInfo.status,
+                  ebayListingId: offerInfo.listingId,
+                  ebayUrl: offerInfo.listingId ? `https://www.ebay.com/itm/${offerInfo.listingId}` : null,
+                  updated_at: Date.now()
+                }
+              }
+            });
           }
           totalSynced++;
         }
+
+        if (bulkOps.length >= 300) await flushBulkOps();
 
         if (items.length < limit) {
           hasMore = false;
@@ -579,6 +568,7 @@ exports.syncInventory = async (req, res) => {
           offset += limit;
         }
       }
+      await flushBulkOps();
     } catch (restErr) {
       console.warn(`[SYNC] Sell Inventory API notice: ${restErr.message}`);
     }
@@ -599,73 +589,52 @@ exports.syncInventory = async (req, res) => {
 
         for (const item of tradingItems) {
           if (item.itemId) activeTradingIds.add(String(item.itemId));
+          if (isTombstone(item.sku, item.itemId, item.title)) continue;
 
-          const tombstoneMatch = await DeletedProduct.findOne({
-            user: userId,
-            $or: [
-              item.sku ? { sku: item.sku } : null,
-              item.itemId ? { ebayListingId: item.itemId } : null,
-              item.title ? { title: item.title, source: 'ebay' } : null
-            ].filter(Boolean)
-          }).lean();
-
-          if (tombstoneMatch) {
-            console.log(`[SYNC] Skipping deleted Trading item: ${item.itemId} - ${item.title}`);
-            continue;
-          }
-
-          let existingProduct = null;
-          if (item.itemId) {
-            existingProduct = await Product.findOne({ ebayListingId: item.itemId, user: userId, source: 'ebay' });
-          }
-          if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({
-              sku: item.sku,
-              user: userId,
-              source: 'ebay',
-              $or: [
-                { ebayListingId: { $exists: false } },
-                { ebayListingId: null },
-                { ebayListingId: '' },
-                { ebayListingId: item.itemId }
-              ]
-            });
-          }
+          const existingProduct = (item.itemId ? productByEbayId.get(String(item.itemId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
 
           if (existingProduct) {
-            existingProduct.ebayListingId = item.itemId;
-            existingProduct.ebayUrl = item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`;
-            if (item.price) existingProduct.selling_price = item.price;
-            if (existingProduct.status !== 'active') {
-              existingProduct.status = 'active';
-              existingProduct.updated_at = Date.now();
-            }
-            if (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) {
-              existingProduct.title = item.title;
-            }
-            if (item.categoryId && !existingProduct.categoryId) existingProduct.categoryId = item.categoryId;
-            if (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) {
-              existingProduct.images = item.images;
-            }
-            await existingProduct.save();
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: existingProduct._id },
+                update: {
+                  $set: {
+                    ebayListingId: item.itemId,
+                    ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                    selling_price: item.price ? parseFloat(item.price) : existingProduct.selling_price,
+                    status: 'active',
+                    title: (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) ? item.title : existingProduct.title,
+                    categoryId: item.categoryId || existingProduct.categoryId,
+                    images: (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) ? item.images : existingProduct.images,
+                    updated_at: Date.now()
+                  }
+                }
+              }
+            });
           } else {
-            await Product.create({
-              user: userId,
-              title: item.title || `eBay Item ${item.itemId}`,
-              description: item.title || '',
-              sku: item.sku,
-              categoryId: item.categoryId || '',
-              images: item.images || [],
-              selling_price: item.price || 0,
-              source: 'ebay',
-              status: 'active',
-              ebayListingId: item.itemId,
-              ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
-              updated_at: Date.now()
+            bulkOps.push({
+              insertOne: {
+                document: {
+                  user: userId,
+                  title: item.title || `eBay Item ${item.itemId}`,
+                  description: item.title || '',
+                  sku: item.sku || '',
+                  categoryId: item.categoryId || '',
+                  images: item.images || [],
+                  selling_price: item.price ? parseFloat(item.price) : 0,
+                  source: 'ebay',
+                  status: 'active',
+                  ebayListingId: item.itemId,
+                  ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                  updated_at: Date.now()
+                }
+              }
             });
           }
           totalSynced++;
         }
+
+        if (bulkOps.length >= 300) await flushBulkOps();
 
         if (tradingPage >= totalPages || tradingItems.length < entriesPerPage) {
           tradingHasMore = false;
@@ -673,6 +642,7 @@ exports.syncInventory = async (req, res) => {
           tradingPage++;
         }
       }
+      await flushBulkOps();
     } catch (tradingErr) {
       console.warn(`[SYNC] Trading API sync notice: ${tradingErr.message}`);
     }
@@ -691,74 +661,51 @@ exports.syncInventory = async (req, res) => {
         console.log(`[SYNC] Trading API Unsold Page ${unsoldPage}/${totalPages}: found ${unsoldItems.length} inactive items`);
 
         for (const item of unsoldItems) {
-          const tombstoneMatch = await DeletedProduct.findOne({
-            user: userId,
-            $or: [
-              item.sku ? { sku: item.sku } : null,
-              item.itemId ? { ebayListingId: item.itemId } : null,
-              item.title ? { title: item.title, source: 'ebay' } : null
-            ].filter(Boolean)
-          }).lean();
-
-          if (tombstoneMatch) {
-            console.log(`[SYNC] Skipping deleted Trading unsold item: ${item.itemId} - ${item.title}`);
-            continue;
-          }
-
-          let existingProduct = null;
-          if (item.itemId) {
-            existingProduct = await Product.findOne({ ebayListingId: item.itemId, user: userId, source: 'ebay' });
-          }
-          if (!existingProduct && item.sku) {
-            existingProduct = await Product.findOne({
-              sku: item.sku,
-              user: userId,
-              source: 'ebay',
-              $or: [
-                { ebayListingId: { $exists: false } },
-                { ebayListingId: null },
-                { ebayListingId: '' },
-                { ebayListingId: item.itemId }
-              ]
-            });
-          }
+          if (isTombstone(item.sku, item.itemId, item.title)) continue;
 
           const isCurrentlyActive = item.itemId && activeTradingIds.has(String(item.itemId));
+          const existingProduct = (item.itemId ? productByEbayId.get(String(item.itemId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
 
           if (existingProduct) {
-            if (!isCurrentlyActive) {
-              if (existingProduct.status !== 'inactive') {
-                existingProduct.status = 'inactive';
-                existingProduct.updated_at = Date.now();
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: existingProduct._id },
+                update: {
+                  $set: {
+                    status: isCurrentlyActive ? 'active' : 'inactive',
+                    selling_price: (item.price && !existingProduct.selling_price) ? parseFloat(item.price) : existingProduct.selling_price,
+                    title: (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) ? item.title : existingProduct.title,
+                    categoryId: item.categoryId || existingProduct.categoryId,
+                    images: (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) ? item.images : existingProduct.images,
+                    updated_at: Date.now()
+                  }
+                }
               }
-            }
-            if (item.price && !existingProduct.selling_price) existingProduct.selling_price = item.price;
-            if (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) {
-              existingProduct.title = item.title;
-            }
-            if (item.categoryId && !existingProduct.categoryId) existingProduct.categoryId = item.categoryId;
-            if (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) {
-              existingProduct.images = item.images;
-            }
-            await existingProduct.save();
+            });
           } else {
-            await Product.create({
-              user: userId,
-              title: item.title || `eBay Item ${item.itemId}`,
-              description: item.title || '',
-              sku: item.sku,
-              categoryId: item.categoryId || '',
-              images: item.images || [],
-              selling_price: item.price || 0,
-              source: 'ebay',
-              status: isCurrentlyActive ? 'active' : 'inactive',
-              ebayListingId: item.itemId,
-              ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
-              updated_at: Date.now()
+            bulkOps.push({
+              insertOne: {
+                document: {
+                  user: userId,
+                  title: item.title || `eBay Item ${item.itemId}`,
+                  description: item.title || '',
+                  sku: item.sku || '',
+                  categoryId: item.categoryId || '',
+                  images: item.images || [],
+                  selling_price: item.price ? parseFloat(item.price) : 0,
+                  source: 'ebay',
+                  status: isCurrentlyActive ? 'active' : 'inactive',
+                  ebayListingId: item.itemId,
+                  ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                  updated_at: Date.now()
+                }
+              }
             });
           }
           totalSynced++;
         }
+
+        if (bulkOps.length >= 300) await flushBulkOps();
 
         if (unsoldPage >= totalPages || unsoldItems.length < entriesPerPage) {
           unsoldHasMore = false;
@@ -766,15 +713,30 @@ exports.syncInventory = async (req, res) => {
           unsoldPage++;
         }
       }
+      await flushBulkOps();
     } catch (unsoldErr) {
       console.warn(`[SYNC] Trading API unsold sync notice: ${unsoldErr.message}`);
     }
 
+    // --- STEP 4: Active Listings Integrity Check ---
+    // If active trading sync succeeded, ensure any eBay product in DB not in activeTradingIds is set to 'inactive'
+    if (activeTradingIds.size > 0) {
+      await Product.updateMany(
+        {
+          user: userId,
+          source: 'ebay',
+          status: 'active',
+          ebayListingId: { $nin: Array.from(activeTradingIds) }
+        },
+        { $set: { status: 'inactive', updated_at: Date.now() } }
+      );
+    }
+
     console.log(`--- SYNC COMPLETE: ${totalSynced} items processed ---`);
     if (res) {
-      return res.status(200).json({ success: true, count: totalSynced });
+      return res.status(200).json({ success: true, count: totalSynced, activeCount: activeTradingIds.size });
     }
-    return { success: true, count: totalSynced };
+    return { success: true, count: totalSynced, activeCount: activeTradingIds.size };
   } catch (error) {
     console.error('Sync Inventory Error:', error.message);
     if (res) {

@@ -4,6 +4,7 @@ const API = axios.create({
   baseURL: import.meta.env.MODE === 'production'
     ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.elister.ai/api')
     : 'http://localhost:5000/api',
+  timeout: 120000,
 });
 
 // Add a request interceptor to add the auth token
