@@ -5393,13 +5393,15 @@ exports.cleanGhostChannels = async (req, res) => {
         unsetFields.mercariPrice = "";
       }
 
+      const updateDoc = { $set: setFields };
+      if (Object.keys(unsetFields).length > 0) {
+        updateDoc.$unset = unsetFields;
+      }
+
       return {
         updateOne: {
           filter: { _id: l._id },
-          update: {
-            $set: setFields,
-            $unset: unsetFields
-          }
+          update: updateDoc
         }
       };
     });
