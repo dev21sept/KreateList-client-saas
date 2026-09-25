@@ -1146,8 +1146,8 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       price_amount: { val: price, currency_code: 'USD', currency_symbol: '$' },
       original_price_amount: { val: originalPrice, currency_code: 'USD', currency_symbol: '$' },
       catalog: {
-        department: listing.departmentId || null,
-        category: listing.categoryId || null,
+        department: effectiveDeptId || null,
+        category: effectiveCatId || null,
         category_features: resolvedSubcats
       },
       colors: postColors,
@@ -1230,6 +1230,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
           attempt--; // Retry immediately without consuming attempt
           continue;
         }
+        if (errMsg.includes("category feature") || errMsg.includes("parent ID mismatch") || errMsg.includes("category_features")) {
+          console.warn(`[Poshmark Publisher] Category feature rejected by Poshmark. Disabling category features and retrying...`);
+          currentPayload.post.catalog.category_features = [];
+          savePayload.post.catalog.category_features = [];
+          resolvedSubcats = [];
+          attempt--;
+          continue;
+        }
         throw new Error(errMsg);
       }
       
@@ -1238,6 +1246,13 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       break;
     } catch (saveErr) {
       console.error(`[Poshmark Publisher] Attribute save attempt ${attempt} failed:`, saveErr.response?.data || saveErr.message);
+      const errMsg = saveErr.response?.data?.error?.errorMessage || saveErr.message || '';
+      if ((errMsg.includes("category feature") || errMsg.includes("parent ID mismatch") || errMsg.includes("category_features")) && attempt < maxRetries) {
+        console.warn(`[Poshmark Publisher] Category feature error caught. Disabling subcategories and retrying...`);
+        savePayload.post.catalog.category_features = [];
+        resolvedSubcats = [];
+        continue;
+      }
       if (attempt === maxRetries) {
         throw new Error(`Attribute Save Failed: ${saveErr.response?.data?.error?.errorMessage || saveErr.message}`);
       }
