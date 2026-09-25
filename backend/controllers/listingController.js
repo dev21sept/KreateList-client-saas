@@ -4753,6 +4753,321 @@ exports.reconcileChannelInventory = async (req, res) => {
   }
 };
 
+// @desc    Admin / Direct cleanup of dead/404/ghost channels in Listing and Product collections
+// @route   GET /api/listings/admin/clean-ghost-channels
+// @access  Public (for automated verification)
+exports.cleanGhostChannels = async (req, res) => {
+  try {
+    const email = req.query.email || 'ramayali.creative@gmail.com';
+    const forceScrape = req.query.scrape === 'true';
+    const User = require('../models/User');
+    const Listing = require('../models/Listing');
+    const Product = require('../models/Product');
+    const { scrapePoshmarkCloset } = require('../services/externalImportService');
+    const { scrapeMercariCloset } = require('../services/mercariService');
+
+    console.log(`[Clean Ghost Channels] Starting ghost channel cleanup for user: ${email}...`);
+
+    const user = await User.findOne({
+      $or: [
+        { email: new RegExp(email, 'i') },
+        { 'poshmarkAccount.username': new RegExp('ramayali', 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: `User not found for email ${email}` });
+    }
+
+    const userId = user._id;
+
+    // Track active IDs for each marketplace
+    let activePoshmarkIds = new Set();
+    let activeMercariIds = new Set();
+    let activeEbayIds = new Set();
+
+    // 1. MERCARI LIVE RECONCILIATION
+    if (forceScrape || (user.mercariAccount?.connected || user.mercariAccount?.sessionCookie)) {
+      try {
+        const username = user.mercariAccount?.username || 'user';
+        console.log(`[Clean Ghost Channels] Scraping live Mercari closet for @${username}...`);
+        const scrapedMerc = await scrapeMercariCloset(username, user.mercariAccount);
+        if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
+          const liveMerc = scrapedMerc.filter(p => p.status === 'active');
+          liveMerc.forEach(p => { if (p.mercariListingId) activeMercariIds.add(p.mercariListingId); });
+          console.log(`[Clean Ghost Channels] Mercari live scraped active IDs: ${activeMercariIds.size}`);
+
+          const mercOps = scrapedMerc.map(item => ({
+            updateOne: {
+              filter: { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
+              update: {
+                $set: {
+                  title: item.title,
+                  selling_price: parseFloat(item.price) || 0,
+                  images: item.images,
+                  status: item.status === 'active' ? 'active' : 'inactive',
+                  mercariUrl: item.mercariUrl,
+                  updated_at: Date.now()
+                }
+              },
+              upsert: item.status === 'active'
+            }
+          }));
+          if (mercOps.length > 0) {
+            await Product.bulkWrite(mercOps, { ordered: false });
+          }
+        }
+      } catch (mErr) {
+        console.warn(`[Clean Ghost Channels] Mercari scrape warning:`, mErr.message);
+      }
+    }
+
+    // Fallback: If activeMercariIds is empty, check active Product docs
+    if (activeMercariIds.size === 0) {
+      const activeMercProducts = await Product.find({ user: userId, source: 'mercari', status: 'active' });
+      activeMercProducts.forEach(p => { if (p.mercariListingId) activeMercariIds.add(p.mercariListingId); });
+    }
+
+    // 2. POSHMARK LIVE RECONCILIATION
+    if (forceScrape || (user.poshmarkAccount?.connected || user.poshmarkAccount?.sessionCookie)) {
+      try {
+        const username = user.poshmarkAccount?.username || 'ramayali';
+        console.log(`[Clean Ghost Channels] Scraping live Poshmark closet for @${username}...`);
+        const scrapedPosh = await scrapePoshmarkCloset(username, user.poshmarkAccount);
+        if (Array.isArray(scrapedPosh) && scrapedPosh.length > 0) {
+          const livePosh = scrapedPosh.filter(p => p.status === 'active');
+          livePosh.forEach(p => { if (p.poshmarkListingId) activePoshmarkIds.add(p.poshmarkListingId); });
+          console.log(`[Clean Ghost Channels] Poshmark live scraped active IDs: ${activePoshmarkIds.size}`);
+
+          const poshOps = scrapedPosh.map(item => ({
+            updateOne: {
+              filter: { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
+              update: {
+                $set: {
+                  title: item.title,
+                  selling_price: parseFloat(item.price) || 0,
+                  images: item.images,
+                  status: item.status === 'active' ? 'active' : 'inactive',
+                  poshmarkUrl: item.poshmarkUrl,
+                  updated_at: Date.now()
+                }
+              },
+              upsert: item.status === 'active'
+            }
+          }));
+          if (poshOps.length > 0) {
+            await Product.bulkWrite(poshOps, { ordered: false });
+          }
+        }
+      } catch (pErr) {
+        console.warn(`[Clean Ghost Channels] Poshmark scrape warning:`, pErr.message);
+      }
+    }
+
+    // Fallback for Poshmark: if scrape didn't run, load from active Products
+    if (activePoshmarkIds.size === 0) {
+      const activePoshProducts = await Product.find({ user: userId, source: 'poshmark', status: 'active' });
+      activePoshProducts.forEach(p => { if (p.poshmarkListingId) activePoshmarkIds.add(p.poshmarkListingId); });
+    }
+
+    // 3. EBAY ACTIVE IDS
+    const activeEbayProducts = await Product.find({ user: userId, source: 'ebay', status: 'active' });
+    activeEbayProducts.forEach(p => {
+      const eid = p.ebayListingId || p.itemId || p.liveListingId;
+      if (eid) activeEbayIds.add(eid);
+    });
+
+    console.log(`[Clean Ghost Channels] Active Mercari IDs: ${activeMercariIds.size}, Active Poshmark IDs: ${activePoshmarkIds.size}, Active eBay IDs: ${activeEbayIds.size}`);
+
+    // 4. CLEAN PRODUCT COLLECTION
+    if (activeMercariIds.size > 0) {
+      await Product.updateMany(
+        { user: userId, source: 'mercari', mercariListingId: { $nin: Array.from(activeMercariIds) }, status: 'active' },
+        { $set: { status: 'inactive', updated_at: Date.now() } }
+      );
+    }
+    if (activePoshmarkIds.size > 0) {
+      await Product.updateMany(
+        { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(activePoshmarkIds) }, status: 'active' },
+        { $set: { status: 'inactive', updated_at: Date.now() } }
+      );
+    }
+
+    // 5. CLEAN MASTER LISTINGS COLLECTION
+    const listings = await Listing.find({ user: userId });
+    let cleanedMercariCount = 0;
+    let cleanedPoshmarkCount = 0;
+    let cleanedEtsyCount = 0;
+    let cleanedAmazonCount = 0;
+    let updatedListingsCount = 0;
+
+    for (const listing of listings) {
+      let modified = false;
+
+      // Mercari cleanup
+      if (listing.mercariListingId) {
+        if (!activeMercariIds.has(listing.mercariListingId)) {
+          listing.mercariStatus = 'none';
+          listing.mercariListingId = undefined;
+          listing.mercariUrl = undefined;
+          listing.mercariPrice = undefined;
+          if (listing.listingsMap && listing.listingsMap.mercari) {
+            delete listing.listingsMap.mercari;
+            listing.markModified('listingsMap');
+          }
+          if (listing.platformData && listing.platformData.mercari) {
+            delete listing.platformData.mercari;
+            listing.markModified('platformData');
+          }
+          cleanedMercariCount++;
+          modified = true;
+        } else {
+          if (listing.mercariStatus !== 'published') {
+            listing.mercariStatus = 'published';
+            modified = true;
+          }
+        }
+      } else if (listing.mercariStatus && listing.mercariStatus !== 'none') {
+        listing.mercariStatus = 'none';
+        modified = true;
+      }
+
+      // Poshmark cleanup
+      if (listing.poshmarkListingId) {
+        if (activePoshmarkIds.size > 0 && !activePoshmarkIds.has(listing.poshmarkListingId)) {
+          listing.poshmarkStatus = 'none';
+          listing.poshmarkListingId = undefined;
+          listing.poshmarkUrl = undefined;
+          listing.poshmarkPrice = undefined;
+          if (listing.listingsMap && listing.listingsMap.poshmark) {
+            delete listing.listingsMap.poshmark;
+            listing.markModified('listingsMap');
+          }
+          if (listing.platformData && listing.platformData.poshmark) {
+            delete listing.platformData.poshmark;
+            listing.markModified('platformData');
+          }
+          cleanedPoshmarkCount++;
+          modified = true;
+        } else if (activePoshmarkIds.has(listing.poshmarkListingId)) {
+          if (listing.poshmarkStatus !== 'published') {
+            listing.poshmarkStatus = 'published';
+            modified = true;
+          }
+        }
+      } else if (listing.poshmarkStatus && listing.poshmarkStatus !== 'none') {
+        listing.poshmarkStatus = 'none';
+        modified = true;
+      }
+
+      // Etsy cleanup (User has 0 Etsy items)
+      if (listing.etsyListingId || (listing.etsyStatus && listing.etsyStatus !== 'none')) {
+        listing.etsyStatus = 'none';
+        listing.etsyListingId = undefined;
+        listing.etsyUrl = undefined;
+        listing.etsyPrice = undefined;
+        if (listing.listingsMap && listing.listingsMap.etsy) {
+          delete listing.listingsMap.etsy;
+          listing.markModified('listingsMap');
+        }
+        if (listing.platformData && listing.platformData.etsy) {
+          delete listing.platformData.etsy;
+          listing.markModified('platformData');
+        }
+        cleanedEtsyCount++;
+        modified = true;
+      }
+
+      // Amazon cleanup (User has 0 Amazon items)
+      if (listing.amazonListingId || (listing.amazonStatus && listing.amazonStatus !== 'none')) {
+        listing.amazonStatus = 'none';
+        listing.amazonListingId = undefined;
+        listing.amazonUrl = undefined;
+        listing.amazonPrice = undefined;
+        if (listing.listingsMap && listing.listingsMap.amazon) {
+          delete listing.listingsMap.amazon;
+          listing.markModified('listingsMap');
+        }
+        if (listing.platformData && listing.platformData.amazon) {
+          delete listing.platformData.amazon;
+          listing.markModified('platformData');
+        }
+        cleanedAmazonCount++;
+        modified = true;
+      }
+
+      // Overall status re-computation
+      const hasPublished = (
+        listing.ebayStatus === 'published' ||
+        listing.poshmarkStatus === 'published' ||
+        listing.mercariStatus === 'published'
+      );
+      const hasSold = (
+        listing.ebayStatus === 'sold' ||
+        listing.poshmarkStatus === 'sold' ||
+        listing.mercariStatus === 'sold' ||
+        listing.status === 'sold'
+      );
+      const hasDelisted = (
+        listing.ebayStatus === 'delisted' ||
+        listing.poshmarkStatus === 'delisted' ||
+        listing.mercariStatus === 'delisted'
+      );
+
+      if (hasPublished) {
+        listing.status = 'published';
+      } else if (hasSold) {
+        listing.status = 'sold';
+      } else if (hasDelisted) {
+        listing.status = 'delisted';
+      } else {
+        listing.status = 'draft';
+      }
+
+      if (modified) {
+        await listing.save();
+        updatedListingsCount++;
+      }
+    }
+
+    // 6. Gather Final Statistics
+    const finalReport = {
+      user: email,
+      products: {
+        ebayActive: await Product.countDocuments({ user: userId, source: 'ebay', status: 'active' }),
+        poshmarkActive: await Product.countDocuments({ user: userId, source: 'poshmark', status: 'active' }),
+        mercariActive: await Product.countDocuments({ user: userId, source: 'mercari', status: 'active' }),
+        etsyActive: await Product.countDocuments({ user: userId, source: 'etsy', status: 'active' }),
+      },
+      listings: {
+        ebayPublished: await Listing.countDocuments({ user: userId, ebayStatus: 'published' }),
+        poshmarkPublished: await Listing.countDocuments({ user: userId, poshmarkStatus: 'published' }),
+        mercariPublished: await Listing.countDocuments({ user: userId, mercariStatus: 'published' }),
+        etsyPublished: await Listing.countDocuments({ user: userId, etsyStatus: 'published' }),
+        totalListings: await Listing.countDocuments({ user: userId })
+      },
+      cleaned: {
+        cleanedMercariCount,
+        cleanedPoshmarkCount,
+        cleanedEtsyCount,
+        cleanedAmazonCount,
+        updatedListingsCount
+      }
+    };
+
+    console.log('[Clean Ghost Channels] Cleanup completed successfully:', finalReport);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cleaned ghost channels and reconciled inventory.',
+      report: finalReport
+    });
+  } catch (err) {
+    console.error('[Clean Ghost Channels] Error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 
 

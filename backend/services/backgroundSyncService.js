@@ -498,9 +498,12 @@ async function runBackgroundInventorySyncCycle() {
                   {
                     user: userId,
                     poshmarkListingId: { $nin: Array.from(activePoshIds) },
-                    poshmarkStatus: { $in: ['published', 'active'] }
+                    poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
                   },
-                  { $set: { poshmarkStatus: 'delisted' } }
+                  {
+                    $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+                    $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+                  }
                 );
               }
             }
@@ -553,9 +556,12 @@ async function runBackgroundInventorySyncCycle() {
                   {
                     user: userId,
                     mercariListingId: { $nin: Array.from(activeMercIds) },
-                    mercariStatus: { $in: ['published', 'active'] }
+                    mercariStatus: { $in: ['published', 'active', 'delisted'] }
                   },
-                  { $set: { mercariStatus: 'delisted' } }
+                  {
+                    $set: { mercariStatus: 'none', mercariListingId: null, mercariUrl: null },
+                    $unset: { 'listingsMap.mercari': "", 'platformData.mercari': "" }
+                  }
                 );
               }
             }

@@ -21,7 +21,8 @@ const {
   forceDelistPoshmark,
   forceRelistPoshmark,
   cleanDuplicatePoshmarkListings,
-  reconcileChannelInventory
+  reconcileChannelInventory,
+  cleanGhostChannels
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -32,6 +33,7 @@ router.get('/admin/force-delist-poshmark', forceDelistPoshmark);
 router.get('/admin/force-relist-poshmark', forceRelistPoshmark);
 router.get('/admin/clean-duplicates', cleanDuplicatePoshmarkListings);
 router.get('/admin/reconcile-all', reconcileChannelInventory);
+router.get('/admin/clean-ghost-channels', cleanGhostChannels);
 
 router.use(protect);
 
