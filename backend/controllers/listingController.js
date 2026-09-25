@@ -4610,8 +4610,10 @@ exports.reconcileChannelInventory = async (req, res) => {
     report.poshmark.beforeActive = await Product.countDocuments({ user: userId, source: 'poshmark', status: 'active' });
     report.mercari.beforeActive = await Product.countDocuments({ user: userId, source: 'mercari', status: 'active' });
 
+    const targetChannel = req.query.channel || 'all';
+
     // --- POSHMARK RECONCILIATION ---
-    if (user.poshmarkAccount?.connected || user.poshmarkAccount?.sessionCookie || user.poshmarkAccount?.username) {
+    if ((targetChannel === 'all' || targetChannel === 'poshmark') && (user.poshmarkAccount?.connected || user.poshmarkAccount?.sessionCookie || user.poshmarkAccount?.username)) {
       try {
         const username = user.poshmarkAccount?.username || 'ramayali';
         console.log(`[Reconcile All] Fetching real live Poshmark closet for @${username}...`);
@@ -4623,23 +4625,26 @@ exports.reconcileChannelInventory = async (req, res) => {
 
           console.log(`[Reconcile All] Found ${activePoshIds.size} live active Poshmark listings out of ${scrapedPosh.length} total scraped.`);
 
-          // Update scraped active items in Product collection
-          for (const item of scrapedPosh) {
-            const isItemActive = item.status === 'active';
-            await Product.updateOne(
-              { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
-              {
+          // Bulk write scraped active items in Product collection
+          const poshOps = scrapedPosh.map(item => ({
+            updateOne: {
+              filter: { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
+              update: {
                 $set: {
                   title: item.title,
                   selling_price: parseFloat(item.price) || 0,
                   images: item.images,
-                  status: isItemActive ? 'active' : 'inactive',
+                  status: item.status === 'active' ? 'active' : 'inactive',
                   poshmarkUrl: item.poshmarkUrl,
                   updated_at: Date.now()
                 }
               },
-              { upsert: isItemActive }
-            );
+              upsert: item.status === 'active'
+            }
+          }));
+
+          if (poshOps.length > 0) {
+            await Product.bulkWrite(poshOps, { ordered: false });
           }
 
           // Mark any Product in DB not in activePoshIds as inactive/delisted
@@ -4671,7 +4676,7 @@ exports.reconcileChannelInventory = async (req, res) => {
     }
 
     // --- MERCARI RECONCILIATION ---
-    if (user.mercariAccount?.connected || user.mercariAccount?.sessionCookie || user.mercariAccount?.username) {
+    if ((targetChannel === 'all' || targetChannel === 'mercari') && (user.mercariAccount?.connected || user.mercariAccount?.sessionCookie || user.mercariAccount?.username)) {
       try {
         const username = user.mercariAccount?.username || 'user';
         console.log(`[Reconcile All] Scraping/verifying Mercari closet for ${username}...`);
@@ -4683,23 +4688,26 @@ exports.reconcileChannelInventory = async (req, res) => {
 
           console.log(`[Reconcile All] Found ${activeMercIds.size} live active Mercari listings out of ${scrapedMerc.length} total scraped.`);
 
-          // Update scraped active items in Product collection
-          for (const item of scrapedMerc) {
-            const isItemActive = item.status === 'active';
-            await Product.updateOne(
-              { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
-              {
+          // Bulk write scraped active items in Product collection
+          const mercOps = scrapedMerc.map(item => ({
+            updateOne: {
+              filter: { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
+              update: {
                 $set: {
                   title: item.title,
                   selling_price: parseFloat(item.price) || 0,
                   images: item.images,
-                  status: isItemActive ? 'active' : 'inactive',
+                  status: item.status === 'active' ? 'active' : 'inactive',
                   mercariUrl: item.mercariUrl,
                   updated_at: Date.now()
                 }
               },
-              { upsert: isItemActive }
-            );
+              upsert: item.status === 'active'
+            }
+          }));
+
+          if (mercOps.length > 0) {
+            await Product.bulkWrite(mercOps, { ordered: false });
           }
 
           // Mark any Product in DB not in activeMercIds as inactive
