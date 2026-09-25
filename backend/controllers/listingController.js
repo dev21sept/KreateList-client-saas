@@ -4203,6 +4203,117 @@ exports.bulkMergeListings = async (req, res) => {
   }
 };
 
+// @desc    Admin/Direct execution endpoint to delist a Poshmark listing and verify its live state
+// @route   GET /api/listings/admin/force-delist-poshmark
+// @access  Public (for automated verification)
+exports.forceDelistPoshmark = async (req, res) => {
+  try {
+    const email = req.query.email || 'ramayali.creative@gmail.com';
+    const targetPoshId = req.query.listingId || '6ab0aab9394505ac75da3ca9';
+    const User = require('../models/User');
+    const Listing = require('../models/Listing');
+    const Product = require('../models/Product');
+    const { deletePoshmarkListing, getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
+    const axios = require('axios');
+
+    console.log(`[Admin Force Delist] Executing Poshmark delist for email: ${email}, listingId: ${targetPoshId}`);
+
+    const user = await User.findOne({
+      $or: [
+        { email: new RegExp(email, 'i') },
+        { 'poshmarkAccount.username': new RegExp('ramayali', 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: `User not found for email ${email}` });
+    }
+
+    console.log(`[Admin Force Delist] Found user: ${user._id} (${user.email}). Poshmark connected: ${user.poshmarkAccount?.connected}`);
+
+    // Step 1: Execute Poshmark delisting on Poshmark live API
+    let delistOutcome = null;
+    let delistError = null;
+    if (user.poshmarkAccount?.sessionCookie) {
+      try {
+        delistOutcome = await deletePoshmarkListing(targetPoshId, user.poshmarkAccount);
+        console.log(`[Admin Force Delist] Poshmark remote delist returned:`, delistOutcome);
+      } catch (dErr) {
+        console.error(`[Admin Force Delist] Remote delist error:`, dErr.message);
+        delistError = dErr.message;
+      }
+    } else {
+      delistError = 'Poshmark session cookie missing on user account';
+    }
+
+    // Step 2: Update listing in MongoDB
+    const listing = await Listing.findOne({
+      user: user._id,
+      $or: [
+        { poshmarkListingId: targetPoshId },
+        { 'platformData.poshmark.liveId': targetPoshId },
+        { title: new RegExp('US Army APFU', 'i') }
+      ]
+    });
+
+    if (listing) {
+      listing.poshmarkStatus = 'delisted';
+      if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
+      await listing.save();
+    }
+
+    await Product.updateMany(
+      { user: user._id, poshmarkListingId: targetPoshId },
+      { $set: { status: 'inactive', updated_at: Date.now() } }
+    );
+
+    // Step 3: Verify Live Status directly from Poshmark API
+    let liveCheck = { isLive: false, status: 'unknown' };
+    if (user.poshmarkAccount?.sessionCookie) {
+      try {
+        const domain = user.poshmarkAccount.domain || 'poshmark.com';
+        const headers = getPoshmarkHeaders(user.poshmarkAccount.sessionCookie, user.poshmarkAccount.csrfToken);
+        delete headers['origin'];
+        delete headers['content-type'];
+        const config = getAxiosConfig({
+          method: 'GET',
+          url: `https://${domain}/vm-rest/posts/${targetPoshId}?pm_version=2026.26.01`,
+          headers
+        });
+        const pmRes = await axios(config);
+        const post = pmRes.data?.post || pmRes.data;
+        const rawInvStatus = String(post?.inventory?.status || post?.inventory_status || '').toLowerCase();
+        const rawPostStatus = String(post?.status || '').toLowerCase();
+        const availQty = post?.inventory?.available_quantity;
+        const isNFS = rawInvStatus === 'not_for_sale' || rawInvStatus === 'sold_out' || post?.not_for_sale === true || (typeof availQty === 'number' && availQty <= 0);
+
+        liveCheck = {
+          isLive: !isNFS,
+          invStatus: rawInvStatus,
+          postStatus: rawPostStatus,
+          availQty,
+          not_for_sale: post?.not_for_sale
+        };
+      } catch (vErr) {
+        liveCheck = { error: vErr.message, status: vErr.response?.status };
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Delist execution completed for ${targetPoshId}`,
+      user: { id: user._id, email: user.email },
+      listing: listing ? { id: listing._id, title: listing.title, poshmarkStatus: listing.poshmarkStatus } : null,
+      delistOutcome,
+      delistError,
+      liveCheck
+    });
+  } catch (err) {
+    console.error(`[Admin Force Delist] Error:`, err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 
 
