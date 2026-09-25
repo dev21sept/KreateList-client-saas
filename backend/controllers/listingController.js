@@ -4967,117 +4967,161 @@ exports.cleanGhostChannels = async (req, res) => {
     // 3. Load all existing listings
     const existingListings = await Listing.find({ user: userId });
     
-    // Index existing listings by ID, platform live IDs, SKU, and Title
-    const listingByEbayId = new Map();
-    const listingByPoshId = new Map();
-    const listingByMercId = new Map();
-    const availableListingBySku = new Map();
-    const availableListingByTitle = new Map();
+    const normalizeTitle = (t) => {
+      if (!t) return '';
+      return t
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+    const normalizeStr = (s) => (s || '').trim().toLowerCase();
 
-    existingListings.forEach(l => {
-      if (l.ebayListingId) listingByEbayId.set(l.ebayListingId, l);
-      if (l.poshmarkListingId) listingByPoshId.set(l.poshmarkListingId, l);
-      if (l.mercariListingId) listingByMercId.set(l.mercariListingId, l);
+    // Map for O(1) exact normalized title lookups
+    const listingByExactTitle = new Map();
+    // Map for O(1) custom SKU lookups
+    const listingByCustomSku = new Map();
 
-      const s = (l.sku || '').trim().toLowerCase();
-      const t = (l.title || '').trim().toLowerCase();
-      if (s && s !== '-') {
-        if (!availableListingBySku.has(s)) availableListingBySku.set(s, []);
-        availableListingBySku.get(s).push(l);
+    const registerListingInIndex = (l) => {
+      const norm = normalizeTitle(l.title);
+      if (norm) {
+        if (!listingByExactTitle.has(norm)) listingByExactTitle.set(norm, []);
+        listingByExactTitle.get(norm).push(l);
       }
-      if (t) {
-        if (!availableListingByTitle.has(t)) availableListingByTitle.set(t, []);
-        availableListingByTitle.get(t).push(l);
+      const s = normalizeStr(l.sku);
+      if (s && s !== '-' && !s.startsWith('sku-mu') && !s.startsWith('p-') && !s.startsWith('m-')) {
+        if (!listingByCustomSku.has(s)) listingByCustomSku.set(s, []);
+        listingByCustomSku.get(s).push(l);
       }
-    });
+    };
 
-    // Precompute search indexes on existing listings for instant sub-millisecond lookups
-    const prefixMap = new Map();
-    const imgIndex = new Map();
-
-    const indexedListings = existingListings.map(l => {
-      const lTitle = (l.title || '').trim().toLowerCase();
-      const clean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-      const prefix18 = clean.slice(0, 18);
-      const images = (l.images || []).concat(l.thumbnail ? [l.thumbnail] : []).filter(Boolean);
-      const imgBases = new Set(images.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
-      
-      const itemWrapper = {
-        listing: l,
-        clean,
-        prefix18,
-        imgBases
-      };
-
-      if (prefix18.length >= 6) {
-        if (!prefixMap.has(prefix18)) prefixMap.set(prefix18, []);
-        prefixMap.get(prefix18).push(itemWrapper);
-      }
-
-      imgBases.forEach(b => {
-        if (!imgIndex.has(b)) imgIndex.set(b, []);
-        imgIndex.get(b).push(itemWrapper);
-      });
-
-      return itemWrapper;
-    });
+    existingListings.forEach(registerListingInIndex);
 
     const findCandidateListing = (p, platformKey) => {
-      const liveIdKey = `${platformKey}ListingId`;
+      const liveKey = `${platformKey}ListingId`;
       const activeIdsSet = platformKey === 'ebay' ? activeEbayIds : (platformKey === 'poshmark' ? activePoshmarkIds : activeMercariIds);
-      const isEligible = (l) => !l[liveIdKey] || !activeIdsSet.has(l[liveIdKey]);
+      const isEligible = (l) => !l[liveKey] || !activeIdsSet.has(l[liveKey]);
 
-      // 1. Direct Live ID Match (O(1))
-      if (platformKey === 'ebay') {
-        const id = p.ebayListingId || p.itemId || p.liveListingId;
-        if (id && listingByEbayId.has(id)) {
-          const l = listingByEbayId.get(id);
+      const pTitle = (p.title || '').trim();
+      const pNorm = normalizeTitle(pTitle);
+      const pSku = normalizeStr(p.sku);
+      const pBrand = normalizeStr(p.brand);
+      const pSize = normalizeStr(p.size);
+      const pPrice = parseFloat(p.selling_price || p.price) || 0;
+
+      // 1. Direct Live ID Match
+      const liveId = platformKey === 'ebay' ? (p.ebayListingId || p.itemId || p.liveListingId)
+        : (platformKey === 'poshmark' ? p.poshmarkListingId : p.mercariListingId);
+      if (liveId) {
+        if (platformKey === 'ebay' && listingByEbayId.has(liveId)) {
+          const l = listingByEbayId.get(liveId);
+          if (isEligible(l)) return l;
+        }
+        if (platformKey === 'poshmark' && listingByPoshId.has(liveId)) {
+          const l = listingByPoshId.get(liveId);
+          if (isEligible(l)) return l;
+        }
+        if (platformKey === 'mercari' && listingByMercId.has(liveId)) {
+          const l = listingByMercId.get(liveId);
           if (isEligible(l)) return l;
         }
       }
-      if (platformKey === 'poshmark' && p.poshmarkListingId && listingByPoshId.has(p.poshmarkListingId)) {
-        const l = listingByPoshId.get(p.poshmarkListingId);
-        if (isEligible(l)) return l;
-      }
-      if (platformKey === 'mercari' && p.mercariListingId && listingByMercId.has(p.mercariListingId)) {
-        const l = listingByMercId.get(p.mercariListingId);
-        if (isEligible(l)) return l;
-      }
 
-      // 2. Exact SKU Match (O(1))
-      const s = (p.sku || '').trim().toLowerCase();
-      if (s && s !== '-' && availableListingBySku.has(s)) {
-        const found = availableListingBySku.get(s).find(isEligible);
-        if (found) return found;
-      }
+      // 2. Exact Title Match (O(1))
+      if (pNorm && listingByExactTitle.has(pNorm)) {
+        const candidates = listingByExactTitle.get(pNorm).filter(l => {
+          if (!isEligible(l)) return false;
+          const lBrand = normalizeStr(l.brand);
+          if (pBrand && lBrand && pBrand !== lBrand) return false;
+          const lSize = normalizeStr(l.size);
+          if (pSize && lSize && pSize !== lSize) return false;
+          return true;
+        });
 
-      // 3. Exact Title Match (O(1))
-      const pTitle = (p.title || '').trim().toLowerCase();
-      if (pTitle && availableListingByTitle.has(pTitle)) {
-        const found = availableListingByTitle.get(pTitle).find(isEligible);
-        if (found) return found;
-      }
-
-      // 4. Prefix / Substring Match (O(1) via prefixMap - handles Poshmark 50-char limit)
-      const pClean = pTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-      const pPrefix18 = pClean.slice(0, 18);
-
-      if (pPrefix18.length >= 6 && prefixMap.has(pPrefix18)) {
-        const candidates = prefixMap.get(pPrefix18);
-        const match = candidates.find(c => isEligible(c.listing));
-        if (match) return match.listing;
-      }
-
-      // 5. Image Match using Inverted Index (instant O(1))
-      const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []).filter(Boolean);
-      if (pImages.length > 0) {
-        for (const img of pImages) {
-          const base = img.split('?')[0].split('/').pop();
-          if (base && imgIndex.has(base)) {
-            const list = imgIndex.get(base) || [];
-            const match = list.find(c => isEligible(c.listing));
-            if (match) return match.listing;
+        if (candidates.length === 1) return candidates[0];
+        if (candidates.length > 1) {
+          if (pSku && pSku !== '-') {
+            const skuMatch = candidates.find(l => normalizeStr(l.sku) === pSku);
+            if (skuMatch) return skuMatch;
           }
+          candidates.sort((a, b) => {
+            const diffA = Math.abs((parseFloat(a.price || a.ebayPrice || 0) || 0) - pPrice);
+            const diffB = Math.abs((parseFloat(b.price || b.ebayPrice || 0) || 0) - pPrice);
+            return diffA - diffB;
+          });
+          return candidates[0];
+        }
+      }
+
+      // 3. Exact Custom SKU Match (O(1))
+      if (pSku && pSku !== '-' && !pSku.startsWith('sku-mu') && !pSku.startsWith('p-') && !pSku.startsWith('m-') && listingByCustomSku.has(pSku)) {
+        const candidates = listingByCustomSku.get(pSku).filter(l => {
+          if (!isEligible(l)) return false;
+          const lBrand = normalizeStr(l.brand);
+          if (pBrand && lBrand && pBrand !== lBrand) return false;
+          const lNorm = normalizeTitle(l.title);
+          if (pNorm && lNorm) {
+            const firstWordP = pNorm.split(' ')[0];
+            const firstWordL = lNorm.split(' ')[0];
+            if (firstWordP && firstWordL && firstWordP !== firstWordL) return false;
+          }
+          return true;
+        });
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => {
+            const diffA = Math.abs((parseFloat(a.price || a.ebayPrice || 0) || 0) - pPrice);
+            const diffB = Math.abs((parseFloat(b.price || b.ebayPrice || 0) || 0) - pPrice);
+            return diffA - diffB;
+          });
+          return candidates[0];
+        }
+      }
+
+      // 4. Poshmark 50-Character Truncation Match (ONLY for Poshmark)
+      if (platformKey === 'poshmark' && pNorm.length >= 25) {
+        const candidates = existingListings.filter(l => {
+          if (!isEligible(l)) return false;
+          const lNorm = normalizeTitle(l.title);
+          if (!lNorm || lNorm.length <= pNorm.length) return false;
+          if (!lNorm.startsWith(pNorm)) return false;
+          const lBrand = normalizeStr(l.brand);
+          if (pBrand && lBrand && pBrand !== lBrand) return false;
+          const lSize = normalizeStr(l.size);
+          if (pSize && lSize && pSize !== lSize) return false;
+          return true;
+        });
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => {
+            const diffA = Math.abs((parseFloat(a.price || a.ebayPrice || 0) || 0) - pPrice);
+            const diffB = Math.abs((parseFloat(b.price || b.ebayPrice || 0) || 0) - pPrice);
+            return diffA - diffB;
+          });
+          return candidates[0];
+        }
+      }
+
+      // 5. Mercari Truncation Match (ONLY for Mercari)
+      if (platformKey === 'mercari' && pNorm.length >= 35) {
+        const candidates = existingListings.filter(l => {
+          if (!isEligible(l)) return false;
+          const lNorm = normalizeTitle(l.title);
+          if (!lNorm || lNorm.length <= pNorm.length) return false;
+          if (!lNorm.startsWith(pNorm)) return false;
+          const lBrand = normalizeStr(l.brand);
+          if (pBrand && lBrand && pBrand !== lBrand) return false;
+          const lSize = normalizeStr(l.size);
+          if (pSize && lSize && pSize !== lSize) return false;
+          return true;
+        });
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => {
+            const diffA = Math.abs((parseFloat(a.price || a.ebayPrice || 0) || 0) - pPrice);
+            const diffB = Math.abs((parseFloat(b.price || b.ebayPrice || 0) || 0) - pPrice);
+            return diffA - diffB;
+          });
+          return candidates[0];
         }
       }
 
@@ -5143,6 +5187,7 @@ exports.cleanGhostChannels = async (req, res) => {
         newListingDocs.push(newDoc);
         existingListings.push(newDoc);
         listingByEbayId.set(eid, newDoc);
+        registerListingInIndex(newDoc);
       }
     }
 
@@ -5201,6 +5246,7 @@ exports.cleanGhostChannels = async (req, res) => {
         newListingDocs.push(newDoc);
         existingListings.push(newDoc);
         listingByPoshId.set(pid, newDoc);
+        registerListingInIndex(newDoc);
       }
     }
 

@@ -273,56 +273,102 @@ const getPlatformLiveId = (listing, plat) => {
 const groupListingsBySku = (rawListings) => {
   const groups = [];
 
+  const normalizeTitle = (t) => {
+    if (!t) return '';
+    return t
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+  const normalizeStr = (s) => (s || '').trim().toLowerCase();
+
   rawListings.forEach(item => {
     const rawSku = item.sku ? item.sku.trim() : '';
     const cleanSku = getDisplaySku(rawSku);
     const sku = cleanSku !== '-' ? cleanSku : '';
     const thumbnail = item.thumbnail || (item.images && item.images[0]) || '';
-    const titleClean = (item.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    const titlePrefix20 = titleClean.slice(0, 20);
+    const itemTitle = (item.title || '').trim();
+    const titleNorm = normalizeTitle(itemTitle);
+    const itemBrand = normalizeStr(item.brand);
+    const itemSize = normalizeStr(item.size);
+    const itemPrice = parseFloat(item.price) || 0;
     
-    // Find if there is an existing group that matches by SKU, platform IDs, or Title similarity
+    // Find if there is an existing group that strictly matches
     let matchedGroup = null;
-    if (sku && sku !== '' && sku !== '-') {
-      matchedGroup = groups.find(g => g.skus.includes(sku));
+
+    // 1. Match by live platform ID
+    const eId = item.ebayListingId;
+    const pId = item.poshmarkListingId;
+    const mId = item.mercariListingId;
+    if (eId || pId || mId) {
+      matchedGroup = groups.find(g => 
+        (eId && g.ebayListingId === eId) ||
+        (pId && g.poshmarkListingId === pId) ||
+        (mId && g.mercariListingId === mId)
+      );
     }
 
-    // Match by live platform ID
-    if (!matchedGroup) {
-      const eId = item.ebayListingId;
-      const pId = item.poshmarkListingId;
-      const mId = item.mercariListingId;
-      if (eId || pId || mId) {
-        matchedGroup = groups.find(g => 
-          (eId && g.ebayListingId === eId) ||
-          (pId && g.poshmarkListingId === pId) ||
-          (mId && g.mercariListingId === mId)
-        );
+    // 2. Match by Exact Normalized Title (with brand/size verification)
+    if (!matchedGroup && titleNorm) {
+      const candidates = groups.filter(g => {
+        const gNorm = normalizeTitle(g.title);
+        if (!gNorm || gNorm !== titleNorm) return false;
+        const gBrand = normalizeStr(g.brand);
+        if (itemBrand && gBrand && itemBrand !== gBrand) return false;
+        const gSize = normalizeStr(g.size);
+        if (itemSize && gSize && itemSize !== gSize) return false;
+        return true;
+      });
+
+      if (candidates.length === 1) {
+        matchedGroup = candidates[0];
+      } else if (candidates.length > 1) {
+        candidates.sort((a, b) => {
+          const diffA = Math.abs((parseFloat(a.price || 0) || 0) - itemPrice);
+          const diffB = Math.abs((parseFloat(b.price || 0) || 0) - itemPrice);
+          return diffA - diffB;
+        });
+        matchedGroup = candidates[0];
       }
     }
 
-    // Match by Title prefix / Substring (handles 50-char Poshmark limit)
-    if (!matchedGroup && titlePrefix20.length >= 8) {
-      matchedGroup = groups.find(g => {
-        const gTitleClean = (g.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-        return gTitleClean.startsWith(titleClean) || titleClean.startsWith(gTitleClean) || (gTitleClean.slice(0, 20) === titlePrefix20);
+    // 3. Match by Custom SKU (Only non-dummy)
+    if (!matchedGroup && sku && sku !== '' && sku !== '-' && !sku.toLowerCase().startsWith('sku-mu') && !sku.toLowerCase().startsWith('p-') && !sku.toLowerCase().startsWith('m-')) {
+      const candidates = groups.filter(g => {
+        const hasSku = g.skus.includes(sku) || normalizeStr(g.sku) === normalizeStr(sku);
+        if (!hasSku) return false;
+        const gBrand = normalizeStr(g.brand);
+        if (itemBrand && gBrand && itemBrand !== gBrand) return false;
+        return true;
       });
+      if (candidates.length > 0) {
+        matchedGroup = candidates[0];
+      }
     }
 
-    // Match by Token similarity
-    if (!matchedGroup) {
-      const itemWords = titleClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w)));
-      if (itemWords.length >= 2) {
-        matchedGroup = groups.find(g => {
-          const gTitleClean = (g.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-          const gWords = new Set(gTitleClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
-          let matchCount = 0;
-          for (const w of itemWords) {
-            if (gWords.has(w)) matchCount++;
-          }
-          const score = matchCount / Math.max(1, Math.min(itemWords.length, gWords.size));
-          return score >= 0.55 && matchCount >= 2;
+    // 4. Poshmark 50-Character Truncation Match (ONLY when length >= 25)
+    if (!matchedGroup && titleNorm.length >= 25) {
+      const candidates = groups.filter(g => {
+        const gNorm = normalizeTitle(g.title);
+        if (!gNorm) return false;
+        const isPrefix = (gNorm.length > titleNorm.length && gNorm.startsWith(titleNorm)) ||
+                         (titleNorm.length > gNorm.length && titleNorm.startsWith(gNorm) && gNorm.length >= 25);
+        if (!isPrefix) return false;
+        const gBrand = normalizeStr(g.brand);
+        if (itemBrand && gBrand && itemBrand !== gBrand) return false;
+        const gSize = normalizeStr(g.size);
+        if (itemSize && gSize && itemSize !== gSize) return false;
+        return true;
+      });
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => {
+          const diffA = Math.abs((parseFloat(a.price || 0) || 0) - itemPrice);
+          const diffB = Math.abs((parseFloat(b.price || 0) || 0) - itemPrice);
+          return diffA - diffB;
         });
+        matchedGroup = candidates[0];
       }
     }
 
@@ -637,30 +683,6 @@ const NewListings = () => {
     });
   };
 
-  const getCrosslistedPlatformCount = (item) => {
-    if (!item) return 0;
-    let count = 0;
-    const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
-    for (const p of platforms) {
-      const pSub = item.listingsMap?.[p];
-      const rawSt = (pSub ? pSub.status : item[`${p}Status`])?.toLowerCase();
-      const liveId = item[`${p}ListingId`] || pSub?.listingId || item.platformData?.[p]?.liveId || item.platformData?.[p]?.listingId;
-      
-      const isExplicitlyUnlisted = rawSt === 'none' || rawSt === 'unlisted';
-      const hasPresence = 
-        (liveId && liveId !== '-' && liveId !== 'undefined' && liveId !== 'null') ||
-        (rawSt && !isExplicitlyUnlisted) ||
-        Boolean(pSub) ||
-        Boolean(item.platformData?.[p]) ||
-        (item.platform === p);
-
-      if (hasPresence && !isExplicitlyUnlisted) {
-        count++;
-      }
-    }
-    return count;
-  };
-
   const getActivePlatformCount = (item) => {
     if (!item) return 0;
     let count = 0;
@@ -669,21 +691,22 @@ const NewListings = () => {
       const pSub = item.listingsMap?.[p];
       const rawSt = (pSub ? pSub.status : item[`${p}Status`])?.toLowerCase();
       const liveId = item[`${p}ListingId`] || pSub?.listingId || item.platformData?.[p]?.liveId || item.platformData?.[p]?.listingId;
-      if ((rawSt === 'published' || rawSt === 'active' || rawSt === 'live') && liveId && liveId !== '-') {
+      const hasLiveId = Boolean(liveId && liveId !== '-' && liveId !== 'undefined' && liveId !== 'null');
+      if ((rawSt === 'published' || rawSt === 'active' || rawSt === 'live') && hasLiveId) {
         count++;
-      } else if (!rawSt && item.platform === p && (item.status?.toLowerCase() === 'active' || item.status?.toLowerCase() === 'published')) {
+      } else if (!rawSt && item.platform === p && (item.status?.toLowerCase() === 'active' || item.status?.toLowerCase() === 'published') && hasLiveId) {
         count++;
       }
     }
     return count;
   };
 
+  const getCrosslistedPlatformCount = (item) => {
+    return getActivePlatformCount(item);
+  };
+
   const getSortPlatformCount = (item) => {
-    if (statusFilter === 'active') {
-      const activeCount = getActivePlatformCount(item);
-      return activeCount > 0 ? activeCount : getCrosslistedPlatformCount(item);
-    }
-    return getCrosslistedPlatformCount(item);
+    return getActivePlatformCount(item);
   };
 
   // Filter Modal States
@@ -1134,16 +1157,19 @@ const NewListings = () => {
           const fullData = res.data.data;
           const fullPlatData = fullData.platformData?.[platform] || platformDataObj;
           const finalImages = fullPlatData.images?.length > 0 ? fullPlatData.images : (platformImages.length > 0 ? platformImages : (fullData.images || []));
-          setPreviewListing(prev => ({
-            ...prev,
-            ...fullData,
-            platform,
-            images: finalImages,
-            thumbnail: fullPlatData.thumbnail || finalImages[0] || fullData.thumbnail || prev.thumbnail,
-            price: fullPlatData.price !== undefined ? fullPlatData.price : (fullData[`${platform}Price`] || fullData.price || prev.price),
-            status: targetItem[`${platform}Status`] || fullData[`${platform}Status`] || fullData.status || prev.status,
-            url: targetItem[`${platform}Url`] || fullData[`${platform}Url`] || fullData.url || prev.url
-          }));
+          setPreviewListing(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              ...fullData,
+              platform,
+              images: finalImages,
+              thumbnail: fullPlatData.thumbnail || finalImages[0] || fullData.thumbnail || prev?.thumbnail || '',
+              price: fullPlatData.price !== undefined ? fullPlatData.price : (fullData[`${platform}Price`] || fullData.price || prev?.price),
+              status: targetItem[`${platform}Status`] || fullData[`${platform}Status`] || fullData.status || prev?.status || 'draft',
+              url: targetItem[`${platform}Url`] || fullData[`${platform}Url`] || fullData.url || prev?.url || ''
+            };
+          });
           if (finalImages.length > 0) {
             setActiveImage(finalImages[0]);
           }
@@ -5679,9 +5705,9 @@ const NewListings = () => {
       {/* Preview Modal */}
       {previewListing && (() => {
         const activePlat = previewPlatform || previewListing.platform || 'ebay';
-        const platData = previewListing.platformData?.[activePlat] || 
+        const platData = (previewListing.platformData?.[activePlat] || 
           (previewListing.listingsMap && previewListing.listingsMap[activePlat]) || 
-          (previewListing.platform === activePlat ? previewListing : {});
+          (previewListing.platform === activePlat ? previewListing : {})) || {};
 
         const displayTitle = platData.title || (previewListing.platform === activePlat ? previewListing.title : previewListing.title) || 'Untitled Item';
         const displayDesc = platData.description || (previewListing.platform === activePlat ? previewListing.description : '') || previewListing.description || '';
@@ -5718,7 +5744,7 @@ const NewListings = () => {
         }
         const displayStatus = previewListing[`${activePlat}Status`] || (previewListing.platform === activePlat ? previewListing.status : 'none');
         const displayLiveId = getPlatformLiveId(previewListing, activePlat);
-        const displayUrl = platData.url || previewListing[`${activePlat}Url`];
+        const displayUrl = platData?.url || previewListing?.[`${activePlat}Url`] || previewListing?.url || '';
 
         return (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
