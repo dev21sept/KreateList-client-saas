@@ -2251,20 +2251,30 @@ exports.delistListing = async (req, res) => {
       relatedListings.forEach(l => { if (l.poshmarkListingId) poshIds.add(l.poshmarkListingId); });
       relatedProducts.forEach(p => { if (p.poshmarkListingId) poshIds.add(p.poshmarkListingId); });
 
-      if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie && poshIds.size > 0) {
+      if (poshIds.size > 0) {
+        if (!user.poshmarkAccount?.connected || !user.poshmarkAccount?.sessionCookie) {
+          throw new Error('Poshmark account is not connected or session cookie is missing. Please re-connect Poshmark.');
+        }
+
         const { deletePoshmarkListing } = require('../services/backendPublishService');
+        let anySuccess = false;
+        let lastErr = null;
         for (const pid of poshIds) {
           try {
             await deletePoshmarkListing(pid, user.poshmarkAccount);
+            anySuccess = true;
           } catch (pErr) {
-            console.warn(`[Delist Listing] Poshmark remote delist notice for ${pid}:`, pErr.message);
+            console.error(`[Delist Listing] Poshmark remote delist failed for ${pid}:`, pErr.response?.data || pErr.message);
+            lastErr = pErr;
           }
+        }
+        if (!anySuccess && lastErr) {
+          throw new Error(`Poshmark remote delist failed: ${lastErr.message}`);
         }
       }
       
       listing.poshmarkStatus = 'delisted';
       if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
-      
     } else if (platformLower === 'etsy') {
       const etsyIds = new Set();
       if (listing.etsyListingId) etsyIds.add(listing.etsyListingId);
