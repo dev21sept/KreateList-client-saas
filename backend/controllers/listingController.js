@@ -4991,36 +4991,28 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     });
 
-    // Inverted indexes for instantaneous O(1) lookups
+    // Precompute search indexes on existing listings for instant sub-millisecond lookups
     const prefixMap = new Map();
-    const wordIndex = new Map();
     const imgIndex = new Map();
 
     const indexedListings = existingListings.map(l => {
       const lTitle = (l.title || '').trim().toLowerCase();
       const clean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-      const prefix20 = clean.slice(0, 20);
-      const words = new Set(clean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w))));
+      const prefix18 = clean.slice(0, 18);
       const images = (l.images || []).concat(l.thumbnail ? [l.thumbnail] : []).filter(Boolean);
       const imgBases = new Set(images.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
       
       const itemWrapper = {
         listing: l,
         clean,
-        prefix20,
-        words,
+        prefix18,
         imgBases
       };
 
-      if (prefix20.length >= 8) {
-        if (!prefixMap.has(prefix20)) prefixMap.set(prefix20, []);
-        prefixMap.get(prefix20).push(itemWrapper);
+      if (prefix18.length >= 6) {
+        if (!prefixMap.has(prefix18)) prefixMap.set(prefix18, []);
+        prefixMap.get(prefix18).push(itemWrapper);
       }
-
-      words.forEach(w => {
-        if (!wordIndex.has(w)) wordIndex.set(w, []);
-        wordIndex.get(w).push(itemWrapper);
-      });
 
       imgBases.forEach(b => {
         if (!imgIndex.has(b)) imgIndex.set(b, []);
@@ -5066,41 +5058,17 @@ exports.cleanGhostChannels = async (req, res) => {
         if (found) return found;
       }
 
-      // 4. Prefix / Substring Match (O(1) via prefixMap)
+      // 4. Prefix / Substring Match (O(1) via prefixMap - handles Poshmark 50-char limit)
       const pClean = pTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-      const pPrefix20 = pClean.slice(0, 20);
+      const pPrefix18 = pClean.slice(0, 18);
 
-      if (pPrefix20.length >= 8 && prefixMap.has(pPrefix20)) {
-        const candidates = prefixMap.get(pPrefix20);
+      if (pPrefix18.length >= 6 && prefixMap.has(pPrefix18)) {
+        const candidates = prefixMap.get(pPrefix18);
         const match = candidates.find(c => isEligible(c.listing));
         if (match) return match.listing;
       }
 
-      // 5. Token / Word Overlap Matching using Inverted Index (lightning fast)
-      const pWords = pClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w)));
-      if (pWords.length >= 2) {
-        const candidateScores = new Map();
-        for (const w of pWords) {
-          const list = wordIndex.get(w) || [];
-          for (const c of list) {
-            if (!isEligible(c.listing)) continue;
-            candidateScores.set(c, (candidateScores.get(c) || 0) + 1);
-          }
-        }
-
-        let bestCandidate = null;
-        let highestScore = 0;
-        for (const [c, matchCount] of candidateScores.entries()) {
-          const score = matchCount / Math.max(1, Math.min(pWords.length, c.words.size));
-          if (score >= 0.55 && matchCount >= 2 && score > highestScore) {
-            highestScore = score;
-            bestCandidate = c.listing;
-          }
-        }
-        if (bestCandidate) return bestCandidate;
-      }
-
-      // 6. Image Match using Inverted Index (instant O(1))
+      // 5. Image Match using Inverted Index (instant O(1))
       const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []).filter(Boolean);
       if (pImages.length > 0) {
         for (const img of pImages) {
