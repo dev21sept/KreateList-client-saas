@@ -24,9 +24,110 @@ const isAspectValueInvalid = (val) => {
 // @access  Private
 exports.getListings = async (req, res) => {
   try {
-    const listings = await Listing.find({ user: req.user.id })
-      .select('-description -itemSpecifics')
-      .sort({ createdAt: -1 });
+    const userId = req.user.id;
+    const [listings, products] = await Promise.all([
+      Listing.find({ user: userId })
+        .select('-description -itemSpecifics')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Product.find({ user: userId, status: 'active' })
+        .select('source ebayListingId poshmarkListingId mercariListingId etsyListingId amazonListingId itemId liveListingId images thumbnail selling_price ebayUrl poshmarkUrl mercariUrl etsyUrl amazonUrl')
+        .lean()
+    ]);
+
+    // Build platform product maps for ultra-fast enrichment
+    const ebayMap = new Map();
+    const poshMap = new Map();
+    const mercMap = new Map();
+    const etsyMap = new Map();
+    const amazonMap = new Map();
+
+    for (const p of products) {
+      const src = p.source;
+      const thumb = p.images?.[0] || p.thumbnail || '';
+      const imgList = Array.isArray(p.images) && p.images.length > 0 ? p.images : (thumb ? [thumb] : []);
+      const pData = {
+        thumbnail: thumb,
+        images: imgList,
+        price: p.selling_price,
+        url: p.ebayUrl || p.poshmarkUrl || p.mercariUrl || p.etsyUrl || p.amazonUrl || ''
+      };
+
+      if (src === 'ebay') {
+        const id = p.ebayListingId || p.itemId || p.liveListingId;
+        if (id) ebayMap.set(id, pData);
+      } else if (src === 'poshmark') {
+        if (p.poshmarkListingId) poshMap.set(p.poshmarkListingId, pData);
+      } else if (src === 'mercari') {
+        if (p.mercariListingId) mercMap.set(p.mercariListingId, pData);
+      } else if (src === 'etsy') {
+        if (p.etsyListingId) etsyMap.set(p.etsyListingId, pData);
+      } else if (src === 'amazon') {
+        const id = p.amazonListingId || p.amazonAsin;
+        if (id) amazonMap.set(id, pData);
+      }
+    }
+
+    // Enrich each listing with platform-specific images and pricing
+    listings.forEach(l => {
+      l.platformData = l.platformData || {};
+
+      if (l.ebayListingId && ebayMap.has(l.ebayListingId)) {
+        const pData = ebayMap.get(l.ebayListingId);
+        l.platformData.ebay = {
+          ...(l.platformData.ebay || {}),
+          thumbnail: pData.thumbnail || l.platformData.ebay?.thumbnail || l.thumbnail,
+          images: pData.images?.length > 0 ? pData.images : (l.platformData.ebay?.images || l.images || []),
+          price: l.ebayPrice || pData.price || l.platformData.ebay?.price || l.price,
+          url: l.ebayUrl || pData.url || l.platformData.ebay?.url || ''
+        };
+      }
+
+      if (l.poshmarkListingId && poshMap.has(l.poshmarkListingId)) {
+        const pData = poshMap.get(l.poshmarkListingId);
+        l.platformData.poshmark = {
+          ...(l.platformData.poshmark || {}),
+          thumbnail: pData.thumbnail || l.platformData.poshmark?.thumbnail || '',
+          images: pData.images?.length > 0 ? pData.images : (l.platformData.poshmark?.images || []),
+          price: l.poshmarkPrice || pData.price || l.platformData.poshmark?.price || l.price,
+          url: l.poshmarkUrl || pData.url || l.platformData.poshmark?.url || ''
+        };
+      }
+
+      if (l.mercariListingId && mercMap.has(l.mercariListingId)) {
+        const pData = mercMap.get(l.mercariListingId);
+        l.platformData.mercari = {
+          ...(l.platformData.mercari || {}),
+          thumbnail: pData.thumbnail || l.platformData.mercari?.thumbnail || '',
+          images: pData.images?.length > 0 ? pData.images : (l.platformData.mercari?.images || []),
+          price: l.mercariPrice || pData.price || l.platformData.mercari?.price || l.price,
+          url: l.mercariUrl || pData.url || l.platformData.mercari?.url || ''
+        };
+      }
+
+      if (l.etsyListingId && etsyMap.has(l.etsyListingId)) {
+        const pData = etsyMap.get(l.etsyListingId);
+        l.platformData.etsy = {
+          ...(l.platformData.etsy || {}),
+          thumbnail: pData.thumbnail || l.platformData.etsy?.thumbnail || '',
+          images: pData.images?.length > 0 ? pData.images : (l.platformData.etsy?.images || []),
+          price: l.etsyPrice || pData.price || l.platformData.etsy?.price || l.price,
+          url: l.etsyUrl || pData.url || l.platformData.etsy?.url || ''
+        };
+      }
+
+      if (l.amazonListingId && amazonMap.has(l.amazonListingId)) {
+        const pData = amazonMap.get(l.amazonListingId);
+        l.platformData.amazon = {
+          ...(l.platformData.amazon || {}),
+          thumbnail: pData.thumbnail || l.platformData.amazon?.thumbnail || '',
+          images: pData.images?.length > 0 ? pData.images : (l.platformData.amazon?.images || []),
+          price: l.amazonPrice || pData.price || l.platformData.amazon?.price || l.price,
+          url: l.amazonUrl || pData.url || l.platformData.amazon?.url || ''
+        };
+      }
+    });
+
     res.status(200).json({ success: true, count: listings.length, data: listings });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -4918,6 +5019,13 @@ exports.cleanGhostChannels = async (req, res) => {
         targetListing.ebayStatus = 'published';
         targetListing.ebayUrl = p.ebayUrl || `https://www.ebay.com/itm/${eid}`;
         if (p.selling_price) targetListing.ebayPrice = p.selling_price;
+        targetListing.platformData = targetListing.platformData || {};
+        targetListing.platformData.ebay = {
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          images: p.images || [],
+          price: p.selling_price || targetListing.ebayPrice,
+          url: p.ebayUrl || `https://www.ebay.com/itm/${eid}`
+        };
         assignedEbayListingIds.add(targetListing._id.toString());
         listingByEbayId.set(eid, targetListing);
       } else {
@@ -4941,6 +5049,14 @@ exports.cleanGhostChannels = async (req, res) => {
           thumbnail: p.images?.[0] || p.thumbnail || '',
           brand: p.brand || '',
           size: p.size || '',
+          platformData: {
+            ebay: {
+              thumbnail: p.images?.[0] || p.thumbnail || '',
+              images: p.images || [],
+              price: String(p.selling_price || 0),
+              url: p.ebayUrl || `https://www.ebay.com/itm/${eid}`
+            }
+          },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
         });
@@ -4975,6 +5091,13 @@ exports.cleanGhostChannels = async (req, res) => {
         targetListing.poshmarkStatus = 'published';
         targetListing.poshmarkUrl = p.poshmarkUrl || `https://poshmark.com/listing/${pid}`;
         if (p.selling_price) targetListing.poshmarkPrice = p.selling_price;
+        targetListing.platformData = targetListing.platformData || {};
+        targetListing.platformData.poshmark = {
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          images: p.images || [],
+          price: p.selling_price || targetListing.poshmarkPrice,
+          url: p.poshmarkUrl || `https://poshmark.com/listing/${pid}`
+        };
         listingByPoshId.set(pid, targetListing);
       } else {
         newListingDocs.push({
@@ -4997,6 +5120,14 @@ exports.cleanGhostChannels = async (req, res) => {
           thumbnail: p.images?.[0] || p.thumbnail || '',
           brand: p.brand || '',
           size: p.size || '',
+          platformData: {
+            poshmark: {
+              thumbnail: p.images?.[0] || p.thumbnail || '',
+              images: p.images || [],
+              price: String(p.selling_price || 0),
+              url: p.poshmarkUrl || `https://poshmark.com/listing/${pid}`
+            }
+          },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
         });
@@ -5031,6 +5162,13 @@ exports.cleanGhostChannels = async (req, res) => {
         targetListing.mercariStatus = 'published';
         targetListing.mercariUrl = p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`;
         if (p.selling_price) targetListing.mercariPrice = p.selling_price;
+        targetListing.platformData = targetListing.platformData || {};
+        targetListing.platformData.mercari = {
+          thumbnail: p.images?.[0] || p.thumbnail || '',
+          images: p.images || [],
+          price: p.selling_price || targetListing.mercariPrice,
+          url: p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`
+        };
         listingByMercId.set(mid, targetListing);
       } else {
         newListingDocs.push({
@@ -5053,6 +5191,14 @@ exports.cleanGhostChannels = async (req, res) => {
           thumbnail: p.images?.[0] || p.thumbnail || '',
           brand: p.brand || '',
           size: p.size || '',
+          platformData: {
+            mercari: {
+              thumbnail: p.images?.[0] || p.thumbnail || '',
+              images: p.images || [],
+              price: String(p.selling_price || 0),
+              url: p.mercariUrl || `https://www.mercari.com/us/item/${mid}/`
+            }
+          },
           createdAt: p.createdAt || new Date(),
           updatedAt: new Date()
         });
@@ -5073,6 +5219,7 @@ exports.cleanGhostChannels = async (req, res) => {
         l.ebayListingId = undefined;
         l.ebayUrl = undefined;
         l.ebayPrice = undefined;
+        if (l.platformData?.ebay) delete l.platformData.ebay;
       }
 
       if (l.poshmarkListingId && activePoshmarkIds.has(l.poshmarkListingId) && !seenPoshIds.has(l.poshmarkListingId)) {
@@ -5083,6 +5230,7 @@ exports.cleanGhostChannels = async (req, res) => {
         l.poshmarkListingId = undefined;
         l.poshmarkUrl = undefined;
         l.poshmarkPrice = undefined;
+        if (l.platformData?.poshmark) delete l.platformData.poshmark;
       }
 
       if (l.mercariListingId && activeMercariIds.has(l.mercariListingId) && !seenMercIds.has(l.mercariListingId)) {
@@ -5093,6 +5241,7 @@ exports.cleanGhostChannels = async (req, res) => {
         l.mercariListingId = undefined;
         l.mercariUrl = undefined;
         l.mercariPrice = undefined;
+        if (l.platformData?.mercari) delete l.platformData.mercari;
       }
 
       l.etsyStatus = 'none';
@@ -5113,7 +5262,8 @@ exports.cleanGhostChannels = async (req, res) => {
         mercariStatus: l.mercariStatus || 'none',
         etsyStatus: 'none',
         amazonStatus: 'none',
-        status: l.status
+        status: l.status,
+        platformData: l.platformData || {}
       };
       const unsetFields = {
         'listingsMap.etsy': "",

@@ -1065,31 +1065,46 @@ const NewListings = () => {
         }
       }
 
+      const platformDataObj = item.platformData?.[platform] || targetItem.platformData?.[platform] || {};
+      const platformImages = platformDataObj.images?.length > 0 
+        ? platformDataObj.images 
+        : (platformDataObj.thumbnail ? [platformDataObj.thumbnail] : (targetItem.images?.length > 0 ? targetItem.images : (targetItem.thumbnail ? [targetItem.thumbnail] : [])));
+      const platformThumb = platformDataObj.thumbnail || platformImages[0] || targetItem.thumbnail || '';
+      const platformPriceVal = platformDataObj.price !== undefined ? platformDataObj.price : (targetItem[`${platform}Price`] || targetItem.price);
+
       const initialPreview = {
         ...targetItem,
         platform,
+        images: platformImages,
+        thumbnail: platformThumb,
+        price: platformPriceVal,
         status: targetItem[`${platform}Status`] || targetItem.status || 'draft',
         url: fallbackUrl
       };
       setPreviewListing(initialPreview);
       setPreviewPlatform(platform);
-      if (initialPreview.images && initialPreview.images.length > 0) {
-        setActiveImage(initialPreview.images[0]);
+      if (platformImages.length > 0) {
+        setActiveImage(platformImages[0]);
       }
 
       if (targetItem._id && !String(targetItem._id).startsWith('mock-')) {
         const res = await listingService.getOne(targetItem._id);
         if (res.data?.success && res.data.data) {
           const fullData = res.data.data;
+          const fullPlatData = fullData.platformData?.[platform] || platformDataObj;
+          const finalImages = fullPlatData.images?.length > 0 ? fullPlatData.images : (platformImages.length > 0 ? platformImages : (fullData.images || []));
           setPreviewListing(prev => ({
             ...prev,
             ...fullData,
             platform,
+            images: finalImages,
+            thumbnail: fullPlatData.thumbnail || finalImages[0] || fullData.thumbnail || prev.thumbnail,
+            price: fullPlatData.price !== undefined ? fullPlatData.price : (fullData[`${platform}Price`] || fullData.price || prev.price),
             status: targetItem[`${platform}Status`] || fullData[`${platform}Status`] || fullData.status || prev.status,
             url: targetItem[`${platform}Url`] || fullData[`${platform}Url`] || fullData.url || prev.url
           }));
-          if (fullData.images && fullData.images.length > 0) {
-            setActiveImage(fullData.images[0]);
+          if (finalImages.length > 0) {
+            setActiveImage(finalImages[0]);
           }
         }
       }
