@@ -4352,8 +4352,7 @@ exports.forceDelistPoshmark = async (req, res) => {
       user: user._id,
       $or: [
         { poshmarkListingId: targetPoshId },
-        { 'platformData.poshmark.liveId': targetPoshId },
-        { title: new RegExp('US Army APFU', 'i') }
+        { 'platformData.poshmark.liveId': targetPoshId }
       ]
     });
 
