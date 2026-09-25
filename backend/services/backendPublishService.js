@@ -1334,11 +1334,17 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       if (!postPayload.inventory) postPayload.inventory = {};
       postPayload.inventory.status = 'not_for_sale';
       postPayload.inventory.available_quantity = 0;
+      if (Array.isArray(postPayload.inventory.size_quantities)) {
+        postPayload.inventory.size_quantities.forEach(sq => {
+          sq.quantity = 0;
+          sq.available_quantity = 0;
+        });
+      }
       postPayload.not_for_sale = true;
 
       const saveConfig = getAxiosConfig({
         method: 'POST',
-        url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.26.01`,
+        url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.23.01`,
         headers: getPoshmarkHeaders(sessionCookie, csrfToken),
         data: { post: postPayload }
       });
