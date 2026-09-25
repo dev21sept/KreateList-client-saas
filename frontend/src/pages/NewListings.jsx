@@ -2787,18 +2787,6 @@ const NewListings = () => {
           type="button"
           onClick={() => {
             setActiveMasterDropdown(null);
-            handleOpenPreview(item, 'ebay');
-          }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
-        >
-          <Eye size={13} className="text-slate-400" />
-          <span>Preview Listing</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setActiveMasterDropdown(null);
             setSelectedListing(item);
             setSelectedPlatform(null);
             setIsEditMode(true);
