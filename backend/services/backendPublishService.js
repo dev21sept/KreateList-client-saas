@@ -1294,7 +1294,23 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
 
   // 1. Try Draft-based Not For Sale Inventory Update (Standard Poshmark Post Mutation Flow)
   try {
-    console.log(`[Poshmark Delister] Step 1: Creating draft session from listing ${listingId}...`);
+    console.log(`[Poshmark Delister] Step 1: Fetching current post data for listing ${listingId}...`);
+    let existingPost = null;
+    try {
+      const getHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+      delete getHeaders['origin'];
+      delete getHeaders['content-type'];
+      const getRes = await axios(getAxiosConfig({
+        method: 'GET',
+        url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
+        headers: getHeaders
+      }));
+      existingPost = getRes.data?.post || getRes.data;
+    } catch (gErr) {
+      console.warn(`[Poshmark Delister] Could not fetch existing post:`, gErr.message);
+    }
+
+    console.log(`[Poshmark Delister] Step 2: Creating draft session from listing ${listingId}...`);
     const draftConfig = getAxiosConfig({
       method: 'POST',
       url: `https://${domain}/vm-rest/posts/${listingId}/draft?pm_version=2026.26.01`,
@@ -1306,19 +1322,25 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
 
     if (draftId) {
       console.log(`[Poshmark Delister] Draft ${draftId} created. Saving Not For Sale inventory status...`);
+      
+      let postPayload = {};
+      if (existingPost) {
+        postPayload = JSON.parse(JSON.stringify(existingPost));
+        delete postPayload.id;
+        delete postPayload.created_at;
+        delete postPayload.updated_at;
+        delete postPayload.status_changed_at;
+      }
+      if (!postPayload.inventory) postPayload.inventory = {};
+      postPayload.inventory.status = 'not_for_sale';
+      postPayload.inventory.available_quantity = 0;
+      postPayload.not_for_sale = true;
+
       const saveConfig = getAxiosConfig({
         method: 'POST',
         url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.26.01`,
         headers: getPoshmarkHeaders(sessionCookie, csrfToken),
-        data: {
-          post: {
-            inventory: {
-              status: 'not_for_sale',
-              available_quantity: 0
-            },
-            not_for_sale: true
-          }
-        }
+        data: { post: postPayload }
       });
       await axios(saveConfig);
 
