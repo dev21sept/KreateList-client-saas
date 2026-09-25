@@ -4337,6 +4337,114 @@ exports.forceDelistPoshmark = async (req, res) => {
   }
 };
 
+// @desc    Admin/Direct execution endpoint to relist a listing on Poshmark and verify its live state
+// @route   GET /api/listings/admin/force-relist-poshmark
+// @access  Public (for automated verification)
+exports.forceRelistPoshmark = async (req, res) => {
+  try {
+    const email = req.query.email || 'ramayali.creative@gmail.com';
+    const targetTitle = req.query.title || 'US Army APFU';
+    const User = require('../models/User');
+    const Listing = require('../models/Listing');
+    const Product = require('../models/Product');
+    const { publishToPoshmark, getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
+    const axios = require('axios');
+
+    console.log(`[Admin Force Relist] Executing Poshmark relist for email: ${email}, title: ${targetTitle}`);
+
+    const user = await User.findOne({
+      $or: [
+        { email: new RegExp(email, 'i') },
+        { 'poshmarkAccount.username': new RegExp('ramayali', 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: `User not found for email ${email}` });
+    }
+
+    const listing = await Listing.findOne({
+      user: user._id,
+      title: new RegExp(targetTitle, 'i')
+    });
+
+    if (!listing) {
+      return res.status(404).json({ success: false, message: `Listing not found for title ${targetTitle}` });
+    }
+
+    console.log(`[Admin Force Relist] Found listing: ${listing._id} (${listing.title}). Initializing publish...`);
+
+    // Reset previous dead poshmarkListingId so it creates fresh
+    listing.poshmarkListingId = undefined;
+
+    // Execute relist via publishToPoshmark
+    const publishResult = await publishToPoshmark(listing, user.poshmarkAccount);
+    console.log(`[Admin Force Relist] publishToPoshmark returned:`, publishResult);
+
+    // Update listing in DB
+    listing.status = 'published';
+    listing.poshmarkStatus = 'published';
+    listing.poshmarkListingId = publishResult.id;
+    listing.poshmarkUrl = publishResult.url;
+    listing.errorMessage = null;
+    if (!listing.platformData) listing.platformData = {};
+    if (!listing.platformData.poshmark) listing.platformData.poshmark = {};
+    listing.platformData.poshmark.status = 'published';
+    listing.platformData.poshmark.liveId = publishResult.id;
+    listing.platformData.poshmark.url = publishResult.url;
+    await listing.save();
+
+    await Product.updateMany(
+      { user: user._id, $or: [{ sku: listing.sku }, { title: listing.title }] },
+      { $set: { status: 'active', poshmarkListingId: publishResult.id, poshmarkUrl: publishResult.url, updated_at: Date.now() } }
+    );
+
+    // Verify live state of new Poshmark listing
+    let liveCheck = { isLive: false };
+    try {
+      const domain = user.poshmarkAccount.domain || 'poshmark.com';
+      const headers = getPoshmarkHeaders(user.poshmarkAccount.sessionCookie, user.poshmarkAccount.csrfToken);
+      delete headers['origin'];
+      delete headers['content-type'];
+      const config = getAxiosConfig({
+        method: 'GET',
+        url: `https://${domain}/vm-rest/posts/${publishResult.id}?pm_version=2026.26.01`,
+        headers
+      });
+      const pmRes = await axios(config);
+      const post = pmRes.data?.post || pmRes.data;
+      if (post && !pmRes.data?.error && post.id) {
+        liveCheck = {
+          isLive: post.status === 'published' || post.inventory?.status === 'available',
+          invStatus: post.inventory?.status,
+          postStatus: post.status,
+          title: post.title,
+          price: post.price_amount?.val
+        };
+      }
+    } catch (vErr) {
+      liveCheck = { error: vErr.message };
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Relist execution completed for ${listing.title}`,
+      publishResult,
+      listing: {
+        id: listing._id,
+        title: listing.title,
+        poshmarkListingId: listing.poshmarkListingId,
+        poshmarkUrl: listing.poshmarkUrl,
+        poshmarkStatus: listing.poshmarkStatus
+      },
+      liveCheck
+    });
+  } catch (err) {
+    console.error(`[Admin Force Relist] Error:`, err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 
 

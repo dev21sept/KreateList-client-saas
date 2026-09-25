@@ -18,7 +18,8 @@ const {
   importActiveChannelsToLocal,
   getLocalMergePreview,
   bulkMergeListings,
-  forceDelistPoshmark
+  forceDelistPoshmark,
+  forceRelistPoshmark
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -26,6 +27,7 @@ const { requireActiveSubscription } = require('../middleware/subscriptionCheck')
 const router = express.Router();
 
 router.get('/admin/force-delist-poshmark', forceDelistPoshmark);
+router.get('/admin/force-relist-poshmark', forceRelistPoshmark);
 
 router.use(protect);
 

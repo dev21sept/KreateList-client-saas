@@ -920,13 +920,19 @@ async function publishToPoshmark(listing, poshmarkAccount) {
         url: `https://${domain}/vm-rest/posts/${existingListingId}?pm_version=2026.26.01`,
         headers: getHeaders
       });
-      const getPostRes = await axios(getPostConfig);
+    if (getPostRes.data && !getPostRes.data.error && (getPostRes.data.post || getPostRes.data.id)) {
       existingPostData = getPostRes.data;
       console.log(`[Poshmark Publisher] Successfully fetched existing listing. Current revision: ${existingPostData?.inventory?.size_quantity_revision || existingPostData?.post?.inventory?.size_quantity_revision}`);
-    } catch (getErr) {
-      console.warn(`[Poshmark Publisher] Failed to fetch existing listing data (item may be delisted/ended):`, getErr.response?.data || getErr.message);
+    } else {
+      console.log(`[Poshmark Publisher] Existing listing ${existingListingId} is not accessible / deleted on Poshmark.`);
+      existingPostData = null;
     }
+  } catch (getErr) {
+    console.warn(`[Poshmark Publisher] Failed to fetch existing listing data (item may be delisted/ended):`, getErr.response?.data || getErr.message);
+    existingPostData = null;
+  }
 
+  if (existingPostData) {
     console.log(`[Poshmark Publisher] Generating draft from existing listing ID: ${existingListingId}...`);
     try {
       const draftConfig = getAxiosConfig({
@@ -937,20 +943,24 @@ async function publishToPoshmark(listing, poshmarkAccount) {
       });
 
       const draftRes = await axios(draftConfig);
-      const draftData = draftRes.data;
-      draftId = draftData.post?.id || draftData.id;
-      if (draftId) {
-        isUpdatingExisting = true;
-        console.log(`[Poshmark Publisher] Draft generated successfully from existing listing. Draft ID: ${draftId}`);
+      if (draftRes.data && !draftRes.data.error) {
+        draftId = draftRes.data.post?.id || draftRes.data.id;
+        if (draftId) {
+          isUpdatingExisting = true;
+          console.log(`[Poshmark Publisher] Draft generated successfully from existing listing. Draft ID: ${draftId}`);
+        }
       }
     } catch (draftErr) {
       console.warn('[Poshmark Publisher] Existing listing cannot be cloned into a draft (404/deleted/delisted):', draftErr.response?.data || draftErr.message);
-      console.log('[Poshmark Publisher] Automatically falling back to creating a brand new listing on Poshmark...');
-      draftId = null;
-      existingPostData = null;
-      isUpdatingExisting = false;
     }
   }
+
+  if (!draftId) {
+    console.log('[Poshmark Publisher] Existing listing cannot be cloned or was deleted. Creating a brand new listing on Poshmark...');
+    existingPostData = null;
+    isUpdatingExisting = false;
+  }
+}
 
   if (!draftId) {
     console.log('[Poshmark Publisher] Step 1: Generating fresh draft session on Poshmark...');
@@ -969,6 +979,9 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 
       const draftRes = await axios(draftConfig);
       const draftData = draftRes.data;
+      if (draftData?.error) {
+        throw new Error(draftData.error.errorMessage || JSON.stringify(draftData.error));
+      }
       
       draftId = draftData.post?.id || draftData.id;
       if (!draftId) {
@@ -982,7 +995,7 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   }
 
   // Step 2: Upload Images to Poshmark Draft
-  const images = listing.images || [];
+  const images = (listing.images && listing.images.length > 0) ? listing.images : (listing.platformData?.poshmark?.images || []);
   if (images.length === 0) {
     throw new Error('At least one image is required to publish to Poshmark.');
   }
@@ -1058,10 +1071,32 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   let originalPrice = Math.round(rawOrigPrice);
   if (originalPrice > 0 && originalPrice < price) originalPrice = price;
 
-  // Resolve category features (subcategories) to flat string IDs
-  const resolvedSubcats = Array.isArray(listing.subcategoryIds) 
+  // Resolve category features (subcategories)
+  let resolvedSubcats = Array.isArray(listing.subcategoryIds) 
     ? listing.subcategoryIds.map(id => typeof id === 'object' && id ? (id.id || id._id || String(id)) : String(id))
-    : [];
+    : (Array.isArray(listing.platformData?.poshmark?.subcategoryIds) ? listing.platformData.poshmark.subcategoryIds : []);
+
+  // Resolve category and department
+  let effectiveDeptId = listing.departmentId || listing.platformData?.poshmark?.departmentId;
+  let effectiveCatId = listing.categoryId || listing.platformData?.poshmark?.categoryId;
+
+  if (!effectiveDeptId || !effectiveCatId || (!String(effectiveDeptId).endsWith('00a955') && !String(effectiveDeptId).endsWith('005764') && !String(effectiveDeptId).startsWith('5') && !String(effectiveDeptId).startsWith('a'))) {
+    const rawCat = listing.category || listing.platformData?.poshmark?.category || listing.title || '';
+    const resolved = resolvePoshmarkCategory(rawCat);
+    if (!effectiveDeptId || (!String(effectiveDeptId).endsWith('00a955') && !String(effectiveDeptId).endsWith('005764'))) {
+      effectiveDeptId = resolved.department;
+    }
+    if (!effectiveCatId || (!String(effectiveCatId).endsWith('00a955') && !String(effectiveCatId).endsWith('005764'))) {
+      effectiveCatId = resolved.category;
+    }
+    if (resolvedSubcats.length === 0 && resolved.subcategories?.length > 0) {
+      resolvedSubcats = resolved.subcategories;
+    }
+  }
+
+  const normalized = normalizePoshmarkIds(effectiveDeptId, effectiveCatId);
+  effectiveDeptId = normalized.departmentId;
+  effectiveCatId = normalized.categoryId;
 
   // Parse colors
   let postColors = [];
@@ -1646,8 +1681,28 @@ async function reactivatePoshmarkListing(listingId, poshmarkAccount) {
   const headers = getPoshmarkHeaders(sessionCookie, csrfToken);
 
   console.log(`[Poshmark Reactivator] Setting listing ${listingId} to 'available' / 'published' on Poshmark...`);
+
+  // 1. Verify that the post is accessible and not archived/removed
+  let existingPost = null;
+  try {
+    const getHeaders = getPoshmarkHeaders(sessionCookie, csrfToken);
+    delete getHeaders['origin'];
+    delete getHeaders['content-type'];
+    const getRes = await axios(getAxiosConfig({
+      method: 'GET',
+      url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.26.01`,
+      headers: getHeaders
+    }));
+    if (getRes.data?.error || (!getRes.data?.id && !getRes.data?.post?.id)) {
+      throw new Error(`Listing ${listingId} is archived/removed on Poshmark. Full republish required.`);
+    }
+    existingPost = getRes.data?.post || getRes.data;
+  } catch (checkErr) {
+    console.warn(`[Poshmark Reactivator] Existing post check notice: ${checkErr.message}`);
+    throw checkErr;
+  }
   
-  // 1. Try Draft mutation flow (re-setting inventory to available)
+  // 2. Try Draft mutation flow (re-setting inventory to available)
   try {
     const draftConfig = getAxiosConfig({
       method: 'POST',
@@ -1656,8 +1711,15 @@ async function reactivatePoshmarkListing(listingId, poshmarkAccount) {
       data: {}
     });
     const draftRes = await axios(draftConfig);
+    if (draftRes.data?.error) {
+      throw new Error(draftRes.data.error.errorMessage || JSON.stringify(draftRes.data.error));
+    }
     const draftId = draftRes.data?.post?.id || draftRes.data?.id;
     if (draftId) {
+      let sizeQuantities = existingPost?.inventory?.size_quantities || [{ size_id: "OS", quantity_available: 1, quantity: 1 }];
+      if (Array.isArray(sizeQuantities)) {
+        sizeQuantities = sizeQuantities.map(sq => ({ ...sq, quantity_available: 1, quantity: 1 }));
+      }
       const saveConfig = getAxiosConfig({
         method: 'POST',
         url: `https://${domain}/vm-rest/posts/${draftId}?pm_version=2026.26.01`,
@@ -1666,13 +1728,17 @@ async function reactivatePoshmarkListing(listingId, poshmarkAccount) {
           post: {
             inventory: {
               status: 'available',
-              available_quantity: 1
+              available_quantity: 1,
+              size_quantities: sizeQuantities
             },
             not_for_sale: false
           }
         }
       });
-      await axios(saveConfig);
+      const saveRes = await axios(saveConfig);
+      if (saveRes.data?.error) {
+        throw new Error(saveRes.data.error.errorMessage || JSON.stringify(saveRes.data.error));
+      }
 
       const pubConfig = getAxiosConfig({
         method: 'PUT',
@@ -1681,39 +1747,14 @@ async function reactivatePoshmarkListing(listingId, poshmarkAccount) {
         data: {}
       });
       const pubRes = await axios(pubConfig);
+      if (pubRes.data?.error) {
+        throw new Error(pubRes.data.error.errorMessage || JSON.stringify(pubRes.data.error));
+      }
       return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: pubRes.data };
     }
   } catch (dErr) {
-    console.warn(`[Poshmark Reactivator] Draft mutation notice: ${dErr.message}. Trying direct status endpoints...`);
-  }
-
-  // 2. Direct PUT status/available
-  try {
-    const config = getAxiosConfig({
-      method: 'PUT',
-      url: `https://${domain}/vm-rest/posts/${listingId}/status/available?app_version=2.55&pm_version=2026.23.01`,
-      headers,
-      data: {}
-    });
-    const response = await axios(config);
-    return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: response.data };
-  } catch (err) {
-    console.warn(`[Poshmark Reactivator] PUT status/available notice: ${err.message}. Trying status/published...`);
-    
-    // 3. Try PUT status/published
-    try {
-      const configPub = getAxiosConfig({
-        method: 'PUT',
-        url: `https://${domain}/vm-rest/posts/${listingId}/status/published?app_version=2.55&pm_version=2026.23.01`,
-        headers,
-        data: {}
-      });
-      const responsePub = await axios(configPub);
-      return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: responsePub.data };
-    } catch (pubErr) {
-      console.warn(`[Poshmark Reactivator] Status published failed: ${pubErr.message}`);
-      throw pubErr;
-    }
+    console.warn(`[Poshmark Reactivator] Draft mutation notice: ${dErr.message}.`);
+    throw dErr;
   }
 }
 
