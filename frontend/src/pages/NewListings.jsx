@@ -533,7 +533,7 @@ const NewListings = () => {
   // Filter & Sort States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [channelStatusFilter, setChannelStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive' | 'draft'
+  const [channelStatusFilter, setChannelStatusFilter] = useState('active'); // 'active' | 'all' | 'delisted' | 'draft' | 'error'
   const [channelSortOption, setChannelSortOption] = useState(() => {
     return localStorage.getItem('elister_channel_sort_option') || 'newest';
   });
@@ -1960,6 +1960,15 @@ const NewListings = () => {
     return [...filtered].sort((a, b) => {
       const detailsA = getProductDetails(a);
       const detailsB = getProductDetails(b);
+
+      // In All Products view, always prioritize active listings over delisted ones
+      if (channelStatusFilter === 'all') {
+        const isActA = detailsA.status === 'active' ? 1 : 0;
+        const isActB = detailsB.status === 'active' ? 1 : 0;
+        if (isActA !== isActB) {
+          return isActB - isActA;
+        }
+      }
 
       const rawDateA = a.updated_at || a.updatedAt || a.createdAt || a.created_at || a.createdDate || a.created || a.updated || a.date_created || 0;
       const rawDateB = b.updated_at || b.updatedAt || b.createdAt || b.created_at || b.createdDate || b.created || b.updated || b.date_created || 0;
