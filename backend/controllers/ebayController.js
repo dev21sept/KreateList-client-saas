@@ -460,18 +460,14 @@ exports.syncInventory = async (req, res) => {
                 }
               : { status: 'draft', listingId: null, categoryId: null, price: null };
           } catch (err) {
-            console.warn(`[SYNC] Failed to fetch offers for SKU ${item.sku}:`, err.message);
             offersMap[item.sku] = { status: 'draft', listingId: null, categoryId: null, price: null };
           }
         }));
 
         for (const item of items) {
           // Some eBay inventory items (e.g. malformed or group/variation entries)
-          // don't have a linked `product` object - skip them instead of crashing
-          // the whole sync (this was previously aborting the entire sync partway
-          // through, leaving real products unsynced).
+          // don't have a linked `product` object - skip them silently
           if (!item.product) {
-            console.warn(`[SYNC] Skipping inventory item with no product data: SKU ${item.sku || 'unknown'}`);
             continue;
           }
 
@@ -484,7 +480,6 @@ exports.syncInventory = async (req, res) => {
           }).lean();
 
           if (tombstoneMatch) {
-            console.log(`[SYNC] Skipping deleted product: ${item.sku || item.product?.title || 'unknown'}`);
             continue;
           }
 

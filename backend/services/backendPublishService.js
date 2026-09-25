@@ -1449,6 +1449,11 @@ module.exports = {
   delistPoshmarkListing,
   delistDepopListing,
   deletePoshmarkListing,
-  deleteDepopListing
+  deleteDepopListing,
+  getPoshmarkHeaders,
+  getAxiosConfig,
+  getDomainFromCookie,
+  cleanCookieHeader
 };
+
 

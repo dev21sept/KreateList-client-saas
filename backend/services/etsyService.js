@@ -284,7 +284,6 @@ async function getEtsyInventory(userId, shopId) {
   try {
     for (const state of states) {
       try {
-        console.log(`[Etsy Service] Fetching '${state}' inventory for shop: ${shopId}`);
         const listings = await fetchEtsyListingsByState(userId, shopId, state);
         listings.forEach(listing => {
           tagged.push({ ...listing, elisterStatus: state === 'active' ? 'active' : 'inactive' });
@@ -292,13 +291,17 @@ async function getEtsyInventory(userId, shopId) {
         // Add a small delay between states to avoid hammering the API
         await new Promise(resolve => setTimeout(resolve, 250));
       } catch (stateErr) {
-        console.error(`[Etsy Service] Fetch '${state}' inventory failed:`, stateErr.response?.data || stateErr.message);
+        const errMsg = stateErr.response?.data?.error || stateErr.message || '';
+        console.warn(`[Etsy Service] Fetch '${state}' inventory for shop ${shopId} notice: ${errMsg}`);
+        if (errMsg.includes('does not own Shop') || errMsg.includes('Unauthorized') || errMsg.includes('Invalid token')) {
+          break; // Stop querying remaining states if shop ownership or auth fails
+        }
       }
     }
     return tagged;
   } catch (err) {
-    console.error('[Etsy Service] Fetch inventory failed:', err.response?.data || err.message);
-    throw err;
+    console.warn('[Etsy Service] Fetch inventory notice:', err.response?.data || err.message);
+    return [];
   }
 }
 
