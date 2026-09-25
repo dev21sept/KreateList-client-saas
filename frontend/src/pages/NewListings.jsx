@@ -277,6 +277,7 @@ const groupListingsBySku = (rawListings) => {
     const rawSku = item.sku ? item.sku.trim() : '';
     const cleanSku = getDisplaySku(rawSku);
     const sku = cleanSku !== '-' ? cleanSku : '';
+    const thumbnail = item.thumbnail || (item.images && item.images[0]) || '';
     const titleClean = (item.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
     const titlePrefix20 = titleClean.slice(0, 20);
     
