@@ -385,16 +385,43 @@ exports.poshmarkPublish = async (req, res) => {
     listing.poshmarkListingId = publishResult.id;
     listing.poshmarkUrl = publishResult.url;
 
-    await listing.save();
-
     // Automatically update matched Product model cache to keep Channel Inventory synced!
     try {
       const Product = require('../models/Product');
+      // Clean up any old duplicate dead/delisted product cache records for this item
+      await Product.deleteMany({
+        user: listing.user,
+        source: 'poshmark',
+        $or: [
+          listing.sku ? { sku: listing.sku } : null,
+          listing.title ? { title: listing.title } : null
+        ].filter(Boolean),
+        poshmarkListingId: { $ne: publishResult.id }
+      });
+
+      // Update or create the single active product record
       await Product.findOneAndUpdate(
-        { user: listing.user, sku: listing.sku, source: 'poshmark' },
-        { status: 'active', poshmarkListingId: publishResult.id, poshmarkUrl: publishResult.url, updated_at: Date.now() }
+        { user: listing.user, source: 'poshmark', $or: [{ sku: listing.sku }, { title: listing.title }, { poshmarkListingId: publishResult.id }] },
+        {
+          user: listing.user,
+          source: 'poshmark',
+          status: 'active',
+          title: listing.title,
+          description: listing.description,
+          selling_price: parseFloat(listing.price) || 0,
+          sku: listing.sku || '',
+          brand: listing.brand || '',
+          size: listing.size || '',
+          category: listing.category || '',
+          images: listing.images || [],
+          thumbnail: listing.thumbnail || (listing.images && listing.images[0]) || '',
+          poshmarkListingId: publishResult.id,
+          poshmarkUrl: publishResult.url,
+          updated_at: Date.now()
+        },
+        { upsert: true, new: true }
       );
-      console.log(`[Poshmark Controller] Updated synced Product status to active for SKU: ${listing.sku}`);
+      console.log(`[Poshmark Controller] Updated and deduplicated synced Product for: ${listing.title}`);
     } catch (cacheErr) {
       console.warn(`[Poshmark Controller] Failed to update matched Product cache:`, cacheErr.message);
     }

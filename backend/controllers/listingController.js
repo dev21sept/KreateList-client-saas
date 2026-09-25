@@ -4394,9 +4394,34 @@ exports.forceRelistPoshmark = async (req, res) => {
     listing.platformData.poshmark.url = publishResult.url;
     await listing.save();
 
-    await Product.updateMany(
-      { user: user._id, $or: [{ sku: listing.sku }, { title: listing.title }] },
-      { $set: { status: 'active', poshmarkListingId: publishResult.id, poshmarkUrl: publishResult.url, updated_at: Date.now() } }
+    // Clean up any old duplicate dead/delisted product cache records for this item
+    await Product.deleteMany({
+      user: user._id,
+      source: 'poshmark',
+      title: new RegExp(targetTitle, 'i'),
+      poshmarkListingId: { $ne: publishResult.id }
+    });
+
+    await Product.findOneAndUpdate(
+      { user: user._id, source: 'poshmark', poshmarkListingId: publishResult.id },
+      {
+        user: user._id,
+        source: 'poshmark',
+        status: 'active',
+        title: listing.title,
+        description: listing.description,
+        selling_price: parseFloat(listing.price) || 0,
+        sku: listing.sku || '',
+        brand: listing.brand || '',
+        size: listing.size || '',
+        category: listing.category || '',
+        images: listing.images || [],
+        thumbnail: listing.thumbnail || (listing.images && listing.images[0]) || '',
+        poshmarkListingId: publishResult.id,
+        poshmarkUrl: publishResult.url,
+        updated_at: Date.now()
+      },
+      { upsert: true, new: true }
     );
 
     // Verify live state of new Poshmark listing
