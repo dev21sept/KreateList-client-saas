@@ -389,7 +389,28 @@ exports.mercariPublish = async (req, res) => {
     }
 
     const existingListingId = listing.mercariListingId;
-    const publishResult = await publishToMercari(listing, user.mercariAccount);
+    let publishResult;
+    let reactivated = false;
+
+    // If listing already exists on Mercari and is delisted/inactive, try fast reactivation via mutation first
+    if (existingListingId) {
+      try {
+        console.log(`[Mercari Controller] Attempting fast reactivation for existing Mercari ID: ${existingListingId}...`);
+        const { reactivateMercariListing } = require('../services/mercariService');
+        const reactivateRes = await reactivateMercariListing(existingListingId, user.mercariAccount);
+        if (reactivateRes && reactivateRes.success) {
+          publishResult = { id: existingListingId, url: `https://www.mercari.com/us/item/${existingListingId}/` };
+          reactivated = true;
+          console.log(`[Mercari Controller] Successfully reactivated Mercari listing via direct mutation!`);
+        }
+      } catch (reactivateErr) {
+        console.warn(`[Mercari Controller] Direct reactivation fallback to full publish:`, reactivateErr.message);
+      }
+    }
+
+    if (!reactivated) {
+      publishResult = await publishToMercari(listing, user.mercariAccount);
+    }
 
     // Save publish outcome in listing document
     listing.status = 'published';

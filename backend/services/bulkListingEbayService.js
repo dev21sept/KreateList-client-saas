@@ -428,7 +428,7 @@ async function publishSingleEbayListing(listing, token) {
         throw offerErr;
       }
     }
-    const offerId = createOfferRes.offerId;
+    let offerId = createOfferRes.offerId;
 
     // 10. Publish Offer (with retries to handle eBay replication lag)
     let ebayListingId;
@@ -443,9 +443,28 @@ async function publishSingleEbayListing(listing, token) {
       } catch (pubErr) {
         const errObj = pubErr.response?.data?.errors?.[0] || {};
         const errId = parseInt(errObj.errorId);
-        if ((errId === 25604 || errObj.message?.includes('Product not found')) && attempt < 3) {
+        const errMsg = (errObj.message || pubErr.message || '').toLowerCase();
+        if ((errId === 25604 || errMsg.includes('product not found')) && attempt < 3) {
           console.warn(`[BULK EBAY PUBLISH] eBay replication lag detected (Product not found). Retrying in 3 seconds... (Attempt ${attempt}/3)`);
           await new Promise(resolve => setTimeout(resolve, 3000));
+        } else if ((errId === 25008 || errMsg.includes('invalid category') || errMsg.includes('category is not valid')) && attempt < 3) {
+          console.warn(`[BULK EBAY PUBLISH] Category ID rejected during publishOffer for "${listing.title}". Auto-resolving valid leaf category...`);
+          try {
+            const suggestions = await ebayService.getCategorySuggestions(token, listing.title || 'clothing');
+            if (suggestions && suggestions.length > 0 && suggestions[0].category?.categoryId) {
+              const validCatId = String(suggestions[0].category.categoryId);
+              console.log(`[BULK EBAY PUBLISH] Recreating offer with valid leaf category: ${validCatId} (${suggestions[0].category.categoryName})`);
+              try { await ebayService.deleteOffer(token, offerId); } catch (e) {}
+              offerData.categoryId = validCatId;
+              listing.categoryId = validCatId;
+              const newOfferRes = await ebayService.createOffer(token, offerData);
+              offerId = newOfferRes.offerId;
+              continue;
+            }
+          } catch (suggestErr) {
+            console.error('[BULK EBAY PUBLISH] Category auto-resolve retry failed:', suggestErr.message);
+          }
+          throw pubErr;
         } else {
           throw pubErr;
         }

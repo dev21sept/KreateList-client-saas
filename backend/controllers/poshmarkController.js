@@ -348,8 +348,29 @@ exports.poshmarkPublish = async (req, res) => {
     }
 
     const existingListingId = listing.poshmarkListingId;
-    console.log(`[Poshmark Controller] Direct publishing listing: ${listingId} to Poshmark`);
-    const publishResult = await publishToPoshmark(listing, user.poshmarkAccount);
+    let publishResult;
+    let reactivated = false;
+
+    // If listing already exists on Poshmark and is delisted/inactive, try fast direct reactivation first
+    if (existingListingId) {
+      try {
+        console.log(`[Poshmark Controller] Attempting fast direct reactivation for existing Poshmark ID: ${existingListingId}...`);
+        const { reactivatePoshmarkListing } = require('../services/backendPublishService');
+        const reactivateRes = await reactivatePoshmarkListing(existingListingId, user.poshmarkAccount);
+        if (reactivateRes && reactivateRes.success) {
+          publishResult = reactivateRes;
+          reactivated = true;
+          console.log(`[Poshmark Controller] Successfully reactivated Poshmark listing via direct API!`);
+        }
+      } catch (reactivateErr) {
+        console.warn(`[Poshmark Controller] Direct reactivation fallback to full draft publish:`, reactivateErr.message);
+      }
+    }
+
+    if (!reactivated) {
+      console.log(`[Poshmark Controller] Direct publishing listing: ${listingId} to Poshmark`);
+      publishResult = await publishToPoshmark(listing, user.poshmarkAccount);
+    }
 
     // Save updated credentials if session cookie was established/updated
     if (user.isModified('poshmarkAccount')) {

@@ -1380,6 +1380,64 @@ async function delistDepopListing(listingId, depopAccount) {
   }
 }
 
+/**
+ * Reactivates a delisted ("Not for Sale") Poshmark listing directly back to available/published.
+ */
+async function reactivatePoshmarkListing(listingId, poshmarkAccount) {
+  const sessionCookie = poshmarkAccount?.sessionCookie;
+  const csrfToken = poshmarkAccount?.csrfToken;
+  if (!sessionCookie || !csrfToken) {
+    throw new Error('Poshmark session cookie / csrfToken missing');
+  }
+  const domain = getDomainFromCookie(sessionCookie);
+  const headers = getPoshmarkHeaders(sessionCookie, csrfToken);
+
+  console.log(`[Poshmark Reactivator] Setting listing ${listingId} to 'available' / 'published' on Poshmark...`);
+  
+  // 1. Try PUT status/available endpoint
+  try {
+    const config = getAxiosConfig({
+      method: 'PUT',
+      url: `https://${domain}/vm-rest/posts/${listingId}/status/available?app_version=2.55&pm_version=2026.23.01`,
+      headers,
+      data: {}
+    });
+    const response = await axios(config);
+    return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: response.data };
+  } catch (err) {
+    console.warn(`[Poshmark Reactivator] PUT status/available notice: ${err.message}. Trying status/published...`);
+    
+    // 2. Try PUT status/published
+    try {
+      const configPub = getAxiosConfig({
+        method: 'PUT',
+        url: `https://${domain}/vm-rest/posts/${listingId}/status/published?app_version=2.55&pm_version=2026.23.01`,
+        headers,
+        data: {}
+      });
+      const responsePub = await axios(configPub);
+      return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: responsePub.data };
+    } catch (pubErr) {
+      console.warn(`[Poshmark Reactivator] Status published failed: ${pubErr.message}. Trying POST inventory status update...`);
+      // 3. Try POST /vm-rest/posts/${listingId}
+      const postConfig = getAxiosConfig({
+        method: 'POST',
+        url: `https://${domain}/vm-rest/posts/${listingId}?pm_version=2026.23.01`,
+        headers: getPoshmarkHeaders(sessionCookie, csrfToken),
+        data: {
+          post: {
+            inventory: {
+              status: 'available'
+            }
+          }
+        }
+      });
+      const postRes = await axios(postConfig);
+      return { success: true, id: listingId, url: `https://${domain.replace('www.', '')}/listing/${listingId}`, data: postRes.data };
+    }
+  }
+}
+
 // Aliases to ensure backward compatibility with all calling services
 const deletePoshmarkListing = delistPoshmarkListing;
 const deleteDepopListing = delistDepopListing;
@@ -1387,8 +1445,10 @@ const deleteDepopListing = delistDepopListing;
 module.exports = {
   publishToDepop,
   publishToPoshmark,
+  reactivatePoshmarkListing,
   delistPoshmarkListing,
   delistDepopListing,
   deletePoshmarkListing,
   deleteDepopListing
 };
+

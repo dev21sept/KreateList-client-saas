@@ -384,7 +384,20 @@ async function publishToMercari(listing, credentials = {}) {
       const editUrl = `https://www.mercari.com/sell/edit/${listing.mercariListingId}/`;
       console.log(`[Mercari Publisher] Navigating to Edit page: ${editUrl} ...`);
       await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
-      await page.waitForSelector('button[data-testid="ListButton"]', { timeout: 15000 });
+      
+      const buttonSelectors = 'button[data-testid="ListButton"], button[data-testid="UpdateButton"], button[data-testid="SaveButton"], button[data-testid="ActivateDeactivateButton"], button[data-testid="SubmitButton"], button[type="submit"]';
+      try {
+        await page.waitForSelector(buttonSelectors, { timeout: 15000 });
+      } catch (selErr) {
+        console.warn('[Mercari Publisher] Primary button selector not found within 15s. Inspecting page state...');
+        const currentUrl = page.url();
+        if (currentUrl.includes('/signin') || currentUrl.includes('/login') || currentUrl.includes('/signup')) {
+          throw new Error('Your Mercari session has expired. Please reconnect your Mercari account in Marketplaces.');
+        }
+        if (currentUrl.includes('/verification') || currentUrl.includes('/challenge')) {
+          throw new Error('Mercari is requesting security verification. Please open Mercari, complete verification, and reconnect.');
+        }
+      }
       await dismissMercariModals(page);
 
       // Update Title
@@ -442,7 +455,7 @@ async function publishToMercari(listing, credentials = {}) {
 
       console.log('[Mercari Publisher] Clicking Update Button...');
       await page.evaluate(() => {
-        const btn = document.querySelector('button[data-testid="ListButton"]');
+        const btn = document.querySelector('button[data-testid="UpdateButton"], button[data-testid="ListButton"], button[data-testid="ActivateDeactivateButton"], button[data-testid="SaveButton"], button[data-testid="SubmitButton"], button[type="submit"]');
         if (btn) {
           btn.scrollIntoView({ block: 'center' });
           btn.click();
