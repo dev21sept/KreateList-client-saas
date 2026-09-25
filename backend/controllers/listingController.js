@@ -5322,7 +5322,7 @@ exports.cleanGhostChannels = async (req, res) => {
     }
 
     // Save all modified existing listings in parallel / batch
-    const saveOps = existingListings.map(l => {
+    const saveOps = existingListings.filter(l => l._id).map(l => {
       const setFields = {
         ebayStatus: l.ebayStatus || 'none',
         poshmarkStatus: l.poshmarkStatus || 'none',
@@ -5335,8 +5335,6 @@ exports.cleanGhostChannels = async (req, res) => {
       const unsetFields = {
         'listingsMap.etsy': "",
         'listingsMap.amazon': "",
-        'platformData.etsy': "",
-        'platformData.amazon': "",
         etsyListingId: "",
         etsyUrl: "",
         amazonListingId: "",
@@ -5392,6 +5390,17 @@ exports.cleanGhostChannels = async (req, res) => {
       const insertOps = newListingDocs.map(doc => ({ insertOne: { document: doc } }));
       await Listing.bulkWrite(insertOps, { ordered: false });
     }
+
+    // Clean up empty duplicate listings that have no active platforms
+    await Listing.deleteMany({
+      user: userId,
+      ebayStatus: 'none',
+      poshmarkStatus: 'none',
+      mercariStatus: 'none',
+      etsyStatus: 'none',
+      amazonStatus: 'none',
+      status: { $nin: ['sold', 'draft'] }
+    });
 
     // 5. Gather Final Counts
     const finalReport = {
