@@ -4,7 +4,7 @@ const Order = require('../models/Order');
 const Listing = require('../models/Listing');
 const Product = require('../models/Product');
 const { syncOrders: syncEbayOrders, syncInventory: syncEbayInventory } = require('../controllers/ebayController');
-const { syncMercariOrders } = require('./mercariService');
+const { syncMercariOrders, scrapeMercariCloset } = require('./mercariService');
 const { syncPoshmarkOrders } = require('./poshmarkOrderService');
 const { syncEtsyInventory } = require('../controllers/etsyController');
 const { scrapePoshmarkCloset } = require('./externalImportService');
@@ -458,35 +458,50 @@ async function runBackgroundInventorySyncCycle() {
             console.log(`[Background Inventory Worker] Syncing Poshmark closet for @${user.poshmarkAccount.username}...`);
             const scraped = await scrapePoshmarkCloset(user.poshmarkAccount.username, user.poshmarkAccount);
             if (Array.isArray(scraped) && scraped.length > 0) {
-              for (const item of scraped) {
-                let existing = null;
-                if (item.sku) {
-                  existing = await Product.findOne({ user: userId, sku: item.sku, source: 'poshmark' });
+              const activePoshIds = new Set(scraped.filter(i => i.status === 'active').map(i => i.poshmarkListingId).filter(Boolean));
+              
+              const poshOps = scraped.map(item => ({
+                updateOne: {
+                  filter: { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
+                  update: {
+                    $set: {
+                      title: item.title,
+                      description: item.description,
+                      selling_price: parseFloat(item.price) || 0,
+                      sku: item.sku || '',
+                      images: item.images || [],
+                      status: item.status === 'active' ? 'active' : 'inactive',
+                      poshmarkUrl: item.poshmarkUrl,
+                      updated_at: Date.now()
+                    }
+                  },
+                  upsert: item.status === 'active'
                 }
-                if (!existing && item.poshmarkListingId) {
-                  existing = await Product.findOne({ user: userId, poshmarkListingId: item.poshmarkListingId, source: 'poshmark' });
-                }
-                if (existing) {
-                  existing.poshmarkListingId = item.poshmarkListingId;
-                  existing.poshmarkUrl = item.poshmarkUrl;
-                  existing.status = item.status === 'active' ? 'active' : 'inactive';
-                  existing.updated_at = Date.now();
-                  await existing.save();
-                } else {
-                  await Product.create({
+              }));
+
+              if (poshOps.length > 0) {
+                await Product.bulkWrite(poshOps, { ordered: false });
+              }
+
+              if (activePoshIds.size > 0) {
+                await Product.updateMany(
+                  {
                     user: userId,
-                    title: item.title,
-                    description: item.description,
-                    price: item.price,
-                    sku: item.sku || '',
-                    images: item.images || [],
                     source: 'poshmark',
-                    poshmarkListingId: item.poshmarkListingId,
-                    poshmarkUrl: item.poshmarkUrl,
-                    status: item.status === 'active' ? 'active' : 'inactive',
-                    updated_at: Date.now()
-                  });
-                }
+                    status: 'active',
+                    poshmarkListingId: { $nin: Array.from(activePoshIds) }
+                  },
+                  { $set: { status: 'inactive', updated_at: Date.now() } }
+                );
+
+                await Listing.updateMany(
+                  {
+                    user: userId,
+                    poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                    poshmarkStatus: { $in: ['published', 'active'] }
+                  },
+                  { $set: { poshmarkStatus: 'delisted' } }
+                );
               }
             }
           } catch (poshErr) {
@@ -494,7 +509,62 @@ async function runBackgroundInventorySyncCycle() {
           }
         }
 
-        // 4. Recheck Master Listing Platform Statuses & Reconcile Orders
+        // 4. Mercari Inventory Sync
+        if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+          try {
+            console.log(`[Background Inventory Worker] Syncing Mercari closet for ${user.email}...`);
+            const scrapedMerc = await scrapeMercariCloset(user.mercariAccount?.username || 'user', user.mercariAccount);
+            if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
+              const activeMercIds = new Set(scrapedMerc.filter(i => i.status === 'active').map(i => i.mercariListingId).filter(Boolean));
+
+              const mercOps = scrapedMerc.map(item => ({
+                updateOne: {
+                  filter: { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
+                  update: {
+                    $set: {
+                      title: item.title,
+                      selling_price: parseFloat(item.price) || 0,
+                      images: item.images,
+                      status: item.status === 'active' ? 'active' : 'inactive',
+                      mercariUrl: item.mercariUrl,
+                      updated_at: Date.now()
+                    }
+                  },
+                  upsert: item.status === 'active'
+                }
+              }));
+
+              if (mercOps.length > 0) {
+                await Product.bulkWrite(mercOps, { ordered: false });
+              }
+
+              if (activeMercIds.size > 0) {
+                await Product.updateMany(
+                  {
+                    user: userId,
+                    source: 'mercari',
+                    status: 'active',
+                    mercariListingId: { $nin: Array.from(activeMercIds) }
+                  },
+                  { $set: { status: 'inactive', updated_at: Date.now() } }
+                );
+
+                await Listing.updateMany(
+                  {
+                    user: userId,
+                    mercariListingId: { $nin: Array.from(activeMercIds) },
+                    mercariStatus: { $in: ['published', 'active'] }
+                  },
+                  { $set: { mercariStatus: 'delisted' } }
+                );
+              }
+            }
+          } catch (mercErr) {
+            console.warn(`[Background Inventory Worker] Mercari inventory sync notice:`, mercErr.message);
+          }
+        }
+
+        // 5. Recheck Master Listing Platform Statuses & Reconcile Orders
         await recheckMasterListingStatuses(userId);
 
       } catch (userErr) {
