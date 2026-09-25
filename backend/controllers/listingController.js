@@ -2071,29 +2071,41 @@ exports.delistListing = async (req, res) => {
     const platformLower = platform.toLowerCase();
     console.log(`[Delist Listing] Delisting from ${platformLower} for item: ${listing.title}`);
 
+    const matchQueries = [
+      { _id: listing._id },
+      listing.sku ? { sku: listing.sku } : null,
+      listing.title ? { title: listing.title } : null
+    ].filter(Boolean);
+
+    const relatedListings = await Listing.find({ user: req.user.id, $or: matchQueries });
+    const relatedProducts = await Product.find({ user: req.user.id, $or: matchQueries });
+
     if (platformLower === 'ebay') {
-      const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId || listing.platformData?.ebay?.listingId;
-      
+      const ebayIds = new Set();
+      if (listing.ebayListingId) ebayIds.add(listing.ebayListingId);
+      if (listing.platformData?.ebay?.liveId) ebayIds.add(listing.platformData.ebay.liveId);
+      if (listing.platformData?.ebay?.listingId) ebayIds.add(listing.platformData.ebay.listingId);
+      relatedListings.forEach(l => { if (l.ebayListingId) ebayIds.add(l.ebayListingId); });
+      relatedProducts.forEach(p => { if (p.ebayListingId) ebayIds.add(p.ebayListingId); });
+
       const token = await getValidToken(req.user.id);
-      if (token && ebayId) {
-        // 1. End Item via Trading API
-        try {
-          const { endTradingItem } = require('../services/ebayService');
-          await endTradingItem(token, ebayId, 'NotAvailable');
-        } catch (endErr) {
-          console.warn(`[Delist Listing] Trading EndItem attempt:`, endErr.message);
+      if (token && ebayIds.size > 0) {
+        const { endTradingItem, getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
+        for (const eid of ebayIds) {
+          try {
+            await endTradingItem(token, eid, 'NotAvailable');
+          } catch (endErr) {
+            console.warn(`[Delist Listing] Trading EndItem attempt:`, endErr.message);
+          }
         }
 
-        // 2. Withdraw Offer / Zero Quantity if SKU exists
         const sku = listing.sku || listing.platformData?.ebay?.sku;
         if (sku) {
           try {
-            const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
             const offers = await getOffers(token, sku);
             if (offers && offers.length > 0) {
               for (const offer of offers) {
                 if (offer.status === 'PUBLISHED') {
-                  console.log(`[Delist Listing] Withdrawing eBay offer: ${offer.offerId}`);
                   await withdrawOffer(token, offer.offerId);
                 }
               }
@@ -2111,14 +2123,21 @@ exports.delistListing = async (req, res) => {
       if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
       
     } else if (platformLower === 'poshmark') {
-      const poshId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
-      
-      if (poshId && user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
-        try {
-          const { deletePoshmarkListing } = require('../services/backendPublishService');
-          await deletePoshmarkListing(poshId, user.poshmarkAccount);
-        } catch (pErr) {
-          console.warn(`[Delist Listing] Poshmark remote delist notice:`, pErr.message);
+      const poshIds = new Set();
+      if (listing.poshmarkListingId) poshIds.add(listing.poshmarkListingId);
+      if (listing.platformData?.poshmark?.liveId) poshIds.add(listing.platformData.poshmark.liveId);
+      if (listing.platformData?.poshmark?.listingId) poshIds.add(listing.platformData.poshmark.listingId);
+      relatedListings.forEach(l => { if (l.poshmarkListingId) poshIds.add(l.poshmarkListingId); });
+      relatedProducts.forEach(p => { if (p.poshmarkListingId) poshIds.add(p.poshmarkListingId); });
+
+      if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie && poshIds.size > 0) {
+        const { deletePoshmarkListing } = require('../services/backendPublishService');
+        for (const pid of poshIds) {
+          try {
+            await deletePoshmarkListing(pid, user.poshmarkAccount);
+          } catch (pErr) {
+            console.warn(`[Delist Listing] Poshmark remote delist notice for ${pid}:`, pErr.message);
+          }
         }
       }
       
@@ -2126,14 +2145,21 @@ exports.delistListing = async (req, res) => {
       if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
       
     } else if (platformLower === 'etsy') {
-      const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId || listing.platformData?.etsy?.listingId;
-      
-      if (etsyId && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
-        try {
-          const { updateListingState } = require('../services/etsyService');
-          await updateListingState(req.user.id, user.etsyAccount.shopId, etsyId, 'inactive');
-        } catch (eErr) {
-          console.warn(`[Delist Listing] Etsy remote update state notice:`, eErr.message);
+      const etsyIds = new Set();
+      if (listing.etsyListingId) etsyIds.add(listing.etsyListingId);
+      if (listing.platformData?.etsy?.liveId) etsyIds.add(listing.platformData.etsy.liveId);
+      if (listing.platformData?.etsy?.listingId) etsyIds.add(listing.platformData.etsy.listingId);
+      relatedListings.forEach(l => { if (l.etsyListingId) etsyIds.add(l.etsyListingId); });
+      relatedProducts.forEach(p => { if (p.etsyListingId) etsyIds.add(p.etsyListingId); });
+
+      if (user.etsyAccount?.connected && user.etsyAccount?.shopId && etsyIds.size > 0) {
+        const { updateListingState } = require('../services/etsyService');
+        for (const eid of etsyIds) {
+          try {
+            await updateListingState(req.user.id, user.etsyAccount.shopId, eid, 'inactive');
+          } catch (eErr) {
+            console.warn(`[Delist Listing] Etsy remote update state notice:`, eErr.message);
+          }
         }
       }
       
@@ -2141,8 +2167,13 @@ exports.delistListing = async (req, res) => {
       if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
       
     } else if (platformLower === 'depop') {
-      const depopId = listing.depopListingId || listing.platformData?.depop?.liveId || listing.platformData?.depop?.listingId;
-      
+      const depopIds = new Set();
+      if (listing.depopListingId) depopIds.add(listing.depopListingId);
+      if (listing.platformData?.depop?.liveId) depopIds.add(listing.platformData.depop.liveId);
+      if (listing.platformData?.depop?.listingId) depopIds.add(listing.platformData.depop.listingId);
+      relatedListings.forEach(l => { if (l.depopListingId) depopIds.add(l.depopListingId); });
+      relatedProducts.forEach(p => { if (p.depopListingId) depopIds.add(p.depopListingId); });
+
       const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
       const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
       
@@ -2150,9 +2181,15 @@ exports.delistListing = async (req, res) => {
         if (isPartner && apiKey && listing.sku) {
           const { deleteFromDepopPartner } = require('../services/depopPartnerService');
           await deleteFromDepopPartner(listing.sku, apiKey);
-        } else if (depopId && user.depopAccount) {
+        } else if (user.depopAccount) {
           const { deleteDepopListing } = require('../services/backendPublishService');
-          await deleteDepopListing(depopId, user.depopAccount);
+          for (const did of depopIds) {
+            try {
+              await deleteDepopListing(did, user.depopAccount);
+            } catch (dErr) {
+              console.warn(`[Delist Listing] Depop remote delist notice:`, dErr.message);
+            }
+          }
         }
       } catch (dErr) {
         console.warn(`[Delist Listing] Depop remote delist notice:`, dErr.message);
@@ -2161,13 +2198,21 @@ exports.delistListing = async (req, res) => {
       listing.depopStatus = 'delisted';
       if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
     } else if (platformLower === 'mercari') {
-      const activeId = listing.mercariListingId || listing.platformData?.mercari?.liveId || listing.platformData?.mercari?.listingId;
-      if (activeId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
-        try {
-          const { deactivateMercariListing } = require('../services/mercariService');
-          await deactivateMercariListing(activeId, user.mercariAccount);
-        } catch (mErr) {
-          console.warn(`[Delist Listing] Mercari remote deactivation notice:`, mErr.message);
+      const mercariIds = new Set();
+      if (listing.mercariListingId) mercariIds.add(listing.mercariListingId);
+      if (listing.platformData?.mercari?.liveId) mercariIds.add(listing.platformData.mercari.liveId);
+      if (listing.platformData?.mercari?.listingId) mercariIds.add(listing.platformData.mercari.listingId);
+      relatedListings.forEach(l => { if (l.mercariListingId) mercariIds.add(l.mercariListingId); });
+      relatedProducts.forEach(p => { if (p.mercariListingId) mercariIds.add(p.mercariListingId); });
+
+      if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie && mercariIds.size > 0) {
+        const { deactivateMercariListing } = require('../services/mercariService');
+        for (const mid of mercariIds) {
+          try {
+            await deactivateMercariListing(mid, user.mercariAccount);
+          } catch (mErr) {
+            console.warn(`[Delist Listing] Mercari remote deactivation notice:`, mErr.message);
+          }
         }
       }
       listing.mercariStatus = 'delisted';
@@ -2192,16 +2237,23 @@ exports.delistListing = async (req, res) => {
 
     await listing.save();
 
-    // Automatically update matched Product model cache status to inactive to keep Channel Inventory synced!
+    // Reconcile across all matching Listing and Product records in DB
     try {
-      const Product = require('../models/Product');
-      await Product.findOneAndUpdate(
-        { user: listing.user, sku: listing.sku, source: platformLower },
-        { status: 'inactive', updated_at: Date.now() }
+      await Listing.updateMany(
+        { user: listing.user, $or: matchQueries },
+        { 
+          $set: { 
+            [`${platformLower}Status`]: 'delisted',
+            [`platformData.${platformLower}.status`]: 'delisted'
+          } 
+        }
       );
-      console.log(`[Delist Listing] Updated synced Product status to inactive for platform: ${platformLower}, SKU: ${listing.sku}`);
+      await Product.updateMany(
+        { user: listing.user, source: platformLower, $or: matchQueries },
+        { $set: { status: 'inactive', updated_at: Date.now() } }
+      );
     } catch (cacheErr) {
-      console.warn(`[Delist Listing] Failed to update matched Product cache:`, cacheErr.message);
+      console.warn(`[Delist Listing] Failed to update matched documents:`, cacheErr.message);
     }
 
     console.log(`[Delist Listing] Successfully delisted item ${listing.title} from ${platformLower}`);
@@ -2217,6 +2269,7 @@ exports.delistListing = async (req, res) => {
 // @access  Private
 exports.delistAllPlatforms = async (req, res) => {
   try {
+    const { allIds } = req.body || {};
     let listing = await Listing.findById(req.params.id);
     if (!listing) {
       const Product = require('../models/Product');
@@ -2234,6 +2287,7 @@ exports.delistAllPlatforms = async (req, res) => {
     }
 
     const User = require('../models/User');
+    const Product = require('../models/Product');
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -2242,22 +2296,50 @@ exports.delistAllPlatforms = async (req, res) => {
     console.log(`[Delist All] Delisting "${listing.title}" from ALL connected marketplaces...`);
     const results = {};
 
+    // Build comprehensive search queries to find all matched listings and products for this user
+    const matchIds = Array.isArray(allIds) && allIds.length > 0 ? allIds.map(id => String(id)) : [listing._id.toString()];
+    const relatedListings = await Listing.find({
+      user: req.user.id,
+      $or: [
+        { _id: { $in: matchIds } },
+        listing.sku ? { sku: listing.sku } : null,
+        listing.title ? { title: listing.title } : null
+      ].filter(Boolean)
+    });
+
+    const relatedProducts = await Product.find({
+      user: req.user.id,
+      $or: [
+        { _id: { $in: matchIds } },
+        listing.sku ? { sku: listing.sku } : null,
+        listing.title ? { title: listing.title } : null
+      ].filter(Boolean)
+    });
+
     // 1. EBAY
-    const ebayId = listing.ebayListingId || listing.platformData?.ebay?.liveId || listing.platformData?.ebay?.listingId;
-    if (ebayId || listing.ebayStatus === 'published' || listing.ebayStatus === 'active') {
+    const ebayIds = new Set();
+    if (listing.ebayListingId) ebayIds.add(listing.ebayListingId);
+    if (listing.platformData?.ebay?.liveId) ebayIds.add(listing.platformData.ebay.liveId);
+    if (listing.platformData?.ebay?.listingId) ebayIds.add(listing.platformData.ebay.listingId);
+    relatedListings.forEach(l => { if (l.ebayListingId) ebayIds.add(l.ebayListingId); });
+    relatedProducts.forEach(p => { if (p.ebayListingId) ebayIds.add(p.ebayListingId); });
+
+    const hasEbay = ebayIds.size > 0 || listing.ebayStatus === 'published' || listing.ebayStatus === 'active' || relatedListings.some(l => l.ebayStatus === 'published' || l.ebayStatus === 'active');
+    if (hasEbay) {
       try {
         const token = await getValidToken(req.user.id);
-        if (token && ebayId) {
-          try {
-            const { endTradingItem } = require('../services/ebayService');
-            await endTradingItem(token, ebayId, 'NotAvailable');
-          } catch (endErr) {
-            console.warn(`[Delist All] eBay Trading EndItem notice:`, endErr.message);
+        if (token) {
+          const { endTradingItem, getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
+          for (const eid of ebayIds) {
+            try {
+              await endTradingItem(token, eid, 'NotAvailable');
+            } catch (endErr) {
+              console.warn(`[Delist All] eBay Trading EndItem notice:`, endErr.message);
+            }
           }
           const sku = listing.sku || listing.platformData?.ebay?.sku;
           if (sku) {
             try {
-              const { getOffers, withdrawOffer, createOrReplaceInventoryItem } = require('../services/ebayService');
               const offers = await getOffers(token, sku);
               if (offers && offers.length > 0) {
                 for (const offer of offers) {
@@ -2274,126 +2356,181 @@ exports.delistAllPlatforms = async (req, res) => {
             }
           }
         }
-        listing.ebayStatus = 'delisted';
-        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
         results.ebay = 'delisted';
       } catch (eErr) {
         console.warn(`[Delist All] eBay delist failed:`, eErr.message);
-        listing.ebayStatus = 'delisted';
-        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
         results.ebay = 'delisted_local';
       }
     }
 
     // 2. POSHMARK
-    const poshId = listing.poshmarkListingId || listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
-    if (poshId || listing.poshmarkStatus === 'published' || listing.poshmarkStatus === 'active') {
+    const poshIds = new Set();
+    if (listing.poshmarkListingId) poshIds.add(listing.poshmarkListingId);
+    if (listing.platformData?.poshmark?.liveId) poshIds.add(listing.platformData.poshmark.liveId);
+    if (listing.platformData?.poshmark?.listingId) poshIds.add(listing.platformData.poshmark.listingId);
+    relatedListings.forEach(l => { if (l.poshmarkListingId) poshIds.add(l.poshmarkListingId); });
+    relatedProducts.forEach(p => { if (p.poshmarkListingId) poshIds.add(p.poshmarkListingId); });
+
+    const hasPoshmark = poshIds.size > 0 || listing.poshmarkStatus === 'published' || listing.poshmarkStatus === 'active' || relatedListings.some(l => l.poshmarkStatus === 'published' || l.poshmarkStatus === 'active');
+    if (hasPoshmark) {
       try {
-        if (poshId && user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie) {
+        if (user.poshmarkAccount?.connected && user.poshmarkAccount?.sessionCookie && poshIds.size > 0) {
           const { deletePoshmarkListing } = require('../services/backendPublishService');
-          await deletePoshmarkListing(poshId, user.poshmarkAccount);
+          for (const pid of poshIds) {
+            try {
+              await deletePoshmarkListing(pid, user.poshmarkAccount);
+            } catch (pErr) {
+              console.warn(`[Delist All] Poshmark remote delist notice for ${pid}:`, pErr.message);
+            }
+          }
         }
-        listing.poshmarkStatus = 'delisted';
-        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
         results.poshmark = 'delisted';
       } catch (pErr) {
         console.warn(`[Delist All] Poshmark delist failed:`, pErr.message);
-        listing.poshmarkStatus = 'delisted';
-        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
         results.poshmark = 'delisted_local';
       }
     }
 
     // 3. MERCARI
-    const mercariId = listing.mercariListingId || listing.platformData?.mercari?.liveId || listing.platformData?.mercari?.listingId;
-    if (mercariId || listing.mercariStatus === 'published' || listing.mercariStatus === 'active') {
+    const mercariIds = new Set();
+    if (listing.mercariListingId) mercariIds.add(listing.mercariListingId);
+    if (listing.platformData?.mercari?.liveId) mercariIds.add(listing.platformData.mercari.liveId);
+    if (listing.platformData?.mercari?.listingId) mercariIds.add(listing.platformData.mercari.listingId);
+    relatedListings.forEach(l => { if (l.mercariListingId) mercariIds.add(l.mercariListingId); });
+    relatedProducts.forEach(p => { if (p.mercariListingId) mercariIds.add(p.mercariListingId); });
+
+    const hasMercari = mercariIds.size > 0 || listing.mercariStatus === 'published' || listing.mercariStatus === 'active' || relatedListings.some(l => l.mercariStatus === 'published' || l.mercariStatus === 'active');
+    if (hasMercari) {
       try {
-        if (mercariId && user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+        if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie && mercariIds.size > 0) {
           const { deactivateMercariListing } = require('../services/mercariService');
-          await deactivateMercariListing(mercariId, user.mercariAccount);
+          for (const mid of mercariIds) {
+            try {
+              await deactivateMercariListing(mid, user.mercariAccount);
+            } catch (mErr) {
+              console.warn(`[Delist All] Mercari remote deactivation notice for ${mid}:`, mErr.message);
+            }
+          }
         }
-        listing.mercariStatus = 'delisted';
-        if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
         results.mercari = 'delisted';
       } catch (mErr) {
         console.warn(`[Delist All] Mercari delist failed:`, mErr.message);
-        listing.mercariStatus = 'delisted';
-        if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
         results.mercari = 'delisted_local';
       }
     }
 
     // 4. ETSY
-    const etsyId = listing.etsyListingId || listing.platformData?.etsy?.liveId || listing.platformData?.etsy?.listingId;
-    if (etsyId || listing.etsyStatus === 'published' || listing.etsyStatus === 'active') {
+    const etsyIds = new Set();
+    if (listing.etsyListingId) etsyIds.add(listing.etsyListingId);
+    if (listing.platformData?.etsy?.liveId) etsyIds.add(listing.platformData.etsy.liveId);
+    if (listing.platformData?.etsy?.listingId) etsyIds.add(listing.platformData.etsy.listingId);
+    relatedListings.forEach(l => { if (l.etsyListingId) etsyIds.add(l.etsyListingId); });
+    relatedProducts.forEach(p => { if (p.etsyListingId) etsyIds.add(p.etsyListingId); });
+
+    const hasEtsy = etsyIds.size > 0 || listing.etsyStatus === 'published' || listing.etsyStatus === 'active' || relatedListings.some(l => l.etsyStatus === 'published' || l.etsyStatus === 'active');
+    if (hasEtsy) {
       try {
-        if (etsyId && user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+        if (user.etsyAccount?.connected && user.etsyAccount?.shopId && etsyIds.size > 0) {
           const { updateListingState } = require('../services/etsyService');
-          await updateListingState(req.user.id, user.etsyAccount.shopId, etsyId, 'inactive');
+          for (const eid of etsyIds) {
+            try {
+              await updateListingState(req.user.id, user.etsyAccount.shopId, eid, 'inactive');
+            } catch (etErr) {
+              console.warn(`[Delist All] Etsy remote update state notice:`, etErr.message);
+            }
+          }
         }
-        listing.etsyStatus = 'delisted';
-        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
         results.etsy = 'delisted';
       } catch (etErr) {
         console.warn(`[Delist All] Etsy delist failed:`, etErr.message);
-        listing.etsyStatus = 'delisted';
-        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
         results.etsy = 'delisted_local';
       }
     }
 
     // 5. DEPOP
-    const depopId = listing.depopListingId || listing.platformData?.depop?.liveId || listing.platformData?.depop?.listingId;
-    if (depopId || listing.depopStatus === 'published' || listing.depopStatus === 'active') {
+    const depopIds = new Set();
+    if (listing.depopListingId) depopIds.add(listing.depopListingId);
+    if (listing.platformData?.depop?.liveId) depopIds.add(listing.platformData.depop.liveId);
+    if (listing.platformData?.depop?.listingId) depopIds.add(listing.platformData.depop.listingId);
+    relatedListings.forEach(l => { if (l.depopListingId) depopIds.add(l.depopListingId); });
+    relatedProducts.forEach(p => { if (p.depopListingId) depopIds.add(p.depopListingId); });
+
+    const hasDepop = depopIds.size > 0 || listing.depopStatus === 'published' || listing.depopStatus === 'active' || relatedListings.some(l => l.depopStatus === 'published' || l.depopStatus === 'active');
+    if (hasDepop) {
       try {
         const isPartner = !!(process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.usePartnerApi);
         const apiKey = process.env.DEPOP_PARTNER_API_KEY || user.depopAccount?.accessToken;
         if (isPartner && apiKey && listing.sku) {
           const { deleteFromDepopPartner } = require('../services/depopPartnerService');
           await deleteFromDepopPartner(listing.sku, apiKey);
-        } else if (depopId && user.depopAccount) {
+        } else if (user.depopAccount) {
           const { deleteDepopListing } = require('../services/backendPublishService');
-          await deleteDepopListing(depopId, user.depopAccount);
+          for (const did of depopIds) {
+            try {
+              await deleteDepopListing(did, user.depopAccount);
+            } catch (dErr) {
+              console.warn(`[Delist All] Depop remote delist notice:`, dErr.message);
+            }
+          }
         }
-        listing.depopStatus = 'delisted';
-        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
         results.depop = 'delisted';
       } catch (dErr) {
         console.warn(`[Delist All] Depop delist failed:`, dErr.message);
-        listing.depopStatus = 'delisted';
-        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
         results.depop = 'delisted_local';
       }
     }
 
     // 6. AMAZON
-    if (listing.amazonListingId || listing.amazonAsin || listing.amazonStatus === 'published' || listing.amazonStatus === 'active') {
-      listing.amazonStatus = 'delisted';
-      if (listing.platformData?.amazon) listing.platformData.amazon.status = 'delisted';
-      results.amazon = 'delisted';
-    }
+    results.amazon = 'delisted';
 
     // Set overall master status to delisted
     listing.status = 'delisted';
+    listing.ebayStatus = 'delisted';
+    listing.poshmarkStatus = 'delisted';
+    listing.mercariStatus = 'delisted';
+    listing.etsyStatus = 'delisted';
+    listing.depopStatus = 'delisted';
+    listing.amazonStatus = 'delisted';
     await listing.save();
 
-    // Reconcile corresponding Product model entries across all channels
+    // Reconcile ALL matching Listing and Product model entries across all channels
     try {
-      const Product = require('../models/Product');
-      const queryList = [];
-      if (listing.sku) queryList.push({ sku: listing.sku });
-      if (listing.ebayListingId) queryList.push({ ebayListingId: listing.ebayListingId });
-      if (listing.poshmarkListingId) queryList.push({ poshmarkListingId: listing.poshmarkListingId });
-      if (listing.mercariListingId) queryList.push({ mercariListingId: listing.mercariListingId });
-      if (listing.etsyListingId) queryList.push({ etsyListingId: listing.etsyListingId });
-      if (listing.depopListingId) queryList.push({ depopListingId: listing.depopListingId });
+      const allQueryList = [
+        { _id: { $in: matchIds } },
+        listing.sku ? { sku: listing.sku } : null,
+        listing.title ? { title: listing.title } : null,
+        ebayIds.size > 0 ? { ebayListingId: { $in: Array.from(ebayIds) } } : null,
+        poshIds.size > 0 ? { poshmarkListingId: { $in: Array.from(poshIds) } } : null,
+        mercariIds.size > 0 ? { mercariListingId: { $in: Array.from(mercariIds) } } : null,
+        etsyIds.size > 0 ? { etsyListingId: { $in: Array.from(etsyIds) } } : null,
+        depopIds.size > 0 ? { depopListingId: { $in: Array.from(depopIds) } } : null
+      ].filter(Boolean);
 
-      if (queryList.length > 0) {
-        await Product.updateMany(
-          { user: listing.user, $or: queryList },
-          { status: 'inactive', updated_at: Date.now() }
-        );
-      }
+      await Listing.updateMany(
+        { user: listing.user, $or: allQueryList },
+        { 
+          $set: {
+            status: 'delisted',
+            ebayStatus: 'delisted',
+            poshmarkStatus: 'delisted',
+            mercariStatus: 'delisted',
+            etsyStatus: 'delisted',
+            depopStatus: 'delisted',
+            amazonStatus: 'delisted',
+            'platformData.ebay.status': 'delisted',
+            'platformData.poshmark.status': 'delisted',
+            'platformData.mercari.status': 'delisted',
+            'platformData.etsy.status': 'delisted',
+            'platformData.depop.status': 'delisted',
+            'platformData.amazon.status': 'delisted'
+          }
+        }
+      );
+
+      await Product.updateMany(
+        { user: listing.user, $or: allQueryList },
+        { $set: { status: 'inactive', updated_at: Date.now() } }
+      );
     } catch (prodErr) {
       console.warn(`[Delist All] Failed to update matched products:`, prodErr.message);
     }

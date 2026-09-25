@@ -2721,7 +2721,7 @@ const NewListings = () => {
 
     toast.info("Delisting from all marketplaces...");
     try {
-      const res = await listingService.delistAll(item._id);
+      const res = await listingService.delistAll(item._id, { allIds: item.allIds, title: item.title, sku: item.sku });
       if (res.data?.success) {
         toast.success(`Successfully delisted "${item.title}" from all marketplaces!`);
       } else {
