@@ -4987,8 +4987,11 @@ exports.cleanGhostChannels = async (req, res) => {
       }
     });
 
-    // Precompute search indexes on existing listings for instant sub-millisecond lookups
+    // Inverted indexes for instantaneous O(1) lookups
     const prefixMap = new Map();
+    const wordIndex = new Map();
+    const imgIndex = new Map();
+
     const indexedListings = existingListings.map(l => {
       const lTitle = (l.title || '').trim().toLowerCase();
       const clean = lTitle.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -5009,6 +5012,16 @@ exports.cleanGhostChannels = async (req, res) => {
         if (!prefixMap.has(prefix20)) prefixMap.set(prefix20, []);
         prefixMap.get(prefix20).push(itemWrapper);
       }
+
+      words.forEach(w => {
+        if (!wordIndex.has(w)) wordIndex.set(w, []);
+        wordIndex.get(w).push(itemWrapper);
+      });
+
+      imgBases.forEach(b => {
+        if (!imgIndex.has(b)) imgIndex.set(b, []);
+        imgIndex.get(b).push(itemWrapper);
+      });
 
       return itemWrapper;
     });
@@ -5059,39 +5072,39 @@ exports.cleanGhostChannels = async (req, res) => {
         if (match) return match.listing;
       }
 
-      // 5. Token / Word Overlap Matching
+      // 5. Token / Word Overlap Matching using Inverted Index (lightning fast)
       const pWords = pClean.split(' ').filter(w => w.length >= 3 || (w.length >= 2 && /\d/.test(w)));
       if (pWords.length >= 2) {
+        const candidateScores = new Map();
+        for (const w of pWords) {
+          const list = wordIndex.get(w) || [];
+          for (const c of list) {
+            if (!isEligible(c.listing)) continue;
+            candidateScores.set(c, (candidateScores.get(c) || 0) + 1);
+          }
+        }
+
         let bestCandidate = null;
         let highestScore = 0;
-
-        for (const c of indexedListings) {
-          if (!isEligible(c.listing)) continue;
-          let matchCount = 0;
-          for (const w of pWords) {
-            if (c.words.has(w)) matchCount++;
-          }
-
+        for (const [c, matchCount] of candidateScores.entries()) {
           const score = matchCount / Math.max(1, Math.min(pWords.length, c.words.size));
           if (score >= 0.55 && matchCount >= 2 && score > highestScore) {
             highestScore = score;
             bestCandidate = c.listing;
           }
         }
-
         if (bestCandidate) return bestCandidate;
       }
 
-      // 6. Image Match
+      // 6. Image Match using Inverted Index (instant O(1))
       const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []).filter(Boolean);
       if (pImages.length > 0) {
-        const pImgBases = new Set(pImages.map(img => img.split('?')[0].split('/').pop()).filter(Boolean));
-        if (pImgBases.size > 0) {
-          for (const c of indexedListings) {
-            if (!isEligible(c.listing)) continue;
-            for (const b of pImgBases) {
-              if (c.imgBases.has(b)) return c.listing;
-            }
+        for (const img of pImages) {
+          const base = img.split('?')[0].split('/').pop();
+          if (base && imgIndex.has(base)) {
+            const list = imgIndex.get(base) || [];
+            const match = list.find(c => isEligible(c.listing));
+            if (match) return match.listing;
           }
         }
       }
