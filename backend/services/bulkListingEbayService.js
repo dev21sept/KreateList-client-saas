@@ -286,9 +286,24 @@ async function publishSingleEbayListing(listing, token) {
     const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
 
     let validConditionIds = [];
-    if (listing.categoryId) {
+    let effectiveCategoryId = String(listing.categoryId || '').trim();
+    if (!effectiveCategoryId || !/^\d+$/.test(effectiveCategoryId)) {
       try {
-        const catConditions = await ebayService.getCategoryConditions(token, listing.categoryId);
+        const suggestions = await ebayService.getCategorySuggestions(token, listing.title || 'clothing');
+        if (suggestions && suggestions.length > 0 && suggestions[0].category?.categoryId) {
+          effectiveCategoryId = String(suggestions[0].category.categoryId);
+          listing.categoryId = effectiveCategoryId;
+        } else {
+          effectiveCategoryId = '26315';
+        }
+      } catch (catErr) {
+        effectiveCategoryId = '26315';
+      }
+    }
+
+    if (effectiveCategoryId) {
+      try {
+        const catConditions = await ebayService.getCategoryConditions(token, effectiveCategoryId);
         if (catConditions && catConditions.length > 0) {
           validConditionIds = catConditions.map(c => String(c.id || c.condition_id || ''));
         }
@@ -377,7 +392,7 @@ async function publishSingleEbayListing(listing, token) {
         }
       },
       listingDescription: sanitizeEbayDescription(listing.description),
-      categoryId: listing.categoryId || '26315',
+      categoryId: effectiveCategoryId || '26315',
       merchantLocationKey: locationKey,
       listingPolicies: {
         fulfillmentPolicyId,
@@ -386,7 +401,33 @@ async function publishSingleEbayListing(listing, token) {
       }
     };
 
-    const createOfferRes = await ebayService.createOffer(token, offerData);
+    let createOfferRes;
+    try {
+      createOfferRes = await ebayService.createOffer(token, offerData);
+    } catch (offerErr) {
+      const errObj = offerErr.response?.data?.errors?.[0] || {};
+      const errMsg = (errObj.message || offerErr.message || '').toLowerCase();
+      const errId = parseInt(errObj.errorId);
+      if (errId === 25008 || errMsg.includes('invalid category') || errMsg.includes('category is not valid')) {
+        console.warn(`[BULK EBAY PUBLISH] Category ID rejected for "${listing.title}". Auto-resolving valid leaf category...`);
+        try {
+          const suggestions = await ebayService.getCategorySuggestions(token, listing.title || 'clothing');
+          if (suggestions && suggestions.length > 0 && suggestions[0].category?.categoryId) {
+            const validCatId = String(suggestions[0].category.categoryId);
+            console.log(`[BULK EBAY PUBLISH] Retrying createOffer with valid leaf category: ${validCatId} (${suggestions[0].category.categoryName})`);
+            offerData.categoryId = validCatId;
+            listing.categoryId = validCatId;
+            createOfferRes = await ebayService.createOffer(token, offerData);
+          } else {
+            throw offerErr;
+          }
+        } catch (suggestErr) {
+          throw offerErr;
+        }
+      } else {
+        throw offerErr;
+      }
+    }
     const offerId = createOfferRes.offerId;
 
     // 10. Publish Offer (with retries to handle eBay replication lag)

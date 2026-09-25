@@ -33,7 +33,7 @@ router.delete('/disconnect', protect, disconnectEbay);
 
 // Sync and Auxiliary Routes
 router.post('/sync/orders', protect, syncOrders);
-router.post('/sync/inventory', protect, requireWithinFetchLimit, syncInventory);
+router.post('/sync/inventory', protect, syncInventory);
 router.get('/inventory', protect, getSyncedInventory);
 router.get('/locations', protect, getInventoryLocations);
 router.get('/conditions', protect, getCategoryConditions);
