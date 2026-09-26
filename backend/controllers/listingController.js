@@ -5144,83 +5144,117 @@ exports.cleanGhostChannels = async (req, res) => {
       return keys1.some(k => set2.has(k));
     };
 
+    const areSizesCompatible = (s1, s2) => {
+      if (!s1 || !s2) return true;
+      if (s1 === s2) return true;
+      if (s1.includes('x') && !s2.includes('x')) {
+        const waist = s1.split('x')[0];
+        return waist === s2;
+      }
+      if (s2.includes('x') && !s1.includes('x')) {
+        const waist = s2.split('x')[0];
+        return waist === s1;
+      }
+      return false;
+    };
+
+    const calculateTitleSimilarity = (titleA, titleB) => {
+      const normA = normalizeTitle(titleA);
+      const normB = normalizeTitle(titleB);
+      if (!normA || !normB) return 0;
+      if (normA === normB) return 1.0;
+
+      const tokensA = normA.split(/\s+/).filter(Boolean);
+      const tokensB = normB.split(/\s+/).filter(Boolean);
+      const setA = new Set(tokensA);
+      const setB = new Set(tokensB);
+
+      let matchCount = 0;
+      for (const t of setA) {
+        if (setB.has(t)) matchCount++;
+      }
+      const tokenSim = (2 * matchCount) / (setA.size + setB.size);
+
+      const getBigrams = (str) => {
+        const bigrams = new Set();
+        for (let i = 0; i < str.length - 1; i++) {
+          bigrams.add(str.substring(i, i + 2));
+        }
+        return bigrams;
+      };
+
+      const bigramsA = getBigrams(normA);
+      const bigramsB = getBigrams(normB);
+      let bigramMatch = 0;
+      for (const b of bigramsA) {
+        if (bigramsB.has(b)) bigramMatch++;
+      }
+      const bigramSim = (2 * bigramMatch) / (bigramsA.size + bigramsB.size);
+
+      let prefixSim = 0;
+      const minLen = Math.min(normA.length, normB.length);
+      if (minLen >= 25) {
+        if (normA.startsWith(normB) || normB.startsWith(normA)) {
+          prefixSim = 0.95;
+        }
+      }
+
+      return Math.max(tokenSim, bigramSim, prefixSim);
+    };
+
+    const isStrictMatch = (itemA, itemB) => {
+      const priceA = parseFloat(itemA.selling_price || itemA.price || 0) || 0;
+      const priceB = parseFloat(itemB.selling_price || itemB.price || 0) || 0;
+
+      // 1. Price Guard: Max $3.00 difference
+      if (priceA > 0 && priceB > 0) {
+        if (Math.abs(priceA - priceB) > 3.00) {
+          return false;
+        }
+      }
+
+      // 2. Garment Guard
+      const gA = extractGarmentType(itemA.title);
+      const gB = extractGarmentType(itemB.title);
+      if (gA && gB && gA !== gB) {
+        return false;
+      }
+
+      // 3. Size Guard
+      const sA = extractSize(itemA.size || itemA.title);
+      const sB = extractSize(itemB.size || itemB.title);
+      if (sA && sB && !areSizesCompatible(sA, sB)) {
+        return false;
+      }
+
+      // 4. Color Guard
+      const cA = extractColorPattern(itemA.color || itemA.title);
+      const cB = extractColorPattern(itemB.color || itemB.title);
+      if (cA && cB && cA !== cB) {
+        return false;
+      }
+
+      // 5. Brand Guard
+      const bA = normalizeStr(itemA.brand);
+      const bB = normalizeStr(itemB.brand);
+      if (bA && bB && bA !== bB) {
+        return false;
+      }
+
+      // 6. Title Similarity >= 90% (0.90)
+      const sim = calculateTitleSimilarity(itemA.title, itemB.title);
+      return sim >= 0.90;
+    };
+
     const masterItems = [];
 
     const matchProductToGroup = (p, platformKey) => {
-      const pTitleNorm = normalizeTitle(p.title);
-      const pPrice = parseFloat(p.selling_price || p.price || 0) || 0;
-      const pGarment = extractGarmentType(p.title);
-      const pSize = extractSize(p.size || p.title);
-      const pColor = extractColorPattern(p.color || p.title);
-      const pBrand = normalizeStr(p.brand);
-      const pImages = (p.images || []).concat(p.thumbnail ? [p.thumbnail] : []);
-
-      // 1. Exact Image CDN Hash Match
       for (const g of masterItems) {
         if (g[`${platformKey}Status`] === 'published') continue;
-        const gImages = (g.images || []).concat(g.thumbnail ? [g.thumbnail] : []);
-        if (checkImageMatch(pImages, gImages)) {
+        if (isStrictMatch(g, p)) {
           return g;
         }
       }
-
-      // 2. Exact Title Match (Normalized)
-      if (pTitleNorm) {
-        const candidates = masterItems.filter(g => {
-          if (g[`${platformKey}Status`] === 'published') return false;
-          const gNorm = normalizeTitle(g.title);
-          if (gNorm !== pTitleNorm) return false;
-          const gGarment = extractGarmentType(g.title);
-          if (pGarment && gGarment && pGarment !== gGarment) return false;
-          const gBrand = normalizeStr(g.brand);
-          if (pBrand && gBrand && pBrand !== gBrand) return false;
-          return true;
-        });
-
-        if (candidates.length === 1) {
-          return candidates[0];
-        } else if (candidates.length > 1) {
-          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pPrice) - Math.abs((parseFloat(b.price) || 0) - pPrice));
-          return candidates[0];
-        }
-      }
-
-      // 3. Poshmark 50-Character Prefix Match (when length >= 25)
-      if (pTitleNorm.length >= 25) {
-        const candidates = masterItems.filter(g => {
-          if (g[`${platformKey}Status`] === 'published') return false;
-          const gNorm = normalizeTitle(g.title);
-          if (!gNorm) return false;
-
-          const isPrefix = (gNorm.length > pTitleNorm.length && gNorm.startsWith(pTitleNorm)) ||
-                           (pTitleNorm.length > gNorm.length && pTitleNorm.startsWith(gNorm) && gNorm.length >= 25);
-          if (!isPrefix) return false;
-
-          const gGarment = extractGarmentType(g.title);
-          if (pGarment && gGarment && pGarment !== gGarment) return false;
-
-          const gSize = extractSize(g.size || g.title);
-          if (pSize && gSize && pSize !== gSize) return false;
-
-          const gColor = extractColorPattern(g.color || g.title);
-          if (pColor && gColor && pColor !== gColor) return false;
-
-          const gBrand = normalizeStr(g.brand);
-          if (pBrand && gBrand && pBrand !== gBrand) return false;
-
-          if (pPrice > 0 && (parseFloat(g.price) || 0) > 0 && Math.abs((parseFloat(g.price) || 0) - pPrice) > 15) return false;
-
-          return true;
-        });
-
-        if (candidates.length === 1) {
-          return candidates[0];
-        } else if (candidates.length > 1) {
-          candidates.sort((a, b) => Math.abs((parseFloat(a.price) || 0) - pPrice) - Math.abs((parseFloat(b.price) || 0) - pPrice));
-          return candidates[0];
-        }
-      }
-
       return null;
     };
 
