@@ -275,18 +275,14 @@ exports.depopImportCloset = async (req, res) => {
     for (const item of scrapedListings) {
       // Check for duplicate in DB for this user in Product collection
       let existingProduct = null;
-      if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'depop' });
-      }
-
-      if (!existingProduct) {
+      if (item.depopListingId || item.depopUrl) {
         const duplicateQuery = { 
           user: req.user.id, 
           source: 'depop',
           $or: [
-            { depopListingId: item.depopListingId },
-            { depopUrl: item.depopUrl }
-          ]
+            item.depopListingId ? { depopListingId: item.depopListingId } : null,
+            item.depopUrl ? { depopUrl: item.depopUrl } : null
+          ].filter(Boolean)
         };
         existingProduct = await Product.findOne(duplicateQuery);
       }
@@ -374,7 +370,13 @@ exports.depopPublish = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
         if (!listing) {
           listing = new Listing({
             user: req.user.id,
@@ -548,18 +550,14 @@ exports.depopGetLive = async (req, res) => {
     const savedProducts = [];
     for (const item of liveListings) {
       let existingProduct = null;
-      if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'depop' });
-      }
-
-      if (!existingProduct) {
+      if (item.depopListingId || item.depopUrl) {
         const duplicateQuery = { 
           user: req.user.id, 
           source: 'depop',
           $or: [
-            { depopListingId: item.depopListingId },
-            { depopUrl: item.depopUrl }
-          ]
+            item.depopListingId ? { depopListingId: item.depopListingId } : null,
+            item.depopUrl ? { depopUrl: item.depopUrl } : null
+          ].filter(Boolean)
         };
         existingProduct = await Product.findOne(duplicateQuery);
       }

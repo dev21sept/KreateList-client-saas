@@ -344,7 +344,13 @@ exports.mercariPublish = async (req, res) => {
     if (!listing) {
       const prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
         if (!listing) {
           listing = new Listing({
             user: req.user.id,
@@ -475,7 +481,13 @@ exports.mercariDelist = async (req, res) => {
     if (!listing) {
       prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
       }
     }
 
@@ -522,7 +534,13 @@ exports.mercariDelete = async (req, res) => {
     if (!listing) {
       prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
       }
     }
 
@@ -577,14 +595,14 @@ exports.mercariVerifyStatus = async (req, res) => {
       if (!listing) {
         product = await Product.findById(itemId);
         if (product && product.user.toString() === req.user.id) {
-          listing = await Listing.findOne({ user: req.user.id, $or: [{ sku: product.sku }, { mercariListingId: product.mercariListingId }] });
+          listing = await Listing.findOne({ user: req.user.id, $or: [{ _id: product._id }, { mercariListingId: product.mercariListingId }] });
         }
       } else {
-        product = await Product.findOne({ user: req.user.id, $or: [{ sku: listing.sku }, { mercariListingId: listing.mercariListingId }], source: 'mercari' });
+        product = await Product.findOne({ user: req.user.id, $or: [{ _id: listing._id }, { mercariListingId: listing.mercariListingId }], source: 'mercari' });
       }
     } else {
-      listing = await Listing.findOne({ user: req.user.id, $or: [{ mercariListingId: itemId }, { sku: itemId }] });
-      product = await Product.findOne({ user: req.user.id, $or: [{ mercariListingId: itemId }, { sku: itemId }], source: 'mercari' });
+      listing = await Listing.findOne({ user: req.user.id, mercariListingId: itemId });
+      product = await Product.findOne({ user: req.user.id, mercariListingId: itemId, source: 'mercari' });
     }
 
     let mercariListingId = listing?.mercariListingId || product?.mercariListingId || (itemId.startsWith('m') ? itemId : null);

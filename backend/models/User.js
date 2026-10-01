@@ -57,7 +57,16 @@ const userSchema = new mongoose.Schema({
     },
     paymentDate: Date,
     razorpayPaymentId: String,
-    expiresAt: Date
+    expiresAt: Date,
+    tokensTotal: {
+      type: Number,
+      default: 500
+    },
+    tokensUsed: {
+      type: Number,
+      default: 0
+    },
+    tokensResetAt: Date
   },
   ebayAccount: {
     connected: {
@@ -159,6 +168,17 @@ const userSchema = new mongoose.Schema({
   resetPasswordOtpExpire: Date,
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  lastSyncSummary: {
+    syncedAt: Date,
+    totalProcessed: Number,
+    newItemsCount: Number,
+    mergedItemsCount: Number,
+    platforms: [String],
+    shownToUser: {
+      type: Boolean,
+      default: false
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

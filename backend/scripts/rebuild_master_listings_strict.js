@@ -15,6 +15,16 @@ const COMMON_COLORS = new Set([
   'maroon', 'tan', 'cream', 'gold', 'silver'
 ]);
 
+const KNOWN_BRANDS = [
+  'peter millar', 'polo ralph lauren', 'ralph lauren', 'tommy bahama', 'eddie bauer',
+  'lululemon', 'under armour', 'the north face', 'american eagle', 'lucky brand',
+  'duluth trading', 'duluth', 'free people', 'anthropologie', 'vuori', '7 diamonds',
+  'rock revival', 'bonobos', 'carhartt', 'patagonia', 'nike', 'adidas', 'columbia',
+  'wrangler', 'levis', "levi's", 'cinch', 'ariat', 'bke', 'quince', 'halsey', 'birddogs',
+  'chubbies', 'eileen fisher', 'salvage', 'empyre', 'carbon 2 cobalt', 'prana', 'cremieux',
+  'brooks brothers', 'flint and tinder', 'mountain khakis', 'silver jeans', 'hugo boss'
+];
+
 const cleanUnicode = (str) => {
   if (!str) return '';
   return String(str)
@@ -25,9 +35,30 @@ const cleanUnicode = (str) => {
     .trim();
 };
 
-const normalizeStr = (str) => {
-  if (!str) return '';
-  return cleanUnicode(str).toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+const normalizeTitle = (t) => {
+  if (!t) return '';
+  return cleanUnicode(t).toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const normalizeStr = (s) => (s || '').trim().toLowerCase();
+
+const extractBrand = (text) => {
+  if (!text) return '';
+  const norm = normalizeTitle(text);
+  for (const b of KNOWN_BRANDS) {
+    if (norm.includes(b)) return b;
+  }
+  return norm.split(' ')[0] || '';
+};
+
+const extractGender = (text) => {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  if (/\b(?:womens|women|ladies|female)\b/i.test(lower)) return 'womens';
+  if (/\b(?:mens|men|male)\b/i.test(lower)) return 'mens';
+  if (/\b(?:boys|boy)\b/i.test(lower)) return 'boys';
+  if (/\b(?:girls|girl)\b/i.test(lower)) return 'girls';
+  return null;
 };
 
 const extractGarmentType = (text) => {
@@ -43,9 +74,9 @@ const extractGarmentType = (text) => {
 const extractSize = (text) => {
   if (!text) return null;
   const lower = String(text).toLowerCase();
-  const dimMatch = lower.match(/\b(\d{2})x(\d{2})\b/);
-  if (dimMatch) return dimMatch[0]; // e.g. "30x32"
-  const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|xxxl)\b/);
+  const dimMatch = lower.match(/\b(\d{2})\s*[xX]\s*(\d{2})\b/);
+  if (dimMatch) return `${dimMatch[1]}x${dimMatch[2]}`;
+  const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|4xl|xxxl)\b/);
   if (letterMatch) return letterMatch[1];
   const numMatch = lower.match(/\b(28|29|30|31|32|33|34|35|36|38|40|42|44)\b/);
   if (numMatch) return numMatch[1];
@@ -66,7 +97,7 @@ const areSizesCompatible = (s1, s2) => {
   return false;
 };
 
-const extractColor = (text) => {
+const extractColorPattern = (text) => {
   if (!text) return '';
   const lower = String(text).toLowerCase();
   const words = lower.replace(/[^\w\s]/g, ' ').split(/\s+/);
@@ -74,9 +105,9 @@ const extractColor = (text) => {
   return found.join('_');
 };
 
-function calculateTitleSimilarity(titleA, titleB) {
-  const normA = normalizeStr(titleA);
-  const normB = normalizeStr(titleB);
+const calculateTitleSimilarity = (titleA, titleB) => {
+  const normA = normalizeTitle(titleA);
+  const normB = normalizeTitle(titleB);
   if (!normA || !normB) return 0;
   if (normA === normB) return 1.0;
 
@@ -116,51 +147,58 @@ function calculateTitleSimilarity(titleA, titleB) {
   }
 
   return Math.max(tokenSim, bigramSim, prefixSim);
-}
+};
 
-function isStrictMatch(itemA, itemB) {
-  const priceA = parseFloat(itemA.selling_price || itemA.price || 0) || 0;
-  const priceB = parseFloat(itemB.selling_price || itemB.price || 0) || 0;
+const isStrictMatch = (itemA, itemB) => {
+  const titleA = itemA.title || '';
+  const titleB = itemB.title || '';
+  if (!titleA || !titleB) return false;
 
-  // 1. Price Guard: Max $3.00 difference (per user strict requirement)
-  if (priceA > 0 && priceB > 0) {
-    if (Math.abs(priceA - priceB) > 3.00) {
-      return false;
-    }
+  const normA = normalizeTitle(titleA);
+  const normB = normalizeTitle(titleB);
+  if (normA && normB && normA === normB) {
+    return true;
   }
 
-  // 2. Garment Guard
-  const gA = extractGarmentType(itemA.title);
-  const gB = extractGarmentType(itemB.title);
+  // 2. Gender Guard
+  const genA = extractGender(titleA);
+  const genB = extractGender(titleB);
+  if (genA && genB && genA !== genB) {
+    return false;
+  }
+
+  // 3. Garment Guard
+  const gA = extractGarmentType(titleA);
+  const gB = extractGarmentType(titleB);
   if (gA && gB && gA !== gB) {
     return false;
   }
 
-  // 3. Size Guard
-  const sA = extractSize(itemA.size || itemA.title);
-  const sB = extractSize(itemB.size || itemB.title);
+  // 4. Size Guard
+  const sA = extractSize(itemA.size || titleA);
+  const sB = extractSize(itemB.size || titleB);
   if (sA && sB && !areSizesCompatible(sA, sB)) {
     return false;
   }
 
-  // 4. Color Guard
-  const cA = extractColor(itemA.color || itemA.title);
-  const cB = extractColor(itemB.color || itemB.title);
+  // 5. Color Guard
+  const cA = extractColorPattern(itemA.color || titleA);
+  const cB = extractColorPattern(itemB.color || titleB);
   if (cA && cB && cA !== cB) {
     return false;
   }
 
-  // 5. Brand Guard
-  const bA = normalizeStr(itemA.brand);
-  const bB = normalizeStr(itemB.brand);
+  // 6. Brand Guard
+  const bA = extractBrand(itemA.brand || titleA);
+  const bB = extractBrand(itemB.brand || titleB);
   if (bA && bB && bA !== bB) {
     return false;
   }
 
-  // 6. Title Similarity >= 90%
-  const sim = calculateTitleSimilarity(itemA.title, itemB.title);
-  return sim >= 0.90;
-}
+  // 7. Title Similarity >= 88% (0.88)
+  const sim = calculateTitleSimilarity(titleA, titleB);
+  return sim >= 0.88;
+};
 
 async function rebuild() {
   await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/elister');
@@ -202,8 +240,8 @@ async function rebuild() {
       description: e.description || eTitle,
       category: e.category || 'Clothing & Accessories',
       sku: eSku,
-      brand: e.brand || '',
-      size: e.size || '',
+      brand: e.brand || extractBrand(eTitle) || '',
+      size: e.size || extractSize(eTitle) || '',
       color: e.color || '',
       price: ePrice,
       ebayPrice: ePrice,
@@ -232,7 +270,7 @@ async function rebuild() {
     masterListings.push(m);
   }
 
-  // 2. Match Poshmark Products strictly (>= 90% Title, <= $3.00 Price)
+  // 2. Match Poshmark Products strictly (Pure Title + Attribute Guards)
   let matchedPosh = 0;
   let standalonePosh = 0;
 
@@ -260,6 +298,14 @@ async function rebuild() {
         url: pUrl
       };
       if (!matched.sku && pSku) matched.sku = pSku;
+      // Merge images
+      const existingImgs = new Set(matched.images);
+      for (const img of pImages) {
+        if (img && !existingImgs.has(img)) {
+          matched.images.push(img);
+          existingImgs.add(img);
+        }
+      }
       matchedPosh++;
     } else {
       standalonePosh++;
@@ -269,8 +315,8 @@ async function rebuild() {
         description: p.description || pTitle,
         category: p.category || 'Clothing & Accessories',
         sku: pSku,
-        brand: p.brand || '',
-        size: p.size || '',
+        brand: p.brand || extractBrand(pTitle) || '',
+        size: p.size || extractSize(pTitle) || '',
         color: p.color || '',
         price: pPrice,
         poshmarkPrice: pPrice,
@@ -299,7 +345,7 @@ async function rebuild() {
     }
   }
 
-  // 3. Match Mercari Products strictly (>= 90% Title, <= $3.00 Price)
+  // 3. Match Mercari Products strictly (Pure Title + Attribute Guards)
   let matchedMerc = 0;
   let standaloneMerc = 0;
 
@@ -327,6 +373,13 @@ async function rebuild() {
         url: mUrl
       };
       if (!matched.sku && mSku) matched.sku = mSku;
+      const existingImgs = new Set(matched.images);
+      for (const img of mImages) {
+        if (img && !existingImgs.has(img)) {
+          matched.images.push(img);
+          existingImgs.add(img);
+        }
+      }
       matchedMerc++;
     } else {
       standaloneMerc++;
@@ -336,8 +389,8 @@ async function rebuild() {
         description: m.description || mTitle,
         category: m.category || 'Clothing & Accessories',
         sku: mSku,
-        brand: m.brand || '',
-        size: m.size || '',
+        brand: m.brand || extractBrand(mTitle) || '',
+        size: m.size || extractSize(mTitle) || '',
         color: m.color || '',
         price: mPrice,
         mercariPrice: mPrice,

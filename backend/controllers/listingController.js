@@ -44,7 +44,7 @@ exports.getListings = async (req, res) => {
 
     for (const p of products) {
       const src = p.source;
-      const thumb = p.images?.[0] || p.thumbnail || '';
+      const thumb = p.thumbnail || p.images?.[0] || '';
       const imgList = Array.isArray(p.images) && p.images.length > 0 ? p.images : (thumb ? [thumb] : []);
       const pData = {
         thumbnail: thumb,
@@ -244,35 +244,63 @@ exports.getDashboardStats = async (req, res) => {
       }
     });
 
-    // 2. Platform Metrics Chart Data (Weekly, Monthly, Yearly)
+    // 2. Platform Metrics & Active Channel Inventory
+    const [
+      ebayActive,
+      poshmarkActive,
+      mercariActive,
+      etsyActive,
+      ebayPublished,
+      poshmarkPublished,
+      mercariPublished,
+      etsyPublished
+    ] = await Promise.all([
+      Product.countDocuments({ user: userId, $or: [{ source: 'ebay' }, { platform: 'ebay' }], status: { $in: ['active', 'live', 'published'] } }),
+      Product.countDocuments({ user: userId, $or: [{ source: 'poshmark' }, { platform: 'poshmark' }], status: { $in: ['active', 'live', 'published'] } }),
+      Product.countDocuments({ user: userId, $or: [{ source: 'mercari' }, { platform: 'mercari' }], status: { $in: ['active', 'live', 'published'] } }),
+      Product.countDocuments({ user: userId, $or: [{ source: 'etsy' }, { platform: 'etsy' }], status: { $in: ['active', 'live', 'published'] } }),
+      Listing.countDocuments({ user: userId, ebayStatus: 'published' }),
+      Listing.countDocuments({ user: userId, poshmarkStatus: 'published' }),
+      Listing.countDocuments({ user: userId, mercariStatus: 'published' }),
+      Listing.countDocuments({ user: userId, etsyStatus: 'published' }),
+    ]);
+
+    const channelStats = {
+      ebay: { active: ebayActive || ebayPublished, published: ebayPublished },
+      poshmark: { active: poshmarkActive || poshmarkPublished, published: poshmarkPublished },
+      mercari: { active: mercariActive || mercariPublished, published: mercariPublished },
+      etsy: { active: etsyActive || etsyPublished, published: etsyPublished },
+      amazon: { active: 0, status: 'coming_soon' },
+      depop: { active: 0, status: 'coming_soon' },
+    };
+
     const nowMs = Date.now();
     const oneWeekAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
     const oneMonthAgo = nowMs - 30 * 24 * 60 * 60 * 1000;
-    const oneYearAgo = nowMs - 5 * 365 * 24 * 60 * 60 * 1000; // Extend to 5 years to cover all seeded/historical listings
+    const oneYearAgo = nowMs - 5 * 365 * 24 * 60 * 60 * 1000;
 
     const getMetricsForTimeframe = (sinceDate) => {
-       const fetched = { ebay: 0, poshmark: 0, depop: 0, etsy: 0 };
-      const listed = { ebay: 0, poshmark: 0, depop: 0, etsy: 0 };
+      const fetched = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
+      const listed = { ebay: 0, poshmark: 0, mercari: 0, etsy: 0, amazon: 0, depop: 0 };
 
       allUserListings.forEach(l => {
         const date = l.createdAt ? new Date(l.createdAt).getTime() : 0;
         if (date >= sinceDate) {
-          // Fetched mode counts all generated/fetched listings grouped by their platform
           const src = (l.platform || 'ebay').toLowerCase();
-          if (src === 'ebay') fetched.ebay++;
-          else if (src === 'poshmark') fetched.poshmark++;
-          else if (src === 'depop') fetched.depop++;
-          else if (src === 'etsy') fetched.etsy++;
+          if (fetched[src] !== undefined) fetched[src]++;
 
-          // Listed mode counts only active published listings grouped by target platform
-          if (l.status === 'published') {
-            if (l.platform === 'ebay') listed.ebay++;
-            else if (l.platform === 'poshmark') listed.poshmark++;
-            else if (l.platform === 'depop') listed.depop++;
-            else if (l.platform === 'etsy') listed.etsy++;
-          }
+          if (l.ebayStatus === 'published' || (l.status === 'published' && l.platform === 'ebay')) listed.ebay++;
+          if (l.poshmarkStatus === 'published' || (l.status === 'published' && l.platform === 'poshmark')) listed.poshmark++;
+          if (l.mercariStatus === 'published' || (l.status === 'published' && l.platform === 'mercari')) listed.mercari++;
+          if (l.etsyStatus === 'published' || (l.status === 'published' && l.platform === 'etsy')) listed.etsy++;
         }
       });
+
+      // Populate live counts if fetched is 0
+      if (fetched.ebay === 0 && (ebayActive > 0 || ebayPublished > 0)) fetched.ebay = ebayActive || ebayPublished;
+      if (fetched.poshmark === 0 && (poshmarkActive > 0 || poshmarkPublished > 0)) fetched.poshmark = poshmarkActive || poshmarkPublished;
+      if (fetched.mercari === 0 && (mercariActive > 0 || mercariPublished > 0)) fetched.mercari = mercariActive || mercariPublished;
+      if (fetched.etsy === 0 && (etsyActive > 0 || etsyPublished > 0)) fetched.etsy = etsyActive || etsyPublished;
 
       return { fetched, listed };
     };
@@ -292,6 +320,7 @@ exports.getDashboardStats = async (req, res) => {
           scheduled: scheduledListings,
           failed: failedListings
         },
+        channelStats,
         recentActivity,
         charts: {
           lineChart: {
@@ -372,6 +401,17 @@ exports.createListing = async (req, res) => {
   }
 };
 
+const getListingQueryForProduct = (userId, prod) => {
+  if (!prod) return { user: userId, _id: null };
+  const matchOr = [{ _id: prod._id }];
+  if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+  if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+  if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+  if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+  if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+  return { user: userId, $or: matchOr };
+};
+
 // @desc    Get single listing
 // @route   GET /api/listings/:id
 // @access  Private
@@ -383,13 +423,7 @@ exports.getListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        const query = { user: req.user.id };
-        if (prod.sku && prod.sku.trim()) {
-          query.sku = prod.sku.trim();
-        } else {
-          query._id = prod._id;
-        }
-        listing = await Listing.findOne(query);
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
         if (!listing) {
           isFromProduct = true;
           listing = {
@@ -607,13 +641,7 @@ exports.updateListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        const query = { user: req.user.id };
-        if (prod.sku && prod.sku.trim()) {
-          query.sku = prod.sku.trim();
-        } else {
-          query._id = prod._id;
-        }
-        listing = await Listing.findOne(query);
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
         if (!listing) {
           listing = new Listing({
             _id: prod._id,
@@ -902,15 +930,11 @@ exports.updateListing = async (req, res) => {
         updated_at: Date.now()
       };
       
-      // Update by SKU
-      if (listing.sku) {
-        await Product.updateMany(
-          { user: req.user.id, sku: listing.sku },
-          { $set: updateFields }
-        );
-      }
-      
-      // Update by individual platform listing IDs just in case SKU is missing or mismatching
+      // Update specific Product records matching this listing's platform IDs or MongoDB _id
+      await Product.updateOne(
+        { user: req.user.id, _id: listing._id },
+        { $set: updateFields }
+      );
       if (listing.ebayListingId) {
         await Product.updateMany(
           { user: req.user.id, ebayListingId: listing.ebayListingId },
@@ -926,6 +950,12 @@ exports.updateListing = async (req, res) => {
       if (listing.poshmarkListingId) {
         await Product.updateMany(
           { user: req.user.id, poshmarkListingId: listing.poshmarkListingId },
+          { $set: updateFields }
+        );
+      }
+      if (listing.mercariListingId) {
+        await Product.updateMany(
+          { user: req.user.id, mercariListingId: listing.mercariListingId },
           { $set: updateFields }
         );
       }
@@ -1098,7 +1128,7 @@ exports.publishListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
         if (!listing) {
           listing = new Listing({
             user: req.user.id,
@@ -1586,7 +1616,7 @@ exports.publishListing = async (req, res) => {
     try {
       const Product = require('../models/Product');
       await Product.findOneAndUpdate(
-        { user: listing.user, sku: listing.sku, source: 'ebay' },
+        { user: listing.user, $or: [{ _id: listing._id }, { ebayListingId: ebayListingId }] },
         { 
           status: 'active', 
           ebayListingId: ebayListingId, 
@@ -1861,15 +1891,47 @@ exports.verifyListingLive = async (req, res) => {
                 listing.ebayUrl = `https://www.ebay.com/itm/${ebayId}`;
               } else if (statusStr === 'ended' || statusStr === 'completed' || qtyAvail === 0) {
                 isLive = false;
-                listing.ebayStatus = 'delisted';
-                if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
-                await listing.save();
-                return res.status(200).json({
-                  success: true,
-                  isLive: false,
-                  status: 'delisted',
-                  message: `Listing ${ebayId} on eBay is already closed/ended.`
+                // Check if sold via Order
+                const Order = require('../models/Order');
+                const soldOrder = await Order.findOne({
+                  user: req.user.id,
+                  $or: [
+                    ...(listing._id ? [{ listingId: listing._id }] : []),
+                    { platformListingId: ebayId },
+                    { 'lineItems.legacyItemId': ebayId },
+                    { 'lineItems.lineItemId': ebayId },
+                    ...(listing.sku && listing.sku !== '-' ? [{ sku: listing.sku }, { 'lineItems.sku': listing.sku }] : [])
+                  ]
                 });
+
+                if (soldOrder || listing.status === 'sold' || listing.soldOn === 'ebay') {
+                  listing.ebayStatus = 'sold';
+                  listing.status = 'sold';
+                  listing.soldOn = (soldOrder?.platform || listing.soldOn || 'ebay').toLowerCase();
+                  if (soldOrder) listing.soldOrderId = soldOrder.orderId;
+                  if (listing.platformData?.ebay) listing.platformData.ebay.status = 'sold';
+                  if (listing.listingsMap?.ebay) listing.listingsMap.ebay.status = 'sold';
+                  await listing.save();
+                  return res.status(200).json({
+                    success: true,
+                    isLive: false,
+                    status: 'sold',
+                    data: listing,
+                    message: `Listing ${ebayId} on eBay is SOLD (Order #${soldOrder?.orderId || listing.soldOrderId || ''})`
+                  });
+                } else {
+                  listing.ebayStatus = 'delisted';
+                  if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+                  if (listing.listingsMap?.ebay) listing.listingsMap.ebay.status = 'delisted';
+                  await listing.save();
+                  return res.status(200).json({
+                    success: true,
+                    isLive: false,
+                    status: 'delisted',
+                    data: listing,
+                    message: `Listing ${ebayId} on eBay is closed/ended.`
+                  });
+                }
               }
             }
           }
@@ -2151,51 +2213,93 @@ exports.verifyListingLive = async (req, res) => {
     }
 
     if (!isLive) {
-      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Resetting platform status to Delisted.`);
+      console.log(`[Verify Live] Listing ${listing._id} is verified as NOT live on ${platform}. Checking order history...`);
       
-      if (platform === 'poshmark') {
-        listing.poshmarkStatus = 'delisted';
-        if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
-      } else if (platform === 'ebay') {
-        listing.ebayStatus = 'delisted';
-        if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
-      } else if (platform === 'etsy') {
-        listing.etsyStatus = 'delisted';
-        if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
-      } else if (platform === 'depop') {
-        listing.depopStatus = 'delisted';
-        if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
-      } else if (platform === 'mercari') {
-        if (listing.mercariStatus !== 'none') {
-          listing.mercariStatus = 'delisted';
-          if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
+      const Order = require('../models/Order');
+      const activePlatformId = listing[`${platform}ListingId`] || listing.platformData?.[platform]?.liveId;
+      const soldOrder = await Order.findOne({
+        user: req.user.id,
+        $or: [
+          ...(listing._id ? [{ listingId: listing._id }] : []),
+          ...(activePlatformId ? [
+            { platformListingId: activePlatformId },
+            { 'lineItems.legacyItemId': activePlatformId },
+            { 'lineItems.lineItemId': activePlatformId }
+          ] : []),
+          ...(listing.sku && listing.sku !== '-' ? [{ sku: listing.sku }, { 'lineItems.sku': listing.sku }] : [])
+        ]
+      });
+
+      const isGenuinelySold = !!(soldOrder || listing.status === 'sold' || listing.soldOn);
+      const sellingPlatform = (soldOrder?.platform || listing.soldOn || '').toLowerCase();
+
+      if (isGenuinelySold) {
+        listing.status = 'sold';
+        if (soldOrder) {
+          listing.soldOrderId = soldOrder.orderId;
+          listing.soldOn = sellingPlatform || platform;
+        }
+
+        // If this platform is the one that sold
+        if (sellingPlatform === platform || (!sellingPlatform && listing[`${platform}Status`] === 'sold')) {
+          listing[`${platform}Status`] = 'sold';
+          if (listing.platformData?.[platform]) listing.platformData[platform].status = 'sold';
+          if (listing.listingsMap?.[platform]) listing.listingsMap[platform].status = 'sold';
+        } else {
+          // If sold on another platform, this platform is delisted
+          if (listing[`${platform}Status`] !== 'none') {
+            listing[`${platform}Status`] = 'delisted';
+            if (listing.platformData?.[platform]) listing.platformData[platform].status = 'delisted';
+            if (listing.listingsMap?.[platform]) listing.listingsMap[platform].status = 'delisted';
+          }
+        }
+      } else {
+        if (platform === 'poshmark') {
+          listing.poshmarkStatus = 'delisted';
+          if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'delisted';
+        } else if (platform === 'ebay') {
+          listing.ebayStatus = 'delisted';
+          if (listing.platformData?.ebay) listing.platformData.ebay.status = 'delisted';
+        } else if (platform === 'etsy') {
+          listing.etsyStatus = 'delisted';
+          if (listing.platformData?.etsy) listing.platformData.etsy.status = 'delisted';
+        } else if (platform === 'depop') {
+          listing.depopStatus = 'delisted';
+          if (listing.platformData?.depop) listing.platformData.depop.status = 'delisted';
+        } else if (platform === 'mercari') {
+          if (listing.mercariStatus !== 'none') {
+            listing.mercariStatus = 'delisted';
+            if (listing.platformData?.mercari) listing.platformData.mercari.status = 'delisted';
+          }
         }
       }
     }
 
-    // Update overall listing status based on cross-platform status
-    const hasActive = (
-      listing.ebayStatus === 'published' || 
-      listing.poshmarkStatus === 'published' || 
-      listing.etsyStatus === 'published' || 
-      listing.depopStatus === 'published' ||
-      listing.mercariStatus === 'published'
-    );
+    // Update overall listing status based on cross-platform status (unless sold)
+    if (listing.status !== 'sold') {
+      const hasActive = (
+        listing.ebayStatus === 'published' || 
+        listing.poshmarkStatus === 'published' || 
+        listing.etsyStatus === 'published' || 
+        listing.depopStatus === 'published' ||
+        listing.mercariStatus === 'published'
+      );
 
-    const hasDelisted = (
-      listing.ebayStatus === 'delisted' || 
-      listing.poshmarkStatus === 'delisted' || 
-      listing.etsyStatus === 'delisted' || 
-      listing.depopStatus === 'delisted' ||
-      listing.mercariStatus === 'delisted'
-    );
+      const hasDelisted = (
+        listing.ebayStatus === 'delisted' || 
+        listing.poshmarkStatus === 'delisted' || 
+        listing.etsyStatus === 'delisted' || 
+        listing.depopStatus === 'delisted' ||
+        listing.mercariStatus === 'delisted'
+      );
 
-    if (hasActive) {
-      listing.status = 'published';
-    } else if (hasDelisted) {
-      listing.status = 'delisted';
-    } else {
-      listing.status = 'draft';
+      if (hasActive) {
+        listing.status = 'published';
+      } else if (hasDelisted) {
+        listing.status = 'delisted';
+      } else {
+        listing.status = 'draft';
+      }
     }
 
     await listing.save();
@@ -2209,12 +2313,15 @@ exports.verifyListingLive = async (req, res) => {
         message: `Listing is live and active on ${platform.toUpperCase()}!`
       });
     } else {
+      const platStat = listing[`${platform}Status`];
       return res.status(200).json({
         success: true,
         isLive: false,
         status: listing.status,
         data: listing,
-        message: `Listing is ${listing[`${platform}Status`] === 'none' ? 'not listed' : 'delisted'} on ${platform.toUpperCase()}`
+        message: platStat === 'sold'
+          ? `Listing was SOLD on ${platform.toUpperCase()}!`
+          : `Listing is ${platStat === 'none' ? 'not listed' : 'delisted'} on ${platform.toUpperCase()}`
       });
     }
   } catch (err) {
@@ -2238,7 +2345,7 @@ exports.delistListing = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
         if (!listing) {
           listing = new Listing({
             user: req.user.id,
@@ -2271,6 +2378,10 @@ exports.delistListing = async (req, res) => {
             listing.depopListingId = prod.depopListingId;
             listing.depopUrl = prod.depopUrl;
             listing.depopStatus = 'published';
+          } else if (platformLower === 'mercari') {
+            listing.mercariListingId = prod.mercariListingId;
+            listing.mercariUrl = prod.mercariUrl;
+            listing.mercariStatus = 'published';
           }
           await listing.save();
         }
@@ -2295,8 +2406,11 @@ exports.delistListing = async (req, res) => {
 
     const matchQueries = [
       { _id: listing._id },
-      listing.sku ? { sku: listing.sku } : null,
-      listing.title ? { title: listing.title } : null
+      listing.ebayListingId ? { ebayListingId: listing.ebayListingId } : null,
+      listing.poshmarkListingId ? { poshmarkListingId: listing.poshmarkListingId } : null,
+      listing.mercariListingId ? { mercariListingId: listing.mercariListingId } : null,
+      listing.etsyListingId ? { etsyListingId: listing.etsyListingId } : null,
+      listing.depopListingId ? { depopListingId: listing.depopListingId } : null
     ].filter(Boolean);
 
     const relatedListings = await Listing.find({ user: req.user.id, $or: matchQueries });
@@ -2507,7 +2621,7 @@ exports.delistAllPlatforms = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
       }
     }
 
@@ -2729,8 +2843,6 @@ exports.delistAllPlatforms = async (req, res) => {
     try {
       const allQueryList = [
         { _id: { $in: matchIds } },
-        listing.sku ? { sku: listing.sku } : null,
-        listing.title ? { title: listing.title } : null,
         ebayIds.size > 0 ? { ebayListingId: { $in: Array.from(ebayIds) } } : null,
         poshIds.size > 0 ? { poshmarkListingId: { $in: Array.from(poshIds) } } : null,
         mercariIds.size > 0 ? { mercariListingId: { $in: Array.from(mercariIds) } } : null,
@@ -2796,7 +2908,7 @@ exports.deletePlatformListing = async (req, res) => {
       const Product = require('../models/Product');
       prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
       }
     }
 
@@ -2972,8 +3084,15 @@ exports.deletePlatformListing = async (req, res) => {
     // Sync synced cache Product status / delete it
     try {
       const Product = require('../models/Product');
-      await Product.findOneAndDelete({ user: listing.user, sku: listing.sku, source: platformLower });
-      console.log(`[Delete Platform Listing] Deleted synced Product cache entry for platform: ${platformLower}, SKU: ${listing.sku}`);
+      const delQuery = { user: listing.user, source: platformLower };
+      if (platformLower === 'ebay' && listing.ebayListingId) delQuery.ebayListingId = listing.ebayListingId;
+      else if (platformLower === 'poshmark' && listing.poshmarkListingId) delQuery.poshmarkListingId = listing.poshmarkListingId;
+      else if (platformLower === 'mercari' && listing.mercariListingId) delQuery.mercariListingId = listing.mercariListingId;
+      else if (platformLower === 'etsy' && listing.etsyListingId) delQuery.etsyListingId = listing.etsyListingId;
+      else if (platformLower === 'depop' && listing.depopListingId) delQuery.depopListingId = listing.depopListingId;
+      else delQuery._id = listing._id;
+      await Product.findOneAndDelete(delQuery);
+      console.log(`[Delete Platform Listing] Deleted synced Product cache entry for platform: ${platformLower}`);
       
       if (!isDisconnect) {
         const DeletedProduct = require('../models/DeletedProduct');
@@ -3020,7 +3139,7 @@ exports.moveToNewItem = async (req, res) => {
       const Product = require('../models/Product');
       prod = await Product.findById(req.params.id);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        listing = await Listing.findOne(getListingQueryForProduct(req.user.id, prod));
       }
     }
 
@@ -3182,28 +3301,35 @@ exports.mergeChannel = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized.' });
     }
 
-    // STRICT MATCHING VALIDATION: Ensure Title (80%+) or Image or SKU matches!
-    const matchResult = isListingMatch(sourceListing, targetListing, 0.75);
-    if (!matchResult.isMatch) {
-      console.warn(`[Merge Channel Rejected] ${matchResult.reason} | Source: "${sourceListing.title}" vs Target: "${targetListing.title}"`);
-      return res.status(400).json({
-        success: false,
-        message: `Cannot merge: Products do not match! Items must be the same physical product (80%+ title similarity or matching images). Source: "${sourceListing.title || 'Untitled'}" vs Target: "${targetListing.title || 'Untitled'}"`
-      });
-    }
-
-    console.log(`[Merge Channel Approved] Match Reason: ${matchResult.reason} (${Math.round(matchResult.score * 100)}%). Merging ${platformLower} from Source ${sourceListingId} into Target ${targetListingId}`);
+    console.log(`[Merge Channel User Action] Merging ${platformLower} from Source ${sourceListingId} into Target ${targetListingId}`);
 
     // Extract platform details from source
-    const platformDetails = (sourceListing.platforms?.[platformLower]) || (sourceListing.crosslistingDetails?.[platformLower]) || {};
+    const platformDetails = (sourceListing.platforms?.[platformLower]) || (sourceListing.crosslistingDetails?.[platformLower]) || (sourceListing.platformData?.[platformLower]) || {};
     const platformStatus = sourceListing[`${platformLower}Status`] || (sourceListing.platform === platformLower ? sourceListing.status : 'draft');
-    const platformListingId = sourceListing[`${platformLower}ListingId`];
-    const platformUrl = sourceListing[`${platformLower}Url`];
+    const platformListingId = sourceListing[`${platformLower}ListingId`] || sourceListing.platformData?.[platformLower]?.liveId || sourceListing.platformData?.[platformLower]?.listingId;
+    const platformUrl = sourceListing[`${platformLower}Url`] || sourceListing.platformData?.[platformLower]?.url;
+    const platformImages = platformDetails.images?.length > 0 ? platformDetails.images : (sourceListing.images || []);
+    const platformThumb = platformDetails.thumbnail || platformImages[0] || '';
+    const platformPrice = platformDetails.price || sourceListing[`${platformLower}Price`] || sourceListing.price;
 
     // Transfer platform details into target listing
     targetListing[`${platformLower}Status`] = platformStatus;
-    targetListing[`${platformLower}ListingId`] = platformListingId;
-    targetListing[`${platformLower}Url`] = platformUrl;
+    if (platformListingId) targetListing[`${platformLower}ListingId`] = platformListingId;
+    if (platformUrl) targetListing[`${platformLower}Url`] = platformUrl;
+    if (platformPrice) targetListing[`${platformLower}Price`] = platformPrice;
+
+    if (!targetListing.platformData) targetListing.platformData = {};
+    targetListing.platformData[platformLower] = {
+      ...platformDetails,
+      thumbnail: platformThumb,
+      images: platformImages,
+      price: platformPrice,
+      status: platformStatus,
+      liveId: platformListingId,
+      listingId: platformListingId,
+      url: platformUrl
+    };
+    targetListing.markModified('platformData');
 
     if (!targetListing.platforms) targetListing.platforms = {};
     targetListing.platforms[platformLower] = {
@@ -3223,13 +3349,10 @@ exports.mergeChannel = async (req, res) => {
     };
     targetListing.markModified('crosslistingDetails');
 
-    // Merge source images into target if target is missing any
-    if (Array.isArray(sourceListing.images) && sourceListing.images.length > 0) {
-      const existingImgs = new Set(targetListing.images || []);
-      const newImgs = sourceListing.images.filter(img => img && !existingImgs.has(img));
-      if (newImgs.length > 0) {
-        targetListing.images = [...(targetListing.images || []), ...newImgs];
-      }
+    // If target listing has NO images at all, set from platform
+    if ((!targetListing.images || targetListing.images.length === 0) && platformImages.length > 0) {
+      targetListing.images = platformImages;
+      targetListing.thumbnail = platformThumb;
     }
 
     // If target is draft and source had published status, update target status
@@ -3298,46 +3421,223 @@ exports.getActiveChannelImportPreview = async (req, res) => {
     const userId = req.user.id;
 
     // 1. Fetch all active items across channels for this user
-    const activeProducts = await Product.find({
-      user: userId,
-      status: { $in: ['active', 'live', 'published'] }
-    }).sort({ updated_at: -1, createdAt: -1 });
+    const [ebayProds, poshProds, mercariProds, etsyProds, depopProds, amazonProds] = await Promise.all([
+      Product.find({ user: userId, $or: [{ source: 'ebay' }, { platform: 'ebay' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'poshmark' }, { platform: 'poshmark' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'mercari' }, { platform: 'mercari' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'etsy' }, { platform: 'etsy' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'depop' }, { platform: 'depop' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
+      Product.find({ user: userId, $or: [{ source: 'amazon' }, { platform: 'amazon' }], status: { $in: ['active', 'live', 'published'] } }).lean()
+    ]);
+
+    const activeProducts = [...ebayProds, ...poshProds, ...mercariProds, ...etsyProds, ...depopProds, ...amazonProds];
 
     // 2. Fetch existing listings to detect items already present in local database
     const existingListings = await Listing.find({ user: userId });
 
-        const groups = [];
-    const skuToGroup = new Map();
-    const imageToGroup = new Map();
-    const tokenToGroups = new Map();
+    const GARMENT_TYPES = [
+      'jacket', 'coat', 'hoodie', 'sweater', 'sweatshirt', 'cardigan', 'vest', 'windbreaker', 'puffer', 'fleece',
+      'jeans', 'pants', 'shorts', 'sweatpants', 'joggers', 'trousers', 'chinos', 'chino', 'overalls',
+      'shirt', 'tee', 't-shirt', 'polo', 'button', 'top', 'jersey', 'tank',
+      'shoes', 'sneakers', 'boots', 'sandals', 'slides', 'loafers',
+      'hat', 'cap', 'beanie', 'belt', 'bag', 'backpack', 'wallet', 'dress', 'skirt'
+    ];
 
-    const addGroupToIndexes = (group) => {
-      if (group.sku && group.sku.trim()) {
-        const cleanSku = group.sku.trim().toLowerCase();
-        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
-          skuToGroup.set(cleanSku, group);
-        }
-      }
-      if (Array.isArray(group.images)) {
-        for (const img of group.images) {
-          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
-          if (k) imageToGroup.set(k, group);
-        }
-      }
-      if (group.title) {
-        const tokens = cleanAndTokenize(group.title);
-        for (const t of tokens) {
-          if (!tokenToGroups.has(t)) {
-            tokenToGroups.set(t, new Set());
-          }
-          tokenToGroups.get(t).add(group);
-        }
-      }
+    const COMMON_COLORS = new Set([
+      'black', 'white', 'blue', 'pink', 'red', 'green', 'yellow', 'purple', 'orange',
+      'grey', 'gray', 'brown', 'beige', 'khaki', 'navy', 'olive', 'teal', 'burgundy',
+      'maroon', 'tan', 'cream', 'gold', 'silver'
+    ]);
+
+    const KNOWN_BRANDS = [
+      'peter millar', 'polo ralph lauren', 'ralph lauren', 'tommy bahama', 'eddie bauer',
+      'lululemon', 'under armour', 'the north face', 'american eagle', 'lucky brand',
+      'duluth trading', 'duluth', 'free people', 'anthropologie', 'vuori', '7 diamonds',
+      'rock revival', 'bonobos', 'carhartt', 'patagonia', 'nike', 'adidas', 'columbia',
+      'wrangler', 'levis', "levi's", 'cinch', 'ariat', 'bke', 'quince', 'halsey', 'birddogs',
+      'chubbies', 'eileen fisher', 'salvage', 'empyre', 'carbon 2 cobalt', 'prana', 'cremieux',
+      'brooks brothers', 'flint and tinder', 'mountain khakis', 'silver jeans', 'hugo boss'
+    ];
+
+    const cleanUnicode = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
     };
 
-    // 2. Iterate through products and group by matches
-    for (const prod of activeProducts) {
-      const src = (prod.source || 'ebay').toLowerCase();
+    const normalizeTitle = (t) => {
+      if (!t) return '';
+      return cleanUnicode(t).toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+
+    const normalizeStr = (s) => (s || '').trim().toLowerCase();
+
+    const extractBrand = (text) => {
+      if (!text) return '';
+      const norm = normalizeTitle(text);
+      for (const b of KNOWN_BRANDS) {
+        if (norm.includes(b)) return b;
+      }
+      return norm.split(' ')[0] || '';
+    };
+
+    const extractGender = (text) => {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      if (/\b(?:womens|women|ladies|female)\b/i.test(lower)) return 'womens';
+      if (/\b(?:mens|men|male)\b/i.test(lower)) return 'mens';
+      if (/\b(?:boys|boy)\b/i.test(lower)) return 'boys';
+      if (/\b(?:girls|girl)\b/i.test(lower)) return 'girls';
+      return null;
+    };
+
+    const extractGarmentType = (text) => {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      for (const t of GARMENT_TYPES) {
+        const reg = new RegExp(`\\b${t}\\b`, 'i');
+        if (reg.test(lower)) return t;
+      }
+      return null;
+    };
+
+    const extractSize = (text) => {
+      if (!text) return null;
+      const lower = String(text).toLowerCase();
+      const dimMatch = lower.match(/\b(\d{2})\s*[xX]\s*(\d{2})\b/);
+      if (dimMatch) return `${dimMatch[1]}x${dimMatch[2]}`;
+      const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|4xl|xxxl)\b/);
+      if (letterMatch) return letterMatch[1];
+      const numMatch = lower.match(/\b(28|29|30|31|32|33|34|35|36|38|40|42|44)\b/);
+      if (numMatch) return numMatch[1];
+      return null;
+    };
+
+    const extractColorPattern = (text) => {
+      if (!text) return '';
+      const lower = String(text).toLowerCase();
+      const words = lower.replace(/[^\w\s]/g, ' ').split(/\s+/);
+      const found = words.filter(w => COMMON_COLORS.has(w));
+      return found.join('_');
+    };
+
+    const areSizesCompatible = (s1, s2) => {
+      if (!s1 || !s2) return true;
+      if (s1 === s2) return true;
+      if (s1.includes('x') && !s2.includes('x')) {
+        const waist = s1.split('x')[0];
+        return waist === s2;
+      }
+      if (s2.includes('x') && !s1.includes('x')) {
+        const waist = s2.split('x')[0];
+        return waist === s1;
+      }
+      return false;
+    };
+
+    const calculateTitleSimilarity = (titleA, titleB) => {
+      const normA = normalizeTitle(titleA);
+      const normB = normalizeTitle(titleB);
+      if (!normA || !normB) return 0;
+      if (normA === normB) return 1.0;
+
+      const tokensA = normA.split(/\s+/).filter(Boolean);
+      const tokensB = normB.split(/\s+/).filter(Boolean);
+      const setA = new Set(tokensA);
+      const setB = new Set(tokensB);
+
+      let matchCount = 0;
+      for (const t of setA) {
+        if (setB.has(t)) matchCount++;
+      }
+      const tokenSim = (2 * matchCount) / (setA.size + setB.size);
+
+      const getBigrams = (str) => {
+        const bigrams = new Set();
+        for (let i = 0; i < str.length - 1; i++) {
+          bigrams.add(str.substring(i, i + 2));
+        }
+        return bigrams;
+      };
+
+      const bigramsA = getBigrams(normA);
+      const bigramsB = getBigrams(normB);
+      let bigramMatch = 0;
+      for (const b of bigramsA) {
+        if (bigramsB.has(b)) bigramMatch++;
+      }
+      const bigramSim = (2 * bigramMatch) / (bigramsA.size + bigramsB.size);
+
+      let prefixSim = 0;
+      const minLen = Math.min(normA.length, normB.length);
+      if (minLen >= 25) {
+        if (normA.startsWith(normB) || normB.startsWith(normA)) {
+          prefixSim = 0.95;
+        }
+      }
+
+      return Math.max(tokenSim, bigramSim, prefixSim);
+    };
+
+    const isStrictMatch = (itemA, itemB) => {
+      const titleA = itemA.title || '';
+      const titleB = itemB.title || '';
+      if (!titleA || !titleB) return false;
+
+      const normA = normalizeTitle(titleA);
+      const normB = normalizeTitle(titleB);
+      if (normA && normB && normA === normB) {
+        return true;
+      }
+
+      // 2. Gender Guard
+      const genA = extractGender(titleA);
+      const genB = extractGender(titleB);
+      if (genA && genB && genA !== genB) {
+        return false;
+      }
+
+      // 3. Garment Guard
+      const gA = extractGarmentType(titleA);
+      const gB = extractGarmentType(titleB);
+      if (gA && gB && gA !== gB) {
+        return false;
+      }
+
+      // 4. Size Guard
+      const sA = extractSize(itemA.size || titleA);
+      const sB = extractSize(itemB.size || titleB);
+      if (sA && sB && !areSizesCompatible(sA, sB)) {
+        return false;
+      }
+
+      // 5. Color Guard
+      const cA = extractColorPattern(itemA.color || titleA);
+      const cB = extractColorPattern(itemB.color || titleB);
+      if (cA && cB && cA !== cB) {
+        return false;
+      }
+
+      // 6. Brand Guard
+      const bA = extractBrand(itemA.brand || titleA);
+      const bB = extractBrand(itemB.brand || titleB);
+      if (bA && bB && bA !== bB) {
+        return false;
+      }
+
+      // 7. Title Similarity >= 88% (0.88)
+      const sim = calculateTitleSimilarity(titleA, titleB);
+      return sim >= 0.88;
+    };
+
+    const groups = [];
+
+    // Helper: format product to channelItem
+    const createChannelItem = (prod, src) => {
       const prodImages = Array.isArray(prod.images) && prod.images.length > 0
         ? prod.images
         : (prod.thumbnail ? [prod.thumbnail] : []);
@@ -3346,30 +3646,32 @@ exports.getActiveChannelImportPreview = async (req, res) => {
       let url = '';
       if (src === 'ebay') {
         liveId = String(prod.ebayListingId || prod.itemId || prod.original_id || '');
-        url = prod.ebayUrl || prod.url || '';
+        url = prod.ebayUrl || prod.url || `https://www.ebay.com/itm/${liveId}`;
       } else if (src === 'poshmark') {
         liveId = String(prod.poshmarkListingId || prod.sku || '');
-        url = prod.poshmarkUrl || prod.url || '';
+        url = prod.poshmarkUrl || prod.url || `https://poshmark.com/listing/${liveId}`;
       } else if (src === 'mercari') {
         liveId = String(prod.mercariListingId || prod.sku || '');
-        const rawUrl = prod.mercariUrl || prod.url || '';
-        url = rawUrl ? rawUrl.replace('mercari.com/item/', 'mercari.com/us/item/') : (liveId && liveId !== '-' ? `https://www.mercari.com/us/item/${liveId.replace(/^M-/, '')}/` : '');
+        url = prod.mercariUrl || prod.url || `https://www.mercari.com/us/item/${liveId}/`;
+      } else if (src === 'etsy') {
+        liveId = String(prod.etsyListingId || prod.listingId || prod.sku || '');
+        url = prod.etsyUrl || prod.url || `https://www.etsy.com/listing/${liveId}`;
       } else if (src === 'depop') {
         liveId = String(prod.depopListingId || prod.sku || '');
-        url = prod.depopUrl || prod.url || '';
-      } else if (src === 'etsy') {
-        liveId = String(prod.etsyListingId || prod.sku || '');
-        url = prod.etsyUrl || prod.url || '';
+        url = prod.depopUrl || prod.url || `https://www.depop.com/products/${liveId}`;
+      } else if (src === 'amazon') {
+        liveId = String(prod.amazonListingId || prod.sku || prod.asin || '');
+        url = prod.amazonUrl || prod.url || '';
       } else {
         liveId = String(prod.sku || prod._id);
         url = prod.url || '';
       }
 
-      const channelItem = {
+      return {
         productId: prod._id,
         liveId: liveId || String(prod._id),
         title: prod.title || 'Untitled Item',
-        price: Number(prod.selling_price) || 0,
+        price: Number(prod.selling_price || prod.price) || 0,
         originalPrice: prod.originalPrice || '',
         url: url,
         sku: prod.sku || '',
@@ -3379,175 +3681,92 @@ exports.getActiveChannelImportPreview = async (req, res) => {
         brand: prod.brand || '',
         size: prod.size || '',
         color: prod.color || '',
-        category: prod.category || prod.category_name || '',
+        category: prod.category || prod.category_name || 'Clothing',
         categoryId: prod.categoryId || '',
         departmentId: prod.departmentId || '',
         subcategoryIds: prod.subcategoryIds || [],
         condition: prod.condition || prod.condition_name || prod.selectedCondition || '',
         description: prod.description || prod.title || '',
-        itemSpecifics: src === 'ebay' ? (prod.itemSpecifics || {}) : {}
+        itemSpecifics: src === 'ebay' ? (prod.itemSpecifics || {}) : {},
+        selected: true
       };
+    };
 
-      let matchedGroup = null;
+    const platformList = [
+      { name: 'ebay', list: ebayProds },
+      { name: 'poshmark', list: poshProds },
+      { name: 'mercari', list: mercariProds },
+      { name: 'etsy', list: etsyProds },
+      { name: 'depop', list: depopProds },
+      { name: 'amazon', list: amazonProds }
+    ];
 
-      // 1. Try SKU match (validated)
-      if (channelItem.sku && channelItem.sku.trim()) {
-        const cleanSku = channelItem.sku.trim().toLowerCase();
-        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
-          const candidate = skuToGroup.get(cleanSku);
-          if (candidate && !candidate.channels[src]) {
-            const match = isListingMatch(
-              { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
-              { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
-              0.80
-            );
-            if (match.isMatch) {
-              matchedGroup = candidate;
+    for (const { name: platName, list: prodList } of platformList) {
+      for (const prod of prodList) {
+        const item = createChannelItem(prod, platName);
+        let matchedGroup = null;
+
+        for (const g of groups) {
+          if (g.channels[platName]) continue;
+          if (isStrictMatch(g, item)) {
+            matchedGroup = g;
+            break;
+          }
+        }
+
+        if (matchedGroup) {
+          matchedGroup.channels[platName] = item;
+          matchedGroup.channelCount += 1;
+          const existingImgs = new Set(matchedGroup.images);
+          for (const img of item.images) {
+            if (img && !existingImgs.has(img)) {
+              matchedGroup.images.push(img);
+              existingImgs.add(img);
             }
           }
+        } else {
+          const newGroup = {
+            groupId: `grp_${platName}_${prod._id}`,
+            title: item.title,
+            sku: item.sku || '',
+            price: item.price || 0,
+            brand: item.brand || '',
+            size: item.size || '',
+            color: item.color || '',
+            category: item.category || 'Clothing',
+            categoryId: item.categoryId || '',
+            description: item.description || item.title || '',
+            images: item.images,
+            thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
+            itemSpecifics: item.itemSpecifics || {},
+            channels: {
+              ebay: null,
+              poshmark: null,
+              mercari: null,
+              etsy: null,
+              depop: null,
+              amazon: null
+            },
+            channelCount: 1,
+            alreadyInLocal: false,
+            localListingId: null,
+            localStatus: null
+          };
+          newGroup.channels[platName] = item;
+          groups.push(newGroup);
         }
-      }
-
-      // 2. Try Image match (validated)
-      if (!matchedGroup && prodImages.length > 0) {
-        for (const img of prodImages) {
-          const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
-          if (k && imageToGroup.has(k)) {
-            const candidate = imageToGroup.get(k);
-            if (candidate && !candidate.channels[src]) {
-              const match = isListingMatch(
-                { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
-                { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
-                0.80
-              );
-              if (match.isMatch) {
-                matchedGroup = candidate;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      // 3. Try Candidate Title Token overlap
-      if (!matchedGroup && channelItem.title) {
-        const tokens = cleanAndTokenize(channelItem.title);
-        const candidateCounts = new Map();
-        for (const t of tokens) {
-          if (tokenToGroups.has(t)) {
-            for (const candidate of tokenToGroups.get(t)) {
-              if (!candidate.channels[src]) {
-                candidateCounts.set(candidate, (candidateCounts.get(candidate) || 0) + 1);
-              }
-            }
-          }
-        }
-
-        const minCommon = tokens.length <= 2 ? 1 : 2;
-        let highestScore = 0;
-
-        const sortedCandidates = Array.from(candidateCounts.entries())
-          .filter(([_, count]) => count >= minCommon)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 8);
-
-        for (const [candidate] of sortedCandidates) {
-          const match = isListingMatch(
-            { title: channelItem.title, images: channelItem.images, sku: channelItem.sku, size: channelItem.size },
-            { title: candidate.title, images: candidate.images, sku: candidate.sku, size: candidate.size },
-            0.85
-          );
-          if (match.isMatch && match.score > highestScore) {
-            matchedGroup = candidate;
-            highestScore = match.score;
-            if (match.score >= 0.90) break;
-          }
-        }
-      }
-
-      if (matchedGroup) {
-        // Add to existing group
-        matchedGroup.channels[src] = {
-          ...channelItem,
-          selected: true
-        };
-        matchedGroup.channelCount += 1;
-
-        // Merge images
-        const existingImgs = new Set(matchedGroup.images);
-        for (const img of prodImages) {
-          if (img && !existingImgs.has(img)) {
-            matchedGroup.images.push(img);
-            existingImgs.add(img);
-            const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
-            if (k) imageToGroup.set(k, matchedGroup);
-          }
-        }
-        if (!matchedGroup.thumbnail && matchedGroup.images.length > 0) {
-          matchedGroup.thumbnail = matchedGroup.images[0];
-        }
-        if (!matchedGroup.sku && channelItem.sku) {
-          matchedGroup.sku = channelItem.sku;
-          const cleanSku = channelItem.sku.trim().toLowerCase();
-          if (cleanSku && cleanSku !== '-' && cleanSku !== 'none') skuToGroup.set(cleanSku, matchedGroup);
-        }
-        if (!matchedGroup.brand && channelItem.brand) matchedGroup.brand = channelItem.brand;
-        if (!matchedGroup.size && channelItem.size) matchedGroup.size = channelItem.size;
-        if (!matchedGroup.color && channelItem.color) matchedGroup.color = channelItem.color;
-        if (!matchedGroup.price && channelItem.price) matchedGroup.price = channelItem.price;
-        if (!matchedGroup.description && channelItem.description) matchedGroup.description = channelItem.description;
-      } else {
-        // Create new group
-        const newGroup = {
-          groupId: `grp_${groups.length + 1}_${prod._id}`,
-          title: channelItem.title,
-          sku: channelItem.sku || '',
-          price: channelItem.price || 0,
-          brand: channelItem.brand || '',
-          size: channelItem.size || '',
-          color: channelItem.color || '',
-          category: channelItem.category || 'Clothing',
-          categoryId: channelItem.categoryId || '',
-          description: channelItem.description || channelItem.title || '',
-          images: prodImages,
-          thumbnail: prodImages[0] || prod.thumbnail || '',
-          itemSpecifics: channelItem.itemSpecifics || {},
-          channels: {
-            ebay: null,
-            poshmark: null,
-            mercari: null,
-            depop: null,
-            etsy: null
-          },
-          channelCount: 1,
-          alreadyInLocal: false,
-          localListingId: null,
-          localStatus: null
-        };
-        newGroup.channels[src] = {
-          ...channelItem,
-          selected: true
-        };
-        groups.push(newGroup);
-        addGroupToIndexes(newGroup);
       }
     }
 
     // 3. Mark groups already in local database using fast index
-    const localSkuMap = new Map();
+    const ALL_SUPPORTED_PLATFORMS = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon'];
     const localPlatformMap = new Map();
     const localTokenMap = new Map();
 
     for (const listing of existingListings) {
-      if (listing.sku && listing.sku.trim()) {
-        const s = listing.sku.trim().toLowerCase();
-        if (s && s !== '-' && s !== 'none') localSkuMap.set(s, listing);
+      for (const p of ALL_SUPPORTED_PLATFORMS) {
+        if (listing[`${p}ListingId`]) localPlatformMap.set(`${p}_${listing[`${p}ListingId`]}`, listing);
       }
-      if (listing.ebayListingId) localPlatformMap.set(`ebay_${listing.ebayListingId}`, listing);
-      if (listing.poshmarkListingId) localPlatformMap.set(`poshmark_${listing.poshmarkListingId}`, listing);
-      if (listing.mercariListingId) localPlatformMap.set(`mercari_${listing.mercariListingId}`, listing);
-      if (listing.depopListingId) localPlatformMap.set(`depop_${listing.depopListingId}`, listing);
-      if (listing.etsyListingId) localPlatformMap.set(`etsy_${listing.etsyListingId}`, listing);
 
       const tokens = cleanAndTokenize(listing.title);
       for (const t of tokens) {
@@ -3559,18 +3778,11 @@ exports.getActiveChannelImportPreview = async (req, res) => {
     for (const group of groups) {
       let matchedListing = null;
 
-      if (group.sku && group.sku.trim()) {
-        const s = group.sku.trim().toLowerCase();
-        if (localSkuMap.has(s)) matchedListing = localSkuMap.get(s);
-      }
-
-      if (!matchedListing) {
-        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
-          const liveId = group.channels[p]?.liveId;
-          if (liveId && localPlatformMap.has(`${p}_${liveId}`)) {
-            matchedListing = localPlatformMap.get(`${p}_${liveId}`);
-            break;
-          }
+      for (const p of ALL_SUPPORTED_PLATFORMS) {
+        const liveId = group.channels[p]?.liveId;
+        if (liveId && localPlatformMap.has(`${p}_${liveId}`)) {
+          matchedListing = localPlatformMap.get(`${p}_${liveId}`);
+          break;
         }
       }
 
@@ -3614,7 +3826,7 @@ exports.getActiveChannelImportPreview = async (req, res) => {
         let someChannelsInLocal = false;
         let unlinkedCount = 0;
 
-        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+        for (const p of ALL_SUPPORTED_PLATFORMS) {
           if (group.channels[p]) {
             const liveId = group.channels[p].liveId;
             const hasLiveId = !!(matchedListing[`${p}ListingId`] || (liveId && String(matchedListing[`${p}ListingId`]) === String(liveId)));
@@ -3642,7 +3854,7 @@ exports.getActiveChannelImportPreview = async (req, res) => {
         group.alreadyInLocal = false;
         group.partiallyInLocal = false;
         group.unlinkedChannelCount = group.channelCount;
-        for (const p of ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy']) {
+        for (const p of ALL_SUPPORTED_PLATFORMS) {
           if (group.channels[p]) {
             group.channels[p].alreadyInLocal = false;
             group.channels[p].selected = true;
@@ -3672,19 +3884,13 @@ exports.getActiveChannelImportPreview = async (req, res) => {
     let unlinkedChannelsTotal = 0;
 
     const platformCounts = {
-      ebay: 0,
-      poshmark: 0,
-      mercari: 0,
-      etsy: 0,
-      amazon: 0
+      ebay: ebayProds.length,
+      poshmark: poshProds.length,
+      mercari: mercariProds.length,
+      etsy: etsyProds.length,
+      depop: depopProds.length,
+      amazon: amazonProds.length
     };
-
-    activeProducts.forEach(prod => {
-      const src = (prod.source || 'ebay').toLowerCase();
-      if (platformCounts[src] !== undefined) {
-        platformCounts[src]++;
-      }
-    });
 
     groups.forEach(g => {
       if (g.alreadyInLocal) {
@@ -3756,21 +3962,17 @@ exports.importActiveChannelsToLocal = async (req, res) => {
         continue;
       }
 
-      // Check if listing already exists
+      // Check if listing already exists by local ID or exact platform live ID
       let listing = null;
       if (item.localListingId) {
         listing = await Listing.findOne({ _id: item.localListingId, user: userId });
       }
 
-      if (!listing && item.sku && item.sku.trim()) {
-        listing = await Listing.findOne({ user: userId, sku: item.sku.trim() });
-      }
-
       if (!listing) {
-        // Try matching by platform live IDs
+        // Match strictly by unique platform live listing IDs
         for (const plat of activeSelectedPlatforms) {
           const liveId = channels[plat]?.liveId;
-          if (liveId) {
+          if (liveId && liveId !== '-' && liveId !== 'undefined' && liveId !== 'null') {
             const query = { user: userId };
             query[`${plat}ListingId`] = liveId;
             listing = await Listing.findOne(query);
@@ -3787,7 +3989,7 @@ exports.importActiveChannelsToLocal = async (req, res) => {
         // Update existing listing
         listing.platformData = listing.platformData || {};
 
-        for (const plat of ['ebay', 'poshmark', 'mercari', 'depop', 'etsy']) {
+        for (const plat of ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon']) {
           if (activeSelectedPlatforms.includes(plat)) {
             const ch = channels[plat];
             listing[`${plat}ListingId`] = ch.liveId || listing[`${plat}ListingId`];
@@ -3883,10 +4085,11 @@ exports.importActiveChannelsToLocal = async (req, res) => {
           mercariStatus: 'none',
           depopStatus: 'none',
           etsyStatus: 'none',
+          amazonStatus: 'none',
           platformData: {}
         });
 
-        for (const plat of ['ebay', 'poshmark', 'mercari', 'depop', 'etsy']) {
+        for (const plat of ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon']) {
           if (activeSelectedPlatforms.includes(plat)) {
             const ch = channels[plat];
             newListing[`${plat}ListingId`] = ch.liveId;
@@ -3948,17 +4151,10 @@ exports.getLocalMergePreview = async (req, res) => {
     const listings = await Listing.find({ user: userId }).sort({ createdAt: -1 });
 
     const groups = [];
-    const skuToGroup = new Map();
     const imageToGroup = new Map();
     const tokenToGroups = new Map();
 
     const addGroupToIndexes = (group) => {
-      if (group.sku && group.sku.trim()) {
-        const cleanSku = group.sku.trim().toLowerCase();
-        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
-          skuToGroup.set(cleanSku, group);
-        }
-      }
       if (Array.isArray(group.images)) {
         for (const img of group.images) {
           const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
@@ -4006,26 +4202,8 @@ exports.getLocalMergePreview = async (req, res) => {
 
       let matchedGroup = null;
 
-      // 1. Check SKU match (validated)
-      if (listing.sku && listing.sku.trim()) {
-        const cleanSku = listing.sku.trim().toLowerCase();
-        if (cleanSku && cleanSku !== '-' && cleanSku !== 'none' && cleanSku !== 'n/a' && cleanSku !== 'default' && cleanSku.length > 3) {
-          const candidate = skuToGroup.get(cleanSku);
-          if (candidate && candidate.masterListing._id.toString() !== listing._id.toString()) {
-            const match = isListingMatch(
-              { title: listing.title, images: listingImgs, sku: listing.sku, size: listing.size },
-              { title: candidate.masterListing.title, images: candidate.masterListing.images, sku: candidate.masterListing.sku, size: candidate.masterListing.size },
-              0.80
-            );
-            if (match.isMatch) {
-              matchedGroup = candidate;
-            }
-          }
-        }
-      }
-
-      // 2. Check Image match (validated)
-      if (!matchedGroup && listingImgs.length > 0) {
+      // 1. Check Image match (validated)
+      if (listingImgs.length > 0) {
         for (const img of listingImgs) {
           const k = extractUniqueImageKey(typeof img === 'string' ? img : img?.url);
           if (k && imageToGroup.has(k)) {
@@ -4734,6 +4912,7 @@ exports.reconcileChannelInventory = async (req, res) => {
                   title: item.title,
                   selling_price: parseFloat(item.price) || 0,
                   images: item.images,
+                  thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
                   status: item.status === 'active' ? 'active' : 'inactive',
                   poshmarkUrl: item.poshmarkUrl,
                   updated_at: Date.now()
@@ -4970,6 +5149,7 @@ exports.cleanGhostChannels = async (req, res) => {
                         selling_price: parseFloat(item.price) || 0,
                         sku: item.sku || '',
                         images: item.images || [],
+                        thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
                         status: 'active',
                         poshmarkUrl: item.poshmarkUrl,
                         updated_at: Date.now()
@@ -5074,6 +5254,16 @@ exports.cleanGhostChannels = async (req, res) => {
       'maroon', 'tan', 'cream', 'gold', 'silver'
     ]);
 
+    const KNOWN_BRANDS = [
+      'peter millar', 'polo ralph lauren', 'ralph lauren', 'tommy bahama', 'eddie bauer',
+      'lululemon', 'under armour', 'the north face', 'american eagle', 'lucky brand',
+      'duluth trading', 'duluth', 'free people', 'anthropologie', 'vuori', '7 diamonds',
+      'rock revival', 'bonobos', 'carhartt', 'patagonia', 'nike', 'adidas', 'columbia',
+      'wrangler', 'levis', "levi's", 'cinch', 'ariat', 'bke', 'quince', 'halsey', 'birddogs',
+      'chubbies', 'eileen fisher', 'salvage', 'empyre', 'carbon 2 cobalt', 'prana', 'cremieux',
+      'brooks brothers', 'flint and tinder', 'mountain khakis', 'silver jeans', 'hugo boss'
+    ];
+
     const cleanUnicode = (str) => {
       if (!str) return '';
       return String(str)
@@ -5091,6 +5281,25 @@ exports.cleanGhostChannels = async (req, res) => {
 
     const normalizeStr = (s) => (s || '').trim().toLowerCase();
 
+    const extractBrand = (text) => {
+      if (!text) return '';
+      const norm = normalizeTitle(text);
+      for (const b of KNOWN_BRANDS) {
+        if (norm.includes(b)) return b;
+      }
+      return norm.split(' ')[0] || '';
+    };
+
+    const extractGender = (text) => {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      if (/\b(?:womens|women|ladies|female)\b/i.test(lower)) return 'womens';
+      if (/\b(?:mens|men|male)\b/i.test(lower)) return 'mens';
+      if (/\b(?:boys|boy)\b/i.test(lower)) return 'boys';
+      if (/\b(?:girls|girl)\b/i.test(lower)) return 'girls';
+      return null;
+    };
+
     const extractGarmentType = (text) => {
       if (!text) return null;
       const lower = text.toLowerCase();
@@ -5104,9 +5313,9 @@ exports.cleanGhostChannels = async (req, res) => {
     const extractSize = (text) => {
       if (!text) return null;
       const lower = String(text).toLowerCase();
-      const dimMatch = lower.match(/\b(\d{2})x(\d{2})\b/);
-      if (dimMatch) return dimMatch[0];
-      const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|xxxl)\b/);
+      const dimMatch = lower.match(/\b(\d{2})\s*[xX]\s*(\d{2})\b/);
+      if (dimMatch) return `${dimMatch[1]}x${dimMatch[2]}`;
+      const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|4xl|xxxl)\b/);
       if (letterMatch) return letterMatch[1];
       const numMatch = lower.match(/\b(28|29|30|31|32|33|34|35|36|38|40|42|44)\b/);
       if (numMatch) return numMatch[1];
@@ -5203,47 +5412,61 @@ exports.cleanGhostChannels = async (req, res) => {
     };
 
     const isStrictMatch = (itemA, itemB) => {
-      const priceA = parseFloat(itemA.selling_price || itemA.price || 0) || 0;
-      const priceB = parseFloat(itemB.selling_price || itemB.price || 0) || 0;
+      const titleA = itemA.title || '';
+      const titleB = itemB.title || '';
+      if (!titleA || !titleB) return false;
 
-      // 1. Price Guard: Max $3.00 difference
-      if (priceA > 0 && priceB > 0) {
-        if (Math.abs(priceA - priceB) > 3.00) {
-          return false;
-        }
+      const normA = normalizeTitle(titleA);
+      const normB = normalizeTitle(titleB);
+      if (normA && normB && normA === normB) {
+        return true;
       }
 
-      // 2. Garment Guard
-      const gA = extractGarmentType(itemA.title);
-      const gB = extractGarmentType(itemB.title);
+      // 2. Gender Guard
+      const genA = extractGender(titleA);
+      const genB = extractGender(titleB);
+      if (genA && genB && genA !== genB) {
+        return false;
+      }
+
+      // 3. Garment Guard
+      const gA = extractGarmentType(titleA);
+      const gB = extractGarmentType(titleB);
       if (gA && gB && gA !== gB) {
         return false;
       }
 
-      // 3. Size Guard
-      const sA = extractSize(itemA.size || itemA.title);
-      const sB = extractSize(itemB.size || itemB.title);
+      // 4. Size Guard
+      const sA = extractSize(itemA.size || titleA);
+      const sB = extractSize(itemB.size || titleB);
       if (sA && sB && !areSizesCompatible(sA, sB)) {
         return false;
       }
 
-      // 4. Color Guard
-      const cA = extractColorPattern(itemA.color || itemA.title);
-      const cB = extractColorPattern(itemB.color || itemB.title);
+      // 5. Color Guard
+      const cA = extractColorPattern(itemA.color || titleA);
+      const cB = extractColorPattern(itemB.color || titleB);
       if (cA && cB && cA !== cB) {
         return false;
       }
 
-      // 5. Brand Guard
-      const bA = normalizeStr(itemA.brand);
-      const bB = normalizeStr(itemB.brand);
+      // 6. Brand Guard
+      const bA = extractBrand(itemA.brand || titleA);
+      const bB = extractBrand(itemB.brand || titleB);
       if (bA && bB && bA !== bB) {
         return false;
       }
 
-      // 6. Title Similarity >= 90% (0.90)
-      const sim = calculateTitleSimilarity(itemA.title, itemB.title);
-      return sim >= 0.90;
+      // 7. Image Match
+      const imagesA = itemA.images || [itemA.thumbnail];
+      const imagesB = itemB.images || [itemB.thumbnail];
+      if (checkImageMatch(imagesA, imagesB)) {
+        return true;
+      }
+
+      // 8. Title Similarity >= 88% (0.88)
+      const sim = calculateTitleSimilarity(titleA, titleB);
+      return sim >= 0.88;
     };
 
     const masterItems = [];
@@ -5425,7 +5648,36 @@ exports.cleanGhostChannels = async (req, res) => {
     }
 
     // --- STEP 4: Replace Corrupted Listings in DB ---
-    // Preserve sold listings, delete old corrupted non-sold listings
+    // Remove any sold listings that match active products or are pre-September historical
+    const activeEbayIds = new Set(ebayProds.map(p => p.ebayListingId).filter(Boolean));
+    const activePoshIds = new Set(poshProds.map(p => p.poshmarkListingId).filter(Boolean));
+    const activeMercIds = new Set(mercariProds.map(p => p.mercariListingId).filter(Boolean));
+    const activeTitles = new Set([
+      ...ebayProds.map(p => normalizeTitle(p.title)),
+      ...poshProds.map(p => normalizeTitle(p.title)),
+      ...mercariProds.map(p => normalizeTitle(p.title))
+    ].filter(Boolean));
+
+    const existingSold = await Listing.find({ user: userId, status: 'sold' }).lean();
+    const staleSoldIds = [];
+    existingSold.forEach(l => {
+      const hasEbay = l.ebayListingId && activeEbayIds.has(l.ebayListingId);
+      const hasPosh = l.poshmarkListingId && activePoshIds.has(l.poshmarkListingId);
+      const hasMerc = l.mercariListingId && activeMercIds.has(l.mercariListingId);
+      const hasTitle = activeTitles.has(normalizeTitle(l.title));
+      const soldDate = l.soldAt ? new Date(l.soldAt) : (l.createdAt ? new Date(l.createdAt) : null);
+      const isPreSept = soldDate && soldDate < new Date('2026-09-01');
+
+      if (hasEbay || hasPosh || hasMerc || hasTitle || isPreSept) {
+        staleSoldIds.push(l._id);
+      }
+    });
+
+    if (staleSoldIds.length > 0) {
+      await Listing.deleteMany({ _id: { $in: staleSoldIds } });
+    }
+
+    // Preserve valid sold listings, delete old non-sold listings
     await Listing.deleteMany({ user: userId, status: { $ne: 'sold' } });
 
     // Insert newly built clean master listings
@@ -5463,6 +5715,78 @@ exports.cleanGhostChannels = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// @desc    Sync all connected marketplaces live & reconcile Master Listings
+// @route   POST /api/listings/sync-all
+// @access  Private
+exports.syncAllInventory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { syncUserInventory } = require('../services/backgroundSyncService');
+
+    // Respond immediately to prevent UI HTTP timeout for large inventories
+    res.status(200).json({
+      success: true,
+      message: 'All platform inventories are syncing in the background. Your listings will update automatically.'
+    });
+
+    // Run synchronization in background
+    setImmediate(async () => {
+      try {
+        console.log(`[Background Sync All] Initiated background sync for user: ${userId}`);
+        await syncUserInventory(userId);
+        console.log(`[Background Sync All] Completed background sync for user: ${userId}`);
+      } catch (bgErr) {
+        console.error('[Background Sync All] Error in background sync:', bgErr.message);
+      }
+    });
+  } catch (err) {
+    console.error('[ListingController] Error syncing all inventory:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to initiate inventory sync',
+      error: err.message
+    });
+  }
+};
+
+// @desc    Get user's latest inventory sync summary
+// @route   GET /api/listings/sync-summary
+// @access  Private
+exports.getSyncSummary = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('lastSyncSummary');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    return res.status(200).json({
+      success: true,
+      data: user.lastSyncSummary || null
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Dismiss sync summary popup
+// @route   POST /api/listings/sync-summary/dismiss
+// @access  Private
+exports.dismissSyncSummary = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user && user.lastSyncSummary) {
+      user.lastSyncSummary.shownToUser = true;
+      user.markModified('lastSyncSummary');
+      await user.save();
+    }
+    return res.status(200).json({ success: true, message: 'Sync summary dismissed' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+
 
 
 

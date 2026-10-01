@@ -172,7 +172,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
               autoFocus
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Type to filter categories..."
+              placeholder={placeholder ? `Search ${placeholder.toLowerCase().replace('...', '')}...` : "Type to search..."}
               className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-medium outline-none focus:border-slate-800"
             />
           </div>
@@ -197,7 +197,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
                 {value === opt.label && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0" />}
               </button>
             )) : (
-              <div className="p-4 text-xs text-slate-400 text-center">No categories found</div>
+              <div className="p-4 text-xs text-slate-400 text-center">No options found</div>
             )}
           </div>
         </div>
@@ -723,15 +723,6 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         <div className="flex items-center gap-2.5">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSaveListing(null)}
-            disabled={loading}
-          >
-            Save Draft
-          </Button>
-          <Button
-            type="button"
             variant="primary"
             size="sm"
             onClick={() => handleSaveListing('direct')}
@@ -991,9 +982,9 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Size</label>
                 {activeSizeOptions.length > 0 ? (
                   <SearchableDropdown 
-                    value={activeSizeOptions.find(s => String(s.id) === String(formData.sizeId) || s.name === formData.size)?.name || formData.size}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, size: opt.label || opt.name, sizeId: String(opt.id || '') }))}
-                    options={activeSizeOptions.map(s => ({ id: s.id, label: s.name }))}
+                    value={activeSizeOptions.find(s => String(s.id) === String(formData.sizeId) || s.label === formData.size || s.name === formData.size)?.label || formData.size}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, size: opt.label || opt.name || '', sizeId: String(opt.id || '') }))}
+                    options={activeSizeOptions.map(s => ({ id: s.id, label: s.label || s.name }))}
                     placeholder="Select size..."
                   />
                 ) : (

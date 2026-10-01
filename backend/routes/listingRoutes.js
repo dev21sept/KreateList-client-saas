@@ -22,7 +22,10 @@ const {
   forceRelistPoshmark,
   cleanDuplicatePoshmarkListings,
   reconcileChannelInventory,
-  cleanGhostChannels
+  cleanGhostChannels,
+  syncAllInventory,
+  getSyncSummary,
+  dismissSyncSummary
 } = require('../controllers/listingController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -37,6 +40,9 @@ router.get('/admin/clean-ghost-channels', cleanGhostChannels);
 
 router.use(protect);
 
+router.get('/sync-summary', getSyncSummary);
+router.post('/sync-summary/dismiss', dismissSyncSummary);
+router.post('/sync-all', requireActiveSubscription, syncAllInventory);
 router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 router.post('/merge-channel', requireActiveSubscription, mergeChannel);

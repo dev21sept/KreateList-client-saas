@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -423,32 +423,186 @@ const groupListingsBySku = (rawListings) => {
 
 const NewListings = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast, confirm } = useNotification();
   const reducedMotion = useReducedMotion();
   const handleUpdateRef = useRef();
 
+  // LocalStorage Cache Helpers for Instant Loading
+  const loadCachedData = (key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.data !== undefined ? parsed.data : parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedData = (key, data) => {
+    try {
+      localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+    } catch {}
+  };
+
   // Auth and Channel Sync state
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('elister_active_listings_tab') || 'local');
-  const [selectedChannel, setSelectedChannel] = useState(() => localStorage.getItem('elister_selected_listings_channel') || 'ebay');
-  const [channelProducts, setChannelProducts] = useState([]);
+
+  const queryTab = searchParams.get('tab');
+  const localTab = localStorage.getItem('elister_active_listings_tab');
+  const initialTab = (queryTab && ['local', 'channel', 'sold'].includes(queryTab)) ? queryTab : (localTab || 'local');
+
+  const queryChannel = searchParams.get('channel');
+  const localChannel = localStorage.getItem('elister_selected_listings_channel');
+  const initialChannel = queryChannel || localChannel || 'ebay';
+
+  const queryPage = parseInt(searchParams.get('page'), 10);
+  const localPage = parseInt(localStorage.getItem('elister_listings_page'), 10);
+  const initialPage = (!isNaN(queryPage) && queryPage > 0) ? queryPage : ((!isNaN(localPage) && localPage > 0) ? localPage : 1);
+
+  const querySoldPage = parseInt(searchParams.get('soldPage'), 10);
+  const localSoldPage = parseInt(localStorage.getItem('elister_sold_page'), 10);
+  const initialSoldPage = (!isNaN(querySoldPage) && querySoldPage > 0) ? querySoldPage : ((!isNaN(localSoldPage) && localSoldPage > 0) ? localSoldPage : 1);
+
+  const queryLimit = parseInt(searchParams.get('limit'), 10);
+  const localLimit = parseInt(localStorage.getItem('elister_listings_limit'), 10);
+  const initialItemsPerPage = (!isNaN(queryLimit) && queryLimit > 0) ? queryLimit : ((!isNaN(localLimit) && localLimit > 0) ? localLimit : 10);
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [selectedChannel, setSelectedChannel] = useState(initialChannel);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [soldCurrentPage, setSoldCurrentPage] = useState(initialSoldPage);
+  const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
+  const [soldItemsPerPage, setSoldItemsPerPage] = useState(initialItemsPerPage);
+
+  const handlePageChange = (newPage) => {
+    const pageNum = Math.max(1, Number(newPage) || 1);
+    setCurrentPage(pageNum);
+    try {
+      localStorage.setItem('elister_listings_page', String(pageNum));
+      const params = new URLSearchParams(window.location.search);
+      params.set('page', String(pageNum));
+      setSearchParams(params, { replace: true });
+    } catch {}
+  };
+
+  const handleSoldPageChange = (newPage) => {
+    const pageNum = Math.max(1, Number(newPage) || 1);
+    setSoldCurrentPage(pageNum);
+    try {
+      localStorage.setItem('elister_sold_page', String(pageNum));
+      const params = new URLSearchParams(window.location.search);
+      params.set('soldPage', String(pageNum));
+      setSearchParams(params, { replace: true });
+    } catch {}
+  };
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    if (newTab === 'channel') {
+      const cacheKey = `elister_cached_channel_prod_${selectedChannel}_v5`;
+      const cached = loadCachedData(cacheKey);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setChannelProducts(cached);
+      }
+      fetchChannelInventory(selectedChannel, Boolean(cached && cached.length > 0));
+    }
+    try {
+      localStorage.setItem('elister_active_listings_tab', newTab);
+      const params = new URLSearchParams(window.location.search);
+      params.set('tab', newTab);
+      setSearchParams(params, { replace: true });
+    } catch {}
+  };
+
+  const handleChannelChange = (newChannel) => {
+    setSelectedChannel(newChannel);
+    handlePageChange(1);
+
+    const cacheKey = `elister_cached_channel_prod_${newChannel}_v5`;
+    const cached = loadCachedData(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      setChannelProducts(cached);
+    } else {
+      setChannelProducts([]);
+    }
+
+    try {
+      localStorage.setItem('elister_selected_listings_channel', newChannel);
+      const params = new URLSearchParams(window.location.search);
+      params.set('channel', newChannel);
+      params.set('page', '1');
+      setSearchParams(params, { replace: true });
+    } catch {}
+
+    fetchChannelInventory(newChannel, Boolean(cached && cached.length > 0));
+  };
+
+  const handleItemsPerPageChange = (newLimit) => {
+    const limitNum = Number(newLimit) || 10;
+    setItemsPerPage(limitNum);
+    handlePageChange(1);
+    try {
+      localStorage.setItem('elister_listings_limit', String(limitNum));
+      const params = new URLSearchParams(window.location.search);
+      params.set('limit', String(limitNum));
+      params.set('page', '1');
+      setSearchParams(params, { replace: true });
+    } catch {}
+  };
+
+  const handleSoldItemsPerPageChange = (newLimit) => {
+    const limitNum = Number(newLimit) || 10;
+    setSoldItemsPerPage(limitNum);
+    handleSoldPageChange(1);
+    try {
+      localStorage.setItem('elister_sold_limit', String(limitNum));
+      const params = new URLSearchParams(window.location.search);
+      params.set('soldLimit', String(limitNum));
+      params.set('soldPage', '1');
+      setSearchParams(params, { replace: true });
+    } catch {}
+  };
+
+  const [channelProducts, setChannelProducts] = useState(() => {
+    const ch = initialChannel;
+    const cached = loadCachedData(`elister_cached_channel_prod_${ch}_v5`);
+    return Array.isArray(cached) ? cached : [];
+  });
   const [channelLoading, setChannelLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  // Cached Master Listings State (Instant 0ms UI render)
+  const [listings, setListings] = useState(() => {
+    const cached = loadCachedData('elister_cached_listings_v5');
+    return Array.isArray(cached) ? cached : [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = loadCachedData('elister_cached_listings_v5');
+    return !Array.isArray(cached) || cached.length === 0;
+  });
+  const [masterSyncing, setMasterSyncing] = useState(false);
+  const [stats, setStats] = useState(() => {
+    return loadCachedData('elister_cached_listing_stats_v5') || null;
+  });
 
-  // Sold Tracker states
-  const [soldOrders, setSoldOrders] = useState([]);
-  const [soldStats, setSoldStats] = useState(null);
+  // Sold Tracker states with caching
+  const [soldOrders, setSoldOrders] = useState(() => {
+    const cached = loadCachedData('elister_cached_sold_orders_v5');
+    return Array.isArray(cached) ? cached : [];
+  });
+  const [soldStats, setSoldStats] = useState(() => {
+    return loadCachedData('elister_cached_sold_stats_v5') || null;
+  });
   const [soldLoading, setSoldLoading] = useState(false);
   const [soldSyncing, setSoldSyncing] = useState(false);
   const [soldSearchTerm, setSoldSearchTerm] = useState('');
   const [soldPlatformFilter, setSoldPlatformFilter] = useState('all');
   const [soldSortOption, setSoldSortOption] = useState('newest');
-  const [soldCurrentPage, setSoldCurrentPage] = useState(1);
-  const [soldItemsPerPage, setSoldItemsPerPage] = useState(10);
+  // Inventory & Sold Sync time states
+  const [lastLocalSyncTime, setLastLocalSyncTime] = useState(() => new Date());
+  const [lastChannelSyncTime, setLastChannelSyncTime] = useState(() => new Date());
   const [lastSoldSyncTime, setLastSoldSyncTime] = useState(() => new Date());
 
   // Preview & Edit system states
@@ -697,9 +851,14 @@ const NewListings = () => {
   const [localMergeFilterTab, setLocalMergeFilterTab] = useState('all'); // 'all' | 'multi' | '2plus'
   const [selectedMergeGroupIds, setSelectedMergeGroupIds] = useState({});
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Sync Complete Notification Modal States
+  const [syncCompleteModalOpen, setSyncCompleteModalOpen] = useState(false);
+  const [syncStats, setSyncStats] = useState({
+    totalProcessed: 0,
+    newItemsCount: 0,
+    mergedItemsCount: 0,
+    platforms: []
+  });
 
   const fetchListings = async (silent = false) => {
     if (!silent && listings.length === 0) {
@@ -712,30 +871,37 @@ const NewListings = () => {
       ]);
 
       let backendListings = [];
-      if (listingsRes.data?.success && listingsRes.data.data.length > 0) {
+      if (listingsRes.data?.success && Array.isArray(listingsRes.data.data) && listingsRes.data.data.length > 0) {
         backendListings = listingsRes.data.data.map(l => ({
           ...l,
           status: l.status ? (l.status === 'published' ? 'Active' : l.status.charAt(0).toUpperCase() + l.status.slice(1)) : 'Draft'
         }));
+        setListings(backendListings);
+        saveCachedData('elister_cached_listings_v5', backendListings);
+      } else if (!listings || listings.length === 0) {
+        setListings([]);
       }
 
-      setListings(backendListings);
+      setLastLocalSyncTime(new Date());
 
       if (statsRes.data?.success && statsRes.data.data?.stats) {
         setStats(statsRes.data.data.stats);
-      } else {
+        saveCachedData('elister_cached_listing_stats_v5', statsRes.data.data.stats);
+      } else if (backendListings.length > 0) {
         // Compute stats from backendListings if stats API fails
         const total = backendListings.length;
         const active = backendListings.filter(l => l.status === 'Active').length;
         const draft = backendListings.filter(l => l.status === 'Draft').length;
         const failed = backendListings.filter(l => l.status === 'Failed').length;
-        setStats({
+        const computedStats = {
           total,
           published: active,
           draft,
           failed,
           unlisted: total - active
-        });
+        };
+        setStats(computedStats);
+        saveCachedData('elister_cached_listing_stats_v5', computedStats);
       }
     } catch (error) {
       console.error('Error loading listings:', error);
@@ -755,48 +921,66 @@ const NewListings = () => {
   };
 
   // Channel sync helper functions
-  const isChannelConnected = () => {
-    if (selectedChannel === 'ebay') return user?.ebayAccount?.connected;
-    if (selectedChannel === 'etsy') return !!user?.etsyAccount?.connected;
-    if (selectedChannel === 'poshmark') return !!user?.poshmarkAccount?.connected;
-    if (selectedChannel === 'depop') return !!user?.depopAccount?.connected;
-    if (selectedChannel === 'mercari') return !!user?.mercariAccount?.connected;
-    if (selectedChannel === 'amazon') return !!user?.amazonAccount?.connected;
+  const isChannelConnected = (ch = selectedChannel) => {
+    if (ch === 'ebay') return !!(user?.ebayAccount?.connected || user?.ebayAccount?.username);
+    if (ch === 'etsy') return !!(user?.etsyAccount?.connected || user?.etsyAccount?.shopName);
+    if (ch === 'poshmark') return !!(user?.poshmarkAccount?.connected || user?.poshmarkAccount?.username);
+    if (ch === 'depop') return !!(user?.depopAccount?.connected || user?.depopAccount?.username);
+    if (ch === 'mercari') return !!(user?.mercariAccount?.connected || user?.mercariAccount?.username);
+    if (ch === 'amazon') return !!(user?.amazonAccount?.connected || user?.amazonAccount?.sellerId);
     return false;
   };
 
-  const fetchChannelInventory = async (silent = false) => {
-    if (!isChannelConnected()) {
+  const fetchChannelInventory = async (targetChannel = selectedChannel, silent = false) => {
+    const ch = targetChannel || selectedChannel;
+    if (!isChannelConnected(ch)) {
       setChannelProducts([]);
       return;
     }
-    if (!silent && channelProducts.length === 0) {
+    const cacheKey = `elister_cached_channel_prod_${ch}_v5`;
+    const cached = loadCachedData(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      setChannelProducts(cached);
+    }
+    if (!silent && (!cached || !Array.isArray(cached) || cached.length === 0)) {
       setChannelLoading(true);
     }
     try {
-      if (selectedChannel === 'ebay') {
+      if (ch === 'ebay') {
         const res = await ebayService.getInventory();
-        if (res.data.success) {
-          setChannelProducts(res.data.data);
+        if (res.data?.success) {
+          const list = res.data.data || [];
+          setChannelProducts(list);
+          saveCachedData(cacheKey, list);
+          setLastChannelSyncTime(new Date());
         }
-      } else if (selectedChannel === 'etsy') {
+      } else if (ch === 'etsy') {
         const res = await etsyService.getInventory();
-        if (res.data.success) {
-          setChannelProducts(res.data.data);
+        if (res.data?.success) {
+          const list = res.data.data || [];
+          setChannelProducts(list);
+          saveCachedData(cacheKey, list);
+          setLastChannelSyncTime(new Date());
         }
-      } else if (selectedChannel === 'amazon') {
+      } else if (ch === 'amazon') {
         const res = await amazonService.getInventory();
-        if (res.data.success) {
-          setChannelProducts(res.data.listings || []);
+        if (res.data?.success) {
+          const list = res.data.listings || [];
+          setChannelProducts(list);
+          saveCachedData(cacheKey, list);
+          setLastChannelSyncTime(new Date());
         }
       } else {
-        const res = await externalImportService.getLive(selectedChannel);
-        if (res.data.success) {
-          setChannelProducts(res.data.data);
+        const res = await externalImportService.getLive(ch);
+        if (res.data?.success) {
+          const list = res.data.data || [];
+          setChannelProducts(list);
+          saveCachedData(cacheKey, list);
+          setLastChannelSyncTime(new Date());
         }
       }
     } catch (error) {
-      console.error(`Error fetching ${selectedChannel} inventory:`, error);
+      console.error(`Error fetching ${ch} inventory:`, error);
     } finally {
       setChannelLoading(false);
     }
@@ -809,9 +993,12 @@ const NewListings = () => {
     try {
       const res = await orderService.getAll({ onlyMaster: true });
       if (res.data?.success) {
-        setSoldOrders(res.data.data || []);
+        const list = res.data.data || [];
+        setSoldOrders(list);
+        saveCachedData('elister_cached_sold_orders_v5', list);
         if (res.data.stats) {
           setSoldStats(res.data.stats);
+          saveCachedData('elister_cached_sold_stats_v5', res.data.stats);
         }
         setLastSoldSyncTime(new Date());
       }
@@ -841,6 +1028,41 @@ const NewListings = () => {
     }
   };
 
+  const handleSyncAllMaster = async () => {
+    setMasterSyncing(true);
+    try {
+      toast.info('Syncing all connected marketplaces & reconciling inventory...');
+      const res = await listingService.syncAll();
+      if (res.data?.success) {
+        toast.success(res.data.message || 'All marketplaces synchronized successfully!');
+        setLastLocalSyncTime(new Date());
+        setTimeout(async () => {
+          await fetchListings(true);
+          try {
+            const sumRes = await listingService.getSyncSummary();
+            if (sumRes.data?.data) {
+              const sum = sumRes.data.data;
+              setSyncStats({
+                totalProcessed: sum.totalProcessed || listings.length,
+                newItemsCount: sum.newItemsCount || 0,
+                mergedItemsCount: sum.mergedItemsCount || 0,
+                platforms: sum.platforms || []
+              });
+              setSyncCompleteModalOpen(true);
+            }
+          } catch (e) {}
+        }, 3000);
+      } else {
+        toast.error(res.data?.message || 'Failed to sync marketplace inventory.');
+      }
+    } catch (err) {
+      console.error('Error syncing all inventory:', err);
+      toast.error(err.response?.data?.message || 'Failed to sync inventory.');
+    } finally {
+      setMasterSyncing(false);
+    }
+  };
+
   const handleSyncInventory = async () => {
     setSyncing(true);
     try {
@@ -848,19 +1070,19 @@ const NewListings = () => {
         const res = await ebayService.syncInventory();
         if (res.data.success) {
           toast.success(`Successfully synced ${res.data.count} items from eBay!`);
-          fetchChannelInventory();
+          fetchChannelInventory('ebay');
         }
       } else if (selectedChannel === 'etsy') {
         const res = await etsyService.sync();
         if (res.data.success) {
           toast.success(`Successfully synced ${res.data.count} items from Etsy!`);
-          fetchChannelInventory();
+          fetchChannelInventory('etsy');
         }
       } else if (selectedChannel === 'amazon') {
         const res = await amazonService.sync();
         if (res.data.success) {
           toast.success(`Successfully synced ${res.data.count || 0} items from Amazon!`);
-          fetchChannelInventory();
+          fetchChannelInventory('amazon');
         }
       } else {
         const username = selectedChannel === 'poshmark' 
@@ -928,7 +1150,7 @@ const NewListings = () => {
           } else {
             toast.success(`Synced successfully! Your ${selectedChannel} inventory is already up-to-date.`);
           }
-          fetchChannelInventory();
+          fetchChannelInventory(selectedChannel);
           fetchListings(); // reload local listings in background too
         }
       }
@@ -946,8 +1168,10 @@ const NewListings = () => {
   };
 
   useEffect(() => {
-    fetchListings();
-    fetchSoldOrders();
+    const hasCachedListings = (listings && listings.length > 0);
+    fetchListings(hasCachedListings);
+    const hasCachedSold = (soldOrders && soldOrders.length > 0);
+    fetchSoldOrders(hasCachedSold);
 
     const handleUpdate = () => {
       if (handleUpdateRef.current) {
@@ -957,6 +1181,30 @@ const NewListings = () => {
     window.addEventListener('elister-listings-update', handleUpdate);
     return () => window.removeEventListener('elister-listings-update', handleUpdate);
   }, []);
+
+  useEffect(() => {
+    const checkSyncSummaryOnLoad = async () => {
+      try {
+        const res = await listingService.getSyncSummary();
+        if (res.data?.success && res.data?.data && !res.data.data.shownToUser) {
+          const sum = res.data.data;
+          setSyncStats({
+            totalProcessed: sum.totalProcessed || (listings?.length || 0),
+            newItemsCount: sum.newItemsCount || 0,
+            mergedItemsCount: sum.mergedItemsCount || 0,
+            platforms: sum.platforms || []
+          });
+          setSyncCompleteModalOpen(true);
+        }
+      } catch (err) {
+        console.warn('Sync summary check notice:', err.message);
+      }
+    };
+
+    if (listings && listings.length > 0) {
+      checkSyncSummaryOnLoad();
+    }
+  }, [listings?.length]);
 
   useEffect(() => {
     if (activeTab === 'sold' && soldOrders.length === 0) {
@@ -1534,8 +1782,13 @@ const NewListings = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'channel' && channelProducts.length === 0) {
-      fetchChannelInventory(true);
+    if (activeTab === 'channel') {
+      const cacheKey = `elister_cached_channel_prod_${selectedChannel}_v5`;
+      const cached = loadCachedData(cacheKey);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setChannelProducts(cached);
+      }
+      fetchChannelInventory(selectedChannel, Boolean(cached && cached.length > 0));
     }
   }, [activeTab, selectedChannel, user]);
 
@@ -1848,8 +2101,9 @@ const NewListings = () => {
     }
 
     const liveId = item[`${platformName}ListingId`] || platformSpecificItem?.listingId;
-    const hasLiveId = Boolean(liveId && liveId !== '-');
-    const hasPlatform = hasLiveId || isListed || isSold || isDelisted || isDraft || isFailed || item.platform === platformName;
+    const hasLiveId = Boolean(liveId && liveId !== '-' && liveId !== 'undefined' && liveId !== 'null');
+    const isNone = rawPlatformStatus === 'none' || rawPlatformStatus === 'unlisted';
+    const hasPlatform = !isNone && (hasLiveId || isListed || isSold || isDelisted || isDraft || isFailed);
 
     return { isListed, isDraft, isDelisted, isFailed, isSold, hasPlatform };
   };
@@ -2054,11 +2308,16 @@ const NewListings = () => {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDelisting, setBulkDelisting] = useState(false);
 
-  // Reset currentPage to 1 when filters, tabs, or items per page change
+  // Reset currentPage to 1 only when user actively changes search terms or filters
+  const filterResetFirstRender = useRef(true);
   useEffect(() => {
-    setCurrentPage(1);
+    if (filterResetFirstRender.current) {
+      filterResetFirstRender.current = false;
+      return;
+    }
+    handlePageChange(1);
     setSelectedListingIds([]);
-  }, [searchTerm, statusFilter, channelStatusFilter, channelSortOption, itemsPerPage, activeTab, selectedChannel, sortOption, filterListedOn, filterNoListedOn]);
+  }, [searchTerm, statusFilter, channelStatusFilter, channelSortOption, sortOption, filterListedOn, filterNoListedOn]);
 
   useEffect(() => {
     setSelectedListingIds([]);
@@ -2356,7 +2615,7 @@ const NewListings = () => {
       let hasAnySelectedChannel = false;
       if (!newPlatforms[grp.groupId]) newPlatforms[grp.groupId] = {};
 
-      ['ebay', 'poshmark', 'mercari', /* 'depop', */ 'etsy'].forEach((plat) => {
+      ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon'].forEach((plat) => {
         if (grp.channels?.[plat]) {
           const isAlreadyInLocal = !!grp.channels[plat].alreadyInLocal;
           if (!isAlreadyInLocal && shouldSelect) {
@@ -2877,10 +3136,7 @@ const NewListings = () => {
           type="button"
           onClick={() => {
             setActiveMasterDropdown(null);
-            setSelectedListing(item);
-            setSelectedPlatform(null);
-            setIsEditMode(true);
-            setModalOpen(true);
+            navigate(`/create-listing?edit=${item._id}`);
           }}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
         >
@@ -2945,10 +3201,8 @@ const NewListings = () => {
     const targetItem = item.listingsMap && item.listingsMap[platformName] 
       ? item.listingsMap[platformName] 
       : item;
-    setSelectedListing(targetItem);
-    setSelectedPlatform(platformName);
-    setIsEditMode(true);
-    setModalOpen(true);
+    const targetId = targetItem._id || item._id;
+    navigate(`/create-${platformName}-listing?edit=${targetId}`);
   };
 
   const handleMoveToNewList = async (item, platformName) => {
@@ -3492,7 +3746,7 @@ const NewListings = () => {
               setDraggedChannel(null);
               setDragOverTarget(null);
             }}
-            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2 w-full min-w-[136px] max-w-[170px] sm:min-w-[145px] h-[98px] sm:h-[104px] select-none cursor-grab active:cursor-grabbing shrink-0 ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
+            className={`relative bg-white border border-slate-200/90 rounded-2xl p-2 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all group/card flex items-center justify-between gap-2 w-[144px] h-[98px] select-none cursor-grab active:cursor-grabbing shrink-0 ${isBeingDragged ? 'opacity-40 scale-95' : ''}`}
           >
             {/* Left Side: Clean Marketplace Image Thumbnail (No colored border, No overlaid badge) */}
             <div 
@@ -3501,7 +3755,7 @@ const NewListings = () => {
                 handleOpenPreview(item, platformName);
               }}
               title={`Click to preview on ${getChannelDisplayName(platformName)}`}
-              className="w-[60px] sm:w-[68px] h-[82px] sm:h-[88px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center border border-slate-200/80 shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer"
+              className="w-[62px] h-[82px] rounded-xl overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center border border-slate-200/80 shadow-2xs group-hover/card:scale-105 transition-transform cursor-pointer"
             >
               {platformImg ? (
                 <img src={platformImg} alt="" className="w-full h-full object-cover" />
@@ -3541,9 +3795,9 @@ const NewListings = () => {
             </button>
 
             {/* Right Side: Centered Status on Top, Price in Center, Action/Open at Bottom */}
-            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-1 text-center">
+            <div className="flex flex-col justify-between items-center flex-1 min-w-0 h-full py-0.5 text-center">
               {/* Top: Status Text (Centered) */}
-              <div className="w-full text-center px-4 truncate">
+              <div className="w-full text-center px-1 truncate">
                 {isSold ? (
                   <span className="text-[11px] font-extrabold text-purple-700 leading-none">Sold</span>
                 ) : isListed ? (
@@ -3673,7 +3927,7 @@ const NewListings = () => {
                 console.error('Drop error:', err);
               }
             }}
-            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-full min-w-[136px] max-w-[170px] sm:min-w-[145px] h-[98px] sm:h-[104px] select-none shrink-0 ${
+            className={`relative border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-2 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all cursor-pointer group flex flex-col items-center justify-center text-center w-[144px] h-[98px] select-none shrink-0 ${
               isDropTarget
                 ? isHovered
                   ? 'scale-105 ring-2 ring-indigo-500 rounded-2xl bg-indigo-100/80 shadow-md'
@@ -3682,7 +3936,7 @@ const NewListings = () => {
             }`}
             title={isDropTarget ? "Drop here to merge channel into this item!" : `Click to list on ${getChannelDisplayName(platformName)}`}
           >
-            <Plus size={20} className="stroke-[2.5] text-indigo-600 group-hover:scale-110 transition-transform mb-1 shrink-0" />
+            <Plus size={18} className="stroke-[2.5] text-indigo-600 group-hover:scale-110 transition-transform mb-1 shrink-0" />
             <span className="text-[11px] font-bold text-indigo-700 leading-tight select-none">
               {isDropTarget ? (isHovered ? 'Drop Here' : 'Drop to Merge') : (
                 <>
@@ -3817,17 +4071,14 @@ const NewListings = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1680px] mx-auto w-full">
 
       {/* TABS SWITCHER & TOP ACTIONS BAR */}
       <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3.5 bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-100 shadow-sm">
         {/* Left Side: Tabs Switcher */}
         <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 w-full md:w-auto overflow-x-auto no-scrollbar">
           <button
-            onClick={() => {
-              setActiveTab('local');
-              localStorage.setItem('elister_active_listings_tab', 'local');
-            }}
+            onClick={() => handleTabChange('local')}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'local'
                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -3837,10 +4088,7 @@ const NewListings = () => {
             Master Cross-Listing
           </button>
           <button
-            onClick={() => {
-              setActiveTab('channel');
-              localStorage.setItem('elister_active_listings_tab', 'channel');
-            }}
+            onClick={() => handleTabChange('channel')}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'channel'
                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -3850,10 +4098,7 @@ const NewListings = () => {
             All Platform Inventory
           </button>
           <button
-            onClick={() => {
-              setActiveTab('sold');
-              localStorage.setItem('elister_active_listings_tab', 'sold');
-            }}
+            onClick={() => handleTabChange('sold')}
             className={`flex-1 md:flex-none px-3.5 sm:px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center ${
               activeTab === 'sold'
                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -3873,10 +4118,7 @@ const NewListings = () => {
                 {['ebay', 'etsy', 'poshmark', 'mercari', 'amazon'].map((ch) => (
                   <button
                     key={ch}
-                    onClick={() => {
-                      setSelectedChannel(ch);
-                      localStorage.setItem('elister_selected_listings_channel', ch);
-                    }}
+                    onClick={() => handleChannelChange(ch)}
                     className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer whitespace-nowrap ${
                       selectedChannel === ch
                         ? 'bg-white text-indigo-600 shadow-xs'
@@ -4000,19 +4242,22 @@ const NewListings = () => {
             </div>
           </div>
 
-          {/* Sync Time Status (Small, directly aligned underneath search bar) */}
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 pl-1 pt-0.5">
-            <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastSoldSyncTime ? lastSoldSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
-            <span>•</span>
-            <span>Next sync: <strong className="font-semibold text-slate-600">Every 10 min</strong></span>
+          {/* Sync Time Status (Aligned underneath search bar) */}
+          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-400 pl-1 pt-1">
+            <div className="flex items-center gap-2">
+              <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastSoldSyncTime ? lastSoldSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
+              <span>•</span>
+              <span>Next auto sync: <strong className="font-semibold text-slate-600">Every 10 min</strong></span>
+            </div>
             <button
+              type="button"
               onClick={handleManualSoldSync}
               disabled={soldSyncing}
-              title="Refresh sold orders"
-              className="p-0.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1 ml-1"
+              title="Sync sales across all marketplaces"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-black transition-all cursor-pointer disabled:opacity-50 active:scale-95 shadow-2xs"
             >
-              <RefreshCw size={11} className={soldSyncing ? "animate-spin text-indigo-600" : ""} />
-              {soldSyncing && <span className="text-[10px] text-indigo-600 font-bold">Syncing...</span>}
+              <RefreshCw size={12} className={soldSyncing ? "animate-spin text-indigo-600" : "text-indigo-600"} />
+              <span>{soldSyncing ? 'Syncing...' : 'Sync Now'}</span>
             </button>
           </div>
         </div>
@@ -4150,6 +4395,25 @@ const NewListings = () => {
             )}
           </div>
 
+          {/* Sync Time Status (Aligned underneath search bar) */}
+          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-400 pl-1 pt-1">
+            <div className="flex items-center gap-2">
+              <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastLocalSyncTime ? lastLocalSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
+              <span>•</span>
+              <span>Next auto sync: <strong className="font-semibold text-slate-600">Every 12 hours</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncAllMaster}
+              disabled={masterSyncing}
+              title="Sync all connected marketplaces & reconcile Master Listings"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-black transition-all cursor-pointer disabled:opacity-50 active:scale-95 shadow-2xs"
+            >
+              <RefreshCw size={12} className={masterSyncing ? "animate-spin text-indigo-600" : "text-indigo-600"} />
+              <span>{masterSyncing ? 'Syncing...' : 'Sync Now'}</span>
+            </button>
+          </div>
+
         </div>
       ) : (
         /* ALL PLATFORM INVENTORY CONTROLS: 5 STATUS TABS + SORT + FULL-WIDTH SEARCH */
@@ -4260,6 +4524,25 @@ const NewListings = () => {
                 <X size={14} />
               </button>
             )}
+          </div>
+
+          {/* Sync Time Status (Aligned underneath search bar) */}
+          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-400 pl-1 pt-1">
+            <div className="flex items-center gap-2">
+              <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastChannelSyncTime ? lastChannelSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
+              <span>•</span>
+              <span>Next auto sync: <strong className="font-semibold text-slate-600">Every 12 hours</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncInventory}
+              disabled={syncing || !isChannelConnected()}
+              title={`Sync ${getChannelDisplayName(selectedChannel)} inventory`}
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-black transition-all cursor-pointer disabled:opacity-50 active:scale-95 shadow-2xs"
+            >
+              <RefreshCw size={12} className={syncing ? "animate-spin text-indigo-600" : "text-indigo-600"} />
+              <span>{syncing ? 'Syncing...' : 'Sync Now'}</span>
+            </button>
           </div>
 
         </div>
@@ -4410,13 +4693,13 @@ const NewListings = () => {
               </div>
 
               {/* DESKTOP & TABLET TABLE VIEW */}
-              <div className="hidden md:block overflow-x-auto overflow-y-hidden pb-1">
-                <table className="min-w-[1060px] w-full text-left border-collapse">
+              <div className="hidden md:block overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin">
+                <table className="min-w-[1100px] w-full text-left border-collapse table-fixed">
 
                   {/* Headers */}
                   <thead className="bg-slate-50/80 border-b border-slate-100">
                     <tr className="border-b border-slate-100 select-none">
-                      <th className="px-3 py-3.5 w-10 text-center">
+                      <th className="px-3 py-3.5 w-12 text-center">
                         <input 
                           type="checkbox" 
                           checked={isAllSelected}
@@ -4425,38 +4708,38 @@ const NewListings = () => {
                           className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" 
                         />
                       </th>
-                      <th className="px-4 py-3.5 text-xs font-black text-slate-500 tracking-wider min-w-[280px] w-[32%]">Item</th>
-                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <img src="/ebay.png" className="w-5 h-5 object-contain shrink-0" alt="eBay" />
+                      <th className="px-4 py-3.5 text-xs font-black text-slate-500 tracking-wider w-auto min-w-[280px]">Item</th>
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <img src="/ebay.png" className="w-7 h-7 object-contain shrink-0" alt="eBay" />
                           <span>eBay</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.ebay})</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <img src="/poshmark.png" className="w-5 h-5 object-contain shrink-0" alt="Poshmark" />
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <img src="/poshmark.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Poshmark" />
                           <span>Poshmark</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.poshmark})</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <img src="/mercari.png" className="w-5 h-5 object-contain shrink-0" alt="Mercari" />
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <img src="/mercari.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Mercari" />
                           <span>Mercari</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.mercari})</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <img src="/etsy.png" className="w-5 h-5 object-contain shrink-0" alt="Etsy" />
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <img src="/etsy.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Etsy" />
                           <span>Etsy</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.etsy})</span>
                         </div>
                       </th>
-                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center min-w-[150px] w-[13.6%]">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <img src="/amazon.png" className="w-5 h-5 object-contain shrink-0" alt="Amazon" />
+                      <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <img src="/amazon.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Amazon" />
                           <span>Amazon</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.amazon})</span>
                         </div>
@@ -4473,7 +4756,7 @@ const NewListings = () => {
                         <tr key={item._id} className={`transition-colors ${isRowSelected ? 'bg-indigo-50/60 hover:bg-indigo-50/80' : 'hover:bg-slate-50/70'}`}>
 
                           {/* Checkbox */}
-                          <td className="px-3 py-3 text-center align-middle w-10">
+                          <td className="px-3 py-3 text-center align-middle w-12">
                             <input 
                               type="checkbox" 
                               checked={isRowSelected}
@@ -4484,7 +4767,7 @@ const NewListings = () => {
                           </td>
 
                           {/* Item */}
-                          <td className="px-4 py-3 align-middle min-w-[280px] w-[32%]">
+                          <td className="px-4 py-3 align-middle w-auto min-w-[280px]">
                             <div className="flex items-start gap-3.5">
                               <div 
                                 className="w-[72px] h-[94px] bg-slate-50 rounded-2xl overflow-hidden shrink-0 shadow-2xs flex items-center justify-center border border-slate-100 relative"
@@ -4647,27 +4930,27 @@ const NewListings = () => {
                           </td>
 
                           {/* 5 Crosslisting Platform Matrix Cards */}
-                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
+                          <td className="px-1.5 py-3 align-middle w-[154px] min-w-[154px] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'ebay', item.ebayListingId, '/ebay.png')}
                             </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
+                          <td className="px-1.5 py-3 align-middle w-[154px] min-w-[154px] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'poshmark', item.poshmarkListingId, '/poshmark.png')}
                             </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
+                          <td className="px-1.5 py-3 align-middle w-[154px] min-w-[154px] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'mercari', item.mercariListingId, '/mercari.png')}
                             </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
+                          <td className="px-1.5 py-3 align-middle w-[154px] min-w-[154px] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'etsy', item.etsyListingId, '/etsy.png')}
                             </div>
                           </td>
-                          <td className="px-1.5 py-3 align-middle min-w-[150px] w-[13.6%] text-center">
+                          <td className="px-1.5 py-3 align-middle w-[154px] min-w-[154px] text-center">
                             <div className="flex justify-center">
                               {renderCrosslistingCell(item, 'amazon', item.amazonListingId, '/amazon.png')}
                             </div>
@@ -5167,9 +5450,9 @@ const NewListings = () => {
                 aria-label="Previous page"
                 onClick={() => {
                   if (activeTab === 'sold') {
-                    setSoldCurrentPage(prev => Math.max(prev - 1, 1));
+                    handleSoldPageChange(displayedActivePage - 1);
                   } else {
-                    setCurrentPage(prev => Math.max(prev - 1, 1));
+                    handlePageChange(displayedActivePage - 1);
                   }
                 }}
                 disabled={displayedActivePage === 1}
@@ -5192,9 +5475,9 @@ const NewListings = () => {
                     key={page}
                     onClick={() => {
                       if (activeTab === 'sold') {
-                        setSoldCurrentPage(page);
+                        handleSoldPageChange(page);
                       } else {
-                        setCurrentPage(page);
+                        handlePageChange(page);
                       }
                     }}
                     className={`w-8 h-8 flex items-center justify-center rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
@@ -5212,9 +5495,9 @@ const NewListings = () => {
                 aria-label="Next page"
                 onClick={() => {
                   if (activeTab === 'sold') {
-                    setSoldCurrentPage(prev => Math.min(prev + 1, displayedTotalPages));
+                    handleSoldPageChange(displayedActivePage + 1);
                   } else {
-                    setCurrentPage(prev => Math.min(prev + 1, displayedTotalPages));
+                    handlePageChange(displayedActivePage + 1);
                   }
                 }}
                 disabled={displayedActivePage === displayedTotalPages}
@@ -5231,11 +5514,9 @@ const NewListings = () => {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   if (activeTab === 'sold') {
-                    setSoldItemsPerPage(val);
-                    setSoldCurrentPage(1);
+                    handleSoldItemsPerPageChange(val);
                   } else {
-                    setItemsPerPage(val);
-                    setCurrentPage(1);
+                    handleItemsPerPageChange(val);
                   }
                 }}
                 className="appearance-none pr-8 pl-3.5 py-1.5 bg-white border border-border hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
@@ -7088,6 +7369,78 @@ const NewListings = () => {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Sync Complete Modal Popup */}
+      {syncCompleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100/80 shadow-xs">
+              <CheckCircle2 size={30} className="text-emerald-600" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Sync Complete!</h2>
+              <p className="text-xs font-semibold text-slate-500 leading-relaxed max-w-[280px] mx-auto">
+                Your inventory has been synchronized and auto-merged across connected marketplaces.
+              </p>
+            </div>
+
+            {/* Sync summary stats card */}
+            <div className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2 text-left">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200/60 pb-1.5">
+                <span className="text-slate-500 font-semibold">Total Items Synced</span>
+                <span className="font-extrabold text-slate-900">
+                  {syncStats.totalProcessed || (syncStats.newItemsCount + syncStats.mergedItemsCount) || listings.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>New items added</span>
+                </span>
+                <span className="font-bold text-emerald-600">+{syncStats.newItemsCount || 0}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                  <span>Auto-merged listings</span>
+                </span>
+                <span className="font-bold text-indigo-600">{syncStats.mergedItemsCount || 0}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSyncCompleteModalOpen(false);
+                  try {
+                    await listingService.dismissSyncSummary();
+                  } catch (e) {}
+                  fetchListings(true);
+                }}
+                className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-black rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-[0.98]"
+              >
+                View Inventory
+              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setSyncCompleteModalOpen(false);
+                    try {
+                      await listingService.dismissSyncSummary();
+                    } catch (e) {}
+                  }}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-700 underline transition-colors cursor-pointer"
+                >
+                  Skip for now
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

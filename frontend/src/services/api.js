@@ -33,6 +33,8 @@ export const authService = {
 export const subscriptionService = {
   createRazorpayOrder: (data) => API.post('/subscriptions/razorpay/order', data),
   verifyRazorpayPayment: (data) => API.post('/subscriptions/razorpay/verify', data),
+  getTokenUsage: () => API.get('/subscriptions/token-usage'),
+  getTokenRecords: (month) => API.get(`/subscriptions/token-records${month ? `?month=${month}` : ''}`),
 };
 
 export const ebayService = {
@@ -75,6 +77,9 @@ export const listingService = {
   importActiveChannels: (data) => API.post('/listings/import-active-channels', data),
   getLocalMergePreview: () => API.get('/listings/local-merge-preview'),
   bulkMergeListings: (data) => API.post('/listings/bulk-merge', data),
+  syncAll: () => API.post('/listings/sync-all'),
+  getSyncSummary: () => API.get('/listings/sync-summary'),
+  dismissSyncSummary: () => API.post('/listings/sync-summary/dismiss'),
 };
 
 export const ruleService = {

@@ -23,10 +23,12 @@ import {
   HelpCircle,
   ArrowRight,
   Check,
-  Copy
+  Copy,
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { authService } from '../services/api';
+import { authService, subscriptionService } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 
@@ -38,9 +40,38 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState(tabParam || 'profile');
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  // Token State
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [tokenData, setTokenData] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [tokenSearchTerm, setTokenSearchTerm] = useState('');
+
+  const fetchTokens = async (month) => {
+    setTokenLoading(true);
+    try {
+      const res = await subscriptionService.getTokenRecords(month);
+      if (res.data?.success) {
+        setTokenData(res.data.data);
+        if (!selectedMonth && res.data.data.currentMonth) {
+          setSelectedMonth(res.data.data.currentMonth);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading tokens:', err);
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'tokens') {
+      fetchTokens(selectedMonth || undefined);
+    }
+  }, [activeTab, selectedMonth]);
+
   // Sync tab with search params
   useEffect(() => {
-    if (tabParam && ['profile', 'extensions', 'password', 'notifications', 'privacy', 'defaults'].includes(tabParam)) {
+    if (tabParam && ['profile', 'tokens', 'extensions', 'password', 'notifications', 'privacy', 'defaults'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -210,6 +241,7 @@ const Settings = () => {
 
   const menuItems = [
     { id: 'profile', name: 'Profile Information', icon: <User size={18} /> },
+    { id: 'tokens', name: 'Token Usage & History', icon: <Sparkles size={18} />, badge: 'Monthly' },
     { id: 'extensions', name: 'Browser Extensions', icon: <Puzzle size={18} />, badge: 'Official' },
     { id: 'password', name: 'Password & Security', icon: <Lock size={18} /> },
     { id: 'notifications', name: 'Notifications', icon: <Bell size={18} /> },
@@ -375,6 +407,211 @@ const Settings = () => {
                   </button>
                 </div>
               </motion.form>
+            )}
+
+            {activeTab === 'tokens' && (
+              <motion.div
+                key="tokens-section"
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="space-y-6 flex-1 flex flex-col"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-indigo-600" />
+                      AI Token Usage & Monthly Ledger
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Tokens renew automatically every month with your subscription. Channel sync and inventory merging are always 100% free (0 tokens).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchTokens(selectedMonth)}
+                    disabled={tokenLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                  >
+                    <RefreshCw size={13} className={tokenLoading ? "animate-spin text-indigo-600" : ""} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">Monthly Quota</span>
+                    <span className="text-xl font-black text-indigo-950 font-mono mt-1 block">
+                      {(tokenData?.tokensTotal || 500).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] font-semibold text-indigo-700/80 mt-0.5 block capitalize">
+                      {tokenData?.plan || 'Pro'} Plan Limit
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-100">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 block">Tokens Used</span>
+                    <span className="text-xl font-black text-rose-950 font-mono mt-1 block">
+                      {(tokenData?.tokensUsed || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] font-semibold text-rose-700/80 mt-0.5 block">
+                      In current billing cycle
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 block">Remaining Balance</span>
+                    <span className="text-xl font-black text-emerald-950 font-mono mt-1 block">
+                      {(tokenData?.tokensRemaining ?? 500).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700/80 mt-0.5 block">
+                      Available to use
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Monthly Renewal</span>
+                    <span className="text-xs font-black text-slate-800 mt-1.5 block">
+                      {tokenData?.renewalDate
+                        ? new Date(tokenData.renewalDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Active Monthly'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-400 mt-0.5 block">
+                      Auto-refills to 100%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs font-bold text-slate-600 shrink-0">Billing Month:</span>
+                    <div className="relative flex-1 sm:flex-none">
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="w-full sm:w-auto pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer shadow-2xs"
+                      >
+                        <option value="all">All Months</option>
+                        {(tokenData?.months || []).map((m) => (
+                          <option key={m} value={m}>
+                            {m} {m === tokenData?.currentMonth ? '(Current Month)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <input
+                      type="text"
+                      value={tokenSearchTerm}
+                      onChange={(e) => setTokenSearchTerm(e.target.value)}
+                      placeholder="Search by SKU, item, or feature..."
+                      className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Token Ledger Table */}
+                <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          <th className="py-3 px-4">Date & Time</th>
+                          <th className="py-3 px-4">Feature / Action</th>
+                          <th className="py-3 px-4">Listing / SKU</th>
+                          <th className="py-3 px-4">Platform</th>
+                          <th className="py-3 px-4 text-center">Tokens</th>
+                          <th className="py-3 px-4 text-right">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {tokenLoading ? (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-slate-400 font-bold text-xs">
+                              <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600 mb-2" />
+                              Loading token records...
+                            </td>
+                          </tr>
+                        ) : (
+                          (() => {
+                            const filtered = (tokenData?.logs || []).filter((log) => {
+                              if (!tokenSearchTerm) return true;
+                              const term = tokenSearchTerm.toLowerCase();
+                              return (
+                                log.feature?.toLowerCase().includes(term) ||
+                                log.itemTitle?.toLowerCase().includes(term) ||
+                                log.sku?.toLowerCase().includes(term) ||
+                                log.action?.toLowerCase().includes(term)
+                              );
+                            });
+
+                            if (filtered.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                                    <Sparkles className="w-6 h-6 mx-auto text-slate-300 mb-2" />
+                                    No token deductions recorded for this period.<br />
+                                    <span className="text-[11px] text-slate-400 font-normal">
+                                      AI Listing generation, Title & Description generation, and Photo enhancements will log here.
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return filtered.map((log) => (
+                              <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3 px-4 text-slate-600 font-mono text-[11px] whitespace-nowrap">
+                                  {new Date(log.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}{' '}
+                                  •{' '}
+                                  {new Date(log.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </td>
+                                <td className="py-3 px-4 font-bold text-slate-800">
+                                  {log.feature || log.action}
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate">
+                                  <span className="font-semibold block truncate" title={log.itemTitle || '-'}>
+                                    {log.itemTitle || '-'}
+                                  </span>
+                                  {log.sku && (
+                                    <span className="text-[10px] text-slate-400 font-mono block">SKU: {log.sku}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                    {log.platform || 'Universal'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="inline-flex items-center text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">
+                                    -{log.tokensDeducted || 1}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right font-black font-mono text-slate-800">
+                                  {log.tokensRemaining}
+                                </td>
+                              </tr>
+                            ));
+                          })()
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </motion.div>
             )}
 
             {activeTab === 'extensions' && (

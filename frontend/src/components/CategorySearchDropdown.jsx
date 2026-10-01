@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Loader2, Search } from 'lucide-react';
 import { aiService, ebayService } from '../services/api';
 
-const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Search category...' }) => {
+const CategorySearchDropdown = ({ value, onSelect, platform = 'ebay', placeholder = 'Search category...' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -22,20 +22,23 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
       setSuggestions([]);
       return;
     }
+    const targetPlatform = platform || 'ebay';
     const delayDebounce = setTimeout(async () => {
       setLoading(true);
       try {
         let response;
-        if (platform === 'poshmark') {
+        if (targetPlatform === 'poshmark') {
           response = await aiService.poshmarkSuggestCategories(searchTerm);
-        } else if (platform === 'ebay') {
+        } else if (targetPlatform === 'ebay') {
           response = await ebayService.suggestCategories(searchTerm);
-        } else if (platform === 'mercari') {
+        } else if (targetPlatform === 'mercari') {
           response = await aiService.mercariSuggestCategories(searchTerm);
-        } else if (platform === 'depop') {
+        } else if (targetPlatform === 'depop') {
           response = await aiService.depopSuggestCategories(searchTerm);
-        } else if (platform === 'etsy') {
+        } else if (targetPlatform === 'etsy') {
           response = await aiService.etsySuggestCategories(searchTerm);
+        } else {
+          response = await ebayService.suggestCategories(searchTerm);
         }
 
         if (response && response.data) {
@@ -63,10 +66,16 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
       } finally {
         setLoading(false);
       }
-    }, 350);
+    }, 300);
 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm, platform]);
+
+  const handleSelectOption = (opt) => {
+    onSelect(opt);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
 
   return (
     <div ref={wrapperRef} className="relative w-full text-left">
@@ -81,6 +90,16 @@ const CategorySearchDropdown = ({ value, onSelect, platform, placeholder = 'Sear
           onFocus={() => {
             setSearchTerm(value || '');
             setIsOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (suggestions.length > 0) {
+                handleSelectOption(suggestions[0]);
+              } else if (searchTerm.trim()) {
+                handleSelectOption({ id: '', label: searchTerm.trim(), fullName: searchTerm.trim() });
+              }
+            }
           }}
           placeholder={placeholder}
           className="w-full px-4 h-11 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 focus:border-indigo-500 pl-9 pr-8 transition-all focus:ring-2 focus:ring-indigo-500/10"

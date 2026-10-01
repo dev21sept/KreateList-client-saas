@@ -14,10 +14,36 @@ exports.getOrders = async (req, res) => {
     if (isOnlyMaster) {
       // SOLD TRACKER TAB: ONLY return genuinely sold products from Master Crosslisting (Listing collection)
       const Listing = require('../models/Listing');
-      const soldListings = await Listing.find({
+      const Product = require('../models/Product');
+
+      const activeProducts = await Product.find({
         user: userId,
-        status: 'sold'
+        status: { $in: ['active', 'live', 'published'] }
+      }).select('ebayListingId poshmarkListingId mercariListingId title').lean();
+
+      const activeEbayIds = new Set(activeProducts.map(p => p.ebayListingId).filter(Boolean));
+      const activePoshIds = new Set(activeProducts.map(p => p.poshmarkListingId).filter(Boolean));
+      const activeMercIds = new Set(activeProducts.map(p => p.mercariListingId).filter(Boolean));
+      const activeTitles = new Set(activeProducts.map(p => (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()));
+
+      const soldListingsRaw = await Listing.find({
+        user: userId,
+        status: 'sold',
+        $or: [
+          { soldAt: { $gte: new Date('2026-09-01T00:00:00.000Z') } },
+          { createdAt: { $gte: new Date('2026-09-01T00:00:00.000Z') } }
+        ]
       }).sort({ soldAt: -1, updatedAt: -1 }).lean();
+
+      // Exclude any listing that matches an active product in store
+      const soldListings = soldListingsRaw.filter(l => {
+        if (l.ebayListingId && activeEbayIds.has(l.ebayListingId)) return false;
+        if (l.poshmarkListingId && activePoshIds.has(l.poshmarkListingId)) return false;
+        if (l.mercariListingId && activeMercIds.has(l.mercariListingId)) return false;
+        const norm = (l.title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (activeTitles.has(norm)) return false;
+        return true;
+      });
 
       const soldRecords = soldListings.map(l => ({
         _id: l._id,
@@ -70,8 +96,15 @@ exports.getOrders = async (req, res) => {
       });
     }
 
-    // ORDERS PAGE: Return all marketplace orders from eBay, Mercari, Poshmark, Etsy
-    const orders = await Order.find({ user: userId })
+    // ORDERS PAGE: Return marketplace orders from September 2026 onwards
+    const orders = await Order.find({
+      user: userId,
+      $or: [
+        { createdDate: { $gte: new Date('2026-09-01T00:00:00.000Z') } },
+        { orderDate: { $gte: new Date('2026-09-01T00:00:00.000Z') } },
+        { createdAt: { $gte: new Date('2026-09-01T00:00:00.000Z') }, createdDate: { $exists: false } }
+      ]
+    })
       .populate('listingId', 'title sku images thumbnail platformData status autoDelistLog')
       .sort({ createdDate: -1 });
 

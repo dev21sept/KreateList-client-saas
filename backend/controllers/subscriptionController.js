@@ -249,3 +249,31 @@ exports.verifyRazorpayPayment = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// @desc    Get user's monthly token usage balance
+// @route   GET /api/subscriptions/token-usage
+// @access  Private
+exports.getTokenUsage = async (req, res) => {
+  try {
+    const { getTokenHistory } = require('../services/tokenService');
+    const data = await getTokenHistory(req.user.id);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get user's monthly token usage history logs
+// @route   GET /api/subscriptions/token-records
+// @access  Private
+exports.getTokenRecords = async (req, res) => {
+  try {
+    const { getTokenHistory } = require('../services/tokenService');
+    const month = req.query.month || null;
+    const data = await getTokenHistory(req.user.id, month);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+

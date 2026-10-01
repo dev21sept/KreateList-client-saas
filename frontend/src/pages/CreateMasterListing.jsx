@@ -84,6 +84,24 @@ const PLATFORMS_CONFIG = [
   { id: 'amazon', name: 'Amazon', logo: '/amazon.png' }
 ];
 
+const WHO_MADE_OPTIONS = [
+  { id: 'i_did', label: 'I did (Handmade)' },
+  { id: 'collective', label: 'A member of my shop' },
+  { id: 'someone_else', label: 'Another company or person' }
+];
+
+const WHEN_MADE_OPTIONS = [
+  { id: '2020_2026', label: '2020 - 2026 (Made to order / Recent)' },
+  { id: '2010_2019', label: '2010 - 2019' },
+  { id: '2000_2009', label: '2000 - 2009' },
+  { id: 'before_2000', label: 'Before 2000 (Vintage 20+ years)' }
+];
+
+const RENEWAL_OPTIONS = [
+  { id: 'automatic', label: 'Automatic ($0.20 every 4 months)' },
+  { id: 'manual', label: 'Manual' }
+];
+
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
   { id: 'CN', label: 'China' },
@@ -2180,16 +2198,6 @@ const CreateMasterListing = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleSaveDraft}
-            disabled={loading || publishing}
-          >
-            Save Draft
-          </Button>
-
           {/* Individual Platform Update Buttons */}
           {selectedPlatforms.map((platId) => {
             const pConfig = PLATFORMS_CONFIG.find(p => p.id === platId);
@@ -3535,7 +3543,7 @@ const CreateMasterListing = ({
                   <img src="/etsy.png" className="w-5 h-5 object-contain" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Etsy Platform Configuration</h3>
-                    <p className="text-[10px] text-slate-500">Taxonomy category, materials, tags & shipping profiles</p>
+                    <p className="text-[10px] text-slate-500">Taxonomy category, handmade details, materials, tags & shipping profiles</p>
                   </div>
                 </div>
                 <Badge variant="neutral">Etsy</Badge>
@@ -3552,7 +3560,42 @@ const CreateMasterListing = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Who made it?</label>
+                    <SearchableDropdown
+                      value={WHO_MADE_OPTIONS.find(o => o.id === formData.who_made)?.label || 'I did (Handmade)'}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, who_made: opt.id }))}
+                      options={WHO_MADE_OPTIONS}
+                      placeholder="Select who made it..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">When was it made?</label>
+                    <SearchableDropdown
+                      value={WHEN_MADE_OPTIONS.find(o => o.id === formData.when_made)?.label || '2020 - 2026 (Made to order / Recent)'}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, when_made: opt.id }))}
+                      options={WHEN_MADE_OPTIONS}
+                      placeholder="Select when made..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Type</label>
+                    <SearchableDropdown
+                      value={formData.is_supply === 'true' ? 'A supply / tool to make things' : 'A finished product'}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, is_supply: opt.id }))}
+                      options={[
+                        { id: 'false', label: 'A finished product' },
+                        { id: 'true', label: 'A supply / tool to make things' }
+                      ]}
+                      placeholder="Select product type..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Etsy Price ($)</label>
                     <input 
@@ -3566,9 +3609,19 @@ const CreateMasterListing = ({
                   </div>
 
                   <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Renewal Options</label>
+                    <SearchableDropdown
+                      value={RENEWAL_OPTIONS.find(o => o.id === formData.renewal)?.label || 'Manual'}
+                      onSelect={(opt) => setFormData(prev => ({ ...prev, renewal: opt.id }))}
+                      options={RENEWAL_OPTIONS}
+                      placeholder="Select renewal..."
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Shipping Profile</label>
                     <SearchableDropdown
-                      value={shippingProfiles.find(p => String(p.shipping_profile_id || p.id) === String(formData.shipping_profile_id))?.title || ''}
+                      value={shippingProfiles.find(p => String(p.shipping_profile_id || p.id) === String(formData.shipping_profile_id))?.title || shippingProfiles.find(p => String(p.shipping_profile_id || p.id) === String(formData.shipping_profile_id))?.name || ''}
                       options={shippingProfiles.map(p => ({ id: String(p.shipping_profile_id || p.id), label: p.title || p.name }))}
                       onSelect={(opt) => setFormData(prev => ({ ...prev, shipping_profile_id: String(opt.id) }))}
                       placeholder="Select Etsy shipping profile..."
@@ -3689,16 +3742,6 @@ const CreateMasterListing = ({
 
           {/* Action Footer */}
           <div className="pt-4 flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={handleSaveDraft}
-              disabled={loading || publishing}
-            >
-              Save Draft
-            </Button>
-
             {/* Individual Platform Update Buttons */}
             {selectedPlatforms.map((platId) => {
               const pConfig = PLATFORMS_CONFIG.find(p => p.id === platId);

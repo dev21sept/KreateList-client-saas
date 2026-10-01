@@ -401,15 +401,11 @@ exports.syncOrders = async (req, res) => {
   }
 };
 
-// @desc    Sync Inventory from eBay for Logged-In User
-// @route   POST /api/ebay/sync/inventory
-// @access  Private
-exports.syncInventory = async (req, res) => {
+// Core eBay Inventory Synchronization Function
+async function executeEbayInventorySync(userId) {
   try {
-    const userId = req.user.id || req.user._id?.toString();
     let token = await getValidToken(userId);
     if (!token) {
-      if (res) return res.status(401).json({ success: false, error: 'No valid token' });
       return { success: false, error: 'No valid token' };
     }
 
@@ -439,11 +435,9 @@ exports.syncInventory = async (req, res) => {
 
     const existingEbayProducts = await Product.find({ user: userId, source: 'ebay' });
     const productByEbayId = new Map();
-    const productBySku = new Map();
 
     existingEbayProducts.forEach(p => {
       if (p.ebayListingId) productByEbayId.set(String(p.ebayListingId), p);
-      if (p.sku) productBySku.set(String(p.sku), p);
     });
 
     const bulkOps = [];
@@ -507,7 +501,7 @@ exports.syncInventory = async (req, res) => {
             }
           }
 
-          const existingProduct = (offerInfo.listingId ? productByEbayId.get(String(offerInfo.listingId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
+          const existingProduct = offerInfo.listingId ? productByEbayId.get(String(offerInfo.listingId)) : null;
 
           if (existingProduct) {
             bulkOps.push({
@@ -575,6 +569,8 @@ exports.syncInventory = async (req, res) => {
 
     // --- STEP 2: Sync all Active Listings via Trading API (legacy, web & mobile active listings) ---
     const activeTradingIds = new Set();
+    let allTradingPagesSucceeded = true;
+    let totalExpectedEntries = 0;
     try {
       console.log(`[SYNC] Fetching active listings via Trading API for user: ${userId}`);
       let tradingPage = 1;
@@ -582,61 +578,67 @@ exports.syncInventory = async (req, res) => {
       const entriesPerPage = 100;
 
       while (tradingHasMore) {
-        const tradingData = await ebayService.getTradingListings(token, 'ActiveList', tradingPage, entriesPerPage);
+        let tradingData = null;
+        let retries = 0;
+        while (retries < 3) {
+          try {
+            tradingData = await ebayService.getTradingListings(token, 'ActiveList', tradingPage, entriesPerPage);
+            break;
+          } catch (pageErr) {
+            retries++;
+            console.warn(`[SYNC] Trading API Active Page ${tradingPage} attempt ${retries} error: ${pageErr.message}`);
+            if (retries >= 3) throw pageErr;
+            await new Promise(r => setTimeout(r, 1500 * retries));
+          }
+        }
+
         const tradingItems = tradingData?.items || [];
         const totalPages = tradingData?.totalPages || 1;
-        console.log(`[SYNC] Trading API Active Page ${tradingPage}/${totalPages}: found ${tradingItems.length} active items`);
+        totalExpectedEntries = tradingData?.totalEntries || totalExpectedEntries;
+        console.log(`[SYNC] Trading API Active Page ${tradingPage}/${totalPages}: found ${tradingItems.length} active items (Total in Store: ${totalExpectedEntries})`);
 
         for (const item of tradingItems) {
           if (item.itemId) activeTradingIds.add(String(item.itemId));
           if (isTombstone(item.sku, item.itemId, item.title)) continue;
 
-          const existingProduct = (item.itemId ? productByEbayId.get(String(item.itemId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
+          const existingProduct = item.itemId ? productByEbayId.get(String(item.itemId)) : null;
 
-          if (existingProduct) {
-            bulkOps.push({
-              updateOne: {
-                filter: { _id: existingProduct._id },
-                update: {
-                  $set: {
-                    ebayListingId: item.itemId,
-                    ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
-                    selling_price: item.price ? parseFloat(item.price) : existingProduct.selling_price,
-                    status: 'active',
-                    title: (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) ? item.title : existingProduct.title,
-                    categoryId: item.categoryId || existingProduct.categoryId,
-                    images: (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) ? item.images : existingProduct.images,
-                    updated_at: Date.now()
-                  }
-                }
-              }
-            });
-          } else {
-            bulkOps.push({
-              insertOne: {
-                document: {
+          bulkOps.push({
+            updateOne: {
+              filter: { user: userId, source: 'ebay', ebayListingId: item.itemId },
+              update: {
+                $set: {
                   user: userId,
-                  title: item.title || `eBay Item ${item.itemId}`,
-                  description: item.title || '',
-                  sku: item.sku || '',
-                  categoryId: item.categoryId || '',
-                  images: item.images || [],
-                  selling_price: item.price ? parseFloat(item.price) : 0,
-                  source: 'ebay',
-                  status: 'active',
                   ebayListingId: item.itemId,
+                  sku: item.sku || (existingProduct ? existingProduct.sku : ''),
                   ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
+                  selling_price: item.price ? parseFloat(item.price) : (existingProduct ? existingProduct.selling_price : 0),
+                  status: 'active',
+                  title: item.title || (existingProduct ? existingProduct.title : `eBay Item ${item.itemId}`),
+                  categoryId: item.categoryId || (existingProduct ? existingProduct.categoryId : ''),
+                  images: (item.images && item.images.length > 0) ? item.images : (existingProduct?.images || []),
+                  source: 'ebay',
                   updated_at: Date.now()
+                },
+                $setOnInsert: {
+                  description: item.title || '',
                 }
-              }
-            });
-          }
+              },
+              upsert: true
+            }
+          });
+          productByEbayId.set(String(item.itemId), {
+            ebayListingId: item.itemId,
+            title: item.title,
+            images: item.images,
+            sku: item.sku
+          });
           totalSynced++;
         }
 
         if (bulkOps.length >= 300) await flushBulkOps();
 
-        if (tradingPage >= totalPages || tradingItems.length < entriesPerPage) {
+        if (tradingPage >= totalPages || tradingItems.length === 0) {
           tradingHasMore = false;
         } else {
           tradingPage++;
@@ -644,6 +646,7 @@ exports.syncInventory = async (req, res) => {
       }
       await flushBulkOps();
     } catch (tradingErr) {
+      allTradingPagesSucceeded = false;
       console.warn(`[SYNC] Trading API sync notice: ${tradingErr.message}`);
     }
 
@@ -655,7 +658,13 @@ exports.syncInventory = async (req, res) => {
       const entriesPerPage = 100;
 
       while (unsoldHasMore) {
-        const unsoldData = await ebayService.getTradingListings(token, 'UnsoldList', unsoldPage, entriesPerPage);
+        let unsoldData = null;
+        try {
+          unsoldData = await ebayService.getTradingListings(token, 'UnsoldList', unsoldPage, entriesPerPage);
+        } catch (unsoldPageErr) {
+          console.warn(`[SYNC] Trading API Unsold Page ${unsoldPage} notice: ${unsoldPageErr.message}`);
+          break;
+        }
         const unsoldItems = unsoldData?.items || [];
         const totalPages = unsoldData?.totalPages || 1;
         console.log(`[SYNC] Trading API Unsold Page ${unsoldPage}/${totalPages}: found ${unsoldItems.length} inactive items`);
@@ -663,8 +672,11 @@ exports.syncInventory = async (req, res) => {
         for (const item of unsoldItems) {
           if (isTombstone(item.sku, item.itemId, item.title)) continue;
 
+          // Never mark an item inactive if it was verified active in Step 2
           const isCurrentlyActive = item.itemId && activeTradingIds.has(String(item.itemId));
-          const existingProduct = (item.itemId ? productByEbayId.get(String(item.itemId)) : null) || (item.sku ? productBySku.get(String(item.sku)) : null);
+          if (isCurrentlyActive) continue;
+
+          const existingProduct = item.itemId ? productByEbayId.get(String(item.itemId)) : null;
 
           if (existingProduct) {
             bulkOps.push({
@@ -672,32 +684,13 @@ exports.syncInventory = async (req, res) => {
                 filter: { _id: existingProduct._id },
                 update: {
                   $set: {
-                    status: isCurrentlyActive ? 'active' : 'inactive',
+                    status: 'inactive',
                     selling_price: (item.price && !existingProduct.selling_price) ? parseFloat(item.price) : existingProduct.selling_price,
-                    title: (item.title && (!existingProduct.title || existingProduct.title.startsWith('eBay Item '))) ? item.title : existingProduct.title,
+                    title: item.title || existingProduct.title,
                     categoryId: item.categoryId || existingProduct.categoryId,
-                    images: (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) ? item.images : existingProduct.images,
+                    images: (item.images && item.images.length > 0) ? item.images : existingProduct.images,
                     updated_at: Date.now()
                   }
-                }
-              }
-            });
-          } else {
-            bulkOps.push({
-              insertOne: {
-                document: {
-                  user: userId,
-                  title: item.title || `eBay Item ${item.itemId}`,
-                  description: item.title || '',
-                  sku: item.sku || '',
-                  categoryId: item.categoryId || '',
-                  images: item.images || [],
-                  selling_price: item.price ? parseFloat(item.price) : 0,
-                  source: 'ebay',
-                  status: isCurrentlyActive ? 'active' : 'inactive',
-                  ebayListingId: item.itemId,
-                  ebayUrl: item.viewUrl || `https://www.ebay.com/itm/${item.itemId}`,
-                  updated_at: Date.now()
                 }
               }
             });
@@ -719,8 +712,8 @@ exports.syncInventory = async (req, res) => {
     }
 
     // --- STEP 4: Active Listings Integrity Check ---
-    // If active trading sync succeeded, ensure any eBay product in DB not in activeTradingIds is set to 'inactive'
-    if (activeTradingIds.size > 0) {
+    // Only execute if active trading sync completed 100% of pages without error and matches expected count
+    if (allTradingPagesSucceeded && activeTradingIds.size > 0 && (totalExpectedEntries === 0 || activeTradingIds.size >= (totalExpectedEntries - 10))) {
       await Product.updateMany(
         {
           user: userId,
@@ -732,28 +725,64 @@ exports.syncInventory = async (req, res) => {
       );
     }
 
-    console.log(`--- SYNC COMPLETE: ${totalSynced} items processed ---`);
-    if (res) {
-      return res.status(200).json({ success: true, count: totalSynced, activeCount: activeTradingIds.size });
-    }
+    console.log(`--- SYNC COMPLETE: ${totalSynced} items processed, ${activeTradingIds.size} active confirmed ---`);
     return { success: true, count: totalSynced, activeCount: activeTradingIds.size };
   } catch (error) {
     console.error('Sync Inventory Error:', error.message);
-    if (res) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
     throw error;
+  }
+}
+
+// @desc    Sync Inventory from eBay for Logged-In User
+// @route   POST /api/ebay/sync/inventory
+// @access  Private
+exports.syncInventory = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id?.toString();
+    if (!userId) {
+      if (res) return res.status(401).json({ success: false, message: 'User not authenticated' });
+      return { success: false, message: 'User not authenticated' };
+    }
+
+    const token = await getValidToken(userId);
+    if (!token) {
+      if (res) return res.status(401).json({ success: false, message: 'No valid eBay connection or token found' });
+      return { success: false, message: 'No valid eBay connection or token found' };
+    }
+
+    // If invoked via HTTP from frontend, respond immediately to prevent browser timeout
+    if (res && typeof res.status === 'function') {
+      res.status(200).json({
+        success: true,
+        message: 'eBay inventory sync is running in the background. Listings are updating automatically.'
+      });
+
+      setImmediate(async () => {
+        try {
+          console.log(`[eBay Background Sync] Starting sync for user ${userId}...`);
+          await executeEbayInventorySync(userId);
+          console.log(`[eBay Background Sync] Sync finished for user ${userId}.`);
+        } catch (bgErr) {
+          console.error(`[eBay Background Sync] Error:`, bgErr.message);
+        }
+      });
+      return;
+    }
+
+    // If called internally by cron
+    return await executeEbayInventorySync(userId);
+  } catch (err) {
+    console.error('[eBay syncInventory] Error:', err.message);
+    if (res) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    return { success: false, error: err.message };
   }
 };
 
 // Explicit Sync Trigger Endpoint
 exports.triggerSync = async (req, res) => {
-  try {
-    const result = await exports.syncInventory(req);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  return exports.syncInventory(req, res);
 };
 
 // @desc    Get eBay Policies for Logged-In User

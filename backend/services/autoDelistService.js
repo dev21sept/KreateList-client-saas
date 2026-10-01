@@ -30,6 +30,11 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
     delistActions: {}
   };
 
+  // Skip historical orders older than September 2026
+  if (orderDate && new Date(orderDate) < new Date('2026-09-01T00:00:00.000Z')) {
+    return results;
+  }
+
   try {
     const user = await User.findById(userId);
     if (!user) {
@@ -45,6 +50,24 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       title,
       platform: normPlatform
     });
+
+    // Active store products guard
+    if (masterListing) {
+      const activeProd = await Product.findOne({
+        user: userId,
+        status: { $in: ['active', 'live', 'published'] },
+        $or: [
+          ...(masterListing.ebayListingId ? [{ ebayListingId: masterListing.ebayListingId }] : []),
+          ...(masterListing.poshmarkListingId ? [{ poshmarkListingId: masterListing.poshmarkListingId }] : []),
+          ...(masterListing.mercariListingId ? [{ mercariListingId: masterListing.mercariListingId }] : [])
+        ]
+      }).lean();
+
+      // If master listing's products are currently active in store and order is older than master listing creation, skip
+      if (activeProd && orderDate && masterListing.createdAt && new Date(orderDate) < new Date(masterListing.createdAt)) {
+        return results;
+      }
+    }
 
     if (masterListing) {
       results.foundListing = true;

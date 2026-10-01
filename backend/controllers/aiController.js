@@ -7,6 +7,7 @@ const { normalizeProductImages } = require('../utils/imageProcessor');
 const { logActivity } = require('../utils/activityUtils');
 const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
 const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
+const tokenService = require('../services/tokenService');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
@@ -120,7 +121,7 @@ exports.analyzeListing = async (req, res) => {
             });
         }
 
-        // Check user subscription usage limits
+        // Check user subscription and monthly token quota
         const User = require('../models/User');
         const user = await User.findById(req.user.id);
         if (!user) {
@@ -134,40 +135,22 @@ exports.analyzeListing = async (req, res) => {
             return res.status(403).json({ error: "Your subscription plan is inactive. Please activate your subscription." });
         }
 
-        // Limit mappings
-        const limits = {
-            free: 10,
-            basic: 50,
-            pro: 500,
-            enterprise: 99999
-        };
-        const limit = limits[plan] || 10;
-
-        // Count listings created in the current month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const currentUsage = await Listing.countDocuments({
-            user: req.user.id,
-            source: { $ne: 'channel_import' },
-            createdAt: { $gte: startOfMonth }
-        });
-
-        if (currentUsage >= limit) {
+        // Check monthly token quota
+        const tokenState = await tokenService.checkMonthlyTokenRenewal(user);
+        if (plan !== 'enterprise' && tokenState.remaining <= 0) {
             const { sendUsageWarningEmail } = require('../services/emailService');
-            sendUsageWarningEmail(user.email, plan, currentUsage, limit, 'ai_fetch', user.firstName).catch(console.error);
+            sendUsageWarningEmail(user.email, plan, tokenState.used, tokenState.total, 'ai_fetch', user.firstName).catch(console.error);
 
             return res.status(403).json({ 
-                error: `Usage limit exceeded. You have used all ${limit} listings available in your ${plan.toUpperCase()} plan. Please upgrade to continue.`
+                error: `Monthly AI token limit reached (${tokenState.used}/${tokenState.total} used). Your monthly AI tokens will renew on your next billing cycle, or upgrade your plan for higher limits.`
             });
         }
 
-        // Warning at 80% usage threshold
-        const warningThreshold = Math.floor(limit * 0.8);
-        if (currentUsage === warningThreshold) {
+        // Send warning email at 80% quota usage threshold
+        const warningThreshold = Math.floor(tokenState.total * 0.8);
+        if (tokenState.used === warningThreshold) {
             const { sendUsageWarningEmail } = require('../services/emailService');
-            sendUsageWarningEmail(user.email, plan, currentUsage + 1, limit, 'ai_fetch', user.firstName).catch(console.error);
+            sendUsageWarningEmail(user.email, plan, tokenState.used + 1, tokenState.total, 'ai_fetch', user.firstName).catch(console.error);
         }
 
         console.log(`[AI] Analyzing product. description_prompt: "${description_prompt}", title_sequence: [${title_sequence.join(', ')}]`);
@@ -659,6 +642,23 @@ Response ONLY as JSON: {
         }
         const templatedDescription = wrapInTemplate(finalData.description, finalTitle);
 
+        // Deduct 1 Monthly AI Token & log audit record
+        let tokenDeductInfo = null;
+        if (req.user && req.user.id) {
+            try {
+                tokenDeductInfo = await tokenService.deductTokens(req.user.id, {
+                    action: 'ai_fetch',
+                    feature: 'AI Product Analysis & Title Generation',
+                    itemTitle: finalTitle,
+                    sku: finalData.sku || skuCode || '',
+                    platform: platform || 'universal',
+                    count: 1
+                });
+            } catch (tokErr) {
+                console.error('[AI] Token deduction error:', tokErr.message);
+            }
+        }
+
         if (req.user) {
             await logActivity({
                 action: 'ai_fetch',
@@ -672,6 +672,7 @@ Response ONLY as JSON: {
 
         return res.json({
             success: true,
+            tokenBalance: tokenDeductInfo,
             data: {
                 ...finalData,
                 title: finalTitle,

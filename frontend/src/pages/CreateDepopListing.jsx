@@ -1635,15 +1635,6 @@ const CreateDepopListing = ({ isModal = false, editId: propEditId = null, initia
             </Button>
             <Button
               type="button"
-              variant="outline"
-              onClick={() => handleSaveListing(null)}
-              loading={loading}
-              disabled={loading || isConvertingImages || !allImagesLoaded}
-            >
-              Save Draft
-            </Button>
-            <Button
-              type="button"
               variant="primary"
               className="bg-emerald-600! hover:bg-emerald-700! shadow-emerald-500/20!"
               onClick={() => handleSaveListing('direct')}

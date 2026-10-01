@@ -248,35 +248,30 @@ exports.syncEtsyInventory = async (req, res) => {
         updated_at: Date.now()
       };
 
-      // Dedupe by the Etsy listing ID first (unique per marketplace listing), then SKU.
-      let existingProduct = await Product.findOne({ etsyListingId: listingId, user: userId, source: 'etsy' });
-      if (!existingProduct && sku) {
-        existingProduct = await Product.findOne({ sku, user: userId, source: 'etsy' });
-      }
-
-      if (existingProduct) {
-        existingProduct.etsyListingId = listingId;
-        existingProduct.etsyUrl = product.etsyUrl;
-        if (product.selling_price !== undefined) existingProduct.selling_price = product.selling_price;
-        
-        // Only update updated_at if status changed to preserve listing age
-        if (existingProduct.status !== product.status) {
-          existingProduct.status = product.status;
-          existingProduct.updated_at = Date.now();
-        }
-        
-        if (sku) existingProduct.sku = sku;
-        if (item.title) existingProduct.title = titleDecoded;
-        if (item.description) existingProduct.description = descDecoded;
-        existingProduct.brand = brandVal;
-        existingProduct.size = sizeVal;
-        existingProduct.color = colorVal;
-        existingProduct.categoryId = categoryIdVal;
-        if (images.length > 0) existingProduct.images = images;
-        await existingProduct.save();
-      } else {
-        await Product.create(product);
-      }
+      // Dedupe by the Etsy listing ID (unique per marketplace listing)
+      await Product.findOneAndUpdate(
+        { user: userId, source: 'etsy', etsyListingId: listingId },
+        {
+          $set: {
+            user: userId,
+            title: titleDecoded,
+            description: descDecoded,
+            sku: sku || (existingProduct ? existingProduct.sku : ''),
+            brand: brandVal,
+            size: sizeVal,
+            color: colorVal,
+            categoryId: categoryIdVal,
+            images: images.length > 0 ? images : (existingProduct?.images || []),
+            selling_price: product.selling_price,
+            source: 'etsy',
+            status: item.elisterStatus === 'active' ? 'active' : 'inactive',
+            etsyListingId: listingId,
+            etsyUrl: product.etsyUrl,
+            updated_at: Date.now()
+          }
+        },
+        { upsert: true, new: true }
+      );
       totalSynced++;
     }
 
@@ -313,7 +308,13 @@ exports.etsyPublish = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
         if (!listing) {
           listing = new Listing({
             user: req.user.id,

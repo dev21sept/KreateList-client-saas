@@ -670,9 +670,19 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             imgUrl = post.pictures[0].url || post.pictures[0].src || '';
           }
           
-          const imgUrls = post.pictures && Array.isArray(post.pictures)
-            ? post.pictures.map(p => p.url).filter(Boolean)
-            : (imgUrl ? [imgUrl] : []);
+          let imgUrls = [];
+          if (imgUrl) imgUrls.push(imgUrl);
+          if (post.pictures && Array.isArray(post.pictures)) {
+            post.pictures.forEach(p => {
+              const u = p.url || p.src || (typeof p === 'string' ? p : '');
+              if (u && !imgUrls.includes(u)) {
+                imgUrls.push(u);
+              }
+            });
+          }
+          if (imgUrls.length === 0 && imgUrl) {
+            imgUrls = [imgUrl];
+          }
 
           const fullUrl = post.share_url || `https://poshmark.com/listing/${post.id}`;
           const generatedSku = (post.sku && String(post.sku).trim()) ? String(post.sku).trim() : '';

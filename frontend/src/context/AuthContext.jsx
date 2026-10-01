@@ -4,18 +4,43 @@ import { authService } from '../services/api';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('elister_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    const cachedUser = localStorage.getItem('elister_user');
+    return !cachedUser;
+  });
 
   const loadUser = async () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const res = await authService.getMe();
-        setUser(res.data.data);
+        if (res.data?.data) {
+          setUser(res.data.data);
+          try {
+            localStorage.setItem('elister_user', JSON.stringify(res.data.data));
+          } catch {}
+        }
       } catch (err) {
-        localStorage.removeItem('token');
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('elister_user');
+          setUser(null);
+        }
       }
+    } else {
+      setUser(null);
+      localStorage.removeItem('elister_user');
     }
     setLoading(false);
   };
@@ -33,7 +58,12 @@ export const AuthProvider = ({ children }) => {
     const res = await authService.login({ email, password, deviceId });
     if (res.data.token) {
       localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      if (res.data.user) {
+        setUser(res.data.user);
+        try {
+          localStorage.setItem('elister_user', JSON.stringify(res.data.user));
+        } catch {}
+      }
     }
     return res.data;
   };
@@ -42,7 +72,12 @@ export const AuthProvider = ({ children }) => {
     const res = await authService.signup(userData);
     if (res.data.token) {
       localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      if (res.data.user) {
+        setUser(res.data.user);
+        try {
+          localStorage.setItem('elister_user', JSON.stringify(res.data.user));
+        } catch {}
+      }
     }
     return res.data;
   };
@@ -56,7 +91,12 @@ export const AuthProvider = ({ children }) => {
     const res = await authService.verifyOtp({ email, otp, deviceId });
     if (res.data.token) {
       localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      if (res.data.user) {
+        setUser(res.data.user);
+        try {
+          localStorage.setItem('elister_user', JSON.stringify(res.data.user));
+        } catch {}
+      }
     }
     return res.data;
   };
@@ -68,6 +108,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('elister_user');
     setUser(null);
   };
 

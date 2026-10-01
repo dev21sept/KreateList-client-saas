@@ -92,10 +92,35 @@ const Orders = () => {
   const navigate = useNavigate();
   const { toast } = useNotification();
   const reducedMotion = useReducedMotion();
-  const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const loadCachedOrders = () => {
+    try {
+      const raw = localStorage.getItem('elister_cached_orders_v5');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.data !== undefined ? parsed.data : parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedOrders = (data) => {
+    try {
+      localStorage.setItem('elister_cached_orders_v5', JSON.stringify({ data, ts: Date.now() }));
+    } catch {}
+  };
+
+  const [sales, setSales] = useState(() => {
+    const cached = loadCachedOrders();
+    return Array.isArray(cached) ? cached : [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = loadCachedOrders();
+    return !Array.isArray(cached) || cached.length === 0;
+  });
   const [syncing, setSyncing] = useState(false);
   const [relistingId, setRelistingId] = useState(null);
+  const [lastOrdersSyncTime, setLastOrdersSyncTime] = useState(() => new Date());
   const [error, setError] = useState(null);
 
   // Platform & Filter States
@@ -134,13 +159,18 @@ const Orders = () => {
   }, []);
 
   // Fetch sales/orders on component mount
-  const fetchSales = async () => {
+  const fetchSales = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent && sales.length === 0) {
+        setLoading(true);
+      }
       setError(null);
       const res = await orderService.getAll();
       if (res?.data?.success) {
-        setSales(res.data.data || []);
+        const list = res.data.data || [];
+        setSales(list);
+        saveCachedOrders(list);
+        setLastOrdersSyncTime(new Date());
       } else {
         setError('Failed to fetch sales data');
       }
@@ -153,7 +183,7 @@ const Orders = () => {
   };
 
   useEffect(() => {
-    fetchSales();
+    fetchSales(sales.length > 0);
   }, []);
 
   // Sync Sales trigger
@@ -164,6 +194,7 @@ const Orders = () => {
       const res = await orderService.sync();
       if (res?.data?.success) {
         setSales(res.data.data || []);
+        setLastOrdersSyncTime(new Date());
         if (toast) toast.success('Orders synced successfully!');
       } else {
         setError('Sync completed with warnings');
@@ -537,14 +568,21 @@ const Orders = () => {
         </div>
 
         {/* Sync Orders Action (Right) */}
-        <button
-          onClick={handleSync}
-          disabled={syncing || loading}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-2xl text-xs font-black shadow-md shadow-indigo-500/20 transition-all cursor-pointer shrink-0 w-full sm:w-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-          <span>{syncing ? 'Syncing Orders...' : 'Sync Orders'}</span>
-        </button>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 pl-1">
+            <span>Last synced: <strong className="font-semibold text-slate-600 font-mono">{lastOrdersSyncTime ? lastOrdersSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Just now'}</strong></span>
+            <span>•</span>
+            <span>Next sync: <strong className="font-semibold text-slate-600">Every 10 min</strong></span>
+          </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing || loading}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-2xl text-xs font-black shadow-md shadow-indigo-500/20 transition-all cursor-pointer shrink-0 w-full sm:w-auto"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Syncing Orders...' : 'Sync Orders'}</span>
+          </button>
+        </div>
       </div>
 
       {error && (

@@ -24,8 +24,35 @@ let inventoryCronTask = null;
  */
 async function reconcileOrdersAndMasterListings(userId) {
   try {
-    const orders = await Order.find({ user: userId });
+    const orders = await Order.find({
+      user: userId,
+      $or: [
+        { createdDate: { $gte: new Date('2026-09-01T00:00:00.000Z') } },
+        { orderDate: { $gte: new Date('2026-09-01T00:00:00.000Z') } },
+        { createdAt: { $gte: new Date('2026-09-01T00:00:00.000Z') }, createdDate: { $exists: false } }
+      ]
+    });
     const listings = await Listing.find({ user: userId });
+
+    // Active store products guard
+    const activeProducts = await Product.find({
+      user: userId,
+      status: { $in: ['active', 'live', 'published'] }
+    }).lean();
+
+    const activeEbayIds = new Set(activeProducts.map(p => p.ebayListingId).filter(Boolean));
+    const activePoshIds = new Set(activeProducts.map(p => p.poshmarkListingId).filter(Boolean));
+    const activeMercIds = new Set(activeProducts.map(p => p.mercariListingId).filter(Boolean));
+    const activeTitles = new Set(activeProducts.map(p => (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()));
+
+    const isListingLiveInStore = (l) => {
+      if (!l) return false;
+      if (l.ebayListingId && activeEbayIds.has(l.ebayListingId)) return true;
+      if (l.poshmarkListingId && activePoshIds.has(l.poshmarkListingId)) return true;
+      if (l.mercariListingId && activeMercIds.has(l.mercariListingId)) return true;
+      const norm = (l.title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      return activeTitles.has(norm);
+    };
 
     const matchedListingIds = new Set();
     let reconciledCount = 0;
@@ -56,6 +83,11 @@ async function reconcileOrdersAndMasterListings(userId) {
           });
           if (match) break;
         }
+      }
+
+      // If matched listing is currently LIVE in seller store, do NOT mark as sold
+      if (match && isListingLiveInStore(match)) {
+        continue;
       }
 
       if (match) {
@@ -210,11 +242,10 @@ async function recheckMasterListingStatuses(userId) {
       if (listing.ebayListingId) {
         const ebayProd = await Product.findOne({ user: userId, ebayListingId: listing.ebayListingId, source: 'ebay' });
         if (ebayProd) {
-          if (ebayProd.status === 'inactive' || ebayProd.status === 'sold') {
-            const targetStat = ebayProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.ebayStatus !== targetStat) {
-              listing.ebayStatus = targetStat;
-              if (listing.platformData?.ebay) listing.platformData.ebay.status = targetStat;
+          if (ebayProd.status === 'sold') {
+            if (listing.ebayStatus !== 'sold') {
+              listing.ebayStatus = 'sold';
+              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'sold';
               changed = true;
             }
           } else if ((ebayProd.status === 'active' || ebayProd.status === 'live') && listing.status !== 'sold') {
@@ -223,7 +254,16 @@ async function recheckMasterListingStatuses(userId) {
               if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
               changed = true;
             }
+          } else if (listing.status !== 'sold' && listing.ebayStatus === 'delisted' && ebayProd.status !== 'sold') {
+            // Restore false-positive delisted item
+            listing.ebayStatus = 'published';
+            if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
+            changed = true;
           }
+        } else if (listing.status !== 'sold' && listing.ebayStatus !== 'published') {
+          listing.ebayStatus = 'published';
+          if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
+          changed = true;
         }
       }
 
@@ -231,11 +271,10 @@ async function recheckMasterListingStatuses(userId) {
       if (listing.poshmarkListingId) {
         const poshProd = await Product.findOne({ user: userId, poshmarkListingId: listing.poshmarkListingId, source: 'poshmark' });
         if (poshProd) {
-          if (poshProd.status === 'inactive' || poshProd.status === 'sold') {
-            const targetStat = poshProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.poshmarkStatus !== targetStat) {
-              listing.poshmarkStatus = targetStat;
-              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = targetStat;
+          if (poshProd.status === 'sold') {
+            if (listing.poshmarkStatus !== 'sold') {
+              listing.poshmarkStatus = 'sold';
+              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'sold';
               changed = true;
             }
           } else if ((poshProd.status === 'active' || poshProd.status === 'live') && listing.status !== 'sold') {
@@ -252,11 +291,10 @@ async function recheckMasterListingStatuses(userId) {
       if (listing.mercariListingId) {
         const mercProd = await Product.findOne({ user: userId, mercariListingId: listing.mercariListingId, source: 'mercari' });
         if (mercProd) {
-          if (mercProd.status === 'inactive' || mercProd.status === 'sold') {
-            const targetStat = mercProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.mercariStatus !== targetStat) {
-              listing.mercariStatus = targetStat;
-              if (listing.platformData?.mercari) listing.platformData.mercari.status = targetStat;
+          if (mercProd.status === 'sold') {
+            if (listing.mercariStatus !== 'sold') {
+              listing.mercariStatus = 'sold';
+              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'sold';
               changed = true;
             }
           } else if ((mercProd.status === 'active' || mercProd.status === 'live') && listing.status !== 'sold') {
@@ -273,11 +311,10 @@ async function recheckMasterListingStatuses(userId) {
       if (listing.etsyListingId) {
         const etsyProd = await Product.findOne({ user: userId, etsyListingId: listing.etsyListingId, source: 'etsy' });
         if (etsyProd) {
-          if (etsyProd.status === 'inactive' || etsyProd.status === 'sold') {
-            const targetStat = etsyProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.etsyStatus !== targetStat) {
-              listing.etsyStatus = targetStat;
-              if (listing.platformData?.etsy) listing.platformData.etsy.status = targetStat;
+          if (etsyProd.status === 'sold') {
+            if (listing.etsyStatus !== 'sold') {
+              listing.etsyStatus = 'sold';
+              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'sold';
               changed = true;
             }
           } else if ((etsyProd.status === 'active' || etsyProd.status === 'live') && listing.status !== 'sold') {
@@ -578,7 +615,7 @@ async function runBackgroundInventorySyncCycle() {
       }
     }
 
-    console.log('[Background Inventory Worker] 30-min All-Platform Inventory Sync & Status Recheck completed.');
+    console.log('[Background Inventory Worker] 12-hour All-Platform Inventory Import & Sync cycle completed.');
   } catch (err) {
     console.error('[Background Inventory Worker] Fatal error during inventory sync cycle:', err.message);
   } finally {
@@ -597,7 +634,7 @@ function startBackgroundSyncWorker() {
 
   console.log('[Background Sync Worker] Initializing 24/7 automated background workers:');
   console.log(' - Sales & Auto-Delist Sync: Every 10 minutes');
-  console.log(' - All-Platform Inventory Sync & Status Recheck: Every 30 minutes');
+  console.log(' - All-Platform Closet Import & Inventory Sync: Every 12 hours (00:00 & 12:00)');
 
   // Initial sales sync after 15 seconds
   setTimeout(() => {
@@ -616,9 +653,10 @@ function startBackgroundSyncWorker() {
     runBackgroundSyncCycle().catch(e => console.error('[Background Sync Worker] Scheduled sales sync error:', e.message));
   });
 
-  // Schedule all-platform inventory sync & status recheck every 30 minutes
-  inventoryCronTask = cron.schedule('*/30 * * * *', () => {
-    runBackgroundInventorySyncCycle().catch(e => console.error('[Background Sync Worker] Scheduled 30-min inventory sync error:', e.message));
+  // Schedule all-platform closet import & inventory sync every 12 hours (00:00 and 12:00)
+  inventoryCronTask = cron.schedule('0 */12 * * *', () => {
+    console.log('[Background Inventory Worker] Triggering scheduled 12-hour full closet import & inventory sync cycle...');
+    runBackgroundInventorySyncCycle().catch(e => console.error('[Background Sync Worker] Scheduled 12-hour inventory sync error:', e.message));
   });
 }
 
@@ -634,11 +672,221 @@ function stopBackgroundSyncWorker() {
   console.log('[Background Sync Worker] All workers stopped.');
 }
 
+/**
+ * Synchronizes live marketplace inventory for a specific user across all connected channels.
+ */
+async function syncUserInventory(userId) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  const results = {
+    ebay: { status: 'skipped', count: 0 },
+    etsy: { status: 'skipped', count: 0 },
+    poshmark: { status: 'skipped', count: 0 },
+    mercari: { status: 'skipped', count: 0 }
+  };
+
+  // 1. eBay Inventory Sync
+  const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
+  if (isEbayConnected) {
+    try {
+      const ebayRes = await syncEbayInventory({ user: { id: userId } }, null);
+      results.ebay = { status: 'success', count: ebayRes?.count || 0 };
+    } catch (ebayErr) {
+      console.warn(`[Sync User Inventory] eBay inventory sync notice:`, ebayErr.message);
+      results.ebay = { status: 'failed', error: ebayErr.message };
+    }
+  }
+
+  // 2. Etsy Inventory Sync
+  if (user.etsyAccount?.connected && user.etsyAccount?.shopId) {
+    try {
+      const etsyRes = await syncEtsyInventory({ user: { id: userId } }, null);
+      results.etsy = { status: 'success', count: etsyRes?.count || 0 };
+    } catch (etsyErr) {
+      console.warn(`[Sync User Inventory] Etsy inventory sync notice:`, etsyErr.message);
+      results.etsy = { status: 'failed', error: etsyErr.message };
+    }
+  }
+
+  // 3. Poshmark Inventory Sync
+  if (user.poshmarkAccount?.connected && user.poshmarkAccount?.username) {
+    try {
+      console.log(`[Sync User Inventory] Syncing Poshmark closet for @${user.poshmarkAccount.username}...`);
+      const scraped = await scrapePoshmarkCloset(user.poshmarkAccount.username, user.poshmarkAccount);
+      if (Array.isArray(scraped) && scraped.length > 0) {
+        const activePoshIds = new Set(scraped.filter(i => i.status === 'active').map(i => i.poshmarkListingId).filter(Boolean));
+        
+        const poshOps = scraped.map(item => ({
+          updateOne: {
+            filter: { user: userId, source: 'poshmark', poshmarkListingId: item.poshmarkListingId },
+            update: {
+              $set: {
+                title: item.title,
+                description: item.description,
+                selling_price: parseFloat(item.price) || 0,
+                sku: item.sku || '',
+                images: item.images || [],
+                status: item.status === 'active' ? 'active' : 'inactive',
+                poshmarkUrl: item.poshmarkUrl,
+                updated_at: Date.now()
+              }
+            },
+            upsert: item.status === 'active'
+          }
+        }));
+
+        if (poshOps.length > 0) {
+          await Product.bulkWrite(poshOps, { ordered: false });
+        }
+
+        if (activePoshIds.size > 0) {
+          await Product.updateMany(
+            {
+              user: userId,
+              source: 'poshmark',
+              status: 'active',
+              poshmarkListingId: { $nin: Array.from(activePoshIds) }
+            },
+            { $set: { status: 'inactive', updated_at: Date.now() } }
+          );
+
+          await Listing.updateMany(
+            {
+              user: userId,
+              poshmarkListingId: { $nin: Array.from(activePoshIds) },
+              poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
+            },
+            {
+              $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+              $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+            }
+          );
+        }
+        results.poshmark = { status: 'success', count: scraped.length };
+      }
+    } catch (poshErr) {
+      console.warn(`[Sync User Inventory] Poshmark inventory sync notice:`, poshErr.message);
+      results.poshmark = { status: 'failed', error: poshErr.message };
+    }
+  }
+
+  // 4. Mercari Inventory Sync
+  if (user.mercariAccount?.connected && user.mercariAccount?.sessionCookie) {
+    try {
+      console.log(`[Sync User Inventory] Syncing Mercari closet for ${user.email}...`);
+      const scrapedMerc = await scrapeMercariCloset(user.mercariAccount?.username || 'user', user.mercariAccount);
+      if (Array.isArray(scrapedMerc) && scrapedMerc.length > 0) {
+        const activeMercIds = new Set(scrapedMerc.filter(i => i.status === 'active').map(i => i.mercariListingId).filter(Boolean));
+
+        const mercOps = scrapedMerc.map(item => ({
+          updateOne: {
+            filter: { user: userId, source: 'mercari', mercariListingId: item.mercariListingId },
+            update: {
+              $set: {
+                title: item.title,
+                selling_price: parseFloat(item.price) || 0,
+                images: item.images,
+                status: item.status === 'active' ? 'active' : 'inactive',
+                mercariUrl: item.mercariUrl,
+                updated_at: Date.now()
+              }
+            },
+            upsert: item.status === 'active'
+          }
+        }));
+
+        if (mercOps.length > 0) {
+          await Product.bulkWrite(mercOps, { ordered: false });
+        }
+
+        if (activeMercIds.size > 0) {
+          await Product.updateMany(
+            {
+              user: userId,
+              source: 'mercari',
+              status: 'active',
+              mercariListingId: { $nin: Array.from(activeMercIds) }
+            },
+            { $set: { status: 'inactive', updated_at: Date.now() } }
+          );
+
+          await Listing.updateMany(
+            {
+              user: userId,
+              mercariListingId: { $nin: Array.from(activeMercIds) },
+              mercariStatus: { $in: ['published', 'active', 'delisted'] }
+            },
+            {
+              $set: { mercariStatus: 'none', mercariListingId: null, mercariUrl: null },
+              $unset: { 'listingsMap.mercari': "", 'platformData.mercari': "" }
+            }
+          );
+        }
+        results.mercari = { status: 'success', count: scrapedMerc.length };
+      }
+    } catch (mercErr) {
+      console.warn(`[Sync User Inventory] Mercari inventory sync notice:`, mercErr.message);
+      results.mercari = { status: 'failed', error: mercErr.message };
+    }
+  }
+
+  // 5. Recheck Master Listing Platform Statuses & Reconcile Orders
+  await recheckMasterListingStatuses(userId);
+  await reconcileOrdersAndMasterListings(userId);
+
+  // 6. Record and calculate Sync Summary (New items vs Merged items)
+  try {
+    const connectedPlatforms = [];
+    if (isEbayConnected) connectedPlatforms.push('eBay');
+    if (user.poshmarkAccount?.connected) connectedPlatforms.push('Poshmark');
+    if (user.mercariAccount?.connected) connectedPlatforms.push('Mercari');
+    if (user.etsyAccount?.connected) connectedPlatforms.push('Etsy');
+
+    const totalProcessed = (results.ebay?.count || 0) + (results.poshmark?.count || 0) + (results.mercari?.count || 0) + (results.etsy?.count || 0);
+    
+    const allUserListings = await Listing.find({ user: userId, status: { $ne: 'sold' } }).lean();
+    let multiChannelCount = 0;
+    let singleChannelCount = 0;
+    allUserListings.forEach(l => {
+      let activeChannels = 0;
+      if (l.ebayListingId && (l.ebayStatus === 'published' || l.ebayStatus === 'active')) activeChannels++;
+      if (l.poshmarkListingId && (l.poshmarkStatus === 'published' || l.poshmarkStatus === 'active')) activeChannels++;
+      if (l.mercariListingId && (l.mercariStatus === 'published' || l.mercariStatus === 'active')) activeChannels++;
+      if (l.etsyListingId && (l.etsyStatus === 'published' || l.etsyStatus === 'active')) activeChannels++;
+      if (l.depopListingId && (l.depopStatus === 'published' || l.depopStatus === 'active')) activeChannels++;
+      if (activeChannels > 1) multiChannelCount++;
+      else singleChannelCount++;
+    });
+
+    const newItemsCount = totalProcessed > 0 ? Math.max(0, totalProcessed - multiChannelCount) : singleChannelCount;
+    const mergedItemsCount = Math.max(0, multiChannelCount);
+
+    user.lastSyncSummary = {
+      syncedAt: new Date(),
+      totalProcessed: totalProcessed || allUserListings.length,
+      newItemsCount: newItemsCount,
+      mergedItemsCount: mergedItemsCount,
+      platforms: connectedPlatforms,
+      shownToUser: false
+    };
+    user.markModified('lastSyncSummary');
+    await user.save();
+    console.log(`[Sync Summary] Recorded for User ${userId}: Processed=${totalProcessed || allUserListings.length}, New=${newItemsCount}, Merged=${mergedItemsCount}`);
+  } catch (sumErr) {
+    console.warn(`[Sync Summary] Failed to record sync summary:`, sumErr.message);
+  }
+
+  return results;
+}
+
 module.exports = {
   startBackgroundSyncWorker,
   stopBackgroundSyncWorker,
   runBackgroundSyncCycle,
   runBackgroundInventorySyncCycle,
+  syncUserInventory,
   recheckMasterListingStatuses,
   reconcileOrdersAndMasterListings
 };
+

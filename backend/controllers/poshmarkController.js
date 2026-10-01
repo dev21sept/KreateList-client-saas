@@ -199,18 +199,14 @@ exports.poshmarkImportCloset = async (req, res) => {
     for (const item of scrapedListings) {
       // Check for duplicate in DB for this user in Product collection
       let existingProduct = null;
-      if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'poshmark' });
-      }
-
-      if (!existingProduct) {
+      if (item.poshmarkListingId || item.poshmarkUrl) {
         const duplicateQuery = { 
           user: req.user.id, 
           source: 'poshmark',
           $or: [
-            { poshmarkListingId: item.poshmarkListingId },
-            { poshmarkUrl: item.poshmarkUrl }
-          ]
+            item.poshmarkListingId ? { poshmarkListingId: item.poshmarkListingId } : null,
+            item.poshmarkUrl ? { poshmarkUrl: item.poshmarkUrl } : null
+          ].filter(Boolean)
         };
         existingProduct = await Product.findOne(duplicateQuery);
       }
@@ -226,8 +222,11 @@ exports.poshmarkImportCloset = async (req, res) => {
         }
         if (item.brand && !existingProduct.brand) existingProduct.brand = item.brand;
         if (item.size && !existingProduct.size) existingProduct.size = item.size;
-        if (item.images && item.images.length > 0 && (!existingProduct.images || existingProduct.images.length === 0)) {
+        if (item.images && item.images.length > 0) {
           existingProduct.images = item.images;
+        }
+        if (item.thumbnail) {
+          existingProduct.thumbnail = item.thumbnail;
         }
         existingProduct.updated_at = Date.now();
         await existingProduct.save();
@@ -245,6 +244,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         brand: item.brand || '',
         size: item.size || '',
         images: item.images,
+        thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
         source: 'poshmark',
         status: resolvedStatus,
         poshmarkListingId: item.poshmarkListingId,
@@ -303,7 +303,13 @@ exports.poshmarkPublish = async (req, res) => {
       const Product = require('../models/Product');
       const prod = await Product.findById(listingId);
       if (prod && prod.user.toString() === req.user.id) {
-        listing = await Listing.findOne({ user: req.user.id, sku: prod.sku });
+        const matchOr = [{ _id: prod._id }];
+        if (prod.ebayListingId) matchOr.push({ ebayListingId: prod.ebayListingId });
+        if (prod.poshmarkListingId) matchOr.push({ poshmarkListingId: prod.poshmarkListingId });
+        if (prod.mercariListingId) matchOr.push({ mercariListingId: prod.mercariListingId });
+        if (prod.etsyListingId) matchOr.push({ etsyListingId: prod.etsyListingId });
+        if (prod.depopListingId) matchOr.push({ depopListingId: prod.depopListingId });
+        listing = await Listing.findOne({ user: req.user.id, $or: matchOr });
         if (!listing) {
           listing = new Listing({
             user: req.user.id,
@@ -518,18 +524,14 @@ exports.poshmarkGetLive = async (req, res) => {
     const savedProducts = [];
     for (const item of liveListings) {
       let existingProduct = null;
-      if (item.sku) {
-        existingProduct = await Product.findOne({ user: req.user.id, sku: item.sku, source: 'poshmark' });
-      }
-
-      if (!existingProduct) {
+      if (item.poshmarkListingId || item.poshmarkUrl) {
         const duplicateQuery = { 
           user: req.user.id, 
           source: 'poshmark',
           $or: [
-            { poshmarkListingId: item.poshmarkListingId },
-            { poshmarkUrl: item.poshmarkUrl }
-          ]
+            item.poshmarkListingId ? { poshmarkListingId: item.poshmarkListingId } : null,
+            item.poshmarkUrl ? { poshmarkUrl: item.poshmarkUrl } : null
+          ].filter(Boolean)
         };
         existingProduct = await Product.findOne(duplicateQuery);
       }

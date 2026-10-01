@@ -515,15 +515,6 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
         <div className="flex items-center gap-2.5">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSaveListing(null)}
-            disabled={loading}
-          >
-            Save Draft
-          </Button>
-          <Button
-            type="button"
             variant="primary"
             size="sm"
             onClick={() => handleSaveListing('direct')}

@@ -117,6 +117,27 @@ const DEFAULT_COMMON_ASPECTS = [
   'Model', 'Character', 'Garment Care', 'Fabric Type', 'MPN', 'UPC'
 ];
 
+const DEFAULT_ASPECT_OPTIONS = {
+  'Brand': ['Nike', 'Adidas', "Levi's", 'Jordan', 'Carhartt', 'Patagonia', 'Polo Ralph Lauren', 'The North Face', 'Under Armour', 'Tommy Bahama', 'Wrangler', 'Champion', 'Gap', 'American Eagle', 'Zara', 'H&M'],
+  'Department': ['Men', 'Women', 'Unisex Adults', 'Boys', 'Girls', 'Teens', 'Baby'],
+  'Size': ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '28', '30', '32', '34', '36', '38', '40', '42', 'One Size'],
+  'Color': ['Black', 'Blue', 'White', 'Gray', 'Grey', 'Red', 'Green', 'Brown', 'Navy', 'Beige', 'Pink', 'Multicolor', 'Orange', 'Yellow', 'Purple', 'Gold', 'Silver'],
+  'Style': ['Casual', 'Basic', 'Modern', 'Vintage', 'Athletic', 'Streetwear', 'Formal', 'Workwear', 'Classic', 'Graphic Tee', 'Cargo', 'Puffer', 'Windbreaker', 'Slim', 'Straight', 'Relaxed'],
+  'Fit': ['Regular', 'Slim', 'Relaxed', 'Classic', 'Athletic', 'Loose', 'Skinny', 'Tapered', 'Oversized'],
+  'Material': ['100% Cotton', 'Cotton Blend', 'Polyester', 'Denim', 'Leather', 'Wool', 'Silk', 'Linen', 'Nylon', 'Spandex', 'Fleece', 'Canvas', 'Rayon'],
+  'Pattern': ['Solid', 'Striped', 'Plaid', 'Floral', 'Geometric', 'Graphic', 'Check', 'Animal Print', 'Camouflage', 'Colorblock', 'Paisley', 'Tie Dye'],
+  'Season': ['Fall', 'Spring', 'Summer', 'Winter', 'All Seasons'],
+  'Type': ['T-Shirt', 'Button-Up', 'Jeans', 'Pants', 'Shorts', 'Hoodie', 'Sweater', 'Jacket', 'Coat', 'Dress', 'Skirt', 'Blazer', 'Tank', 'Polo', 'Cardigan', 'Vest'],
+  'Vintage': ['Yes', 'No'],
+  'Closure': ['Button', 'Zip', 'Pull On', 'Drawstring', 'Snap', 'Hook & Eye', 'Buckle', 'Tie'],
+  'Neckline': ['Crew Neck', 'V-Neck', 'Collared', 'Round Neck', 'Henley', 'Hooded', 'Scoop Neck', 'Mock Neck', 'Turtleneck', 'Boat Neck'],
+  'Sleeve Length': ['Short Sleeve', 'Long Sleeve', 'Sleeveless', '3/4 Sleeve'],
+  'Occasion': ['Casual', 'Travel', 'Party/Cocktail', 'Workwear', 'Formal', 'Activewear', 'Business'],
+  'Theme': ['Classic', '90s', '80s', 'Retro', 'Outdoor', 'Sports', 'Hip Hop', 'Designer', 'Preppy', 'Western', 'Rock'],
+  'Features': ['Breathable', 'Comfort', 'Lightweight', 'Pockets', 'Easy Care', 'Stretch', 'Moisture Wicking', 'Water Resistant'],
+  'Country/Region of Manufacture': COUNTRIES_LIST.map(c => c.label)
+};
+
 const mapEbayCondition = (condition) => {
   if (!condition) return '5000';
   const c = String(condition).toLowerCase();
@@ -215,7 +236,23 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
               autoFocus
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (filteredOptions.length > 0) {
+                    const firstOpt = filteredOptions[0];
+                    const optLabel = typeof firstOpt === 'object' ? (firstOpt.label || firstOpt.name || firstOpt.localizedValue || firstOpt.value || '') : String(firstOpt);
+                    onSelect(typeof firstOpt === 'object' ? firstOpt : { id: optLabel, label: optLabel, name: optLabel });
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  } else if (allowCustom && searchTerm.trim()) {
+                    onSelect({ id: searchTerm.trim(), label: searchTerm.trim(), name: searchTerm.trim() });
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }
+                }
+              }}
+              placeholder="Search or enter value..."
               className="w-full h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-medium outline-none focus:border-slate-800"
             />
           </div>
@@ -310,16 +347,22 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search eBay ca
       } finally {
         setLoading(false);
       }
-    }, 400);
+    }, 300);
 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm]);
+
+  const handleSelectCategory = (opt) => {
+    onSelect(opt);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
       <div className="relative">
         <input 
-          className="w-full px-3 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 transition-all shadow-xs"
+          className="w-full px-3 pr-16 h-11 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 transition-all shadow-xs"
           value={isOpen ? searchTerm : (value || '')}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -329,34 +372,61 @@ const CategorySearchDropdown = ({ value, onSelect, placeholder = 'Search eBay ca
             setIsOpen(true);
             setSearchTerm(value || '');
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (suggestions.length > 0) {
+                handleSelectCategory(suggestions[0]);
+              } else if (searchTerm.trim()) {
+                handleSelectCategory({ id: '', label: searchTerm.trim() });
+              }
+            }
+          }}
           placeholder={placeholder}
         />
-        <ChevronDown 
-          className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 cursor-pointer" 
-          onClick={() => {
-            setIsOpen(!isOpen);
-            if (!isOpen) setSearchTerm(value || '');
-          }}
-        />
+        <div className="absolute right-3 top-3 flex items-center gap-1.5 text-slate-400">
+          {value && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect({ id: '', label: '' });
+                setSearchTerm('');
+              }}
+              className="p-1 hover:text-slate-600 rounded"
+              title="Clear"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <ChevronDown 
+            className="w-4 h-4 cursor-pointer hover:text-slate-600" 
+            onClick={() => {
+              setIsOpen(!isOpen);
+              if (!isOpen) setSearchTerm(value || '');
+            }}
+          />
+        </div>
       </div>
 
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-60 overflow-y-auto animate-in fade-in duration-150">
           {loading && (
-            <div className="p-3 text-xs font-semibold text-slate-400 text-center">Searching eBay Categories...</div>
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center flex items-center justify-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
+              <span>Searching eBay Categories...</span>
+            </div>
           )}
           {!loading && suggestions.length === 0 && searchTerm.trim() && (
-            <div className="p-3 text-xs font-semibold text-slate-400 text-center">No categories found</div>
+            <div className="p-3 text-xs font-semibold text-slate-400 text-center">
+              No categories found. Press Enter to use "{searchTerm.trim()}"
+            </div>
           )}
           {suggestions.map((opt) => (
             <button
               key={opt.id}
               type="button"
-              onClick={() => {
-                onSelect(opt);
-                setIsOpen(false);
-                setSearchTerm('');
-              }}
+              onClick={() => handleSelectCategory(opt)}
               className="w-full text-left px-3.5 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-slate-100 text-slate-700 transition-colors"
             >
               <div className="flex flex-col gap-0.5">
@@ -946,15 +1016,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         <div className="flex items-center gap-2.5">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSaveListing(null)}
-            disabled={loading}
-          >
-            Save Draft
-          </Button>
-          <Button
-            type="button"
             variant="primary"
             size="sm"
             onClick={() => handleSaveListing('direct')}
@@ -1334,19 +1395,9 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   const currentVal = formData.selectedAspects[aspectName]?.[0] || formData.selectedAspects[aspectName] || '';
                   const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED' || false;
                   const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
-                  const vals = aspect.aspectValues || aspect.values || [];
-                  const hasValues = vals.length > 0;
-
-                  let hasDropdownError = false;
-                  if ((isRequired || isRecommended) && hasValues && currentVal) {
-                    const matchesDropdown = vals.some(v => {
-                      const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                      return valText.trim().toLowerCase() === currentVal.trim().toLowerCase();
-                    });
-                    if (!matchesDropdown) {
-                      hasDropdownError = true;
-                    }
-                  }
+                  const taxonomyVals = aspect.aspectValues || aspect.values || [];
+                  const fallbackVals = DEFAULT_ASPECT_OPTIONS[aspectName] || [];
+                  const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
 
                   return (
                     <div key={aspectName} className="space-y-1">
@@ -1354,43 +1405,34 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                         {aspectName} {isRequired && <span className="text-rose-500">*</span>}
                         {isRecommended && <span className="text-[9px] text-slate-400 font-normal ml-0.5">(Rec)</span>}
                       </label>
-                      {hasValues ? (
-                        <SearchableDropdown
-                          value={currentVal}
-                          onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
-                          options={vals.map(v => {
-                            const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                            return { id: text, label: text };
-                          })}
-                          placeholder={`Select ${aspectName}...`}
-                          error={hasDropdownError}
-                          allowCustom={true}
-                          size="sm"
-                        />
-                      ) : (
-                        <input 
-                          type="text"
-                          className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                          value={currentVal}
-                          onChange={(e) => handleAspectChange(aspectName, e.target.value)}
-                          placeholder={`Enter ${aspectName}...`}
-                        />
-                      )}
+                      <SearchableDropdown
+                        value={currentVal}
+                        onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
+                        options={vals.map(v => {
+                          const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                          return { id: text, label: text };
+                        })}
+                        placeholder={`Select or type ${aspectName}...`}
+                        allowCustom={true}
+                        size="sm"
+                      />
                     </div>
                   );
                 })
               ) : (
                 DEFAULT_COMMON_ASPECTS.map((name) => {
                   const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name] || '';
+                  const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
                   return (
                     <div key={name} className="space-y-1">
                       <label className="block text-[11px] font-bold text-slate-700">{name}</label>
-                      <input 
-                        type="text"
-                        className="w-full px-3 h-9 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                      <SearchableDropdown
                         value={val}
-                        onChange={(e) => handleAspectChange(name, e.target.value)}
-                        placeholder={`Enter ${name}...`}
+                        onSelect={(opt) => handleAspectChange(name, opt.label || opt.name || opt.id)}
+                        options={fallbackVals.map(o => ({ id: o, label: o }))}
+                        placeholder={`Select or type ${name}...`}
+                        allowCustom={true}
+                        size="sm"
                       />
                     </div>
                   );

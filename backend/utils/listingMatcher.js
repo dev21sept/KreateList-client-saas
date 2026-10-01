@@ -26,22 +26,93 @@ const COMMON_COLORS = new Set([
   'maroon', 'tan', 'cream', 'gold', 'silver'
 ]);
 
+const KNOWN_BRANDS = [
+  'peter millar', 'polo ralph lauren', 'ralph lauren', 'tommy bahama', 'eddie bauer',
+  'lululemon', 'under armour', 'the north face', 'american eagle', 'lucky brand',
+  'duluth trading', 'duluth', 'free people', 'anthropologie', 'vuori', '7 diamonds',
+  'rock revival', 'bonobos', 'carhartt', 'patagonia', 'nike', 'adidas', 'columbia',
+  'wrangler', 'levis', "levi's", 'cinch', 'ariat', 'bke', 'quince', 'halsey', 'birddogs',
+  'chubbies', 'eileen fisher', 'salvage', 'empyre', 'carbon 2 cobalt', 'prana', 'cremieux',
+  'brooks brothers', 'flint and tinder', 'mountain khakis', 'silver jeans', 'hugo boss'
+];
+
 const GENERIC_IMAGE_NAMES = new Set([
   '500_500.jpg', 'thumbnail.jpg', 'image.jpg', 'default.jpg', 'no_image.png',
   'm_image.jpg', 'placeholder.png', 'preview.jpg', 'null', 'undefined',
   'no-image.jpg', 'no-image.png', 'default.png'
 ]);
 
+function cleanUnicode(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Normalizes title string by lowercasing and removing non-alphanumeric characters
+ */
+function normalizeTitle(str) {
+  if (!str || typeof str !== 'string') return '';
+  return cleanUnicode(str)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeStr(s) {
+  if (!s || typeof s !== 'string') return '';
+  return s.trim().toLowerCase();
+}
+
 /**
  * Clean text and tokenize into meaningful words
  */
 function cleanAndTokenize(text) {
   if (!text || typeof text !== 'string') return [];
-  return text
+  return cleanUnicode(text)
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter(word => word.length > 1 && !STOP_WORDS.has(word));
+}
+
+/**
+ * Extracts meaningful tokens (words >= 2 chars) from a string
+ */
+function getTokens(str) {
+  const norm = normalizeTitle(str);
+  if (!norm) return [];
+  return norm.split(' ').filter(t => t.length >= 2);
+}
+
+/**
+ * Extract brand from text/brand field
+ */
+function extractBrand(text) {
+  if (!text) return '';
+  const norm = normalizeTitle(text);
+  for (const b of KNOWN_BRANDS) {
+    if (norm.includes(b)) return b;
+  }
+  return norm.split(' ')[0] || '';
+}
+
+/**
+ * Extract gender category from text
+ */
+function extractGender(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  if (/\b(?:womens|women|ladies|female)\b/i.test(lower)) return 'womens';
+  if (/\b(?:mens|men|male)\b/i.test(lower)) return 'mens';
+  if (/\b(?:boys|boy)\b/i.test(lower)) return 'boys';
+  if (/\b(?:girls|girl)\b/i.test(lower)) return 'girls';
+  return null;
 }
 
 /**
@@ -64,12 +135,12 @@ function extractSize(text) {
   if (!text) return null;
   const lower = String(text).toLowerCase();
   
-  // Waist x Inseam (e.g. 34x30, 32x32, 38x32)
-  const dimMatch = lower.match(/\b(\d{2})x(\d{2})\b/);
-  if (dimMatch) return dimMatch[0];
+  // Waist x Inseam (e.g. 34x30, 32x32, 38x32, 34 x 32)
+  const dimMatch = lower.match(/\b(\d{2})\s*[xX]\s*(\d{2})\b/);
+  if (dimMatch) return `${dimMatch[1]}x${dimMatch[2]}`;
 
   // Standard letter sizes
-  const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|xxxl)\b/);
+  const letterMatch = lower.match(/\b(xxs|xs|s|m|l|xl|xxl|2xl|3xl|4xl|xxxl)\b/);
   if (letterMatch) return letterMatch[1];
 
   // Number sizes
@@ -79,6 +150,26 @@ function extractSize(text) {
   return null;
 }
 
+/**
+ * Check if two extracted sizes are compatible
+ */
+function areSizesCompatible(s1, s2) {
+  if (!s1 || !s2) return true;
+  if (s1 === s2) return true;
+  if (s1.includes('x') && !s2.includes('x')) {
+    const waist = s1.split('x')[0];
+    return waist === s2;
+  }
+  if (s2.includes('x') && !s1.includes('x')) {
+    const waist = s2.split('x')[0];
+    return waist === s1;
+  }
+  return false;
+}
+
+/**
+ * Extract color pattern from text
+ */
 function extractColorPattern(text) {
   if (!text) return '';
   const lower = String(text).toLowerCase();
@@ -111,30 +202,53 @@ function levenshteinDistance(s1, s2) {
 }
 
 /**
- * Calculate Title Similarity (0.0 to 1.0)
+ * Calculate Title Similarity (0.0 to 1.0) using Token Overlap, Character Bigrams, and Prefix Matching
  */
-function calculateTitleSimilarity(title1, title2) {
-  if (!title1 || !title2) return 0;
-  
-  const raw1 = String(title1).trim().toLowerCase();
-  const raw2 = String(title2).trim().toLowerCase();
-  
-  if (raw1 === raw2) return 1.0;
+function calculateTitleSimilarity(titleA, titleB) {
+  const normA = normalizeTitle(titleA);
+  const normB = normalizeTitle(titleB);
+  if (!normA || !normB) return 0;
+  if (normA === normB) return 1.0;
 
-  const tokens1 = cleanAndTokenize(title1);
-  const tokens2 = cleanAndTokenize(title2);
+  // 1. Token similarity
+  const tokensA = normA.split(/\s+/).filter(Boolean);
+  const tokensB = normB.split(/\s+/).filter(Boolean);
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
 
-  if (tokens1.length === 0 || tokens2.length === 0) return 0;
+  let matchCount = 0;
+  for (const t of setA) {
+    if (setB.has(t)) matchCount++;
+  }
+  const tokenSim = (2 * matchCount) / (setA.size + setB.size);
 
-  const set2 = new Set(tokens2);
-  const commonTokens = tokens1.filter(t => set2.has(t));
-  const unionSet = new Set([...tokens1, ...tokens2]);
+  // 2. Character Bigram Dice Similarity
+  const getBigrams = (str) => {
+    const bigrams = new Set();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
 
-  // Jaccard similarity & Dice similarity
-  const jaccardScore = commonTokens.length / unionSet.size;
-  const diceScore = (2 * commonTokens.length) / (tokens1.length + tokens2.length);
+  const bigramsA = getBigrams(normA);
+  const bigramsB = getBigrams(normB);
+  let bigramMatch = 0;
+  for (const b of bigramsA) {
+    if (bigramsB.has(b)) bigramMatch++;
+  }
+  const bigramSim = (2 * bigramMatch) / (bigramsA.size + bigramsB.size);
 
-  return Math.min(Math.round(diceScore * 100) / 100, 1.0);
+  // 3. For truncated titles (e.g. Poshmark 50-char vs eBay 80-char)
+  let prefixSim = 0;
+  const minLen = Math.min(normA.length, normB.length);
+  if (minLen >= 25) {
+    if (normA.startsWith(normB) || normB.startsWith(normA)) {
+      prefixSim = 0.95;
+    }
+  }
+
+  return Math.max(tokenSim, bigramSim, prefixSim);
 }
 
 /**
@@ -171,7 +285,6 @@ function extractUniqueImageKey(imgUrl) {
 
   const filename = cleanUrl.split('/').pop()?.toLowerCase();
   if (!filename || filename.length < 12) return '';
-  // Ignore generic eBay / Poshmark / Mercari resolution files
   if (/^s-l\d+\.jpe?g$/i.test(filename)) return '';
   if (filename.startsWith('$_') || filename.startsWith('thumb') || filename.startsWith('preview') || filename.startsWith('placeholder')) return '';
   if (GENERIC_IMAGE_NAMES.has(filename)) return '';
@@ -197,117 +310,99 @@ function checkImageMatch(images1, images2) {
 }
 
 /**
- * Check if SKU matches
+ * Check if SKU matches with safety guard against shared non-unique SKUs
  */
-function checkSkuMatch(sku1, sku2) {
+function checkSkuMatch(sku1, sku2, itemA = null, itemB = null) {
   if (!sku1 || !sku2) return false;
   const s1 = String(sku1).trim().toLowerCase();
   const s2 = String(sku2).trim().toLowerCase();
   if (!s1 || !s2 || s1 === '-' || s2 === '-' || s1 === 'none' || s2 === 'none' || s1 === 'n/a' || s1 === 'default' || s1.length <= 3) return false;
-  return s1 === s2;
+  if (s1 !== s2) return false;
+  if (itemA && itemB) {
+    return isStrictMatch(itemA, itemB, 0.60);
+  }
+  return true;
 }
 
 /**
- * Comprehensive match check between source and target listing
- * Requires strong title similarity (>= 85%) and no size/garment conflicts
+ * Comprehensive Strict Match Check
+ * Pure Title & Attribute Matching (ZERO Price Dependency as prices can vary per platform)
+ * Enforces:
+ * 1. Gender Guard (Mens vs Womens vs Boys vs Girls)
+ * 2. Garment Guard (Jacket vs Pants vs Shirt vs Shorts)
+ * 3. Size Guard (34x32 vs 38x32, S vs L)
+ * 4. Color Pattern Guard
+ * 5. Brand Guard
+ * 6. Title Similarity >= 88% (0.88)
  */
-function isListingMatch(sourceListing, targetListing, minTitleScore = 0.85) {
-  if (!sourceListing || !targetListing) {
-    return { isMatch: false, score: 0, reason: 'Missing listing data' };
+function isStrictMatch(itemA, itemB, minTitleScore = 0.88) {
+  if (!itemA || !itemB) return false;
+
+  const titleA = itemA.title || '';
+  const titleB = itemB.title || '';
+  if (!titleA || !titleB) return false;
+
+  const normA = normalizeTitle(titleA);
+  const normB = normalizeTitle(titleB);
+  if (normA && normB && normA === normB) {
+    return true;
   }
 
-  // 1. SKU Match (High confidence)
-  if (checkSkuMatch(sourceListing.sku, targetListing.sku)) {
-    return { isMatch: true, score: 1.0, reason: 'Exact SKU match' };
+  // 2. Gender Guard
+  const genA = extractGender(titleA);
+  const genB = extractGender(titleB);
+  if (genA && genB && genA !== genB) {
+    return false;
   }
 
-  const title1 = sourceListing.title || '';
-  const title2 = targetListing.title || '';
-  if (!title1 || !title2) {
-    return { isMatch: false, score: 0, reason: 'Empty title' };
+  // 3. Garment Guard
+  const gA = extractGarmentType(titleA);
+  const gB = extractGarmentType(titleB);
+  if (gA && gB && gA !== gB) {
+    return false;
   }
 
-  const raw1 = title1.trim().toLowerCase();
-  const raw2 = title2.trim().toLowerCase();
-  if (raw1 === raw2) {
-    return { isMatch: true, score: 1.0, reason: 'Exact title match' };
+  // 4. Size Guard
+  const sA = extractSize(itemA.size || titleA);
+  const sB = extractSize(itemB.size || titleB);
+  if (sA && sB && !areSizesCompatible(sA, sB)) {
+    return false;
   }
 
-  // 2. Garment Category Conflict Check
-  const type1 = extractGarmentType(title1);
-  const type2 = extractGarmentType(title2);
-  if (type1 && type2 && type1 !== type2) {
-    const upperTypes = new Set(['jacket', 'coat', 'hoodie', 'sweater', 'sweatshirt', 'cardigan', 'vest', 'windbreaker', 'puffer', 'fleece']);
-    const lowerTypes = new Set(['jeans', 'pants', 'shorts', 'sweatpants', 'joggers', 'trousers', 'chinos', 'chino']);
-    const shirtTypes = new Set(['shirt', 'tee', 't-shirt', 'polo', 'button', 'top', 'jersey']);
-    const shoeTypes = new Set(['shoes', 'sneakers', 'boots', 'sandals', 'slides', 'loafers']);
-
-    const isUpper1 = upperTypes.has(type1);
-    const isLower1 = lowerTypes.has(type1);
-    const isShirt1 = shirtTypes.has(type1);
-    const isShoe1 = shoeTypes.has(type1);
-
-    const isUpper2 = upperTypes.has(type2);
-    const isLower2 = lowerTypes.has(type2);
-    const isShirt2 = shirtTypes.has(type2);
-    const isShoe2 = shoeTypes.has(type2);
-
-    if (
-      (isUpper1 && isLower2) || (isLower1 && isUpper2) ||
-      (isUpper1 && isShirt2) || (isShirt1 && isUpper2) ||
-      (isLower1 && isShirt2) || (isShirt1 && isLower2) ||
-      (isShoe1 && !isShoe2) || (!isShoe1 && isShoe2)
-    ) {
-      return { isMatch: false, score: 0, reason: `Garment type conflict: ${type1} vs ${type2}` };
-    }
+  // 5. Color Guard
+  const cA = extractColorPattern(itemA.color || titleA);
+  const cB = extractColorPattern(itemB.color || titleB);
+  if (cA && cB && cA !== cB) {
+    return false;
   }
 
-  // 3. Color Pattern Conflict Check
-  const color1 = extractColorPattern(sourceListing.color || title1);
-  const color2 = extractColorPattern(targetListing.color || title2);
-  if (color1 && color2 && color1 !== color2) {
-    return { isMatch: false, score: 0, reason: `Color pattern mismatch: ${color1} vs ${color2}` };
+  // 6. Brand Guard
+  const bA = extractBrand(itemA.brand || titleA);
+  const bB = extractBrand(itemB.brand || titleB);
+  if (bA && bB && bA !== bB) {
+    return false;
   }
 
-  // 4. Exact Unique Image Match
-  const sourceImages = sourceListing.images || [sourceListing.thumbnail];
-  const targetImages = targetListing.images || [targetListing.thumbnail];
-  if (checkImageMatch(sourceImages, targetImages)) {
-    return { isMatch: true, score: 1.0, reason: 'Image match' };
+  // 7. Exact Unique Image Match
+  const imagesA = itemA.images || [itemA.thumbnail];
+  const imagesB = itemB.images || [itemB.thumbnail];
+  if (checkImageMatch(imagesA, imagesB)) {
+    return true;
   }
 
-  // 5. Title Similarity Score
-  const titleScore = calculateTitleSimilarity(title1, title2);
-  if (titleScore >= minTitleScore) {
-    return { isMatch: true, score: titleScore, reason: `Title similarity (${Math.round(titleScore * 100)}%)` };
-  }
+  // 8. Title Similarity Score >= minTitleScore
+  const sim = calculateTitleSimilarity(titleA, titleB);
+  return sim >= minTitleScore;
+}
 
+function isListingMatch(sourceListing, targetListing, minTitleScore = 0.88) {
+  const isMatch = isStrictMatch(sourceListing, targetListing, minTitleScore);
+  const score = calculateTitleSimilarity(sourceListing?.title, targetListing?.title);
   return {
-    isMatch: false,
-    score: titleScore,
-    reason: `Title match is only ${Math.round(titleScore * 100)}% (Requires ${Math.round(minTitleScore * 100)}%+)`
+    isMatch,
+    score,
+    reason: isMatch ? `Matched (Title similarity: ${Math.round(score * 100)}%)` : `Mismatch (Score: ${Math.round(score * 100)}%)`
   };
-}
-
-/**
- * Normalizes title string by lowercasing and removing non-alphanumeric characters
- */
-function normalizeTitle(str) {
-  if (!str || typeof str !== 'string') return '';
-  return str
-    .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Extracts meaningful tokens (words >= 2 chars) from a string
- */
-function getTokens(str) {
-  const norm = normalizeTitle(str);
-  if (!norm) return [];
-  return norm.split(' ').filter(t => t.length >= 2);
 }
 
 /**
@@ -353,7 +448,6 @@ function findBestMatchingListing(listings, { listingId, sku, title, platform }) 
   const rawSku = String(sku || '').trim().toLowerCase();
   const cleanTitle = String(title || '').trim();
   const normTitle = normalizeTitle(cleanTitle);
-  const normPlatform = String(platform || '').toLowerCase();
 
   // 1. By Direct Platform Listing ID (Highest precision)
   if (cleanId && cleanId !== '___NONE___' && cleanId !== 'undefined' && cleanId !== 'null' && cleanId !== '-') {
@@ -383,33 +477,7 @@ function findBestMatchingListing(listings, { listingId, sku, title, platform }) 
     if (idMatch) return idMatch;
   }
 
-  // 2. By Exact Custom SKU Match (Valid SKU >= 3 chars, not placeholder)
-  const isInvalidSku = !rawSku || rawSku === '-' || rawSku === 'none' || rawSku === 'null' || rawSku === 'undefined' || rawSku === 'custom' || rawSku === 'default' || rawSku === 'sku' || rawSku.length < 3;
-  if (!isInvalidSku) {
-    const skuMatch = listings.find(l => {
-      if (!l.sku) return false;
-      const lSku = String(l.sku).trim().toLowerCase();
-      if (lSku === rawSku) return true;
-
-      // Check composite/delimited SKUs (e.g., '4329 | P-6a7...' or 'SKU-1 / SKU-2')
-      const parts = lSku.split(/[\s|,\/]+/).map(p => p.trim()).filter(Boolean);
-      if (parts.includes(rawSku)) return true;
-
-      // Check platform-specific SKUs in platformData or listingsMap
-      const ebaySku = String(l.platformData?.ebay?.sku || l.listingsMap?.ebay?.sku || '').trim().toLowerCase();
-      const poshSku = String(l.platformData?.poshmark?.sku || l.listingsMap?.poshmark?.sku || '').trim().toLowerCase();
-      const mercSku = String(l.platformData?.mercari?.sku || l.listingsMap?.mercari?.sku || '').trim().toLowerCase();
-      if (ebaySku && ebaySku === rawSku) return true;
-      if (poshSku && poshSku === rawSku) return true;
-      if (mercSku && mercSku === rawSku) return true;
-
-      return false;
-    });
-
-    if (skuMatch) return skuMatch;
-  }
-
-  // 3. By Exact Normalized Title Match
+  // 2. By Exact Normalized Title Match
   if (normTitle && normTitle.length >= 6) {
     const exactTitleMatch = listings.find(l => {
       if (!l.title) return false;
@@ -420,7 +488,11 @@ function findBestMatchingListing(listings, { listingId, sku, title, platform }) 
     if (exactTitleMatch) return exactTitleMatch;
   }
 
-  // 4. By Prefix / Substring Title Match (handles eBay 80-char truncation vs Master title)
+  // 4. By Strict Title & Attribute Match
+  const strictMatch = listings.find(l => isStrictMatch(l, { title: cleanTitle, sku: rawSku }, 0.88));
+  if (strictMatch) return strictMatch;
+
+  // 5. By Prefix / Substring Title Match (handles eBay 80-char truncation vs Master title)
   if (normTitle && normTitle.length >= 18) {
     const prefixMatch = listings.find(l => {
       if (!l.title) return false;
@@ -435,7 +507,7 @@ function findBestMatchingListing(listings, { listingId, sku, title, platform }) 
     if (prefixMatch) return prefixMatch;
   }
 
-  // 5. By High Token Overlap (>= 80% similarity with >= 4 tokens)
+  // 6. By High Token Overlap (>= 80% similarity with >= 4 tokens)
   if (normTitle && normTitle.length >= 12) {
     let bestScore = 0;
     let bestMatch = null;
@@ -456,18 +528,24 @@ function findBestMatchingListing(listings, { listingId, sku, title, platform }) 
 }
 
 module.exports = {
+  cleanUnicode,
+  normalizeTitle,
+  normalizeStr,
   cleanAndTokenize,
+  getTokens,
+  extractBrand,
+  extractGender,
   extractGarmentType,
   extractSize,
+  areSizesCompatible,
   extractColorPattern,
   levenshteinDistance,
   calculateTitleSimilarity,
   extractUniqueImageKey,
   checkImageMatch,
   checkSkuMatch,
+  isStrictMatch,
   isListingMatch,
-  normalizeTitle,
-  getTokens,
   calculateTokenSimilarity,
   findBestMatchingListing
 };

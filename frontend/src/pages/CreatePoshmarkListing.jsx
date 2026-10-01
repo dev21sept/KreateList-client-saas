@@ -781,26 +781,32 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
       if (initialListing) {
         const pData = initialListing.platformData?.poshmark || (initialListing.platform === 'poshmark' ? initialListing : {});
         const resolvedCat = resolvePoshmarkCategory(
-          pData.category || (initialListing.platform === 'poshmark' ? initialListing.category : ''),
+          pData.category || (initialListing.platform === 'poshmark' ? initialListing.category : '') || initialListing.category || '',
           pData.title || initialListing.title,
-          pData.brand || initialListing.brand
+          pData.brand || initialListing.brand || initialListing.itemSpecifics?.Brand || ''
         );
+        const rawBrand = pData.brand || initialListing.brand || initialListing.itemSpecifics?.Brand || initialListing.itemSpecifics?.['Brand'] || '';
+        const rawSize = pData.size || initialListing.size || initialListing.itemSpecifics?.Size || initialListing.itemSpecifics?.['Size'] || initialListing.itemSpecifics?.['Size (Men\'s)'] || initialListing.itemSpecifics?.['Size (Women\'s)'] || '';
+        const rawColors = Array.isArray(pData.colors) && pData.colors.length > 0
+          ? pData.colors
+          : (pData.color ? [pData.color] : (Array.isArray(initialListing.colors) && initialListing.colors.length > 0 ? initialListing.colors : (initialListing.color ? [initialListing.color] : (initialListing.itemSpecifics?.Color ? [initialListing.itemSpecifics.Color] : []))));
+
         setFormData(prev => ({
           ...prev,
           images: initialListing.images || [],
           title: pData.title || initialListing.title || '',
-          price: pData.price !== undefined ? pData.price : (initialListing.price || ''),
+          price: (pData.price !== undefined && pData.price !== '') ? pData.price : (initialListing.price !== undefined ? initialListing.price : (initialListing.selling_price || '')),
           originalPrice: pData.originalPrice || initialListing.originalPrice || '',
           description: pData.description || initialListing.description || '',
-          category: resolvedCat.path || '',
+          category: resolvedCat.path || initialListing.category || '',
           subcategory: pData.subcategory || '',
-          department: pData.department || resolvedCat.department || 'Women',
-          brand: pData.brand || initialListing.brand || '',
-          size: pData.size || initialListing.size || '',
-          colors: Array.isArray(pData.colors) ? pData.colors : (pData.color ? [pData.color] : []),
+          department: pData.department || resolvedCat.department || initialListing.department || initialListing.itemSpecifics?.Department || 'Women',
+          brand: rawBrand,
+          size: rawSize,
+          colors: rawColors,
           styleTags: Array.isArray(pData.styleTags) ? pData.styleTags : (pData.styleTag ? [pData.styleTag] : []),
           shippingDiscount: pData.shippingDiscount || '',
-          selectedCondition: pData.selectedCondition || pData.condition || 'Good',
+          selectedCondition: pData.selectedCondition || pData.condition || initialListing.condition || 'Good',
           sku: pData.sku || initialListing.sku || ''
         }));
       }
@@ -813,26 +819,42 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           if (res.data?.success && res.data?.data) {
             const raw = res.data.data;
             const pData = raw.platformData?.poshmark || (raw.platform === 'poshmark' ? raw : {});
+            const rawBrand = pData.brand || raw.brand || raw.itemSpecifics?.Brand || raw.itemSpecifics?.['Brand'] || '';
+            const rawSize = pData.size || raw.size || raw.itemSpecifics?.Size || raw.itemSpecifics?.['Size'] || raw.itemSpecifics?.['Size (Men\'s)'] || raw.itemSpecifics?.['Size (Women\'s)'] || '';
+
             const resolvedCat = resolvePoshmarkCategory(
-              pData.category || (raw.platform === 'poshmark' ? raw.category : '') || prev.category,
-              pData.title || raw.title,
-              pData.brand || raw.brand
+              pData.category || (raw.platform === 'poshmark' ? raw.category : '') || raw.category || raw.category_name || '',
+              pData.title || raw.title || '',
+              rawBrand
             );
+            
+            const rawImages = (pData.images && pData.images.length > 0)
+              ? pData.images
+              : ((raw.images && raw.images.length > 0) ? raw.images : (pData.thumbnail ? [pData.thumbnail] : (raw.thumbnail ? [raw.thumbnail] : [])));
+
+            const rawColors = Array.isArray(pData.colors) && pData.colors.length > 0
+              ? pData.colors
+              : (pData.color ? [pData.color] : (Array.isArray(raw.colors) && raw.colors.length > 0 ? raw.colors : (raw.color ? [raw.color] : (raw.itemSpecifics?.Color ? [raw.itemSpecifics.Color] : []))));
+
+            const rawStyleTags = Array.isArray(pData.styleTags) && pData.styleTags.length > 0
+              ? pData.styleTags
+              : (pData.styleTag ? [pData.styleTag] : (Array.isArray(raw.styleTags) && raw.styleTags.length > 0 ? raw.styleTags : (raw.styleTag ? [raw.styleTag] : [])));
+
             setFormData(prev => ({
               ...prev,
-              images: (raw.images && raw.images.length > 0) ? raw.images : (pData.images || []),
+              images: rawImages.length > 0 ? rawImages : prev.images,
               title: pData.title || raw.title || prev.title,
-              price: pData.price !== undefined ? pData.price : (raw.price || prev.price),
-              originalPrice: pData.originalPrice || raw.originalPrice || prev.originalPrice,
+              price: (pData.price !== undefined && pData.price !== '') ? pData.price : (raw.price !== undefined && raw.price !== '' ? raw.price : (raw.selling_price !== undefined ? raw.selling_price : prev.price)),
+              originalPrice: (pData.originalPrice !== undefined && pData.originalPrice !== '') ? pData.originalPrice : (raw.originalPrice !== undefined ? raw.originalPrice : prev.originalPrice),
               description: pData.description || raw.description || prev.description,
-              category: resolvedCat.path || prev.category,
-              subcategory: pData.subcategory || prev.subcategory,
-              department: pData.department || resolvedCat.department || prev.department,
-              brand: pData.brand || raw.brand || prev.brand,
-              size: pData.size || raw.size || prev.size,
-              colors: Array.isArray(pData.colors) ? pData.colors : (pData.color ? [pData.color] : prev.colors),
-              styleTags: Array.isArray(pData.styleTags) ? pData.styleTags : (pData.styleTag ? [pData.styleTag] : prev.styleTags),
-              shippingDiscount: pData.shippingDiscount || prev.shippingDiscount,
+              category: resolvedCat.path || raw.category || raw.category_name || prev.category,
+              subcategory: pData.subcategory || raw.subcategory || prev.subcategory,
+              department: pData.department || resolvedCat.department || raw.department || raw.itemSpecifics?.Department || prev.department,
+              brand: rawBrand || prev.brand,
+              size: rawSize || prev.size,
+              colors: rawColors.length > 0 ? rawColors : prev.colors,
+              styleTags: rawStyleTags.length > 0 ? rawStyleTags : prev.styleTags,
+              shippingDiscount: pData.shippingDiscount || raw.shippingDiscount || prev.shippingDiscount,
               selectedCondition: pData.selectedCondition || pData.condition || raw.condition || prev.selectedCondition,
               sku: pData.sku || raw.sku || prev.sku
             }));
@@ -1053,15 +1075,6 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSaveListing(null)}
-            disabled={loading}
-          >
-            Save Draft
-          </Button>
           <Button
             type="button"
             variant="primary"
