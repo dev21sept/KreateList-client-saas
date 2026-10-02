@@ -60,6 +60,7 @@ import {
   cleanHtmlDescription
 } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import PriceRecommendationCard from '../components/pricing/PriceRecommendationCard';
 
 const POPULAR_BRANDS = [
   { id: 4578, name: "Nike" },
@@ -2484,7 +2485,26 @@ const CreateMasterListing = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Master Price ($) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">Master Price ($) *</label>
+                  <PriceRecommendationCard
+                    compact={true}
+                    itemData={{
+                      title: formData.title,
+                      brand: formData.brand,
+                      model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
+                      upc: formData.ebayAspects?.['UPC']?.[0],
+                      condition: formData.selectedCondition || 'Used',
+                      category: formData.ebayCategory
+                    }}
+                    currentPrice={formData.price}
+                    onApplyPrice={(newPrice) => setFormData(prev => ({ 
+                      ...prev, 
+                      price: newPrice,
+                      ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
+                    }))}
+                  />
+                </div>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
                   <input 
@@ -2597,6 +2617,24 @@ const CreateMasterListing = ({
                     />
                   </div>
                 </div>
+
+                {/* Live eBay Pricing Engine Insights Card */}
+                <PriceRecommendationCard
+                  itemData={{
+                    title: formData.title,
+                    brand: formData.brand || formData.ebayAspects?.['Brand']?.[0],
+                    model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
+                    upc: formData.ebayAspects?.['UPC']?.[0],
+                    condition: formData.ebayCondition || formData.selectedCondition || 'Used',
+                    category: formData.ebayCategory
+                  }}
+                  currentPrice={formData.ebayPrice || formData.price}
+                  onApplyPrice={(newPrice) => setFormData(prev => ({ 
+                    ...prev, 
+                    ebayPrice: newPrice,
+                    price: prev.price ? prev.price : newPrice
+                  }))}
+                />
 
                 {/* eBay Condition & Condition Note */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
