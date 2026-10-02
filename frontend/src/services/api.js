@@ -189,4 +189,12 @@ export const orderService = {
   relist: (id) => API.post(`/orders/${id}/relist`),
 };
 
+export const pricingService = {
+  getRecommendation: (data) => API.post('/v1/pricing/recommendations', data),
+  createBatch: (data) => API.post('/v1/pricing/batch', data),
+  getBatchStatus: (jobId) => API.get(`/v1/pricing/batch/${jobId}`),
+  submitFeedback: (data) => API.post('/v1/pricing/feedback', data),
+  getSourcesStatus: () => API.get('/v1/pricing/sources/status'),
+};
+
 export default API;

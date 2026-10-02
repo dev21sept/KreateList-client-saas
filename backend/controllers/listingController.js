@@ -3420,17 +3420,16 @@ exports.getActiveChannelImportPreview = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 1. Fetch all active items across channels for this user
-    const [ebayProds, poshProds, mercariProds, etsyProds, depopProds, amazonProds] = await Promise.all([
+    // 1. Fetch all active items across channels for this user (excluding disabled Depop)
+    const [ebayProds, poshProds, mercariProds, etsyProds, amazonProds] = await Promise.all([
       Product.find({ user: userId, $or: [{ source: 'ebay' }, { platform: 'ebay' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
       Product.find({ user: userId, $or: [{ source: 'poshmark' }, { platform: 'poshmark' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
       Product.find({ user: userId, $or: [{ source: 'mercari' }, { platform: 'mercari' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
       Product.find({ user: userId, $or: [{ source: 'etsy' }, { platform: 'etsy' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
-      Product.find({ user: userId, $or: [{ source: 'depop' }, { platform: 'depop' }], status: { $in: ['active', 'live', 'published'] } }).lean(),
       Product.find({ user: userId, $or: [{ source: 'amazon' }, { platform: 'amazon' }], status: { $in: ['active', 'live', 'published'] } }).lean()
     ]);
 
-    const activeProducts = [...ebayProds, ...poshProds, ...mercariProds, ...etsyProds, ...depopProds, ...amazonProds];
+    const activeProducts = [...ebayProds, ...poshProds, ...mercariProds, ...etsyProds, ...amazonProds];
 
     // 2. Fetch existing listings to detect items already present in local database
     const existingListings = await Listing.find({ user: userId });
@@ -3697,7 +3696,6 @@ exports.getActiveChannelImportPreview = async (req, res) => {
       { name: 'poshmark', list: poshProds },
       { name: 'mercari', list: mercariProds },
       { name: 'etsy', list: etsyProds },
-      { name: 'depop', list: depopProds },
       { name: 'amazon', list: amazonProds }
     ];
 
@@ -3744,7 +3742,6 @@ exports.getActiveChannelImportPreview = async (req, res) => {
               poshmark: null,
               mercari: null,
               etsy: null,
-              depop: null,
               amazon: null
             },
             channelCount: 1,
@@ -3759,7 +3756,7 @@ exports.getActiveChannelImportPreview = async (req, res) => {
     }
 
     // 3. Mark groups already in local database using fast index
-    const ALL_SUPPORTED_PLATFORMS = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop', 'amazon'];
+    const ALL_SUPPORTED_PLATFORMS = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
     const localPlatformMap = new Map();
     const localTokenMap = new Map();
 
@@ -3888,7 +3885,6 @@ exports.getActiveChannelImportPreview = async (req, res) => {
       poshmark: poshProds.length,
       mercari: mercariProds.length,
       etsy: etsyProds.length,
-      depop: depopProds.length,
       amazon: amazonProds.length
     };
 
@@ -5075,7 +5071,7 @@ exports.cleanGhostChannels = async (req, res) => {
             const ebayBulkOps = [];
 
             while (hasMore && page <= 25) {
-              const tradingData = await ebayService.getTradingListings(token, 'ActiveList', page, 100);
+              const tradingData = await ebayService.getTradingListings(token, 'ActiveList', page, 200);
               const items = tradingData?.items || [];
               const totalPages = tradingData?.totalPages || 1;
 

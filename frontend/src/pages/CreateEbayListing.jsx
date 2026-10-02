@@ -42,6 +42,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import PriceRecommendationCard from '../components/pricing/PriceRecommendationCard';
 
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
@@ -1494,25 +1495,19 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               />
             </div>
 
-            {/* Sold Listings Insights Card */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                  <TrendingUp size={14} className="text-emerald-600" /> Sold listings in the last 90 days
-                </div>
-                <p className="text-[11px] text-slate-500">Based on similar items sold on eBay recently</p>
-              </div>
-              <div className="flex items-center gap-4 text-right">
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">Recommended price</span>
-                  <span className="text-xs font-extrabold text-slate-900">${formData.price || '35.99'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">Free shipping</span>
-                  <span className="text-xs font-extrabold text-emerald-600">86%</span>
-                </div>
-              </div>
-            </div>
+            {/* Live eBay Pricing Engine Insights Card */}
+            <PriceRecommendationCard
+              itemData={{
+                title: formData.title,
+                brand: formData.brand || formData.selectedAspects['Brand']?.[0],
+                model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
+                upc: formData.selectedAspects['UPC']?.[0],
+                condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
+                category: formData.category
+              }}
+              currentPrice={formData.price}
+              onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}
+            />
 
             {/* Allow Offers (Best Offer) Toggle */}
             <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">

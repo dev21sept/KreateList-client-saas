@@ -74,6 +74,8 @@ app.use('/api/mercari', require('./routes/mercariRoutes'));
 app.use('/api/amazon', require('./routes/amazonRoutes'));
 // Sales Orders Routes
 app.use('/api/orders', require('./routes/orderRoutes'));
+// Pricing Engine Routes
+app.use('/api/v1/pricing', require('./routes/pricingRoutes'));
 
 
 // Error Handler

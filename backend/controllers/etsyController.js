@@ -248,6 +248,9 @@ exports.syncEtsyInventory = async (req, res) => {
         updated_at: Date.now()
       };
 
+      // Check if product already exists to preserve existing images or SKU
+      const existingProduct = await Product.findOne({ user: userId, source: 'etsy', etsyListingId: listingId }).lean();
+
       // Dedupe by the Etsy listing ID (unique per marketplace listing)
       await Product.findOneAndUpdate(
         { user: userId, source: 'etsy', etsyListingId: listingId },

@@ -736,7 +736,7 @@ async function updateShippingFulfillment(token, orderId, trackingData) {
  * Gets inventory items for the authenticated user
  * Supports pagination via limit and offset
  */
-async function getInventoryItems(token, limit = 100, offset = 0) {
+async function getInventoryItems(token, limit = 200, offset = 0) {
     try {
         const response = await axios.get(`${API_BASE_URL}/sell/inventory/v1/inventory_item?limit=${limit}&offset=${offset}`, {
             headers: {
@@ -822,7 +822,7 @@ async function getCategoryConditions(token, categoryId) {
  * Gets Listings from eBay Trading API (GetMyeBaySelling)
  * Supports ActiveList and UnsoldList (ended / inactive) with pagination
  */
-async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1, entriesPerPage = 100) {
+async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1, entriesPerPage = 200) {
     const xml = `<?xml version="1.0" encoding="utf-8"?>
 <GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
   <RequesterCredentials>
@@ -907,7 +907,7 @@ async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1
     }
 }
 
-async function getTradingActiveListings(token, pageNumber = 1, entriesPerPage = 100) {
+async function getTradingActiveListings(token, pageNumber = 1, entriesPerPage = 200) {
     return getTradingListings(token, 'ActiveList', pageNumber, entriesPerPage);
 }
 
@@ -1140,5 +1140,6 @@ module.exports = {
     getCategoryConditions,
     updateShippingFulfillment,
     getUserProfile,
-    getLocations
+    getLocations,
+    getAppToken
 };

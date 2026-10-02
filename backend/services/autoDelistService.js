@@ -316,15 +316,38 @@ async function handleItemSold({ userId, soldPlatform, sku, listingId, title, ord
       }
     }
 
-    // 3. Mark Channel Inventory (Product model cache) as inactive across all channels
-    const resolvedSku = sku || masterListing?.sku;
-    if (resolvedSku) {
-      const updateResult = await Product.updateMany(
-        { user: userId, sku: resolvedSku, status: { $ne: 'inactive' } },
-        { status: 'inactive', updated_at: Date.now() }
-      );
-      if (updateResult.modifiedCount > 0) {
-        console.log(`[Auto-Delist] Updated ${updateResult.modifiedCount} Product model(s) to inactive for SKU: ${resolvedSku}`);
+    // 3. Mark Channel Inventory (Product model cache) as inactive only for this specific item
+    if (masterListing) {
+      const platformIds = [
+        masterListing.ebayListingId,
+        masterListing.poshmarkListingId,
+        masterListing.mercariListingId,
+        masterListing.etsyListingId,
+        masterListing.depopListingId
+      ].filter(Boolean);
+
+      const filterConditions = [];
+      if (platformIds.length > 0) {
+        filterConditions.push(
+          { ebayListingId: { $in: platformIds } },
+          { poshmarkListingId: { $in: platformIds } },
+          { mercariListingId: { $in: platformIds } },
+          { etsyListingId: { $in: platformIds } },
+          { depopListingId: { $in: platformIds } }
+        );
+      }
+      if (masterListing.title) {
+        filterConditions.push({ title: masterListing.title });
+      }
+
+      if (filterConditions.length > 0) {
+        const updateResult = await Product.updateMany(
+          { user: userId, $or: filterConditions, status: { $ne: 'inactive' } },
+          { status: 'inactive', updated_at: Date.now() }
+        );
+        if (updateResult.modifiedCount > 0) {
+          console.log(`[Auto-Delist] Updated ${updateResult.modifiedCount} Product model(s) to inactive for item: "${masterListing.title}"`);
+        }
       }
     }
 

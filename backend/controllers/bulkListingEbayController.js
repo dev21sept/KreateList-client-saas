@@ -6,6 +6,7 @@ const Listing = require('../models/Listing');
 const User = require('../models/User');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { logActivity } = require('../utils/activityUtils');
+const { recommendPrice } = require('../services/pricing/pricingService');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-dummy-key' });
 const DEFAULT_TITLE_SEQUENCE = ['Brand', 'Product Type', 'Model / Series', 'Material', 'Key Features', 'Size'];
@@ -486,12 +487,39 @@ Response ONLY as JSON: {
         }
       }
 
+      // Evaluate evidence-based listing price
+      let calculatedPrice = prodData.selling_price || prodData.price || '';
+      let pricingRecommendation = null;
+
+      try {
+        const pRes = await recommendPrice({
+          item: {
+            title: finalTitle,
+            brand: prodData.brand || '',
+            model: prodData.item_specifics?.Model || prodData.item_specifics?.MPN || '',
+            upc: prodData.item_specifics?.UPC || null,
+            condition: condition_name,
+            category_hint: categoryPath
+          },
+          marketplace: 'EBAY_US',
+          objective: 'MARKET_MATCHED'
+        });
+
+        if (pRes && pRes.status === 'ok' && pRes.recommendation?.suggested_price) {
+          calculatedPrice = pRes.recommendation.suggested_price;
+          pricingRecommendation = pRes.recommendation;
+        }
+      } catch (priceErr) {
+        console.warn(`[BulkPricing] Item ${index} pricing fallback:`, priceErr.message);
+      }
+
       resolvedProducts.push({
         id: `item-${Date.now()}-${index}`,
         images: prodImages,
         brand: prodData.brand || '',
         title: finalTitle,
-        price: prodData.selling_price || prodData.price || '',
+        price: calculatedPrice,
+        pricingRecommendation: pricingRecommendation,
         description: templatedDescription,
         category: categoryPath,
         categoryId: categoryId,

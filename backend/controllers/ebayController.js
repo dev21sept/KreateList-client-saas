@@ -416,7 +416,7 @@ async function executeEbayInventorySync(userId) {
     const offersMap = {}; // sku -> { status, listingId }
 
     let offset = 0;
-    let limit = 100;
+    let limit = 200;
     let hasMore = true;
     let totalSynced = 0;
 
@@ -456,31 +456,35 @@ async function executeEbayInventorySync(userId) {
 
         if (items.length === 0) break;
 
-        // Resolve offer status/listingId for every SKU on this page in parallel.
-        await Promise.all(items.map(async (item) => {
-          if (!item.sku || offersMap[item.sku]) return;
-          try {
-            const offers = await ebayService.getOffers(token, item.sku);
-            const published = (offers || []).find(o => o.status === 'PUBLISHED');
-            const anyOffer = published || (offers || [])[0];
-            const listingId = anyOffer?.listing?.listingId || null;
-            const isActive = anyOffer?.listing?.listingStatus === 'ACTIVE';
-            const isInactive = anyOffer?.status === 'WITHDRAWN' || (listingId && !isActive);
-            const resolvedStatus = isActive ? 'active' : (isInactive ? 'inactive' : 'draft');
-            const categoryId = anyOffer?.categoryId || null;
+        // Resolve offer status/listingId in chunks of 25 to avoid burst rate limits with limit=200
+        const chunkSize = 25;
+        for (let i = 0; i < items.length; i += chunkSize) {
+          const chunk = items.slice(i, i + chunkSize);
+          await Promise.all(chunk.map(async (item) => {
+            if (!item.sku || offersMap[item.sku]) return;
+            try {
+              const offers = await ebayService.getOffers(token, item.sku);
+              const published = (offers || []).find(o => o.status === 'PUBLISHED');
+              const anyOffer = published || (offers || [])[0];
+              const listingId = anyOffer?.listing?.listingId || null;
+              const isActive = anyOffer?.listing?.listingStatus === 'ACTIVE';
+              const isInactive = anyOffer?.status === 'WITHDRAWN' || (listingId && !isActive);
+              const resolvedStatus = isActive ? 'active' : (isInactive ? 'inactive' : 'draft');
+              const categoryId = anyOffer?.categoryId || null;
 
-            offersMap[item.sku] = anyOffer
-              ? { 
-                  status: resolvedStatus, 
-                  listingId, 
-                  categoryId,
-                  price: anyOffer.pricingSummary?.price?.value || null 
-                }
-              : { status: 'draft', listingId: null, categoryId: null, price: null };
-          } catch (err) {
-            offersMap[item.sku] = { status: 'draft', listingId: null, categoryId: null, price: null };
-          }
-        }));
+              offersMap[item.sku] = anyOffer
+                ? { 
+                    status: resolvedStatus, 
+                    listingId, 
+                    categoryId,
+                    price: anyOffer.pricingSummary?.price?.value || null 
+                  }
+                : { status: 'draft', listingId: null, categoryId: null, price: null };
+            } catch (err) {
+              offersMap[item.sku] = { status: 'draft', listingId: null, categoryId: null, price: null };
+            }
+          }));
+        }
 
         for (const item of items) {
           if (!item.product) continue;
@@ -575,7 +579,7 @@ async function executeEbayInventorySync(userId) {
       console.log(`[SYNC] Fetching active listings via Trading API for user: ${userId}`);
       let tradingPage = 1;
       let tradingHasMore = true;
-      const entriesPerPage = 100;
+      const entriesPerPage = 200;
 
       while (tradingHasMore) {
         let tradingData = null;
@@ -655,7 +659,7 @@ async function executeEbayInventorySync(userId) {
       console.log(`[SYNC] Fetching unsold/inactive listings via Trading API for user: ${userId}`);
       let unsoldPage = 1;
       let unsoldHasMore = true;
-      const entriesPerPage = 100;
+      const entriesPerPage = 200;
 
       while (unsoldHasMore) {
         let unsoldData = null;

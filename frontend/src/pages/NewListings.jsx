@@ -1183,7 +1183,7 @@ const NewListings = () => {
   }, []);
 
   useEffect(() => {
-    const checkSyncSummaryOnLoad = async () => {
+    const checkSyncSummary = async () => {
       try {
         const res = await listingService.getSyncSummary();
         if (res.data?.success && res.data?.data && !res.data.data.shownToUser) {
@@ -1201,9 +1201,12 @@ const NewListings = () => {
       }
     };
 
-    if (listings && listings.length > 0) {
-      checkSyncSummaryOnLoad();
-    }
+    // Check immediately when opening app
+    checkSyncSummary();
+
+    // Check periodically while user is on the website (every 15 seconds)
+    const intervalId = setInterval(checkSyncSummary, 15000);
+    return () => clearInterval(intervalId);
   }, [listings?.length]);
 
   useEffect(() => {
@@ -7376,43 +7379,45 @@ const NewListings = () => {
       {/* Sync Complete Modal Popup */}
       {syncCompleteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-200 space-y-4">
+          <div className="relative bg-white rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-200 space-y-4">
+            {/* Top Close Button */}
+            <button
+              type="button"
+              onClick={async () => {
+                setSyncCompleteModalOpen(false);
+                try {
+                  await listingService.dismissSyncSummary();
+                } catch (e) {}
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
             <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100/80 shadow-xs">
               <CheckCircle2 size={30} className="text-emerald-600" />
             </div>
             
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <h2 className="text-lg font-black text-slate-900 tracking-tight">Sync Complete!</h2>
               <p className="text-xs font-semibold text-slate-500 leading-relaxed max-w-[280px] mx-auto">
-                Your inventory has been synchronized and auto-merged across connected marketplaces.
+                Marketplace inventory synchronized and updated.
               </p>
             </div>
 
-            {/* Sync summary stats card */}
-            <div className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2 text-left">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200/60 pb-1.5">
-                <span className="text-slate-500 font-semibold">Total Items Synced</span>
-                <span className="font-extrabold text-slate-900">
-                  {syncStats.totalProcessed || (syncStats.newItemsCount + syncStats.mergedItemsCount) || listings.length}
-                </span>
+            {/* 2 Clean Stat Cards (Side-by-Side) */}
+            <div className="grid grid-cols-2 gap-3 pt-1 text-center">
+              <div className="bg-emerald-50/80 border border-emerald-200/60 rounded-2xl p-3.5 flex flex-col justify-center">
+                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1">New items added</span>
+                <span className="text-2xl font-black text-emerald-800">+{syncStats.newItemsCount || 0}</span>
               </div>
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>New items added</span>
-                </span>
-                <span className="font-bold text-emerald-600">+{syncStats.newItemsCount || 0}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                  <span>Auto-merged listings</span>
-                </span>
-                <span className="font-bold text-indigo-600">{syncStats.mergedItemsCount || 0}</span>
+              <div className="bg-indigo-50/80 border border-indigo-200/60 rounded-2xl p-3.5 flex flex-col justify-center">
+                <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Merged to existing</span>
+                <span className="text-2xl font-black text-indigo-800">{syncStats.mergedItemsCount || 0}</span>
               </div>
             </div>
 
-            <div className="space-y-2.5 pt-1">
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={async () => {
@@ -7426,20 +7431,6 @@ const NewListings = () => {
               >
                 View Inventory
               </button>
-              <div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSyncCompleteModalOpen(false);
-                    try {
-                      await listingService.dismissSyncSummary();
-                    } catch (e) {}
-                  }}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-700 underline transition-colors cursor-pointer"
-                >
-                  Skip for now
-                </button>
-              </div>
             </div>
           </div>
         </div>

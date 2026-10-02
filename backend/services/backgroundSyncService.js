@@ -444,6 +444,203 @@ async function runBackgroundSyncCycle() {
 }
 
 /**
+ * Automatically imports and merges unlinked active channel items into Master Listings.
+ * - Detects active products in Product collection from connected channels that are not yet in Listing.
+ * - If an unlinked product matches an existing Listing (by SKU or Title/Attributes), merges the channel into that Listing.
+ * - If no match, creates a new Master Listing in the local database.
+ * - Returns { newItemsCount, mergedItemsCount, totalListings }
+ */
+async function autoImportAndMergeUnlinkedChannels(userId) {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return { newItemsCount: 0, mergedItemsCount: 0 };
+
+    // 1. Fetch all active products across channels (exclude depop if disabled)
+    const activeProducts = await Product.find({
+      user: userId,
+      source: { $in: ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'] },
+      status: { $in: ['active', 'live', 'published'] }
+    }).lean();
+
+    if (!activeProducts || activeProducts.length === 0) {
+      return { newItemsCount: 0, mergedItemsCount: 0 };
+    }
+
+    // 2. Fetch existing listings to check what is already linked
+    const existingListings = await Listing.find({
+      user: userId,
+      status: { $ne: 'sold' }
+    });
+
+    const isProductLinked = (prod, listings) => {
+      const src = prod.source;
+      const liveId = String(prod[`${src}ListingId`] || prod.itemId || prod.listingId || prod.sku || '');
+      for (const l of listings) {
+        if (src === 'ebay' && l.ebayListingId && (String(l.ebayListingId) === liveId || (prod.itemId && String(l.ebayListingId) === String(prod.itemId)))) return true;
+        if (src === 'poshmark' && l.poshmarkListingId && String(l.poshmarkListingId) === liveId) return true;
+        if (src === 'mercari' && l.mercariListingId && String(l.mercariListingId) === liveId) return true;
+        if (src === 'etsy' && l.etsyListingId && (String(l.etsyListingId) === liveId || (prod.listingId && String(l.etsyListingId) === String(prod.listingId)))) return true;
+        if (src === 'amazon' && l.amazonListingId && String(l.amazonListingId) === liveId) return true;
+      }
+      return false;
+    };
+
+    const unlinked = activeProducts.filter(p => !isProductLinked(p, existingListings));
+    if (unlinked.length === 0) {
+      return { newItemsCount: 0, mergedItemsCount: 0, totalListings: existingListings.length };
+    }
+
+    console.log(`[Auto-Import/Merge] User ${userId}: Found ${unlinked.length} unlinked active channel items to import/merge.`);
+
+    let newItemsCount = 0;
+    let mergedItemsCount = 0;
+
+    for (const prod of unlinked) {
+      const src = prod.source;
+      const liveId = String(prod[`${src}ListingId`] || prod.itemId || prod.listingId || prod.sku || prod._id);
+      let url = prod[`${src}Url`] || prod.url || '';
+      if (!url) {
+        if (src === 'ebay') url = `https://www.ebay.com/itm/${liveId}`;
+        else if (src === 'mercari') url = `https://www.mercari.com/us/item/${liveId}/`;
+        else if (src === 'poshmark') url = `https://poshmark.com/listing/${liveId}`;
+        else if (src === 'etsy') url = `https://www.etsy.com/listing/${liveId}`;
+      }
+
+      const prodImages = Array.isArray(prod.images) && prod.images.length > 0
+        ? prod.images
+        : (prod.thumbnail ? [prod.thumbnail] : []);
+
+      // Check if product matches an existing listing
+      let matchedListing = findBestMatchingListing(existingListings, {
+        title: prod.title,
+        sku: prod.sku,
+        listingId: liveId,
+        platform: src
+      });
+
+      // Guard: If matchedListing already has a DIFFERENT item ID for this platform, do not overwrite it
+      if (matchedListing && matchedListing[`${src}ListingId`] && String(matchedListing[`${src}ListingId`]) !== liveId) {
+        matchedListing = null;
+      }
+
+      if (matchedListing) {
+        // Auto-merge into existing Master Listing
+        matchedListing[`${src}ListingId`] = liveId;
+        matchedListing[`${src}Status`] = 'published';
+        matchedListing[`${src}Url`] = url;
+
+        matchedListing.listingsMap = matchedListing.listingsMap || {};
+        matchedListing.listingsMap[src] = liveId;
+
+        matchedListing.platformData = matchedListing.platformData || {};
+        matchedListing.platformData[src] = {
+          title: prod.title || matchedListing.title,
+          description: prod.description || matchedListing.description || '',
+          price: String(prod.selling_price || prod.price || matchedListing.price),
+          originalPrice: prod.originalPrice ? String(prod.originalPrice) : (matchedListing.originalPrice || ''),
+          sku: prod.sku || matchedListing.sku,
+          brand: prod.brand || matchedListing.brand || '',
+          size: prod.size || matchedListing.size || '',
+          color: prod.color || matchedListing.color || '',
+          category: prod.category || prod.category_name || matchedListing.category || 'Clothing',
+          condition: prod.condition || prod.condition_name || matchedListing.condition || '',
+          url: url,
+          liveId: liveId,
+          status: 'published',
+          images: prodImages.length > 0 ? prodImages : (matchedListing.images || []),
+          thumbnail: prod.thumbnail || (prodImages[0]) || matchedListing.thumbnail || ''
+        };
+
+        if (prodImages.length > 0) {
+          const existingImgs = new Set(matchedListing.images || []);
+          for (const img of prodImages) {
+            if (img && !existingImgs.has(img)) {
+              matchedListing.images = matchedListing.images || [];
+              matchedListing.images.push(img);
+              existingImgs.add(img);
+            }
+          }
+        }
+
+        matchedListing.markModified('platformData');
+        await matchedListing.save();
+        mergedItemsCount++;
+        console.log(`[Auto-Import/Merge] Merged ${src} item "${prod.title}" into listing ${matchedListing._id}`);
+      } else {
+        // Auto-create new Master Listing
+        const finalSku = prod.sku && prod.sku.trim()
+          ? prod.sku.trim()
+          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+
+        const newListing = new Listing({
+          user: userId,
+          title: prod.title || 'Untitled Imported Item',
+          description: prod.description || prod.title || 'Imported marketplace listing',
+          price: String(prod.selling_price || prod.price || 0),
+          sku: finalSku,
+          category: prod.category || prod.category_name || 'Clothing',
+          categoryId: prod.categoryId || '',
+          brand: prod.brand || '',
+          size: prod.size || '',
+          color: prod.color || '',
+          images: prodImages,
+          thumbnail: prod.thumbnail || prodImages[0] || '',
+          itemSpecifics: src === 'ebay' ? (prod.itemSpecifics || {}) : {},
+          status: 'published',
+          platform: src,
+          source: 'channel_import',
+          ebayStatus: 'none',
+          poshmarkStatus: 'none',
+          mercariStatus: 'none',
+          depopStatus: 'none',
+          etsyStatus: 'none',
+          amazonStatus: 'none',
+          listingsMap: { [src]: liveId },
+          platformData: {}
+        });
+
+        newListing[`${src}ListingId`] = liveId;
+        newListing[`${src}Url`] = url;
+        newListing[`${src}Status`] = 'published';
+
+        newListing.platformData[src] = {
+          title: prod.title || newListing.title,
+          description: prod.description || newListing.description,
+          price: String(prod.selling_price || prod.price || newListing.price),
+          originalPrice: prod.originalPrice ? String(prod.originalPrice) : '',
+          sku: finalSku,
+          brand: prod.brand || '',
+          size: prod.size || '',
+          color: prod.color || '',
+          category: prod.category || 'Clothing',
+          condition: prod.condition || prod.condition_name || '',
+          url: url,
+          liveId: liveId,
+          status: 'published',
+          images: prodImages,
+          thumbnail: prod.thumbnail || prodImages[0] || ''
+        };
+
+        newListing.markModified('platformData');
+        await newListing.save();
+        existingListings.push(newListing);
+        newItemsCount++;
+        console.log(`[Auto-Import/Merge] Created new Master Listing ${newListing._id} for ${src} item "${prod.title}"`);
+      }
+    }
+
+    return {
+      newItemsCount,
+      mergedItemsCount,
+      totalListings: existingListings.length
+    };
+  } catch (err) {
+    console.error(`[Auto-Import/Merge] Error for user ${userId}:`, err.message);
+    return { newItemsCount: 0, mergedItemsCount: 0 };
+  }
+}
+
+/**
  * Executes an automated 30-minute All-Platform Inventory Sync & Status Recheck.
  */
 async function runBackgroundInventorySyncCycle() {
@@ -609,6 +806,42 @@ async function runBackgroundInventorySyncCycle() {
 
         // 5. Recheck Master Listing Platform Statuses & Reconcile Orders
         await recheckMasterListingStatuses(userId);
+
+        // 5.5 Auto-Import and Auto-Merge newly discovered channel items
+        let newItemsCount = 0;
+        let mergedItemsCount = 0;
+        try {
+          const autoRes = await autoImportAndMergeUnlinkedChannels(userId);
+          newItemsCount = autoRes.newItemsCount || 0;
+          mergedItemsCount = autoRes.mergedItemsCount || 0;
+        } catch (autoErr) {
+          console.warn(`[Background Inventory Worker] Auto-import notice for ${user.email}:`, autoErr.message);
+        }
+
+        // 6. Record lastSyncSummary for User so popup triggers on frontend (on app open & live)
+        try {
+          const allUserListings = await Listing.find({ user: userId, status: { $ne: 'sold' } }).lean();
+
+          const connectedPlatforms = [];
+          if (user.ebayAccount?.connected || user.ebay?.connected) connectedPlatforms.push('eBay');
+          if (user.poshmarkAccount?.connected) connectedPlatforms.push('Poshmark');
+          if (user.mercariAccount?.connected) connectedPlatforms.push('Mercari');
+          if (user.etsyAccount?.connected) connectedPlatforms.push('Etsy');
+
+          user.lastSyncSummary = {
+            syncedAt: new Date(),
+            totalProcessed: allUserListings.length,
+            newItemsCount: newItemsCount,
+            mergedItemsCount: mergedItemsCount,
+            platforms: connectedPlatforms,
+            shownToUser: false
+          };
+          user.markModified('lastSyncSummary');
+          await user.save();
+          console.log(`[Background Inventory Worker] Recorded sync summary for ${user.email}: New=+${newItemsCount}, Merged=${mergedItemsCount} (shownToUser: false)`);
+        } catch (sumErr) {
+          console.warn(`[Background Inventory Worker] Failed to record sync summary for ${user.email}:`, sumErr.message);
+        }
 
       } catch (userErr) {
         console.error(`[Background Inventory Worker] Error processing user ${user.email}:`, userErr.message);
@@ -835,6 +1068,17 @@ async function syncUserInventory(userId) {
   await recheckMasterListingStatuses(userId);
   await reconcileOrdersAndMasterListings(userId);
 
+  // 5.5 Auto-Import and Auto-Merge newly discovered channel items
+  let newItemsCount = 0;
+  let mergedItemsCount = 0;
+  try {
+    const autoRes = await autoImportAndMergeUnlinkedChannels(userId);
+    newItemsCount = autoRes.newItemsCount || 0;
+    mergedItemsCount = autoRes.mergedItemsCount || 0;
+  } catch (autoErr) {
+    console.warn(`[Sync User Inventory] Auto-import notice:`, autoErr.message);
+  }
+
   // 6. Record and calculate Sync Summary (New items vs Merged items)
   try {
     const connectedPlatforms = [];
@@ -846,21 +1090,6 @@ async function syncUserInventory(userId) {
     const totalProcessed = (results.ebay?.count || 0) + (results.poshmark?.count || 0) + (results.mercari?.count || 0) + (results.etsy?.count || 0);
     
     const allUserListings = await Listing.find({ user: userId, status: { $ne: 'sold' } }).lean();
-    let multiChannelCount = 0;
-    let singleChannelCount = 0;
-    allUserListings.forEach(l => {
-      let activeChannels = 0;
-      if (l.ebayListingId && (l.ebayStatus === 'published' || l.ebayStatus === 'active')) activeChannels++;
-      if (l.poshmarkListingId && (l.poshmarkStatus === 'published' || l.poshmarkStatus === 'active')) activeChannels++;
-      if (l.mercariListingId && (l.mercariStatus === 'published' || l.mercariStatus === 'active')) activeChannels++;
-      if (l.etsyListingId && (l.etsyStatus === 'published' || l.etsyStatus === 'active')) activeChannels++;
-      if (l.depopListingId && (l.depopStatus === 'published' || l.depopStatus === 'active')) activeChannels++;
-      if (activeChannels > 1) multiChannelCount++;
-      else singleChannelCount++;
-    });
-
-    const newItemsCount = totalProcessed > 0 ? Math.max(0, totalProcessed - multiChannelCount) : singleChannelCount;
-    const mergedItemsCount = Math.max(0, multiChannelCount);
 
     user.lastSyncSummary = {
       syncedAt: new Date(),
@@ -887,6 +1116,7 @@ module.exports = {
   runBackgroundInventorySyncCycle,
   syncUserInventory,
   recheckMasterListingStatuses,
-  reconcileOrdersAndMasterListings
+  reconcileOrdersAndMasterListings,
+  autoImportAndMergeUnlinkedChannels
 };
 

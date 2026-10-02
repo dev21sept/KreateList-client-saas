@@ -1260,6 +1260,15 @@ const BulkListingEbay = () => {
                         onChange={(e) => handleFieldChange(item.id, 'price', e.target.value)}
                         className="w-full h-8 px-2 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 outline-none focus:border-indigo-500 disabled:bg-slate-50"
                       />
+                      {item.pricingRecommendation && (
+                        <div 
+                          className="mt-1 flex items-center gap-1 text-[9px] font-semibold text-emerald-700 cursor-help"
+                          title={`Market Grounded Price: ${item.pricingRecommendation.confidence?.label} (${item.pricingRecommendation.confidence?.score}/100). Range: $${item.pricingRecommendation.expected_range?.low} - $${item.pricingRecommendation.expected_range?.high}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span className="truncate">eBay Comps ({item.pricingRecommendation.confidence?.score || 0}%)</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Category Searchable Dropdown */}
