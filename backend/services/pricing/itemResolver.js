@@ -28,6 +28,57 @@ const BUNDLE_INDICATORS = {
   ]
 };
 
+// Generic placeholder terms returned by AI or forms when exact value is unknown
+const PLACEHOLDER_STRINGS = new Set([
+  'unknown', 'n/a', 'na', 'none', 'does not apply', 'not applicable',
+  'unbranded', 'generic', 'other', 'custom', 'unspecified', 'standard',
+  'classic', 'regular', 'null', 'undefined', 'varies', 'see description',
+  'does not apply.', 'n / a', 'not applied', 'no brand'
+]);
+
+function isPlaceholder(val) {
+  if (!val) return true;
+  const clean = String(val).trim().toLowerCase();
+  return PLACEHOLDER_STRINGS.has(clean) || clean.length <= 1;
+}
+
+// Product domain taxonomy mapping to prevent cross-category contamination
+const DOMAIN_PATTERNS = {
+  FOOTWEAR: /\b(shoes|shoe|sneakers|sneaker|boots|boot|sandals|sandal|slides|slide|loafers|cleats|heels|slippers|trainers|dunks|footwear|pumps|oxfords|clogs|mules)\b/i,
+  OUTERWEAR: /\b(jacket|jackets|coat|coats|windbreaker|windbreakers|tracksuit|tracksuits|parka|parkas|puffer|vest|vests|bomber|fleece|anorak|outerwear|blazer|blazers|overcoat)\b/i,
+  TOPS: /\b(shirt|shirts|t-shirt|t-shirts|tee|tees|jersey|jerseys|polo|polos|tank|tanks|blouse|blouses|sweater|sweaters|sweatshirt|sweatshirts|hoodie|hoodies)\b/i,
+  BOTTOMS: /\b(pants|pant|jeans|jean|shorts|short|leggings|sweatpants|joggers|trousers|skirt|skirts|slacks|chinos)\b/i,
+  DRESSES_SUITS: /\b(dress|dresses|gown|gowns|suit|suits|tuxedo|romper|jumpsuit)\b/i,
+  ACCESSORIES: /\b(bag|bags|backpack|backpacks|purse|purses|wallet|wallets|hat|hats|cap|caps|beanie|beanies|belt|belts|scarf|scarves|gloves|sunglasses|watch|watches|jewelry)\b/i
+};
+
+function detectProductDomain(title = '', categoryText = '') {
+  const combined = `${title || ''} ${categoryText || ''}`.toLowerCase();
+  
+  if (DOMAIN_PATTERNS.OUTERWEAR.test(combined) && !DOMAIN_PATTERNS.FOOTWEAR.test(title || '')) {
+    return 'OUTERWEAR';
+  }
+  if (DOMAIN_PATTERNS.FOOTWEAR.test(combined)) {
+    return 'FOOTWEAR';
+  }
+  if (DOMAIN_PATTERNS.OUTERWEAR.test(combined)) {
+    return 'OUTERWEAR';
+  }
+  if (DOMAIN_PATTERNS.DRESSES_SUITS.test(combined)) {
+    return 'DRESSES_SUITS';
+  }
+  if (DOMAIN_PATTERNS.BOTTOMS.test(combined)) {
+    return 'BOTTOMS';
+  }
+  if (DOMAIN_PATTERNS.TOPS.test(combined)) {
+    return 'TOPS';
+  }
+  if (DOMAIN_PATTERNS.ACCESSORIES.test(combined)) {
+    return 'ACCESSORIES';
+  }
+  return 'OTHER';
+}
+
 /**
  * Normalizes condition text to standard taxonomy
  */
@@ -70,13 +121,20 @@ function detectConfiguration(title, includedItems = []) {
  */
 function resolveItem(rawItem = {}) {
   const title = (rawItem.title || '').trim();
-  const rawBrand = (rawItem.brand || '').trim();
-  const rawModel = (rawItem.model || rawItem.mpn || '').trim();
+  let rawBrand = (rawItem.brand || '').trim();
+  let rawModel = (rawItem.model || rawItem.mpn || '').trim();
   const rawUpc = (rawItem.upc || rawItem.ean || rawItem.gtin || '').trim();
+  const categoryId = rawItem.category_id || rawItem.categoryId || null;
+  const categoryHint = rawItem.category_hint || rawItem.category || rawItem.category_name || null;
+
+  // Sanitize placeholder values (e.g. "Unknown", "N/A", "Does Not Apply")
+  if (isPlaceholder(rawBrand)) rawBrand = '';
+  if (isPlaceholder(rawModel)) rawModel = '';
   
   // Field-level extractions
   const condition = normalizeCondition(rawItem.condition);
   const configuration = detectConfiguration(title, rawItem.included_items);
+  const productDomain = detectProductDomain(title, categoryHint);
   
   // Check format of UPC/GTIN if available (8, 12, 13, 14 digits)
   const isValidUpc = rawUpc && /^\d{8,14}$/.test(rawUpc);
@@ -116,7 +174,7 @@ function resolveItem(rawItem = {}) {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter(t => t.length > 1 && !['the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to'].includes(t));
+    .filter(t => t.length > 1 && !['the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to', 'sz', 'size', 'unknown', 'na', 'nwt'].includes(t));
 
   return {
     raw: rawItem,
@@ -130,7 +188,9 @@ function resolveItem(rawItem = {}) {
       configType: configuration.configType,
       isBare: configuration.isBare,
       isKit: configuration.isKit,
-      categoryHint: rawItem.category_hint || rawItem.category || null,
+      categoryId,
+      categoryHint,
+      productDomain,
       searchTokens
     },
     fieldConfidence,
@@ -144,5 +204,8 @@ module.exports = {
   resolveItem,
   normalizeCondition,
   detectConfiguration,
-  CONDITION_TAXONOMY
+  detectProductDomain,
+  isPlaceholder,
+  CONDITION_TAXONOMY,
+  DOMAIN_PATTERNS
 };

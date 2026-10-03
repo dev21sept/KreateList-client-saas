@@ -4,12 +4,13 @@
  * then ranks surviving candidates with a calibrated 0-100 match score.
  */
 
-const { detectConfiguration, normalizeCondition } = require('./itemResolver');
+const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder } = require('./itemResolver');
 
 // Generic stopwords to discount in title similarity
 const STOPWORDS = new Set([
   'the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to', 'is', 'fast', 'free',
-  'shipping', 'new', 'oem', 'original', 'sale', 'hot', 'authentic', 'genuine'
+  'shipping', 'new', 'oem', 'original', 'sale', 'hot', 'authentic', 'genuine',
+  'sz', 'size', 'vintage', 'rare', 'vtg', 'unknown', 'na', 'nwt', 'nwob'
 ]);
 
 /**
@@ -47,7 +48,30 @@ function evaluateHardRejections(targetItem, candidate) {
   // Detect candidate's configuration
   const candidateConfig = detectConfiguration(candidateTitle);
 
-  // 1. Working item vs For Parts / Not Working mismatch
+  // 1. Cross-Domain Hard Rejection (e.g. Shoes vs Jacket / Tracksuit)
+  const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
+  const candCategories = (candidate.categories || []).join(' ');
+  const candDomain = detectProductDomain(candidate.title, candCategories);
+
+  if (targetDomain !== 'OTHER' && candDomain !== 'OTHER' && targetDomain !== candDomain) {
+    reasons.push(`domain_mismatch_target_${targetDomain}_vs_candidate_${candDomain}`);
+  }
+
+  // Explicit Footwear vs Clothing check (prevent shoe listings from matching any apparel)
+  const isTargetClothing = ['OUTERWEAR', 'TOPS', 'BOTTOMS', 'DRESSES_SUITS'].includes(targetDomain);
+  const isCandidateFootwear = candDomain === 'FOOTWEAR' || /\b(shoes|sneakers|sneaker|boots|sandals|slides|cleats|loafers|dunks)\b/i.test(candidateTitle);
+  if (isTargetClothing && isCandidateFootwear) {
+    reasons.push('footwear_cannot_match_clothing_item');
+  }
+
+  const isTargetFootwear = targetDomain === 'FOOTWEAR';
+  const isCandidateClothing = ['OUTERWEAR', 'TOPS', 'BOTTOMS', 'DRESSES_SUITS'].includes(candDomain) || 
+    /\b(jacket|jackets|coat|tracksuit|windbreaker|shirt|t-shirt|pants|jeans|hoodie|sweatshirt)\b/i.test(candidateTitle);
+  if (isTargetFootwear && isCandidateClothing) {
+    reasons.push('clothing_cannot_match_footwear_item');
+  }
+
+  // 2. Working item vs For Parts / Not Working mismatch
   const targetCondition = targetItem.condition;
   const candidateConditionObj = normalizeCondition(candidate.condition);
   const candidateCondition = candidateConditionObj.normalized;
@@ -59,7 +83,7 @@ function evaluateHardRejections(targetItem, candidate) {
     reasons.push('candidate_is_working_item_for_parts_search');
   }
 
-  // 2. Kit vs Bare Item (Tool only) mismatch
+  // 3. Kit vs Bare Item (Tool only) mismatch
   if (targetItem.isBare && candidateConfig.isKit) {
     reasons.push('kit_vs_tool_only_mismatch');
   }
@@ -67,30 +91,22 @@ function evaluateHardRejections(targetItem, candidate) {
     reasons.push('tool_only_vs_kit_mismatch');
   }
 
-  // 3. New vs Used hard divergence
-  // If target is brand new, exclude heavily used items from primary set if condition is known
+  // 4. New vs Used hard divergence
   if (targetCondition === 'NEW' && ['USED', 'FOR_PARTS'].includes(candidateCondition)) {
     reasons.push('new_vs_used_mismatch');
   }
-  if (targetCondition === 'USED' && candidateCondition === 'NEW') {
-    // Note: Can allow new as weak comp if few comps exist, but for strictness flag it
-    // We let this be handled by condition score unless extreme price divergence
-  }
 
-  // 4. Incompatible Model Check
-  if (targetItem.model && targetItem.model.length >= 3) {
+  // 5. Incompatible Model Check (Only check if target model is a REAL, non-placeholder model)
+  if (targetItem.model && !isPlaceholder(targetItem.model) && targetItem.model.length >= 3) {
     const targetModelClean = targetItem.model.toLowerCase().replace(/[^a-z0-9]/g, '');
     const candTitleClean = candidateTitle.replace(/[^a-z0-9]/g, '');
     
-    // If candidate has an explicitly conflicting model number (e.g., XPH12 vs XPH14)
-    // We check if target model exists in candidate title
     if (!candTitleClean.includes(targetModelClean)) {
-      // Model not found in title. If title has another distinct alphanumeric code of similar length, penalize
       reasons.push('model_not_found_in_candidate_title');
     }
   }
 
-  // 5. Zero or negative price
+  // 6. Zero or negative price
   if (!candidate.total_price || candidate.total_price <= 0) {
     reasons.push('invalid_price');
   }
@@ -110,7 +126,6 @@ function calculateMatchScore(targetItem, candidate) {
 
   // Feature 1: Exact identifier (UPC/GTIN) - Weight: 40
   if (targetItem.upc) {
-    // If candidate mentions exact UPC
     if (candidateTitle.includes(targetItem.upc)) {
       score += 40;
       reasons.push('exact_upc_match');
@@ -121,14 +136,15 @@ function calculateMatchScore(targetItem, candidate) {
   let brandMatched = false;
   let modelMatched = false;
 
-  if (targetItem.brand) {
+  if (targetItem.brand && !isPlaceholder(targetItem.brand)) {
     const brandClean = targetItem.brand.toLowerCase();
     if (candidateTitle.includes(brandClean)) {
       brandMatched = true;
     }
   }
 
-  if (targetItem.model) {
+  // Strictly check model ONLY if target item has a genuine model number (NOT "Unknown", "N/A", etc.)
+  if (targetItem.model && !isPlaceholder(targetItem.model)) {
     const modelClean = targetItem.model.toLowerCase();
     if (candidateTitle.includes(modelClean)) {
       modelMatched = true;
@@ -146,11 +162,11 @@ function calculateMatchScore(targetItem, candidate) {
     reasons.push('brand_only_match');
   }
 
-  // Feature 3: Title/Token Similarity - Weight: 15
+  // Feature 3: Title/Token Similarity - Weight: 20
   const tokenSim = computeTokenSimilarity(targetItem.searchTokens, candidateTitle);
-  const tokenPoints = Math.round(tokenSim * 15);
+  const tokenPoints = Math.round(tokenSim * 20);
   score += tokenPoints;
-  if (tokenSim > 0.4) {
+  if (tokenSim > 0.3) {
     reasons.push(`title_similarity_${Math.round(tokenSim * 100)}%`);
   }
 
@@ -175,8 +191,15 @@ function calculateMatchScore(targetItem, candidate) {
     reasons.push('condition_compatible');
   }
 
-  // Feature 6: Category Consistency - Weight: 5
-  if (targetItem.categoryHint && candidate.categories && candidate.categories.length > 0) {
+  // Feature 6: Category / Domain Consistency - Weight: 10
+  const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
+  const candCategories = (candidate.categories || []).join(' ');
+  const candDomain = detectProductDomain(candidate.title, candCategories);
+
+  if (targetDomain !== 'OTHER' && candDomain === targetDomain) {
+    score += 10;
+    reasons.push(`domain_${targetDomain.toLowerCase()}_matched`);
+  } else if (targetItem.categoryHint && candidate.categories && candidate.categories.length > 0) {
     const catMatch = candidate.categories.some(c => 
       c.toLowerCase().includes(targetItem.categoryHint.toLowerCase())
     );

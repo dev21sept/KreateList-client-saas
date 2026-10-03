@@ -73,9 +73,27 @@ async function fetchActiveListings(normalizedItem, marketplace = 'EBAY_US', maxR
     if (normalizedItem.brand && normalizedItem.model) {
       queries.push({ q: `${normalizedItem.brand} ${normalizedItem.model}`, type: 'BRAND_MODEL' });
     }
+    
+    // Brand + descriptive product tokens (e.g. "Nike tracksuit jacket")
+    if (normalizedItem.brand && normalizedItem.searchTokens && normalizedItem.searchTokens.length > 0) {
+      const nonBrandTokens = normalizedItem.searchTokens.filter(t => 
+        t.toLowerCase() !== normalizedItem.brand.toLowerCase() &&
+        !['the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to', 'size', 'sz', 'color', 'pre', 'owned', 'used', 'new', 'good', 'fair', 'condition', 'unknown', 'na', 'nwt'].includes(t)
+      );
+      if (nonBrandTokens.length > 0) {
+        const topTokens = nonBrandTokens.slice(0, 4).join(' ');
+        queries.push({ q: `${normalizedItem.brand} ${topTokens}`, type: 'BRAND_PRODUCT_TOKENS' });
+      }
+    }
+
     if (normalizedItem.searchTokens && normalizedItem.searchTokens.length > 0) {
-      const topTokens = normalizedItem.searchTokens.slice(0, 5).join(' ');
-      queries.push({ q: topTokens, type: 'TITLE_TOKENS' });
+      const topTokens = normalizedItem.searchTokens
+        .filter(t => !['the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to', 'unknown', 'na'].includes(t))
+        .slice(0, 5)
+        .join(' ');
+      if (topTokens) {
+        queries.push({ q: topTokens, type: 'TITLE_TOKENS' });
+      }
     }
 
     if (queries.length === 0) {
@@ -86,25 +104,80 @@ async function fetchActiveListings(normalizedItem, marketplace = 'EBAY_US', maxR
     const primaryQuery = queries[0];
     const marketplaceHeader = marketplace || 'EBAY_US';
 
-    const response = await axios.get(BROWSE_API_URL, {
-      params: {
-        q: primaryQuery.q,
-        limit: Math.min(maxResults, 50)
-      },
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-EBAY-C-MARKETPLACE-ID': marketplaceHeader,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
+    // Prepare search params
+    const searchParams = {
+      q: primaryQuery.q,
+      limit: Math.min(maxResults, 50)
+    };
 
-    const rawListings = response.data.itemSummaries || [];
+    // Apply category_ids if available (valid numeric eBay category)
+    if (normalizedItem.categoryId && /^\d+$/.test(String(normalizedItem.categoryId))) {
+      searchParams.category_ids = String(normalizedItem.categoryId);
+    }
+
+    let rawListings = [];
+    let responseTotal = 0;
+
+    try {
+      const response = await axios.get(BROWSE_API_URL, {
+        params: searchParams,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-EBAY-C-MARKETPLACE-ID': marketplaceHeader,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      rawListings = response.data.itemSummaries || [];
+      responseTotal = response.data.total || rawListings.length;
+    } catch (apiErr) {
+      // If category_ids caused a 400 or error, fall back to searching without category_ids
+      if (searchParams.category_ids) {
+        console.warn(`[BrowseConnector] Category-filtered search failed (${apiErr.message}), falling back without category_ids.`);
+        delete searchParams.category_ids;
+        const fallbackRes = await axios.get(BROWSE_API_URL, {
+          params: searchParams,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-EBAY-C-MARKETPLACE-ID': marketplaceHeader,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        });
+        rawListings = fallbackRes.data.itemSummaries || [];
+        responseTotal = fallbackRes.data.total || rawListings.length;
+      } else {
+        throw apiErr;
+      }
+    }
+
+    // Fallback: If category_ids returned 0 items, retry without category_ids to get comps
+    if (rawListings.length === 0 && searchParams.category_ids) {
+      console.log(`[BrowseConnector] 0 results with category_ids=${searchParams.category_ids}, retrying open search...`);
+      delete searchParams.category_ids;
+      try {
+        const fallbackRes = await axios.get(BROWSE_API_URL, {
+          params: searchParams,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-EBAY-C-MARKETPLACE-ID': marketplaceHeader,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        });
+        rawListings = fallbackRes.data.itemSummaries || [];
+        responseTotal = fallbackRes.data.total || rawListings.length;
+      } catch (fbErr) {
+        console.warn('[BrowseConnector] Open search retry error:', fbErr.message);
+      }
+    }
+
     const normalizedItems = rawListings.map(item => normalizeBrowseItem(item, marketplaceHeader));
 
     return {
       items: normalizedItems,
-      total: response.data.total || normalizedItems.length,
+      total: responseTotal || normalizedItems.length,
       queryUsed: primaryQuery.q,
       queryType: primaryQuery.type,
       retrieved_at: new Date().toISOString()

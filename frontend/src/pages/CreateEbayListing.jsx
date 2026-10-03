@@ -1503,7 +1503,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
                 upc: formData.selectedAspects['UPC']?.[0],
                 condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
-                category: formData.category
+                category: formData.category,
+                categoryId: formData.categoryId
               }}
               currentPrice={formData.price}
               onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}

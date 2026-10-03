@@ -15,14 +15,14 @@ const { fetchSoldListings } = require('./soldDataConnector');
 const { matchAndFilterComparables } = require('./comparableMatcher');
 const { calculatePriceDistribution, applySellerObjective } = require('./pricingCalculator');
 
-const PRICING_ALGORITHM_VERSION = 'pricing-v1.0';
+const PRICING_ALGORITHM_VERSION = 'pricing-v1.1';
 
 // Simple in-memory cache with 30-minute TTL
 const cache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
 function getCacheKey(item, marketplace, objective) {
-  const norm = `${marketplace}_${item.upc || ''}_${item.brand || ''}_${item.model || ''}_${item.title || ''}_${item.condition || ''}_${objective || ''}`;
+  const norm = `${PRICING_ALGORITHM_VERSION}_${marketplace}_${item.upc || ''}_${item.brand || ''}_${item.model || ''}_${item.title || ''}_${item.condition || ''}_${objective || ''}`;
   return crypto.createHash('md5').update(norm.toLowerCase()).digest('hex');
 }
 
@@ -294,7 +294,8 @@ async function recommendPrice(request = {}) {
       brand: resolved.normalized.brand,
       model: resolved.normalized.model,
       condition: resolved.normalized.condition,
-      configType: resolved.normalized.configType
+      configType: resolved.normalized.configType,
+      productDomain: resolved.normalized.productDomain
     },
     algorithm_version: PRICING_ALGORITHM_VERSION,
     request_id: requestId

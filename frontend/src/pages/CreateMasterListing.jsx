@@ -2495,7 +2495,8 @@ const CreateMasterListing = ({
                       model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
                       upc: formData.ebayAspects?.['UPC']?.[0],
                       condition: formData.selectedCondition || 'Used',
-                      category: formData.ebayCategory
+                      category: formData.ebayCategory,
+                      categoryId: formData.ebayCategoryId
                     }}
                     currentPrice={formData.price}
                     onApplyPrice={(newPrice) => setFormData(prev => ({ 
@@ -2626,7 +2627,8 @@ const CreateMasterListing = ({
                     model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
                     upc: formData.ebayAspects?.['UPC']?.[0],
                     condition: formData.ebayCondition || formData.selectedCondition || 'Used',
-                    category: formData.ebayCategory
+                    category: formData.ebayCategory,
+                    categoryId: formData.ebayCategoryId
                   }}
                   currentPrice={formData.ebayPrice || formData.price}
                   onApplyPrice={(newPrice) => setFormData(prev => ({ 

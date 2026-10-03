@@ -40,14 +40,26 @@ export default function PriceRecommendationCard({
     setApplied(false);
 
     try {
+      // Sanitize placeholder strings (e.g. "Unknown", "N/A", "Does Not Apply")
+      const sanitizeVal = (v) => {
+        if (!v) return '';
+        const s = String(v).trim();
+        const lower = s.toLowerCase();
+        if (['unknown', 'n/a', 'na', 'none', 'does not apply', 'not applicable', 'unbranded', 'generic', 'other'].includes(lower)) {
+          return '';
+        }
+        return s;
+      };
+
       const payload = {
         item: {
           title: itemData.title || '',
-          brand: itemData.brand || '',
-          model: itemData.model || itemData.mpn || '',
+          brand: sanitizeVal(itemData.brand),
+          model: sanitizeVal(itemData.model || itemData.mpn),
           upc: itemData.upc || null,
           condition: itemData.condition || 'USED',
-          category_hint: itemData.category || itemData.category_name || null
+          category_hint: itemData.category || itemData.category_name || null,
+          category_id: itemData.categoryId || itemData.category_id || null
         },
         marketplace,
         objective
