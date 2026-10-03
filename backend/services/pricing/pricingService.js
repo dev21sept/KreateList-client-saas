@@ -175,10 +175,10 @@ async function recommendPrice(request = {}) {
   }
 
   // STAGE 2: COLLECT MARKET DATA
-  // Run active and sold data retrieval in parallel
+  // Run active and sold data retrieval in parallel (optimized limit for sub-second response)
   const [activeRes, soldRes] = await Promise.all([
-    fetchActiveListings(resolved.normalized, marketplace, 30),
-    fetchSoldListings(resolved.normalized, marketplace, 20)
+    fetchActiveListings(resolved.normalized, marketplace, 15),
+    fetchSoldListings(resolved.normalized, marketplace, 10)
   ]);
 
   const candidatePool = [...(soldRes.items || []), ...(activeRes.items || [])];

@@ -24,14 +24,26 @@ export default function PriceRecommendationCard({
   currentPrice = '',
   onApplyPrice,
   marketplace = 'EBAY_US',
-  compact = false
+  compact = false,
+  initialData = null,
+  autoFetch = true,
+  onRecommendationLoaded = null
 }) {
   const [loading, setLoading] = useState(false);
-  const [recommendationData, setRecommendationData] = useState(null);
+  const [recommendationData, setRecommendationData] = useState(initialData);
   const [errorMsg, setErrorMsg] = useState(null);
   const [selectedObjective, setSelectedObjective] = useState('MARKET_MATCHED');
   const [showComps, setShowComps] = useState(false);
   const [applied, setApplied] = useState(false);
+  const fetchedTitleRef = React.useRef(initialData ? (itemData.title || '') : '');
+
+  // Synchronize when initialData is provided externally
+  React.useEffect(() => {
+    if (initialData) {
+      setRecommendationData(initialData);
+      fetchedTitleRef.current = itemData.title || '';
+    }
+  }, [initialData]);
 
   // Fetch recommendation from pricing engine
   const fetchPriceRecommendation = async (objective = selectedObjective) => {
@@ -70,6 +82,9 @@ export default function PriceRecommendationCard({
 
       if (data.status === 'ok') {
         setRecommendationData(data);
+        if (onRecommendationLoaded) {
+          onRecommendationLoaded(data);
+        }
       } else {
         setRecommendationData(null);
         setErrorMsg(data.message || 'Not enough comparable data found on eBay.');
@@ -82,6 +97,16 @@ export default function PriceRecommendationCard({
       setLoading(false);
     }
   };
+
+  // Auto-fetch in background as soon as AI scan fills title
+  React.useEffect(() => {
+    if (!autoFetch) return;
+    const cleanTitle = (itemData.title || '').trim();
+    if (cleanTitle.length > 5 && cleanTitle !== fetchedTitleRef.current && !loading && !initialData) {
+      fetchedTitleRef.current = cleanTitle;
+      fetchPriceRecommendation();
+    }
+  }, [autoFetch, itemData.title, initialData]);
 
   const handleObjectiveChange = (newObjective) => {
     setSelectedObjective(newObjective);
@@ -161,7 +186,7 @@ export default function PriceRecommendationCard({
           <div>
             <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               eBay Market Pricing Engine
-              <span className="text-[10px] text-slate-400 font-normal">v1.0</span>
+              <span className="text-[10px] text-slate-400 font-normal">v1.1</span>
             </h4>
           </div>
         </div>

@@ -33,7 +33,7 @@ import {
   Percent,
   Sliders
 } from 'lucide-react';
-import { ruleService, aiService, listingService, externalImportService, ebayService } from '../services/api';
+import { ruleService, aiService, listingService, externalImportService, ebayService, pricingService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -450,6 +450,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
   const platform = 'ebay';
 
   const [loading, setLoading] = useState(false);
+  const [ebayPricingRecommendation, setEbayPricingRecommendation] = useState(null);
   const [descriptionMode, setDescriptionMode] = useState('edit');
   const [rules, setRules] = useState([]);
   const [aspects, setAspects] = useState([]);
@@ -785,22 +786,55 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
 
         const cleanedDesc = cleanHtmlDescription(result.description);
 
-        setFormData(prev => ({
-          ...prev,
-          title: result.title || prev.title,
-          price: result.price || prev.price,
-          description: cleanedDesc || result.description || prev.description,
-          category: result.ebay_category_name || resolvedEbay.category || prev.category,
-          categoryId: (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId)),
-          selectedAspects: {
-            ...prev.selectedAspects,
-            ...(brandVal ? { Brand: [brandVal] } : {}),
-            ...(sizeVal ? { Size: [sizeVal] } : {}),
-            ...(colorVal ? { Color: [colorVal] } : {}),
-            ...formattedAspects
-          },
-          sku: result.sku || prev.sku
-        }));
+        setFormData(prev => {
+          const finalTitle = result.title || prev.title;
+          const finalCatId = (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId));
+          const finalCatName = result.ebay_category_name || resolvedEbay.category || prev.category;
+          const finalBrand = brandVal || (formattedAspects['Brand']?.[0]) || '';
+          const finalModel = formattedAspects['Model']?.[0] || formattedAspects['MPN']?.[0] || '';
+
+          // Auto-fetch market pricing comps in background immediately upon AI scan
+          if (finalTitle && finalTitle.length > 5) {
+            pricingService.getRecommendation({
+              item: {
+                title: finalTitle,
+                brand: finalBrand,
+                model: finalModel,
+                condition: EBAY_CONDITIONS.find(c => c.id === prev.conditionId)?.label || 'Used',
+                category_id: finalCatId,
+                category_hint: finalCatName
+              }
+            }).then(pRes => {
+              const pData = pRes.data || pRes;
+              if (pData?.status === 'ok') {
+                setEbayPricingRecommendation(pData);
+                if (pData.recommendation?.suggested_price) {
+                  setFormData(p => ({
+                    ...p,
+                    price: pData.recommendation.suggested_price
+                  }));
+                }
+              }
+            }).catch(err => console.warn('[AI Scan] Background pricing fetch notice:', err.message));
+          }
+
+          return {
+            ...prev,
+            title: finalTitle,
+            price: result.price || prev.price,
+            description: cleanedDesc || result.description || prev.description,
+            category: finalCatName,
+            categoryId: finalCatId,
+            selectedAspects: {
+              ...prev.selectedAspects,
+              ...(brandVal ? { Brand: [brandVal] } : {}),
+              ...(sizeVal ? { Size: [sizeVal] } : {}),
+              ...(colorVal ? { Color: [colorVal] } : {}),
+              ...formattedAspects
+            },
+            sku: result.sku || prev.sku
+          };
+        });
         toast.success("AI scanning complete! eBay details prefilled.");
       }
     } catch (error) {
@@ -1497,6 +1531,14 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
 
             {/* Live eBay Pricing Engine Insights Card */}
             <PriceRecommendationCard
+              initialData={ebayPricingRecommendation}
+              autoFetch={true}
+              onRecommendationLoaded={(rec) => {
+                setEbayPricingRecommendation(rec);
+                if (rec.recommendation?.suggested_price) {
+                  setFormData(p => ({ ...p, price: p.price || rec.recommendation.suggested_price }));
+                }
+              }}
               itemData={{
                 title: formData.title,
                 brand: formData.brand || formData.selectedAspects['Brand']?.[0],

@@ -41,7 +41,8 @@ import {
   mercariService, 
   poshmarkService, 
   amazonService,
-  externalImportService 
+  externalImportService,
+  pricingService 
 } from '../services/api';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { useNotification } from '../context/NotificationContext';
@@ -1152,6 +1153,7 @@ const CreateMasterListing = ({
   const [rules, setRules] = useState([]);
   const [files, setFiles] = useState([]);
   const [isConvertingImages, setIsConvertingImages] = useState(false);
+  const [masterPricingRecommendation, setMasterPricingRecommendation] = useState(null);
 
   // Platform Extra States
   const [ebayPolicies, setEbayPolicies] = useState({ fulfillment: [], payment: [], returns: [], locations: [] });
@@ -1772,6 +1774,38 @@ const CreateMasterListing = ({
           amazonBulletPoints: Array.isArray(res.bulletPoints) ? res.bulletPoints : prev.amazonBulletPoints,
           amazonKeywords: res.keywords || prev.amazonKeywords
         }));
+
+        // Auto-fetch market pricing comps in background immediately upon AI scan
+        const finalTitle = res.title || '';
+        const finalBrand = brandVal || '';
+        const finalModel = rawSpecifics['Model'] || rawSpecifics['MPN'] || '';
+        const finalCatId = resolvedEbay.categoryId || '';
+        const finalCatName = res.ebay_category_name || resolvedEbay.category || '';
+
+        if (finalTitle && finalTitle.length > 5) {
+          pricingService.getRecommendation({
+            item: {
+              title: finalTitle,
+              brand: finalBrand,
+              model: finalModel,
+              condition: formData.selectedCondition || 'Used',
+              category_id: finalCatId,
+              category_hint: finalCatName
+            }
+          }).then(pRes => {
+            const pData = pRes.data || pRes;
+            if (pData?.status === 'ok') {
+              setMasterPricingRecommendation(pData);
+              if (pData.recommendation?.suggested_price) {
+                setFormData(p => ({
+                  ...p,
+                  price: pData.recommendation.suggested_price,
+                  ebayPrice: p.ebayPrice ? p.ebayPrice : pData.recommendation.suggested_price
+                }));
+              }
+            }
+          }).catch(err => console.warn('[AI Scan] Background pricing fetch notice:', err.message));
+        }
 
         toast.success("AI scanning complete! Master & platform specifics populated.");
       }
@@ -2489,6 +2523,18 @@ const CreateMasterListing = ({
                   <label className="block text-[11px] font-bold text-slate-700">Master Price ($) *</label>
                   <PriceRecommendationCard
                     compact={true}
+                    initialData={masterPricingRecommendation}
+                    autoFetch={true}
+                    onRecommendationLoaded={(rec) => {
+                      setMasterPricingRecommendation(rec);
+                      if (rec.recommendation?.suggested_price) {
+                        setFormData(p => ({
+                          ...p,
+                          price: p.price || rec.recommendation.suggested_price,
+                          ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
+                        }));
+                      }
+                    }}
                     itemData={{
                       title: formData.title,
                       brand: formData.brand,
@@ -2621,6 +2667,18 @@ const CreateMasterListing = ({
 
                 {/* Live eBay Pricing Engine Insights Card */}
                 <PriceRecommendationCard
+                  initialData={masterPricingRecommendation}
+                  autoFetch={true}
+                  onRecommendationLoaded={(rec) => {
+                    setMasterPricingRecommendation(rec);
+                    if (rec.recommendation?.suggested_price) {
+                      setFormData(p => ({
+                        ...p,
+                        price: p.price || rec.recommendation.suggested_price,
+                        ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
+                      }));
+                    }
+                  }}
                   itemData={{
                     title: formData.title,
                     brand: formData.brand || formData.ebayAspects?.['Brand']?.[0],

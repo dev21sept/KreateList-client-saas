@@ -869,17 +869,17 @@ function startBackgroundSyncWorker() {
   console.log(' - Sales & Auto-Delist Sync: Every 10 minutes');
   console.log(' - All-Platform Closet Import & Inventory Sync: Every 12 hours (00:00 & 12:00)');
 
-  // Initial sales sync after 15 seconds
+  // Initial sales sync after 3 minutes (allows server to boot up smoothly without freezing event loop)
   setTimeout(() => {
     console.log('[Background Sync Worker] Running initial startup sales sync...');
     runBackgroundSyncCycle().catch(e => console.error('[Background Sync Worker] Initial sales sync error:', e.message));
-  }, 15000);
+  }, 180000);
 
-  // Initial inventory sync & status recheck after 45 seconds
+  // Initial inventory sync & status recheck after 8 minutes
   setTimeout(() => {
     console.log('[Background Sync Worker] Running initial startup inventory sync & status recheck...');
     runBackgroundInventorySyncCycle().catch(e => console.error('[Background Sync Worker] Initial inventory sync error:', e.message));
-  }, 45000);
+  }, 480000);
 
   // Schedule sales & auto-delist sync every 10 minutes
   ordersCronTask = cron.schedule('*/10 * * * *', () => {
