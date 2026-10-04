@@ -1,12 +1,20 @@
 // Single source of truth for marketplace logos. Every logo in the app uses this
-// component so they all render at the same size (24px) in tables, cards and buttons.
-const PlatformLogo = ({ src, alt = '', className = '' }) => (
+// component. Default size (md, 24px) is used in tables, chips and buttons;
+// lg (48px) is used on the Integrations cards.
+const SIZE_CLASSES = {
+  md: 'w-6 h-6',
+  lg: 'w-12 h-12'
+};
+
+const PIXELS = { md: 24, lg: 48 };
+
+const PlatformLogo = ({ src, alt = '', size = 'md', className = '' }) => (
   <img
     src={src}
     alt={alt}
-    width={24}
-    height={24}
-    className={`w-6 h-6 object-contain shrink-0 ${className}`.trim()}
+    width={PIXELS[size]}
+    height={PIXELS[size]}
+    className={`${SIZE_CLASSES[size]} object-contain shrink-0 ${className}`.trim()}
   />
 );
 
