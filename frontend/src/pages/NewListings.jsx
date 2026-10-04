@@ -4717,28 +4717,28 @@ const NewListings = () => {
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <PlatformLogo src="/poshmark.png" alt="Poshmark" className="rounded-lg shadow-2xs" />
+                          <PlatformLogo src="/poshmark.png" alt="Poshmark" />
                           <span>Poshmark</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.poshmark})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <PlatformLogo src="/mercari.png" alt="Mercari" className="rounded-lg shadow-2xs" />
+                          <PlatformLogo src="/mercari.png" alt="Mercari" />
                           <span>Mercari</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.mercari})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <PlatformLogo src="/etsy.png" alt="Etsy" className="rounded-lg shadow-2xs" />
+                          <PlatformLogo src="/etsy.png" alt="Etsy" />
                           <span>Etsy</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.etsy})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <PlatformLogo src="/amazon.png" alt="Amazon" className="rounded-lg shadow-2xs" />
+                          <PlatformLogo src="/amazon.png" alt="Amazon" />
                           <span>Amazon</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.amazon})</span>
                         </div>
@@ -5643,7 +5643,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <PlatformLogo src="/etsy.png" alt="" className="rounded-md" />
+                          <PlatformLogo src="/etsy.png" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
                       </label>

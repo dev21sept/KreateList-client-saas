@@ -816,7 +816,7 @@ const Settings = () => {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <PlatformLogo src="/vinted.jpg" alt="Vinted" className="object-cover rounded-xl p-1 bg-slate-50 border border-slate-100" />
+                          <PlatformLogo src="/vinted.jpg" alt="Vinted" className="object-cover p-1 bg-slate-50 border border-slate-100" />
                           <div>
                             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                               Vinted Fast Automator
