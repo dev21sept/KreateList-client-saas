@@ -1332,6 +1332,10 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         existingPost = getRes.data.post || getRes.data;
       }
     } catch (gErr) {
+      if (gErr.response?.status === 404) {
+        console.log(`[Poshmark Delister] Listing ${listingId} no longer exists on Poshmark. Nothing to delist.`);
+        return { success: true, alreadyDelisted: true };
+      }
       console.warn(`[Poshmark Delister] Could not fetch existing post:`, gErr.response?.data || gErr.message);
     }
 
@@ -1343,6 +1347,10 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       data: {}
     });
     const draftRes = await axios(draftConfig);
+    if (draftRes.data?.error?.statusCode === 404) {
+      console.log(`[Poshmark Delister] Listing ${listingId} not found on Poshmark (draft 404). Treating as already delisted.`);
+      return { success: true, alreadyDelisted: true };
+    }
     if (draftRes.data?.error) {
       throw new Error(`Draft Creation Error: ${draftRes.data.error.errorMessage || JSON.stringify(draftRes.data.error)}`);
     }
@@ -1457,6 +1465,10 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       return pubRes.data || { success: true };
     }
   } catch (draftErr) {
+    if (draftErr.response?.status === 404) {
+      console.log(`[Poshmark Delister] Listing ${listingId} not found on Poshmark (HTTP 404). Treating as already delisted.`);
+      return { success: true, alreadyDelisted: true };
+    }
     console.warn(`[Poshmark Delister] Draft NFS mutation notice: ${draftErr.message}. Trying direct DELETE API...`);
     lastError = draftErr;
   }
