@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -324,7 +325,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
-                        <img src={plat.logo} alt={plat.name} className="w-full h-full object-contain" />
+                        <PlatformLogo src={plat.logo} alt={plat.name} />
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-slate-800">{plat.name}</h4>
@@ -515,7 +516,7 @@ const Dashboard = () => {
                 <div key={conn.name} className="flex items-center justify-between p-3 bg-slate-50/60 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-all select-none">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-white rounded-xl shadow-2xs border border-slate-150 p-1 flex items-center justify-center shrink-0">
-                      <img src={conn.logo} alt={conn.name} className="w-full h-full object-contain" />
+                      <PlatformLogo src={conn.logo} alt={conn.name} />
                     </div>
                     <div>
                       <p className="text-xs font-black text-slate-800">{conn.name}</p>

@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -728,7 +729,7 @@ const NewDashboardLayout = () => {
                     onClick={() => setSelectedPlatform(opt.id)}
                     className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
                   >
-                    <img src={opt.icon} className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
+                    <PlatformLogo src={opt.icon} alt="" className="group-hover:scale-105 transition-transform" />
                     <span className="text-xs font-black text-slate-800 mt-3 block">{opt.label}</span>
                   </button>
                 ))}

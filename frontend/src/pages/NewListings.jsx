@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -1758,13 +1759,7 @@ const NewListings = () => {
                   : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-500/10 hover:scale-105'
               }`}
             >
-              <img 
-                src={p.logo} 
-                alt={p.name} 
-                className={`w-full h-full object-contain transition-all ${
-                  p.isLive ? '' : 'opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0'
-                }`} 
-              />
+              <PlatformLogo src={p.logo} alt={p.name} />
               {/* Live Green Dot */}
               {p.isLive && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
@@ -3987,7 +3982,7 @@ const NewListings = () => {
         >
           {/* Circular Platform Logo */}
           <div className="relative w-8 h-8 rounded-full border border-slate-200 bg-white group-hover:border-indigo-300 flex items-center justify-center shadow-xs shrink-0 transition-all">
-            <img src={logoSrc} className="w-5 h-5 object-contain" alt={platformName} />
+            <PlatformLogo src={logoSrc} alt={platformName} />
             {isListed && (
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -4715,35 +4710,35 @@ const NewListings = () => {
                       <th className="px-4 py-3.5 text-xs font-black text-slate-500 tracking-wider w-auto min-w-[280px]">Item</th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <img src="/ebay.png" className="w-7 h-7 object-contain shrink-0" alt="eBay" />
+                          <PlatformLogo src="/ebay.png" alt="eBay" />
                           <span>eBay</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.ebay})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <img src="/poshmark.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Poshmark" />
+                          <PlatformLogo src="/poshmark.png" alt="Poshmark" className="rounded-lg shadow-2xs" />
                           <span>Poshmark</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.poshmark})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <img src="/mercari.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Mercari" />
+                          <PlatformLogo src="/mercari.png" alt="Mercari" className="rounded-lg shadow-2xs" />
                           <span>Mercari</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.mercari})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <img src="/etsy.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Etsy" />
+                          <PlatformLogo src="/etsy.png" alt="Etsy" className="rounded-lg shadow-2xs" />
                           <span>Etsy</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.etsy})</span>
                         </div>
                       </th>
                       <th className="px-1.5 py-3.5 text-xs font-black text-slate-700 tracking-wider text-center w-[154px] min-w-[154px]">
                         <div className="flex items-center justify-center gap-2">
-                          <img src="/amazon.png" className="w-7 h-7 object-contain rounded-lg shrink-0 shadow-2xs" alt="Amazon" />
+                          <PlatformLogo src="/amazon.png" alt="Amazon" className="rounded-lg shadow-2xs" />
                           <span>Amazon</span>
                           <span className="text-slate-400 font-semibold text-xs tracking-normal">({platformHeaderCounts.amazon})</span>
                         </div>
@@ -5037,7 +5032,7 @@ const NewListings = () => {
 
                       <div className="flex items-center justify-between text-xs pt-1">
                         <div className="flex items-center gap-2">
-                          <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
+                          <PlatformLogo src={platformLogo} alt="" />
                           <span className="font-bold text-slate-700 capitalize">{platformName}</span>
                           <span className="font-extrabold text-slate-900 text-xs">${Number(price).toFixed(2)}</span>
                           <span className="text-[10px] font-mono text-slate-400">#{order.orderId}</span>
@@ -5054,7 +5049,7 @@ const NewListings = () => {
                             const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
                             return (
                               <div key={p} className="flex items-center gap-1.5 font-medium text-slate-700">
-                                <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                <PlatformLogo src={pLogo} alt="" />
                                 <span>{getChannelDisplayName(p)}</span>
                               </div>
                             );
@@ -5134,7 +5129,7 @@ const NewListings = () => {
                           <td className="px-5 py-4 w-[22%] align-middle">
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-2">
-                                <img src={platformLogo} className="w-4 h-4 object-contain" alt="" />
+                                <PlatformLogo src={platformLogo} alt="" />
                                 <span className="text-xs font-bold text-slate-800 capitalize">{platformName}</span>
                                 <span className="text-xs font-extrabold text-slate-900">${Number(price).toFixed(2)}</span>
                               </div>
@@ -5168,7 +5163,7 @@ const NewListings = () => {
                                   const pLogo = p === 'ebay' ? '/ebay.png' : (p === 'poshmark' ? '/poshmark.png' : (p === 'mercari' ? '/mercari.png' : (p === 'etsy' ? '/etsy.png' : (p === 'amazon' ? '/amazon.png' : '/depop.png'))));
                                   return (
                                     <div key={p} className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                                      <img src={pLogo} className="w-3.5 h-3.5 object-contain" alt="" />
+                                      <PlatformLogo src={pLogo} alt="" />
                                       <span>{getChannelDisplayName(p)}</span>
                                     </div>
                                   );
@@ -5176,7 +5171,7 @@ const NewListings = () => {
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                                <img src={platformLogo} className="w-3.5 h-3.5 object-contain opacity-60" alt="" />
+                                <PlatformLogo src={platformLogo} alt="" className="opacity-60" />
                                 <span>{getChannelDisplayName(platformName)} (Single Channel)</span>
                               </div>
                             )}
@@ -5620,7 +5615,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/ebay.png" className="w-5 h-5 object-contain" alt="" />
+                          <PlatformLogo src="/ebay.png" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
                       </label>
@@ -5634,7 +5629,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="" />
+                          <PlatformLogo src="/poshmark.png" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
                       </label>
@@ -5648,7 +5643,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/etsy.png" className="w-5 h-5 object-contain rounded-md" alt="" />
+                          <PlatformLogo src="/etsy.png" alt="" className="rounded-md" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
                       </label>
@@ -5662,7 +5657,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-200 transition-all shrink-0">
-                          <img src="/mercari.png" className="w-5 h-5 object-contain" alt="" />
+                          <PlatformLogo src="/mercari.png" alt="" />
                           <span className="text-[9px] font-bold text-slate-500">Mercari</span>
                         </div>
                       </label>
@@ -5676,7 +5671,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-slate-900 border border-slate-800 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-emerald-400 transition-all shrink-0">
-                          <img src="/amazon.png" className="w-5 h-5 object-contain" alt="" />
+                          <PlatformLogo src="/amazon.png" alt="" />
                           <span className="text-[9px] font-bold text-slate-200">Amazon</span>
                         </div>
                       </label>
@@ -5703,7 +5698,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/ebay.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <PlatformLogo src="/ebay.png" alt="" className="opacity-60 group-hover:opacity-100" />
                           <span className="text-[9px] font-bold text-slate-500">eBay</span>
                         </div>
                       </label>
@@ -5717,7 +5712,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/poshmark.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <PlatformLogo src="/poshmark.png" alt="" className="opacity-60 group-hover:opacity-100" />
                           <span className="text-[9px] font-bold text-slate-500">Poshmark</span>
                         </div>
                       </label>
@@ -5731,7 +5726,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/etsy.png" className="w-5 h-6 object-contain rounded-md opacity-60 group-hover:opacity-100" alt="" />
+                          <PlatformLogo src="/etsy.png" alt="" className="rounded-md opacity-60 group-hover:opacity-100" />
                           <span className="text-[9px] font-bold text-slate-500">Etsy</span>
                         </div>
                       </label>
@@ -5745,7 +5740,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-white border border-slate-100 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-200 transition-all shrink-0">
-                          <img src="/mercari.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <PlatformLogo src="/mercari.png" alt="" className="opacity-60 group-hover:opacity-100" />
                           <span className="text-[9px] font-bold text-slate-500">Mercari</span>
                         </div>
                       </label>
@@ -5759,7 +5754,7 @@ const NewListings = () => {
                           className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500 cursor-pointer" 
                         />
                         <div className="flex flex-col items-center gap-1 bg-slate-900 border border-slate-800 rounded-2xl p-2 w-14 h-14 shadow-xs group-hover:border-rose-400 transition-all shrink-0">
-                          <img src="/amazon.png" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" alt="" />
+                          <PlatformLogo src="/amazon.png" alt="" className="opacity-60 group-hover:opacity-100" />
                           <span className="text-[9px] font-bold text-slate-200">Amazon</span>
                         </div>
                       </label>
@@ -6481,7 +6476,7 @@ const NewListings = () => {
                             ].map(m => (
                               <div key={m.key} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60">
                                 <div className="flex items-center gap-2">
-                                  <img src={m.logo} alt={m.name} className="w-5 h-5 object-contain" />
+                                  <PlatformLogo src={m.logo} alt={m.name} />
                                   <span className="text-xs font-bold text-slate-700">{m.name}</span>
                                 </div>
                                 <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200/80">
@@ -6731,31 +6726,31 @@ const NewListings = () => {
                                 {/* Platform Columns with Logos */}
                                 <th className="px-3 py-3 text-center w-28 border-l border-slate-100">
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                                    <PlatformLogo src="/ebay.png" alt="eBay" />
                                     <span className="text-[10px] font-black text-slate-600">eBay</span>
                                   </div>
                                 </th>
                                 <th className="px-3 py-3 text-center w-28">
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                                    <PlatformLogo src="/poshmark.png" alt="Poshmark" />
                                     <span className="text-[10px] font-black text-slate-600">Poshmark</span>
                                   </div>
                                 </th>
                                 <th className="px-3 py-3 text-center w-28">
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                                    <PlatformLogo src="/mercari.png" alt="Mercari" />
                                     <span className="text-[10px] font-black text-slate-600">Mercari</span>
                                   </div>
                                 </th>
                                 <th className="px-3 py-3 text-center w-28">
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                                    <PlatformLogo src="/etsy.png" alt="Etsy" />
                                     <span className="text-[10px] font-black text-slate-600">Etsy</span>
                                   </div>
                                 </th>
                                 <th className="px-3 py-3 text-center w-28 border-r border-slate-100">
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                                    <PlatformLogo src="/amazon.png" alt="Amazon" />
                                     <span className="text-[10px] font-black text-slate-600">Amazon</span>
                                   </div>
                                 </th>
@@ -7155,37 +7150,37 @@ const NewListings = () => {
                           {/* Platform Columns with Logos */}
                           <th className="px-3 py-3 text-center w-24 border-l border-slate-100">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/ebay.png" alt="eBay" />
                               <span className="text-[10px] font-black text-slate-600">eBay</span>
                             </div>
                           </th>
                           <th className="px-3 py-3 text-center w-24">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/poshmark.png" alt="Poshmark" />
                               <span className="text-[10px] font-black text-slate-600">Poshmark</span>
                             </div>
                           </th>
                           <th className="px-3 py-3 text-center w-24">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/mercari.png" alt="Mercari" />
                               <span className="text-[10px] font-black text-slate-600">Mercari</span>
                             </div>
                           </th>
                           {/* <th className="px-3 py-3 text-center w-24">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/depop.png" alt="Depop" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/depop.png" alt="Depop" />
                               <span className="text-[10px] font-black text-slate-600">Depop</span>
                             </div>
                           </th> */}
                           <th className="px-3 py-3 text-center w-24">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/etsy.png" alt="Etsy" />
                               <span className="text-[10px] font-black text-slate-600">Etsy</span>
                             </div>
                           </th>
                           <th className="px-3 py-3 text-center w-24 border-r border-slate-100">
                             <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                              <PlatformLogo src="/amazon.png" alt="Amazon" />
                               <span className="text-[10px] font-black text-slate-600">Amazon</span>
                             </div>
                           </th>

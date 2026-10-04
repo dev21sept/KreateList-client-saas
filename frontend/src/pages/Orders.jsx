@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -557,7 +558,7 @@ const Orders = () => {
                 }`}
               >
                 {plat.icon ? (
-                  <img src={plat.icon} alt={plat.label} className="w-4 h-4 object-contain shrink-0" />
+                  <PlatformLogo src={plat.icon} alt={plat.label} />
                 ) : (
                   <Package className="w-4 h-4 text-slate-400" />
                 )}

@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -495,7 +496,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <img src="/etsy.png" className="w-6 h-6 object-contain" alt="Etsy" />
+            <PlatformLogo src="/etsy.png" alt="Etsy" />
           </div>
           <div>
             <div className="flex items-center gap-2">

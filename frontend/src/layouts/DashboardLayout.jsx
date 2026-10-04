@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -207,11 +208,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                 >
                                   <div className="flex items-center gap-3">
                                     {sub.logo && (
-                                      <img
-                                        src={sub.logo}
-                                        alt={sub.name}
-                                        className="w-4 h-4 object-contain rounded"
-                                      />
+                                      <PlatformLogo src={sub.logo} alt={sub.name} className="rounded" />
                                     )}
                                     <span>{sub.name}</span>
                                   </div>
@@ -256,11 +253,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                               }`}
                             >
                               {sub.logo && (
-                                <img
-                                  src={sub.logo}
-                                  alt={sub.name}
-                                  className="w-4 h-4 object-contain rounded"
-                                />
+                                <PlatformLogo src={sub.logo} alt={sub.name} className="rounded" />
                               )}
                               <span>{sub.name}</span>
                             </Link>

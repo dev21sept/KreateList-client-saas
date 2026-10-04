@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
@@ -2248,7 +2249,7 @@ const CreateMasterListing = ({
                 loading={isSingleLoading}
                 disabled={publishing}
                 className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
-                icon={<img src={pConfig.logo} className="w-3.5 h-3.5 object-contain" alt="" />}
+                icon={<PlatformLogo src={pConfig.logo} alt="" />}
               >
                 {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
               </Button>
@@ -2291,7 +2292,7 @@ const CreateMasterListing = ({
                       : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <img src={p.logo} className="w-4 h-4 object-contain" alt="" />
+                  <PlatformLogo src={p.logo} alt="" />
                   <span>{p.name}</span>
                   {isSelected && <Check size={12} className="text-white" />}
                 </button>
@@ -2602,7 +2603,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/ebay.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/ebay.png" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">eBay Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Full category hierarchy, item specifics, business policies & selling options</p>
@@ -3338,7 +3339,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/poshmark.png" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Poshmark Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Live category search, colors, style tags, brand & size dropdowns</p>
@@ -3439,7 +3440,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/mercari.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/mercari.png" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Mercari Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Category taxonomy, brand autocomplete, condition & full shipping matrix</p>
@@ -3638,7 +3639,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/etsy.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/etsy.png" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Etsy Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Taxonomy category, handmade details, materials, tags & shipping profiles</p>
@@ -3782,7 +3783,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/amazon.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/amazon.png" alt="" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Amazon Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Product type, product ID & bullet points</p>
@@ -3855,7 +3856,7 @@ const CreateMasterListing = ({
                   loading={isSingleLoading}
                   disabled={publishing}
                   className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
-                  icon={<img src={pConfig.logo} className="w-4 h-4 object-contain" alt="" />}
+                  icon={<PlatformLogo src={pConfig.logo} alt="" />}
                 >
                   {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
                 </Button>
