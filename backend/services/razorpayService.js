@@ -24,7 +24,7 @@ const getRazorpayInstance = () => {
 };
 
 // Create a new payment order
-exports.createOrder = async (amount, currency = 'USD', receiptId) => {
+exports.createOrder = async (amount, currency = 'USD', receiptId, notes = {}) => {
   const rzp = getRazorpayInstance();
   if (!rzp) {
     throw new Error('Razorpay service is not configured. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.');
@@ -33,7 +33,8 @@ exports.createOrder = async (amount, currency = 'USD', receiptId) => {
   const options = {
     amount: Math.round(amount * 100), // amount in smallest unit (cents/paisa)
     currency: currency,
-    receipt: receiptId || `receipt_${Date.now()}`
+    receipt: receiptId || `receipt_${Date.now()}`,
+    notes
   };
 
   return await rzp.orders.create(options);
@@ -50,5 +51,21 @@ exports.verifyPaymentSignature = (orderId, paymentId, signature) => {
   hmac.update(`${orderId}|${paymentId}`);
   const generatedSignature = hmac.digest('hex');
 
-  return generatedSignature === signature;
+  if (!signature || generatedSignature.length !== String(signature).length) return false;
+  return crypto.timingSafeEqual(
+    Buffer.from(generatedSignature, 'utf8'),
+    Buffer.from(String(signature), 'utf8')
+  );
+};
+
+exports.getOrderDetails = async orderId => {
+  const rzp = getRazorpayInstance();
+  if (!rzp) throw new Error('Razorpay service is not configured.');
+  return rzp.orders.fetch(orderId);
+};
+
+exports.getPaymentDetails = async paymentId => {
+  const rzp = getRazorpayInstance();
+  if (!rzp) throw new Error('Razorpay service is not configured.');
+  return rzp.payments.fetch(paymentId);
 };

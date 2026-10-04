@@ -202,4 +202,16 @@ const listingSchema = new mongoose.Schema({
   }
 });
 
+listingSchema.pre('validate', function() {
+  if (!this.sku || !String(this.sku).trim()) {
+    this.sku = `AUTO-L-${this._id.toString().slice(-12).toUpperCase()}`;
+  }
+});
+
+listingSchema.index({ user: 1, sku: 1 });
+listingSchema.index({ user: 1, status: 1 });
+listingSchema.index({ user: 1, ebayListingId: 1 });
+listingSchema.index({ user: 1, poshmarkListingId: 1 });
+listingSchema.index({ user: 1, mercariListingId: 1 });
+
 module.exports = mongoose.models.Listing || mongoose.model('Listing', listingSchema);

@@ -6,6 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const pricingController = require('../controllers/pricingController');
+const { protect } = require('../middleware/auth');
+
+// Pricing calls use third-party APIs and must be attributable to a user.
+router.use(protect);
 
 // Single item price recommendation
 router.post('/recommendations', pricingController.getRecommendation);

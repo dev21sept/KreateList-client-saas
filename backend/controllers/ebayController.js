@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const ebayService = require('../services/ebayService');
 const User = require('../models/User');
 const Product = require('../models/Product');
@@ -117,9 +117,12 @@ exports.handleDeletionNotification = async (req, res) => {
 exports.getEbayAuthUrl = async (req, res) => {
   try {
     const ruName = process.env.EBAY_RU_NAME;
-    // We pass req.user.id in state for GET direct redirects back to the backend if needed
-    const state = req.query.state || req.user?.id || 'dashboard'; 
     if (!ruName) return res.status(400).json({ error: 'RuName is required' });
+    const state = jwt.sign(
+      { userId: req.user.id, purpose: 'ebay-oauth' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
     
     const url = ebayService.getUserConsentUrl(ruName, state);
     console.log('Generated eBay Auth URL:', url);
@@ -140,10 +143,7 @@ exports.ebayCallback = async (req, res) => {
   const error = req.query.error;
   const error_description = req.query.error_description;
 
-  console.log('--- EBAY CALLBACK RECEIVED ---');
-  console.log('Method:', req.method);
-  console.log('Code:', code);
-  console.log('State:', state);
+  console.log('--- EBAY CALLBACK RECEIVED ---', { method: req.method });
 
   if (error) {
     console.error('eBay Auth Error:', error, error_description);
@@ -174,9 +174,14 @@ exports.ebayCallback = async (req, res) => {
     
     // Find the correct user
     let userId = req.user?.id;
-    // If it's a GET request direct from eBay, state parameter contains the user's ID
-    if (!userId && state && mongoose.Types.ObjectId.isValid(state)) {
-      userId = state;
+    // Direct eBay redirects carry a short-lived signed state so an attacker
+    // cannot connect their marketplace account to another user.
+    if (!userId && state) {
+      const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+      if (decodedState.purpose !== 'ebay-oauth') {
+        throw new Error('Invalid OAuth state.');
+      }
+      userId = decodedState.userId;
     }
 
     if (!userId) {
@@ -253,7 +258,13 @@ exports.ebayCallback = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'eBay Account Connected Successfully!',
-        data: user.ebayAccount
+        data: {
+          connected: user.ebayAccount.connected,
+          username: user.ebayAccount.username,
+          name: user.ebayAccount.name,
+          email: user.ebayAccount.email,
+          tokenExpires: user.ebayAccount.tokenExpires
+        }
       });
     }
 
@@ -273,6 +284,32 @@ exports.ebayCallback = async (req, res) => {
   }
 };
 exports.handleCallback = exports.ebayCallback;
+
+// @desc    Force refresh the current user's eBay access token
+// @route   POST /api/ebay/refresh
+// @access  Private
+exports.refreshEbayToken = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user?.ebayAccount?.refreshToken) {
+      return res.status(400).json({ success: false, message: 'eBay account is not connected.' });
+    }
+
+    const accessToken = await ebayService.refreshUserToken(user.ebayAccount.refreshToken);
+    user.ebayAccount.accessToken = accessToken;
+    user.ebayAccount.tokenExpires = new Date(Date.now() + 7200 * 1000);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'eBay connection refreshed successfully.',
+      data: { connected: true, tokenExpires: user.ebayAccount.tokenExpires }
+    });
+  } catch (error) {
+    console.error('eBay token refresh failed:', error.message);
+    return res.status(502).json({ success: false, message: 'Unable to refresh the eBay connection.' });
+  }
+};
 
 // @desc    Sync Orders from eBay for Logged-In User
 // @route   POST /api/ebay/sync/orders

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 const Listing = require('../models/Listing');
 const amazonService = require('../services/amazonService');
 
@@ -22,7 +23,11 @@ exports.amazonConnect = async (req, res) => {
     const isIndia = regionParam === 'in' || regionParam === 'india' || user.country === 'India';
     const sellerDomain = isIndia ? 'sellercentral.amazon.in' : 'sellercentral.amazon.com';
 
-    const state = req.user.id;
+    const state = jwt.sign(
+      { userId: req.user.id, purpose: 'amazon-oauth' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
     user.amazonState = state;
     await user.save();
 
@@ -56,7 +61,11 @@ exports.amazonCallback = async (req, res) => {
   }
 
   try {
-    const user = await User.findById(state);
+    const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+    if (decodedState.purpose !== 'amazon-oauth') {
+      throw new Error('Invalid OAuth state.');
+    }
+    const user = await User.findById(decodedState.userId);
     if (!user) {
       return res.redirect(`${frontendUrl}/integrations?error=user_not_found&channel=amazon`);
     }
@@ -82,7 +91,6 @@ exports.amazonCallback = async (req, res) => {
       tokenExpires: new Date(Date.now() + (expiresIn - 300) * 1000),
       connectedAt: new Date()
     };
-
     user.amazonState = undefined;
     await user.save();
 

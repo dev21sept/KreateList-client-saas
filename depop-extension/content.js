@@ -807,7 +807,7 @@ function getUsernameFromToken(token) {
       const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
       const decodedPayload = atob(payloadBase64);
       const payloadObj = JSON.parse(decodedPayload);
-      console.log('[Elister Depop] Decoded JWT Token payload:', payloadObj);
+      console.log('[Elister Depop] Decoded JWT token metadata.');
       if (payloadObj.username) return payloadObj.username;
       if (payloadObj.username_canonical) return payloadObj.username_canonical;
       if (payloadObj.sub) return payloadObj.sub;
@@ -921,7 +921,7 @@ function getDepopUsername() {
       const val = parts.slice(1).join('=');
       if (name && (name.toLowerCase().includes('username') || name.toLowerCase() === 'user')) {
         if (val && /^[a-z0-9_-]{3,20}$/i.test(val) && isNaN(val)) {
-          console.log('[Elister Depop] Found username in cookie:', name, 'value:', val);
+          console.log('[Elister Depop] Found username in cookie:', name);
           return val;
         }
       }

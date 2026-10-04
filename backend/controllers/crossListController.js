@@ -2,6 +2,7 @@ const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
 const { DEPOP_TAXONOMY } = require('../constants/depopTaxonomy');
 const Listing = require('../models/Listing');
 const ebayService = require('../services/ebayService');
+const { mapToPoshmarkCategory } = require('../services/poshmarkCategoryMapper');
 
 function detectGender(text = '') {
   const clean = text.toLowerCase();
@@ -230,15 +231,24 @@ exports.prepareCrossList = async (req, res) => {
     let mappedDepartmentId = '';
     let mappedConditionId = '';
     let mappedConditionLabel = '';
+    let categoryNeedsReview = false;
 
     // Plain text description formatting using htmlToPlainText
     const plainDesc = htmlToPlainText(listing.description);
 
     if (platform === 'poshmark') {
-      mappedCategory = normalizePoshmarkCategory(listing.category || listing.title, gender);
-      const matchedTax = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase() === mappedCategory.toLowerCase()) || {};
-      mappedCategoryId = matchedTax.categoryId || '';
-      mappedDepartmentId = matchedTax.departmentId || '';
+      // The generic "Clothing" value carries no category information, so it is ignored here.
+      const ebayPath = listing.category && listing.category !== 'Clothing' ? listing.category : '';
+      const mappedPoshmark = mapToPoshmarkCategory({ ebayPath, title: listing.title, gender });
+      if (mappedPoshmark) {
+        mappedCategory = mappedPoshmark.path;
+        mappedCategoryId = mappedPoshmark.categoryId;
+        mappedDepartmentId = mappedPoshmark.departmentId;
+      } else {
+        // No confident match: leave the category empty so the seller picks it,
+        // instead of publishing to an unrelated Poshmark category.
+        categoryNeedsReview = true;
+      }
 
       const cond = String(listing.selectedCondition || '').toLowerCase();
       if (cond.includes('new') || cond.includes('tag')) {
@@ -397,6 +407,7 @@ exports.prepareCrossList = async (req, res) => {
       category: mappedCategory,
       categoryId: mappedCategoryId,
       departmentId: mappedDepartmentId,
+      categoryNeedsReview,
       conditionId: mappedConditionId,
       selectedCondition: mappedConditionLabel,
       images: listing.images || [],

@@ -237,7 +237,7 @@
         if (response.headers) {
           const respCsrf = response.headers.get('x-xsrf-token') || response.headers.get('x-csrf-token');
           if (respCsrf) {
-            console.log('[Elister Interceptor] Captured CSRF token from fetch response headers:', respCsrf);
+            console.log('[Elister Interceptor] Captured CSRF token from fetch response headers.');
             document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
             window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
               detail: { csrfToken: respCsrf }
@@ -278,7 +278,7 @@
           };
           const extractedCsrf = findCsrf(resData);
           if (extractedCsrf) {
-            console.log('[Elister Interceptor] Extracted CSRF token from fetch response body:', extractedCsrf);
+            console.log('[Elister Interceptor] Extracted CSRF token from fetch response body.');
             document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
             window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
               detail: { csrfToken: extractedCsrf }
@@ -357,7 +357,7 @@
           try {
             const respCsrf = this.getResponseHeader('x-xsrf-token') || this.getResponseHeader('x-csrf-token');
             if (respCsrf) {
-              console.log('[Elister Interceptor] Captured CSRF token from XHR response headers:', respCsrf);
+              console.log('[Elister Interceptor] Captured CSRF token from XHR response headers.');
               document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
               window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
                 detail: { csrfToken: respCsrf }
@@ -383,7 +383,7 @@
             };
             const extractedCsrf = findCsrf(resData);
             if (extractedCsrf) {
-              console.log('[Elister Interceptor] Extracted CSRF token from XHR response body:', extractedCsrf);
+              console.log('[Elister Interceptor] Extracted CSRF token from XHR response body.');
               document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
               window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
                 detail: { csrfToken: extractedCsrf }

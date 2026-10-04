@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
@@ -8,42 +8,40 @@ import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import NewDashboardLayout from './layouts/NewDashboardLayout';
 
-// Pages
-import Home from './pages/Home';
-import Features from './pages/Features';
-import PricingPage from './pages/PricingPage';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsConditions from './pages/TermsConditions';
-import RefundPolicy from './pages/RefundPolicy';
-import ShippingPolicy from './pages/ShippingPolicy';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import Listings from './pages/NewListings';
-import Orders from './pages/Orders';
-import Analytics from './pages/Analytics';
-import CreateListing from './pages/CreateMasterListing';
-import CreateEbayListing from './pages/CreateEbayListing';
-import BulkListingEbay from './pages/BulkListingEbay';
-import CreatePoshmarkListing from './pages/CreatePoshmarkListing';
-// import CreateDepopListing from './pages/CreateDepopListing';
-import CreateEtsyListing from './pages/CreateEtsyListing';
-import CreateMercariListing from './pages/CreateMercariListing';
-import CreateAmazonListing from './pages/CreateAmazonListing';
-import Rules from './pages/Rules';
-import EbayAccounts from './pages/EbayAccounts';
-import Subscription from './pages/Subscription';
-import Settings from './pages/Settings';
-import Checkout from './pages/Checkout';
-import Testimonials from './pages/Testimonials';
-import HelpSupport from './pages/HelpSupport';
-
-// Admin Pages
-import AdminDashboard from './pages/admin/NewAdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminSettings from './pages/admin/AdminSettings';
+// Route-level code splitting keeps the large marketplace taxonomies and page
+// implementations out of the initial landing-page bundle.
+const Home = lazy(() => import('./pages/Home'));
+const Features = lazy(() => import('./pages/Features'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsConditions = lazy(() => import('./pages/TermsConditions'));
+const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
+const ShippingPolicy = lazy(() => import('./pages/ShippingPolicy'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Listings = lazy(() => import('./pages/NewListings'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const CreateListing = lazy(() => import('./pages/CreateMasterListing'));
+const CreateEbayListing = lazy(() => import('./pages/CreateEbayListing'));
+const BulkListingEbay = lazy(() => import('./pages/BulkListingEbay'));
+const CreatePoshmarkListing = lazy(() => import('./pages/CreatePoshmarkListing'));
+const CreateEtsyListing = lazy(() => import('./pages/CreateEtsyListing'));
+const CreateMercariListing = lazy(() => import('./pages/CreateMercariListing'));
+const CreateAmazonListing = lazy(() => import('./pages/CreateAmazonListing'));
+const Rules = lazy(() => import('./pages/Rules'));
+const EbayAccounts = lazy(() => import('./pages/EbayAccounts'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Testimonials = lazy(() => import('./pages/Testimonials'));
+const HelpSupport = lazy(() => import('./pages/HelpSupport'));
+const AdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -59,6 +57,7 @@ const DomainRedirect = ({ children }) => {
   // Check if we should enforce domain routing:
   // Only in production, or if the dev hostname explicitly contains a subdomain
   const shouldRedirect = !isDev || hostname.startsWith('app.');
+  let externalRedirectUrl = null;
 
   if (shouldRedirect) {
     const isAppSubdomain = hostname.startsWith('app.');
@@ -102,17 +101,19 @@ const DomainRedirect = ({ children }) => {
     );
 
     if (!isAppSubdomain && isAppPath) {
-      window.location.replace(`${appBase}${currentPath}${location.search}`);
-      return null;
+      externalRedirectUrl = `${appBase}${currentPath}${location.search}`;
     }
 
     if (isAppSubdomain && !isAppPath) {
-      window.location.replace(`${landingBase}${currentPath}${location.search}`);
-      return null;
+      externalRedirectUrl = `${landingBase}${currentPath}${location.search}`;
     }
   }
 
   useEffect(() => {
+    if (externalRedirectUrl) {
+      window.location.replace(externalRedirectUrl);
+      return;
+    }
     if (shouldRedirect) {
       const isAppSubdomain = hostname.startsWith('app.');
       const currentPath = location.pathname;
@@ -120,7 +121,9 @@ const DomainRedirect = ({ children }) => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [location, navigate, hostname, shouldRedirect]);
+  }, [location, navigate, hostname, shouldRedirect, externalRedirectUrl]);
+
+  if (externalRedirectUrl) return null;
 
   return children;
 };
@@ -130,6 +133,7 @@ const App = () => {
     <Router>
       <DomainRedirect>
         <AnimatePresence mode="wait">
+          <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-busy="true" />}>
           <Routes>
           {/* Public Routes */}
           <Route element={<MainLayout />}>
@@ -193,6 +197,7 @@ const App = () => {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </AnimatePresence>
       </DomainRedirect>
     </Router>

@@ -1,3 +1,4 @@
+const { stripFields } = require('../utils/sanitizeBody');
 const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
@@ -347,6 +348,7 @@ exports.getDashboardStats = async (req, res) => {
 // @access  Private
 exports.createListing = async (req, res) => {
   try {
+    req.body = stripFields(req.body, ['user']);
     req.body.user = req.user.id;
 
     // Convert base64 images to static files and get absolute URLs
@@ -636,6 +638,9 @@ exports.getListing = async (req, res) => {
 // @access  Private
 exports.updateListing = async (req, res) => {
   try {
+    // Ownership and database identity are immutable, regardless of what a
+    // client includes in the update payload.
+    req.body = stripFields(req.body, ['user']);
     let listing = await Listing.findById(req.params.id);
     if (!listing) {
       const Product = require('../models/Product');

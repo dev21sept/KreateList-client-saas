@@ -14,7 +14,9 @@ const router = express.Router();
 
 router.get('/plans', getPlans);
 router.post('/checkout', express.json(), protect, createCheckoutSession);
-router.post('/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+// Raw body parsing is mounted in server.js before the global JSON parser so
+// Stripe can verify the webhook signature.
+router.post('/webhook', handleWebhook);
 
 // Token routes
 router.get('/token-usage', protect, getTokenUsage);

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import {
   Search,
   ChevronDown,
@@ -6188,7 +6189,13 @@ const NewListings = () => {
                     <div 
                       className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 max-h-[260px] overflow-y-auto font-sans leading-relaxed prose prose-slate max-w-none"
                       style={{ whiteSpace: 'pre-wrap' }}
-                      dangerouslySetInnerHTML={{ __html: displayDesc }}
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(displayDesc, {
+                          USE_PROFILES: { html: true },
+                          FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+                          FORBID_ATTR: ['style']
+                        })
+                      }}
                     />
                   </div>
                 </div>

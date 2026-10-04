@@ -4,6 +4,7 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
+const { formatPrice } = require('../utils/priceParser');
 
 try {
   puppeteer.use(StealthPlugin());
@@ -331,7 +332,7 @@ async function scrapeDepopShop(username, credentials = {}) {
             listings.push({
               title: title.trim(),
               description: description.trim(),
-              price: parseFloat(priceVal).toFixed(2),
+              price: (formatPrice(priceVal) || "0.00"),
               sku: generatedSku,
               category: item.categoryName || item.category?.name || 'Tops',
               categoryId: String(item.categoryId || item.category?.id || ''),
@@ -369,7 +370,7 @@ async function scrapeDepopShop(username, credentials = {}) {
       // Parse price (look for text containing currency symbol inside the link card)
       let priceText = '0.00';
       const textVal = $(el).text();
-      const priceMatch = textVal.match(/[\$\£\€\¥]\s?(\d+(\.\d{2})?)/);
+      const priceMatch = textVal.match(/[\$\£\€\¥]\s?(\d[\d.,]*)/);
       if (priceMatch) {
         priceText = priceMatch[1];
       }
@@ -383,7 +384,7 @@ async function scrapeDepopShop(username, credentials = {}) {
         listings.push({
           title: title.replace(/Image for/i, '').trim() || 'Depop Product',
           description: title.replace(/Image for/i, '').trim(),
-          price: parseFloat(priceText).toFixed(2),
+          price: (formatPrice(priceText) || "0.00"),
           sku: `D-${slug.substring(0, 15) || timestamp}`,
           category: 'Tops',
           images: [imgUrl],
@@ -713,7 +714,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           listings.push({
             title: title.trim(),
             description: description.trim(),
-            price: parseFloat(priceVal).toFixed(2),
+            price: (formatPrice(priceVal) || "0.00"),
             sku: generatedSku,
             category: post.category || 'Tops',
             categoryId: post.category_features ? Object.keys(post.category_features)[0] : '',
@@ -794,7 +795,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
               listings.push({
                 title: title.trim(),
                 description: description.trim(),
-                price: parseFloat(priceVal).toFixed(2),
+                price: (formatPrice(priceVal) || "0.00"),
                 sku: generatedSku,
                 category: 'Tops',
                 images: imgUrl ? [imgUrl] : [],
@@ -833,7 +834,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       const imgUrl = imgEl.attr('src') || imgEl.attr('data-src') || imgEl.attr('data-original') || '';
       
       const priceText = $(el).find('.price, .tile__price').text().trim();
-      const cleanPrice = priceText.replace(/[^\d.]/g, '') || '0.00';
+      const cleanPrice = priceText;
 
       const listingIdMatch = fullUrl.match(/-([a-f0-9]{24})$/);
       const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
@@ -848,7 +849,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
         listings.push({
           title: title,
           description: title,
-          price: parseFloat(cleanPrice).toFixed(2),
+          price: (formatPrice(cleanPrice) || "0.00"),
           sku: generatedSku,
           category: 'Tops',
           images: imgUrl ? [imgUrl] : [],

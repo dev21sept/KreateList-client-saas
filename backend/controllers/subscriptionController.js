@@ -151,14 +151,21 @@ exports.createRazorpayOrder = async (req, res) => {
     const targetPlan = String(plan || 'pro').toLowerCase();
     const targetCycle = String(cycle || 'monthly').toLowerCase();
 
-    const planCyclePrice = planPrices[targetPlan] || planPrices.pro;
-    const amount = planCyclePrice[targetCycle] || planCyclePrice.monthly;
+    if (!planPrices[targetPlan] || !planPrices[targetPlan][targetCycle]) {
+      return res.status(400).json({ success: false, message: 'Invalid subscription plan or billing cycle.' });
+    }
+    const planCyclePrice = planPrices[targetPlan];
+    const amount = planCyclePrice[targetCycle];
     
     // For USD payments, we charge the flat plan rate without GST
     const totalAmount = amount;
 
     const receiptId = `rcpt_${req.user.id.substring(18)}_${Date.now().toString().slice(-6)}`;
-    const order = await razorpayService.createOrder(totalAmount, 'USD', receiptId);
+    const order = await razorpayService.createOrder(totalAmount, 'USD', receiptId, {
+      userId: req.user.id,
+      plan: targetPlan,
+      cycle: targetCycle
+    });
 
     res.status(200).json({
       success: true,
@@ -183,8 +190,8 @@ exports.verifyRazorpayPayment = async (req, res) => {
       razorpay_payment_id,
       razorpay_order_id,
       razorpay_signature,
-      plan,
-      cycle
+      plan: requestedPlan,
+      cycle: requestedCycle
     } = req.body;
 
     const isValid = razorpayService.verifyPaymentSignature(
@@ -200,9 +207,32 @@ exports.verifyRazorpayPayment = async (req, res) => {
       });
     }
 
+    const [order, payment] = await Promise.all([
+      razorpayService.getOrderDetails(razorpay_order_id),
+      razorpayService.getPaymentDetails(razorpay_payment_id)
+    ]);
+
+    const targetPlan = String(order.notes?.plan || '').toLowerCase();
+    const targetCycle = String(order.notes?.cycle || '').toLowerCase();
+    if (
+      String(order.notes?.userId || '') !== String(req.user.id) ||
+      payment.order_id !== razorpay_order_id ||
+      payment.amount !== order.amount ||
+      payment.currency !== order.currency ||
+      payment.status !== 'captured' ||
+      order.status !== 'paid'
+    ) {
+      return res.status(400).json({ success: false, message: 'Payment details could not be verified.' });
+    }
+
+    // Ignore client-supplied plan/cycle values. They are retained in the
+    // request only for backwards-compatible frontend payloads.
+    void requestedPlan;
+    void requestedCycle;
+
     // Upgrade the user's subscription in DB
     const expiresAt = new Date();
-    if (cycle === 'yearly') {
+    if (targetCycle === 'yearly') {
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     } else {
       expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -218,10 +248,13 @@ exports.verifyRazorpayPayment = async (req, res) => {
       pro: { monthly: 149, yearly: 1692 },
       enterprise: { monthly: 299, yearly: 3408 }
     };
-    const targetPlan = plan.toLowerCase();
-    const targetCycle = (cycle || 'monthly').toLowerCase();
-    const cyclePrices = planPrices[targetPlan] || planPrices.pro;
-    const amountPaid = cyclePrices[targetCycle] || cyclePrices.monthly;
+    if (!planPrices[targetPlan] || !planPrices[targetPlan][targetCycle]) {
+      return res.status(400).json({ success: false, message: 'Payment order contains an invalid plan.' });
+    }
+    const amountPaid = planPrices[targetPlan][targetCycle];
+    if (order.amount !== Math.round(amountPaid * 100)) {
+      return res.status(400).json({ success: false, message: 'Payment amount does not match the selected plan.' });
+    }
 
     user.subscription.plan = targetPlan;
     user.subscription.status = 'active';

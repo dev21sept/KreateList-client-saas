@@ -1,6 +1,18 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { sendOtpEmail } = require('../services/emailService');
+
+const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
+const hashOtp = otp => bcrypt.hash(otp, 10);
+const matchesOtp = async (submittedOtp, storedOtp) => {
+  if (!storedOtp) return false;
+  // Accept a legacy plain-text OTP once so in-flight verifications continue to
+  // work during deployment. Every newly generated OTP is hashed.
+  if (!storedOtp.startsWith('$2')) return storedOtp === submittedOtp;
+  return bcrypt.compare(submittedOtp, storedOtp);
+};
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -21,7 +33,7 @@ exports.register = async (req, res) => {
     }
 
     // Generate signup OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
 
     // Create user
     const user = await User.create({
@@ -31,8 +43,9 @@ exports.register = async (req, res) => {
       password,
       phone,
       isVerified: false,
-      otpCode: otp,
-      otpExpires: new Date(Date.now() + 15 * 60 * 1000)
+      otpCode: await hashOtp(otp),
+      otpExpires: new Date(Date.now() + 15 * 60 * 1000),
+      otpAttempts: 0
     });
 
     // Send OTP Email
@@ -89,9 +102,10 @@ exports.login = async (req, res) => {
 
     // 1. Check if account is verified. If not, require registration OTP verification.
     if (!user.isVerified) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.otpCode = otp;
+      const otp = generateOtp();
+      user.otpCode = await hashOtp(otp);
       user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+      user.otpAttempts = 0;
       await user.save();
       await sendOtpEmail(cleanEmail, otp, user.firstName);
 
@@ -107,9 +121,10 @@ exports.login = async (req, res) => {
     
     if (!isTrusted) {
       // Generate OTP for login on a new device
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.otpCode = otp;
+      const otp = generateOtp();
+      user.otpCode = await hashOtp(otp);
       user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+      user.otpAttempts = 0;
       await user.save();
       await sendOtpEmail(cleanEmail, otp, user.firstName);
 
@@ -146,7 +161,13 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'User not found' });
     }
 
-    if (user.otpCode !== otp) {
+    if ((user.otpAttempts || 0) >= 5) {
+      return res.status(429).json({ success: false, message: 'Too many invalid OTP attempts. Please request a new code.' });
+    }
+
+    if (!(await matchesOtp(String(otp), user.otpCode))) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      await user.save();
       return res.status(400).json({ success: false, message: 'Invalid verification OTP code' });
     }
 
@@ -158,6 +179,7 @@ exports.verifyOtp = async (req, res) => {
     user.isVerified = true;
     user.otpCode = undefined;
     user.otpExpires = undefined;
+    user.otpAttempts = 0;
 
     // Add deviceId to trusted devices list if provided
     if (deviceId) {
@@ -199,9 +221,10 @@ exports.resendOtp = async (req, res) => {
     }
 
     // Generate new OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otpCode = otp;
+    const otp = generateOtp();
+    user.otpCode = await hashOtp(otp);
     user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+    user.otpAttempts = 0;
     await user.save();
 
     // Send OTP Email
@@ -266,6 +289,27 @@ exports.getMe = async (req, res) => {
     }
 
     const userData = user.toObject();
+
+    // Never expose credentials used to access a customer's marketplace
+    // accounts. The frontend only needs connection metadata.
+    delete userData.password;
+    delete userData.otpCode;
+    delete userData.otpExpires;
+    delete userData.resetPasswordOtp;
+    delete userData.resetPasswordOtpExpire;
+    delete userData.resetPasswordToken;
+    delete userData.resetPasswordExpire;
+    delete userData.etsyCodeVerifier;
+    delete userData.amazonState;
+
+    for (const accountName of ['ebayAccount', 'poshmarkAccount', 'depopAccount', 'mercariAccount', 'etsyAccount', 'amazonAccount']) {
+      const account = userData[accountName];
+      if (!account) continue;
+      delete account.accessToken;
+      delete account.refreshToken;
+      delete account.sessionCookie;
+      delete account.csrfToken;
+    }
     userData.usage = {
       listingsCount,
       listingLimit,
@@ -394,15 +438,20 @@ exports.forgotPassword = async (req, res) => {
     const user = await User.findOne({ email: cleanEmail });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      // Avoid revealing which email addresses have an account.
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists, a password reset OTP has been sent.'
+      });
     }
 
     // Generate 6-digit OTP code for password reset
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
 
     // Store OTP in database
-    user.resetPasswordOtp = otp;
+    user.resetPasswordOtp = await hashOtp(otp);
     user.resetPasswordOtpExpire = new Date(Date.now() + 15 * 60 * 1000);
+    user.resetPasswordOtpAttempts = 0;
 
     await user.save();
 
@@ -440,7 +489,13 @@ exports.resetPasswordWithOtp = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (user.resetPasswordOtp !== otp) {
+    if ((user.resetPasswordOtpAttempts || 0) >= 5) {
+      return res.status(429).json({ success: false, message: 'Too many invalid OTP attempts. Please request a new code.' });
+    }
+
+    if (!(await matchesOtp(String(otp), user.resetPasswordOtp))) {
+      user.resetPasswordOtpAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
+      await user.save();
       return res.status(400).json({ success: false, message: 'Invalid reset password OTP code' });
     }
 
@@ -452,6 +507,7 @@ exports.resetPasswordWithOtp = async (req, res) => {
     user.password = password;
     user.resetPasswordOtp = undefined;
     user.resetPasswordOtpExpire = undefined;
+    user.resetPasswordOtpAttempts = 0;
 
     await user.save();
 
@@ -475,7 +531,6 @@ exports.resetPassword = async (req, res) => {
     }
 
     // Hash token from URL
-    const crypto = require('crypto');
     const hashedToken = crypto
       .createHash('sha256')
       .update(req.params.token)
@@ -511,7 +566,7 @@ const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = jwt.sign(
     { id: user._id },
-    process.env.JWT_SECRET || 'secret',
+    process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '30d' }
   );
 

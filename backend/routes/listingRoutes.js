@@ -27,18 +27,20 @@ const {
   getSyncSummary,
   dismissSyncSummary
 } = require('../controllers/listingController');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
-router.get('/admin/force-delist-poshmark', forceDelistPoshmark);
-router.get('/admin/force-relist-poshmark', forceRelistPoshmark);
-router.get('/admin/clean-duplicates', cleanDuplicatePoshmarkListings);
-router.get('/admin/reconcile-all', reconcileChannelInventory);
-router.get('/admin/clean-ghost-channels', cleanGhostChannels);
-
 router.use(protect);
+
+// Operational maintenance endpoints are intentionally kept on their existing
+// paths for compatibility, but they must never be callable by normal users.
+router.get('/admin/force-delist-poshmark', authorize('admin'), forceDelistPoshmark);
+router.get('/admin/force-relist-poshmark', authorize('admin'), forceRelistPoshmark);
+router.get('/admin/clean-duplicates', authorize('admin'), cleanDuplicatePoshmarkListings);
+router.get('/admin/reconcile-all', authorize('admin'), reconcileChannelInventory);
+router.get('/admin/clean-ghost-channels', authorize('admin'), cleanGhostChannels);
 
 router.get('/sync-summary', getSyncSummary);
 router.post('/sync-summary/dismiss', dismissSyncSummary);

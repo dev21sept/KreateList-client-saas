@@ -4,6 +4,7 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
 const dns = require('dns');
+const { apiLimiter, authLimiter, pricingLimiter } = require('./middleware/rateLimits');
 
 // Force IPv4 first to ensure backend traffic routes through VPN
 if (typeof dns.setDefaultResultOrder === 'function') {
@@ -15,6 +16,10 @@ const connectDB = require('./config/db');
 // Load env vars
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config();
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET must be configured with at least 32 characters');
+}
 
 // Connect to database
 connectDB();
@@ -28,7 +33,35 @@ initCronJobs();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.set('trust proxy', 1);
+
+const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const defaultOrigins = [
+  'https://elister.ai',
+  'https://www.elister.ai',
+  'https://app.elister.ai'
+];
+if (process.env.NODE_ENV !== 'production') {
+  defaultOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+}
+const allowedOrigins = new Set([...defaultOrigins, ...configuredOrigins]);
+
+app.use(cors({
+  origin(origin, callback) {
+    const isBrowserExtension = origin && origin.startsWith('chrome-extension://');
+    if (!origin || allowedOrigins.has(origin) || isBrowserExtension) {
+      return callback(null, true);
+    }
+    // Disallowed origins get no CORS headers instead of a 500 error response.
+    return callback(null, false);
+  },
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
+}));
 app.use(helmet({ 
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -37,9 +70,15 @@ app.use(helmet({
 app.use(morgan('dev', {
   skip: (req) => req.url.startsWith('/uploads') || req.method === 'OPTIONS'
 }));
-app.use(express.json({ limit: '1000mb' }));
-app.use(express.urlencoded({ limit: '1000mb', extended: true }));
+// Stripe requires the exact raw bytes to validate webhook signatures. This
+// parser must be registered before express.json().
+app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json', limit: '2mb' }));
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '50mb' }));
+app.use(express.urlencoded({ limit: process.env.REQUEST_BODY_LIMIT || '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
+app.use('/api/v1/pricing', pricingLimiter);
 
 // Routes
 app.get('/', (req, res) => {

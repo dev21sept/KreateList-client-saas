@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -24,15 +24,13 @@ import { listingService } from '../services/api';
 import IconButton from '../components/ui/IconButton';
 import Drawer from '../components/ui/Drawer';
 
-// Import creation page components directly to mount them in modal popup
-import CreateEbayListing from '../pages/CreateEbayListing';
-import BulkListingEbay from '../pages/BulkListingEbay';
-import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
-// import CreateDepopListing from '../pages/CreateDepopListing';
-import CreateMasterListing from '../pages/CreateMasterListing';
-import CreateEtsyListing from '../pages/CreateEtsyListing';
-import CreateMercariListing from '../pages/CreateMercariListing';
-import CreateAmazonListing from '../pages/CreateAmazonListing';
+// Creation forms are large; load only the platform selected in the modal.
+const CreateEbayListing = lazy(() => import('../pages/CreateEbayListing'));
+const BulkListingEbay = lazy(() => import('../pages/BulkListingEbay'));
+const CreatePoshmarkListing = lazy(() => import('../pages/CreatePoshmarkListing'));
+const CreateEtsyListing = lazy(() => import('../pages/CreateEtsyListing'));
+const CreateMercariListing = lazy(() => import('../pages/CreateMercariListing'));
+const CreateAmazonListing = lazy(() => import('../pages/CreateAmazonListing'));
 
 // Sidebar Menu Items based on screenshot:
 // Dashboard, Listings, Crosslisting, Orders, Analytics, Settings, Integrations, Help & Support
@@ -758,6 +756,7 @@ const NewDashboardLayout = () => {
               </IconButton>
 
               <div className="w-full">
+                <Suspense fallback={<div className="min-h-[240px]" aria-busy="true" />}>
                 {selectedPlatform === 'ebay' && <CreateEbayListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
@@ -765,6 +764,7 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'etsy' && <CreateEtsyListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'mercari' && <CreateMercariListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'amazon' && <CreateAmazonListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                </Suspense>
               </div>
             </div>
           )}

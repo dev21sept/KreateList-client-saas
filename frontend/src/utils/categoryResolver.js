@@ -81,70 +81,101 @@ export const resolveMercariCategory = (rawCategory = '', title = '', brand = '',
  * Resolves a full 3-level Poshmark category path.
  * NEVER returns a single word like 'Clothing'.
  */
+const POSHMARK_GENERIC_SEGMENTS = new Set(['clothing', 'shoes', 'accessories', 'clothing shoes and accessories', 'other']);
+const POSHMARK_GENDER_WORDS = new Set(['women', 'womens', 'men', 'mens', 'kids', 'girls', 'boys', 'unisex', 'female', 'male']);
+const POSHMARK_STOP_WORDS = new Set(['and', 'the', 'for', 'of', 'with']);
+// Common eBay leaf names whose Poshmark leaf is spelled differently (keys are singularKey() forms).
+const POSHMARK_LEAF_SYNONYMS = {
+  't shirt': 'tee short sleeve',
+  'tshirt': 'tee short sleeve',
+  'tee': 'tee short sleeve',
+  'long sleeve t shirt': 'tee long sleeve',
+  'sweatshirt': 'sweatshirt and hoodie',
+  'hoodie': 'sweatshirt and hoodie'
+};
+
+const normalizePoshmarkText = (text = '') => String(text)
+  .toLowerCase()
+  .replace(/&/g, ' and ')
+  .replace(/['’]/g, ' ')
+  .replace(/[^a-z0-9 ]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+// Plural-tolerant key: "Shoes" and "Shoe" compare equal.
+const poshmarkSingularKey = (text = '') => normalizePoshmarkText(text)
+  .split(' ')
+  .map(w => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w))
+  .join(' ');
+
+const poshmarkGenderFromText = (text = '') => {
+  const clean = normalizePoshmarkText(text);
+  if (/\b(women|womens|women s|female|girls?)\b/.test(clean)) return 'Women';
+  if (/\b(men|mens|men s|male|boys?)\b/.test(clean)) return 'Men';
+  if (/\b(kids?|child|children|baby|toddler)\b/.test(clean)) return 'Kids';
+  return null;
+};
+
+// Maps an eBay category path (or leaf name) to a Poshmark taxonomy entry.
+// Mirrors backend/services/poshmarkCategoryMapper.js. Returns null when unsure,
+// so the seller picks the category instead of getting an unrelated one.
+export const mapEbayToPoshmark = ({ ebayPath = '', title = '', gender = null } = {}) => {
+  const segments = String(ebayPath)
+    .split('>')
+    .map(s => s.trim())
+    .filter(s => s && !POSHMARK_GENERIC_SEGMENTS.has(normalizePoshmarkText(s)));
+
+  const leafText = segments.length ? segments[segments.length - 1] : '';
+  const parentText = segments.length > 1 ? segments[segments.length - 2] : '';
+  const targetGender = gender || poshmarkGenderFromText(ebayPath) || poshmarkGenderFromText(title);
+  const rawLeafKey = poshmarkSingularKey(leafText);
+  const leafKey = POSHMARK_LEAF_SYNONYMS[rawLeafKey] || rawLeafKey;
+  if (!leafKey) return null;
+
+  const inGender = entry => !targetGender || entry.path.split(' > ')[0] === targetGender;
+
+  let candidates = POSHMARK_TAXONOMY.filter(entry =>
+    poshmarkSingularKey(entry.path.split(' > ').pop()) === leafKey && inGender(entry)
+  );
+
+  if (candidates.length > 1 && parentText) {
+    const parentKey = poshmarkSingularKey(parentText);
+    const withParent = candidates.filter(entry =>
+      entry.path.split(' > ').slice(1, -1).map(poshmarkSingularKey).some(part => part && parentKey.includes(part))
+    );
+    if (withParent.length) candidates = withParent;
+  }
+
+  if (candidates.length) return candidates[0];
+
+  // Same words in a different order or with a leading gender word.
+  const wordSet = key => [...new Set(key.split(' ').filter(w => w.length > 1 && !POSHMARK_STOP_WORDS.has(w) && !POSHMARK_GENDER_WORDS.has(w)))].sort().join(' ');
+  const targetWords = wordSet(leafKey);
+  if (!targetWords) return null;
+
+  const matches = POSHMARK_TAXONOMY.filter(entry =>
+    inGender(entry) && wordSet(poshmarkSingularKey(entry.path.split(' > ').pop())) === targetWords
+  );
+  return matches[0] || null;
+};
+
 export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = '', gender = 'Unisex') => {
   const cleanCat = String(rawCategory || '').trim();
+  const ebayPath = cleanCat && cleanCat.toLowerCase() !== 'clothing' ? cleanCat : '';
+  const knownGender = gender && gender !== 'Unisex' ? gender : null;
+  const match = mapEbayToPoshmark({ ebayPath, title, gender: knownGender });
 
-  if (cleanCat && cleanCat.includes(' > ') && cleanCat.toLowerCase() !== 'clothing') {
-    const direct = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase() === cleanCat.toLowerCase());
-    if (direct) {
-      return {
-        path: direct.path,
-        category: direct.path,
-        categoryId: direct.categoryId,
-        id: direct.id,
-        department: direct.path.split(' > ')[0]
-      };
-    }
+  if (!match) {
+    // No confident match: empty path, so the form does not get a wrong default.
+    return { path: '', category: '', categoryId: '', id: '', department: '' };
   }
 
-  const combinedText = `${cleanCat} ${title} ${brand}`.toLowerCase();
-  const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b|\btactical\b/.test(combinedText) || gender.toLowerCase() === 'men';
-  const isWomen = (/\bwomen\b|\bwomens\b|\bfemale\b|\blady\b|\bladies\b/.test(combinedText) || gender.toLowerCase() === 'women') && !isMen;
-  const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combinedText);
-
-  const tokens = combinedText.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
-
-  let bestMatch = null;
-  let highestScore = 0;
-
-  for (const item of POSHMARK_TAXONOMY) {
-    const itemPathLower = item.path.toLowerCase();
-    let score = 0;
-
-    if (isMen && item.path.startsWith('Men')) score += 20;
-    else if (isWomen && item.path.startsWith('Women')) score += 20;
-    else if (isKids && item.path.startsWith('Kids')) score += 20;
-
-    for (const token of tokens) {
-      if (itemPathLower.includes(token)) {
-        score += token.length * 2;
-      }
-    }
-
-    if (score > highestScore) {
-      highestScore = score;
-      bestMatch = item;
-    }
-  }
-
-  if (bestMatch && highestScore >= 10) {
-    return {
-      path: bestMatch.path,
-      category: bestMatch.path,
-      categoryId: bestMatch.categoryId,
-      id: bestMatch.id,
-      department: bestMatch.path.split(' > ')[0]
-    };
-  }
-
-  const defaultPath = isMen ? 'Men > Shirts > Tees - Short Sleeve' : 'Women > Tops > T-Shirts';
-  const def = POSHMARK_TAXONOMY.find(c => c.path === defaultPath) || POSHMARK_TAXONOMY[0];
   return {
-    path: def.path,
-    category: def.path,
-    categoryId: def.categoryId,
-    id: def.id,
-    department: def.path.split(' > ')[0]
+    path: match.path,
+    category: match.path,
+    categoryId: match.categoryId,
+    id: match.id,
+    department: match.path.split(' > ')[0]
   };
 };
 

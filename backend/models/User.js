@@ -160,12 +160,20 @@ const userSchema = new mongoose.Schema({
   },
   otpCode: String,
   otpExpires: Date,
+  otpAttempts: {
+    type: Number,
+    default: 0
+  },
   trustedDevices: {
     type: [String],
     default: []
   },
   resetPasswordOtp: String,
   resetPasswordOtpExpire: Date,
+  resetPasswordOtpAttempts: {
+    type: Number,
+    default: 0
+  },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   lastSyncSummary: {

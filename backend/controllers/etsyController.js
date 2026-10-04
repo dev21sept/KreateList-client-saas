@@ -1,4 +1,5 @@
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Listing = require('../models/Listing');
 const Product = require('../models/Product');
@@ -84,7 +85,11 @@ exports.etsyConnect = async (req, res) => {
     const redirectUri = process.env.ETSY_REDIRECT_URI || `${finalProtocol}://${host}/api/etsy/callback`;
 
     const scopes = 'listings_w listings_r shops_r';
-    const state = req.user.id;
+    const state = jwt.sign(
+      { userId: req.user.id, purpose: 'etsy-oauth' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
 
     const authUrl = `https://www.etsy.com/oauth/connect?` +
       `response_type=code&` +
@@ -111,7 +116,11 @@ exports.etsyCallback = async (req, res) => {
   }
 
   try {
-    const user = await User.findById(state);
+    const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+    if (decodedState.purpose !== 'etsy-oauth') {
+      throw new Error('Invalid OAuth state.');
+    }
+    const user = await User.findById(decodedState.userId);
     if (!user) {
       return res.redirect(`${frontendUrl}/integrations?error=user_not_found&channel=etsy`);
     }
