@@ -23,6 +23,27 @@ function getPercentile(sortedValues, percentile) {
 }
 
 /**
+ * Drops comparables whose price is far outside the main cluster (Tukey fences).
+ * Keeps the original list when trimming would leave fewer than 3 items.
+ */
+function removePriceOutliers(items = [], getPrice = item => item.total_price) {
+  if (items.length < 4) return items;
+
+  const sorted = items.map(getPrice).filter(p => p > 0).sort((a, b) => a - b);
+  const q1 = getPercentile(sorted, 25);
+  const q3 = getPercentile(sorted, 75);
+  const iqr = q3 - q1;
+  const low = q1 - 1.5 * iqr;
+  const high = q3 + 1.5 * iqr;
+
+  const kept = items.filter(item => {
+    const price = getPrice(item);
+    return price >= low && price <= high;
+  });
+  return kept.length >= 3 ? kept : items;
+}
+
+/**
  * Calculates robust statistical distribution from price list
  */
 function calculatePriceDistribution(priceList = []) {
@@ -123,6 +144,7 @@ function applySellerObjective(basePrice, objective = 'MARKET_MATCHED', distribut
 }
 
 module.exports = {
+  removePriceOutliers,
   calculatePriceDistribution,
   applySellerObjective,
   applyPsychologicalRounding,

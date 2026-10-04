@@ -377,7 +377,13 @@ exports.createListing = async (req, res) => {
     const platform = req.body.platform || 'ebay';
     req.body[`${platform}Status`] = req.body.status || 'draft';
 
-    const existing = await Listing.findOne({ user: req.user.id, sku: req.body.sku });
+    // Identity is the marketplace listing ID, never the SKU: several items can share one SKU.
+    const idFilters = ['ebayListingId', 'poshmarkListingId', 'depopListingId', 'etsyListingId', 'mercariListingId']
+      .filter(f => req.body[f])
+      .map(f => ({ [f]: req.body[f] }));
+    const existing = idFilters.length
+      ? await Listing.findOne({ user: req.user.id, $or: idFilters })
+      : null;
     if (existing) {
       const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'];
       platforms.forEach(p => {
@@ -1818,7 +1824,10 @@ exports.verifyListingLive = async (req, res) => {
       if (!listing) {
         product = await Product.findById(itemId);
         if (product && product.user.toString() === req.user.id) {
-          listing = await Listing.findOne({ user: req.user.id, $or: [{ sku: product.sku }, { mercariListingId: product.mercariListingId }] });
+          // Match by marketplace ID only: SKUs are not unique (one SKU can cover several items).
+          listing = product.mercariListingId
+            ? await Listing.findOne({ user: req.user.id, mercariListingId: product.mercariListingId })
+            : null;
         }
       }
     } else {

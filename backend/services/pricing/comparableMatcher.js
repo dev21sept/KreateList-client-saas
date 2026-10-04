@@ -27,14 +27,16 @@ function computeTokenSimilarity(tokensA, textB) {
 
   if (tokensB.length === 0) return 0;
 
+  // Recall: how much of the target's wording the candidate title contains.
+  // Jaccard was used before, but it punished long eBay titles (score 37-44 for exact kit matches).
   const setB = new Set(tokensB);
+  const targetTokens = [...new Set(tokensA)];
   let intersection = 0;
-  for (const t of tokensA) {
+  for (const t of targetTokens) {
     if (setB.has(t)) intersection++;
   }
 
-  const union = new Set([...tokensA, ...tokensB]).size;
-  return union > 0 ? (intersection / union) : 0;
+  return targetTokens.length > 0 ? (intersection / targetTokens.length) : 0;
 }
 
 /**
@@ -104,6 +106,14 @@ function evaluateHardRejections(targetItem, candidate) {
     if (!candTitleClean.includes(targetModelClean)) {
       reasons.push('model_not_found_in_candidate_title');
     }
+  }
+
+  // 5b. Accessories, parts and consumables are not the item itself
+  const targetTitle = (targetItem.title || '').toLowerCase();
+  // Plural "pins"/"nails" are consumables; singular "pin nailer" is the tool itself.
+  const ACCESSORY_PATTERN = /\b(parts?|replacement|nose|pins|nails|fasteners?|covers?|manuals?|batter(y|ies)|chargers?|filters?|hoses?|adapters?|tips?)\b/i;
+  if (!ACCESSORY_PATTERN.test(targetTitle) && !candidateConfig.isKit && ACCESSORY_PATTERN.test(candidateTitle)) {
+    reasons.push('accessory_listing_for_full_item');
   }
 
   // 6. Zero or negative price

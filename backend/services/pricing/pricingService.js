@@ -13,9 +13,26 @@ const { resolveItem } = require('./itemResolver');
 const { fetchActiveListings } = require('./ebayBrowseConnector');
 const { fetchSoldListings } = require('./soldDataConnector');
 const { matchAndFilterComparables } = require('./comparableMatcher');
-const { calculatePriceDistribution, applySellerObjective } = require('./pricingCalculator');
+const { calculatePriceDistribution, applySellerObjective, removePriceOutliers } = require('./pricingCalculator');
 
-const PRICING_ALGORITHM_VERSION = 'pricing-v1.1';
+const PRICING_ALGORITHM_VERSION = 'pricing-v1.2';
+
+// Match-score thresholds for comparables that are allowed to set the price.
+const PRICE_POOL_MIN_SCORE = 60;
+const PRICE_POOL_FALLBACK_SCORE = 50;
+const PRICE_POOL_MIN_SIZE = 3;
+
+/**
+ * Picks comparables that may set the price: strong matches first, then a wider
+ * fallback when there are too few, and finally drops price outliers.
+ */
+function selectPricingPool(comps) {
+  const strong = comps.filter(c => c.match_score >= PRICE_POOL_MIN_SCORE);
+  const pool = strong.length >= PRICE_POOL_MIN_SIZE
+    ? strong
+    : comps.filter(c => c.match_score >= PRICE_POOL_FALLBACK_SCORE);
+  return removePriceOutliers(pool);
+}
 
 // Simple in-memory cache with 30-minute TTL
 const cache = new Map();
@@ -208,12 +225,17 @@ async function recommendPrice(request = {}) {
   const MIN_SOLD_MATCHES = 3;
   const MIN_ACTIVE_MATCHES = 1;
 
-  if (soldComps.length >= MIN_SOLD_MATCHES) {
-    relevantComps = soldComps;
+  // Only strong matches set the price. Weak matches (bare tool vs kit, parts, other models)
+  // used to pull the median far below the real product price.
+  const soldPool = selectPricingPool(soldComps);
+  const activePool = selectPricingPool(activeComps);
+
+  if (soldPool.length >= MIN_SOLD_MATCHES) {
+    relevantComps = soldPool;
     basis = 'SOLD_COMPS_MEDIAN';
     hasSoldData = true;
-  } else if (activeComps.length >= MIN_ACTIVE_MATCHES) {
-    relevantComps = activeComps;
+  } else if (activePool.length >= MIN_ACTIVE_MATCHES) {
+    relevantComps = activePool;
     basis = 'ACTIVE_ASKING_PRICE_ESTIMATE';
     hasSoldData = false;
   } else {
@@ -254,8 +276,14 @@ async function recommendPrice(request = {}) {
 
   const caveats = buildCaveats(resolved, hasSoldData, relevantComps.length, basis);
 
-  // Return clean representative evidence (top 5 comps for user review)
-  const representativeEvidence = accepted.slice(0, 5).map(c => ({
+  // Evidence for the user: comps that set the price first, then the rest by match score.
+  const poolIds = new Set(relevantComps.map(c => c.item_id));
+  const evidenceOrder = [
+    ...accepted.filter(c => poolIds.has(c.item_id)),
+    ...accepted.filter(c => !poolIds.has(c.item_id))
+  ];
+  const representativeEvidence = evidenceOrder.slice(0, 5).map(c => ({
+    in_price_pool: poolIds.has(c.item_id),
     item_id: c.item_id,
     title: c.title,
     price: c.item_price,

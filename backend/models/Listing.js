@@ -153,6 +153,8 @@ const listingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Last time the status tracker checked this listing against the marketplaces.
+  statusCheckedAt: Date,
   ebayStatus: {
     type: String,
     enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],

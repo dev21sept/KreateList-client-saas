@@ -58,6 +58,7 @@ const runRenewalChecks = async () => {
 };
 
 const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../services/backgroundSyncService');
+const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -68,6 +69,16 @@ const initCronJobs = () => {
 
   // Run automated multi-channel background sales & auto-delist sync
   startBackgroundSyncWorker();
+
+  // Light status tracker: small batch every 20 minutes, dry run unless TRACKER_APPLY=true
+  if (process.env.TRACKER_DISABLED !== 'true') {
+    cron.schedule('*/20 * * * *', () => {
+      runStatusTrackerCycle()
+        .then(s => console.log('[StatusTracker]', JSON.stringify(s)))
+        .catch(e => console.error('[StatusTracker] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Listing status tracker scheduled every 20 minutes.');
+  }
 };
 
 module.exports = { initCronJobs, runRenewalChecks, runBackgroundSyncCycle };
