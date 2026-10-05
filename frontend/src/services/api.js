@@ -177,7 +177,21 @@ export const externalImportService = {
   triggerVerificationMethod: (data) => mercariService.triggerVerificationMethod(data),
   connectInteractiveDepop: () => depopService.connectInteractive(),
   verifyPoshmark2fa: (data) => data.platform === 'mercari' ? mercariService.verify2fa(data) : poshmarkService.verify2fa(data),
-  publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : data.platform === 'mercari' ? mercariService.publish(id, data) : poshmarkService.publish(id, data),
+  // Publishes to exactly one platform, chosen by data.platform. Each platform calls its own endpoint,
+  // so publishing on one marketplace never touches another. Unknown platforms are rejected.
+  publish: (id, data = {}) => {
+    const publishers = {
+      ebay: () => listingService.publish(id),
+      poshmark: () => poshmarkService.publish(id, data),
+      depop: () => depopService.publish(id, data),
+      mercari: () => mercariService.publish(id, data),
+      etsy: () => etsyService.publish(id, data),
+      amazon: () => amazonService.publish(id, data)
+    };
+    const run = publishers[data.platform];
+    if (!run) return Promise.reject(new Error(`Unknown publish platform: ${data.platform}`));
+    return run();
+  },
   getLive: (platform) => platform === 'depop' ? depopService.getLive() : platform === 'mercari' ? mercariService.getLive() : poshmarkService.getLive()
 };
 

@@ -877,7 +877,7 @@ exports.updateListing = async (req, res) => {
     }
 
     // Background Poshmark Sync: If listed on Poshmark, sync changes in background
-    if (listing.poshmarkListingId || (listing.platform === 'poshmark' && listing.status === 'published')) {
+    if (listing.poshmarkAutoSync === true && (listing.poshmarkListingId || (listing.platform === 'poshmark' && listing.status === 'published'))) {
       (async () => {
         try {
           const User = require('../models/User');
@@ -907,7 +907,7 @@ exports.updateListing = async (req, res) => {
     }
 
     // Background Depop Sync: If listed on Depop and has Partner API integration, sync changes in background
-    if (listing.depopListingId || (listing.platform === 'depop' && listing.status === 'published')) {
+    if (listing.depopAutoSync === true && (listing.depopListingId || (listing.platform === 'depop' && listing.status === 'published'))) {
       (async () => {
         try {
           const User = require('../models/User');

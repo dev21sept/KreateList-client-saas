@@ -38,6 +38,9 @@ const listingSchema = new mongoose.Schema({
     default: 'draft'
   },
   ebayListingId: String,
+  // Background sync to other marketplaces runs only when the user turns it on for this listing.
+  poshmarkAutoSync: { type: Boolean, default: false },
+  depopAutoSync: { type: Boolean, default: false },
   ebayUrl: String,
   errorMessage: String,
   selectedRule: String,

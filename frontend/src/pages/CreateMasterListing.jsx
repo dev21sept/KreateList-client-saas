@@ -1140,10 +1140,8 @@ const CreateMasterListing = ({
   const [selectedPlatforms, setSelectedPlatforms] = useState(() => {
     if (initialPlatform) return [initialPlatform];
     if (queryPlatform) return [queryPlatform];
-    if (initialListing) {
-      const detected = detectActivePlatforms(initialListing);
-      if (detected.length > 0) return detected;
-    }
+    // Only the listing's own platform is pre-selected. Platforms inferred from saved marketplace IDs
+    // are not, so a publish never reaches a marketplace the user did not choose.
     return [initialListing?.platform || 'ebay'];
   });
 
