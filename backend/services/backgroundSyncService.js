@@ -374,12 +374,9 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
         : (prod.thumbnail ? [prod.thumbnail] : []);
 
       // Check if product matches an existing listing
-      let matchedListing = findBestMatchingListing(existingListings, {
-        title: prod.title,
-        sku: prod.sku,
-        listingId: liveId,
-        platform: src
-      });
+      // Title and SKU matching is not used here: it joined different items (SKUs repeat, titles are similar).
+      // Only records linked by live ID are merged, and merges are confirmed by the user.
+      let matchedListing = null;
 
       // Guard: If matchedListing already has a DIFFERENT item ID for this platform, do not overwrite it
       if (matchedListing && matchedListing[`${src}ListingId`] && String(matchedListing[`${src}ListingId`]) !== liveId) {
@@ -945,6 +942,15 @@ async function syncUserInventory(userId) {
   await recheckMasterListingStatuses(userId);
   await reconcileOrdersAndMasterListings(userId);
 
+  // 5.4 Live check by listing ID first, so the import below works on the real status
+  let liveResult = null;
+  try {
+    const { syncMasterStatuses } = require('./masterStatusSync');
+    liveResult = await syncMasterStatuses(userId, { apply: true });
+  } catch (liveErr) {
+    console.warn('[Sync User Inventory] Live ID check notice:', liveErr.message);
+  }
+
   // 5.5 Auto-Import and Auto-Merge newly discovered channel items
   let newItemsCount = 0;
   let mergedItemsCount = 0;
@@ -974,6 +980,7 @@ async function syncUserInventory(userId) {
       newItemsCount: newItemsCount,
       mergedItemsCount: mergedItemsCount,
       platforms: connectedPlatforms,
+      live: liveResult ? { active: liveResult.live.active, delisted: liveResult.live.delisted, sold: liveResult.live.sold, changed: liveResult.changed } : undefined,
       shownToUser: false
     };
     user.markModified('lastSyncSummary');

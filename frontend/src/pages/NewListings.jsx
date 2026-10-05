@@ -1048,7 +1048,8 @@ const NewListings = () => {
                 totalProcessed: sum.totalProcessed || listings.length,
                 newItemsCount: sum.newItemsCount || 0,
                 mergedItemsCount: sum.mergedItemsCount || 0,
-                platforms: sum.platforms || []
+                platforms: sum.platforms || [],
+                live: sum.live || null
               });
               setSyncCompleteModalOpen(true);
             }
@@ -7426,6 +7427,24 @@ const NewListings = () => {
                 Marketplace inventory synchronized and updated.
               </p>
             </div>
+
+            {/* Live status by listing ID (checked before the import) */}
+            {syncStats.live && (
+              <div className="grid grid-cols-3 gap-3 pt-1 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+                  <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Live (by ID)</span>
+                  <span className="text-xl font-black text-slate-800">{syncStats.live.active || 0}</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+                  <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Delisted</span>
+                  <span className="text-xl font-black text-slate-800">{syncStats.live.delisted || 0}</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+                  <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Sold</span>
+                  <span className="text-xl font-black text-slate-800">{syncStats.live.sold || 0}</span>
+                </div>
+              </div>
+            )}
 
             {/* 2 Clean Stat Cards (Side-by-Side) */}
             <div className="grid grid-cols-2 gap-3 pt-1 text-center">

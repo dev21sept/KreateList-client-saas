@@ -91,6 +91,7 @@ async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 }
   };
   const ops = [];
   const counts = { checked: 0, changed: 0 };
+  const live = { active: 0, delisted: 0, sold: 0 };
   for (const l of listings) {
     const next = {};
     const parts = [];
@@ -118,6 +119,9 @@ async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 }
 
     counts.checked++;
     const overall = overallStatus(parts);
+    if (overall === 'published') live.active++;
+    else if (overall === 'sold') live.sold++;
+    else if (overall === 'delisted') live.delisted++;
     if (overall) next.status = overall;
 
     const diff = {};
@@ -139,6 +143,7 @@ async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 }
     platforms_checked: Object.fromEntries(Object.entries(lives).map(([k, v]) => [k, v ? v.size : 'not read / not connected'])),
     ...counts,
     skippedUnsafe: guarded,
+    live,
   };
 }
 

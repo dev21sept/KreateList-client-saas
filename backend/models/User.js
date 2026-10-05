@@ -182,6 +182,8 @@ const userSchema = new mongoose.Schema({
     newItemsCount: Number,
     mergedItemsCount: Number,
     platforms: [String],
+    // Live check by listing ID, run at Sync Now: records live on a platform / ended / sold
+    live: { active: Number, delisted: Number, sold: Number, changed: Number },
     shownToUser: {
       type: Boolean,
       default: false
