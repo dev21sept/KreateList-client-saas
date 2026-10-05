@@ -889,17 +889,24 @@ exports.updateListing = async (req, res) => {
             const { publishToPoshmark } = require('../services/backendPublishService');
             const syncResult = await publishToPoshmark(listing, user.poshmarkAccount);
             if (syncResult && syncResult.id) {
-              listing.poshmarkListingId = syncResult.id;
-              listing.poshmarkUrl = syncResult.url;
-              await listing.save();
-              console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully! Saved new listing ID: ${syncResult.id}`);
+              const previousId = String(listing.poshmarkListingId);
+              // One ID, one record: never attach a Poshmark ID that another record already owns.
+              const owner = await Listing.findOne({ user: listing.user, poshmarkListingId: String(syncResult.id), _id: { $ne: listing._id } }).select('_id').lean();
+              if (owner) {
+                console.warn(`[Listing Controller] [BG SYNC] Poshmark ID ${syncResult.id} already belongs to listing ${owner._id}; not attaching it to ${listing._id}.`);
+              } else {
+                listing.poshmarkListingId = syncResult.id;
+                listing.poshmarkUrl = syncResult.url;
+                await listing.save();
+                console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully! Saved new listing ID: ${syncResult.id}`);
 
-              // Keep local Product model cache synced
-              const Product = require('../models/Product');
-              await Product.findOneAndUpdate(
-                { user: listing.user, sku: listing.sku, source: 'poshmark' },
-                { poshmarkListingId: syncResult.id, poshmarkUrl: syncResult.url, updated_at: Date.now() }
-              );
+                // Keep local Product cache synced, matched by the ID it already had (SKU is not unique).
+                const Product = require('../models/Product');
+                await Product.findOneAndUpdate(
+                  { user: listing.user, source: 'poshmark', poshmarkListingId: previousId },
+                  { poshmarkListingId: syncResult.id, poshmarkUrl: syncResult.url, updated_at: Date.now() }
+                );
+              }
             }
           }
         } catch (poshErr) {

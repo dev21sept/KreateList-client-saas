@@ -16,6 +16,7 @@ const User = require('../models/User');
 const ebayService = require('./ebayService');
 const { readEbayLists, stateForEbayId } = require('./ebayStateSync');
 const { scrapePoshmarkCloset } = require('./externalImportService');
+const { pickOwners } = require('../utils/platformIdOwner');
 const etsyService = require('./etsyService');
 
 const hasId = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== 'undefined' && String(v) !== 'null';
@@ -81,19 +82,30 @@ async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 }
     etsy: user.etsyAccount?.connected ? await liveEtsy(user).catch(() => null) : null,
   };
 
-  const listings = await Listing.find({ user: userId }).select('status ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus').lean();
+  const listings = await Listing.find({ user: userId }).select('status createdAt ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus').lean();
+  // One ID, one owner: a duplicate record (newer copy of the same ID) is not counted as live.
+  const owners = {
+    ebay: pickOwners(listings.map(l => ({ id: l._id, createdAt: l.createdAt, platformId: l.ebayListingId }))),
+    poshmark: pickOwners(listings.map(l => ({ id: l._id, createdAt: l.createdAt, platformId: l.poshmarkListingId }))),
+    etsy: pickOwners(listings.map(l => ({ id: l._id, createdAt: l.createdAt, platformId: l.etsyListingId }))),
+  };
   const ops = [];
   const counts = { checked: 0, changed: 0 };
   for (const l of listings) {
     const next = {};
     const parts = [];
     const platforms = [
-      { live: lives.ebay, id: l.ebayListingId, field: 'ebayStatus', current: l.ebayStatus },
-      { live: lives.poshmark, id: l.poshmarkListingId, field: 'poshmarkStatus', current: l.poshmarkStatus },
-      { live: lives.etsy, id: l.etsyListingId, field: 'etsyStatus', current: l.etsyStatus },
+      { key: 'ebay', live: lives.ebay, id: l.ebayListingId, field: 'ebayStatus', current: l.ebayStatus },
+      { key: 'poshmark', live: lives.poshmark, id: l.poshmarkListingId, field: 'poshmarkStatus', current: l.poshmarkStatus },
+      { key: 'etsy', live: lives.etsy, id: l.etsyListingId, field: 'etsyStatus', current: l.etsyStatus },
     ];
     for (const p of platforms) {
       if (!p.live) continue; // platform not read this run: leave it alone
+      const owner = owners[p.key];
+      if (hasId(p.id) && owner.extras.has(String(l._id))) {
+        next[p.field] = 'none'; // duplicate of an older owner: not live on this record
+        continue;
+      }
       if (hasId(p.id)) {
         next[p.field] = p.live.id(p.id);
         parts.push(next[p.field]);
@@ -123,6 +135,7 @@ async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 }
     for (let i = 0; i < ops.length; i += 1000) await Listing.bulkWrite(ops.slice(i, i + 1000), { ordered: false });
   }
   return {
+    duplicate_ids: Object.fromEntries(Object.entries(owners).map(([k, v]) => [k, v.duplicates.length])),
     platforms_checked: Object.fromEntries(Object.entries(lives).map(([k, v]) => [k, v ? v.size : 'not read / not connected'])),
     ...counts,
     skippedUnsafe: guarded,
