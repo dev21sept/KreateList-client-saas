@@ -523,6 +523,12 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
  * @param {Object} [credentials] Poshmark connection credentials (sessionCookie, csrfToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
+// Invisible Unicode marks (LRM/RLM, zero-width spaces, BOM, bidi controls) that Poshmark titles sometimes contain.
+const INVISIBLE_CHARS = /[​-‏‪-‮⁠-⁤﻿]/g;
+function stripInvisible(text) {
+  return String(text || '').replace(INVISIBLE_CHARS, '');
+}
+
 /**
  * Maps Poshmark's raw post fields to one state:
  * active | sold | not_for_sale | hidden | removed
@@ -724,7 +730,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           const isActive = !isNFSOrSold && (rawPostStatus === 'published' || rawPostStatus === 'active' || !rawPostStatus);
 
           listings.push({
-            title: title.trim(),
+            // Poshmark titles can carry invisible marks (e.g. U+200E) that break search matching.
+            title: stripInvisible(title).trim(),
             description: description.trim(),
             price: (formatPrice(priceVal) || "0.00"),
             sku: generatedSku,
@@ -888,5 +895,6 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
 module.exports = {
   scrapeDepopShop,
   scrapePoshmarkCloset,
-  poshmarkStateOf
+  poshmarkStateOf,
+  stripInvisible
 };

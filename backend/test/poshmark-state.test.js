@@ -34,3 +34,11 @@ test('zero available quantity counts as sold', () => {
 test('deleted post is removed', () => {
   assert.equal(state({ status: 'deleted', inventory: { status: 'available' } }), 'removed');
 });
+
+const { stripInvisible } = require('../services/externalImportService');
+
+test('invisible marks are removed from titles so search matches', () => {
+  const raw = 'Bonobos Jeans Mens 35x34 Blue Denim‎ Straight Leg';
+  assert.equal(stripInvisible(raw), 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg');
+  assert.equal(stripInvisible('plain title'), 'plain title');
+});
