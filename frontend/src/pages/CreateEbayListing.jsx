@@ -45,6 +45,9 @@ import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/cate
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
 import PriceRecommendationCard from '../components/pricing/PriceRecommendationCard';
 
+// Books and media conditions do not apply to clothing listings, so they are hidden from the picker.
+const CLOTHING_CONDITIONS = EBAY_CONDITIONS.filter(c => !c.label.includes('(Books)'));
+
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
   { id: 'CN', label: 'China' },
@@ -1067,7 +1070,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: Photos & AI Scanner */}
-        <div className="lg:col-span-4 lg:sticky lg:top-4 space-y-4">
+        <div className="lg:col-span-4 space-y-4">
           
           {/* Photo Manager Card */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
@@ -1185,9 +1188,9 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Condition</label>
                   <SearchableDropdown 
-                    value={EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
+                    value={CLOTHING_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, conditionId: opt.id }))}
-                    options={EBAY_CONDITIONS}
+                    options={CLOTHING_CONDITIONS}
                     placeholder="Select condition..."
                   />
                 </div>
@@ -1331,9 +1334,9 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">eBay Condition *</label>
                 <SearchableDropdown 
-                  value={EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
+                  value={CLOTHING_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
                   onSelect={(opt) => setFormData(prev => ({ ...prev, conditionId: opt.id }))}
-                  options={EBAY_CONDITIONS}
+                  options={CLOTHING_CONDITIONS}
                   placeholder="Select eBay condition..."
                 />
               </div>
