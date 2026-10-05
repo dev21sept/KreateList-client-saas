@@ -48,6 +48,8 @@ function livePlatforms(l) {
   if (hasId(l.ebayListingId) && l.ebayStatus === 'published') out.push('ebay');
   if (hasId(l.poshmarkListingId) && l.poshmarkStatus === 'published') out.push('poshmark');
   if (hasId(l.etsyListingId) && l.etsyStatus === 'published') out.push('etsy');
+  // Mercari status is the stored one: its live closet read is not verified yet (see masterStatusSync).
+  if (hasId(l.mercariListingId) && l.mercariStatus === 'published') out.push('mercari');
   return out;
 }
 
@@ -55,7 +57,7 @@ async function runScan(userId) {
   const job = jobs.get(String(userId));
   try {
     const listings = await Listing.find({ user: userId })
-      .select('title brand size price platform ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus images thumbnail imageHash')
+      .select('title brand size price platform ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus mercariListingId mercariStatus images thumbnail imageHash')
       .lean();
 
     // Active only: at least one platform has this item live right now, and a photo to compare.
