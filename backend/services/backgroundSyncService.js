@@ -358,8 +358,14 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
     let newItemsCount = 0;
     let mergedItemsCount = 0;
 
+    // One live ID becomes one Master record: the same ID is never imported twice in one run.
+    const claimedIds = new Set();
     for (const prod of unlinked) {
       const src = prod.source;
+      const realId = prod[`${src}ListingId`] || prod.itemId || prod.listingId;
+      if (!realId) continue; // no platform ID: not a live listing, do not create a Master record
+      if (claimedIds.has(`${src}:${String(realId)}`)) continue;
+      claimedIds.add(`${src}:${String(realId)}`);
       const liveId = String(prod[`${src}ListingId`] || prod.itemId || prod.listingId || prod.sku || prod._id);
       let url = prod[`${src}Url`] || prod.url || '';
       if (!url) {
@@ -483,7 +489,7 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
 
         newListing.markModified('platformData');
         await newListing.save();
-        existingListings.push(newListing);
+        existingListings.push(newListing); // later products in this run see it
         newItemsCount++;
         console.log(`[Auto-Import/Merge] Created new Master Listing ${newListing._id} for ${src} item "${prod.title}"`);
       }
