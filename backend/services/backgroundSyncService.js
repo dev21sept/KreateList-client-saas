@@ -165,57 +165,12 @@ async function reconcileOrdersAndMasterListings(userId) {
         l.soldPlatform = null;
         l.errorMessage = null;
 
-        // Restore platform statuses for all connected platforms (both 'sold' and 'delisted' false positives)
-        if (l.ebayListingId && (l.ebayStatus === 'sold' || l.ebayStatus === 'delisted')) {
-          l.ebayStatus = 'published';
-          if (l.platformData?.ebay) l.platformData.ebay.status = 'published';
-          if (l.listingsMap?.ebay) l.listingsMap.ebay.status = 'published';
-        }
-        if (l.poshmarkListingId && (l.poshmarkStatus === 'sold' || l.poshmarkStatus === 'delisted')) {
-          l.poshmarkStatus = 'published';
-          if (l.platformData?.poshmark) l.platformData.poshmark.status = 'published';
-          if (l.listingsMap?.poshmark) l.listingsMap.poshmark.status = 'published';
-        }
-        if (l.mercariListingId && (l.mercariStatus === 'sold' || l.mercariStatus === 'delisted')) {
-          l.mercariStatus = 'published';
-          if (l.platformData?.mercari) l.platformData.mercari.status = 'published';
-          if (l.listingsMap?.mercari) l.listingsMap.mercari.status = 'published';
-        }
-        if (l.etsyListingId && (l.etsyStatus === 'sold' || l.etsyStatus === 'delisted')) {
-          l.etsyStatus = 'published';
-          if (l.platformData?.etsy) l.platformData.etsy.status = 'published';
-          if (l.listingsMap?.etsy) l.listingsMap.etsy.status = 'published';
-        }
-        if (l.depopListingId && (l.depopStatus === 'sold' || l.depopStatus === 'delisted')) {
-          l.depopStatus = 'published';
-          if (l.platformData?.depop) l.platformData.depop.status = 'published';
-          if (l.listingsMap?.depop) l.listingsMap.depop.status = 'published';
-        }
+        // Platform statuses are not changed here: the live ID check (masterStatusSync) owns them.
 
         l.markModified('platformData');
         l.markModified('listingsMap');
         await l.save();
         restoredCount++;
-      } else if (l.status === 'published' && !matchedListingIds.has(l._id.toString())) {
-        // Also self-heal any published/active master listing whose channel status was falsely left as 'sold' or 'delisted'
-        let platChanged = false;
-        const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop'];
-        for (const p of platforms) {
-          const idField = `${p}ListingId`;
-          const statusField = `${p}Status`;
-          if (l[idField] && (l[statusField] === 'sold' || l[statusField] === 'delisted')) {
-            l[statusField] = 'published';
-            if (l.platformData?.[p]) l.platformData[p].status = 'published';
-            if (l.listingsMap?.[p]) l.listingsMap[p].status = 'published';
-            platChanged = true;
-          }
-        }
-        if (platChanged) {
-          l.markModified('platformData');
-          l.markModified('listingsMap');
-          await l.save();
-          restoredCount++;
-        }
       }
     }
 
@@ -231,120 +186,28 @@ async function reconcileOrdersAndMasterListings(userId) {
  * Rechecks and synchronizes platform statuses across Master Listings.
  */
 async function recheckMasterListingStatuses(userId) {
+  // Only "sold" comes from here (order and product data). It never sets a platform back to "published":
+  // live status comes only from the live ID check (masterStatusSync), so a stale local flag cannot make
+  // an ended item look active again.
   try {
     const listings = await Listing.find({ user: userId });
+    const PLATFORMS = [
+      { source: 'ebay', idField: 'ebayListingId', statusField: 'ebayStatus' },
+      { source: 'poshmark', idField: 'poshmarkListingId', statusField: 'poshmarkStatus' },
+      { source: 'mercari', idField: 'mercariListingId', statusField: 'mercariStatus' },
+      { source: 'etsy', idField: 'etsyListingId', statusField: 'etsyStatus' },
+    ];
 
     let updatedCount = 0;
     for (const listing of listings) {
       let changed = false;
-
-      // 1. Check eBay status
-      if (listing.ebayListingId) {
-        const ebayProd = await Product.findOne({ user: userId, ebayListingId: listing.ebayListingId, source: 'ebay' });
-        if (ebayProd) {
-          if (ebayProd.status === 'sold') {
-            if (listing.ebayStatus !== 'sold') {
-              listing.ebayStatus = 'sold';
-              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'sold';
-              changed = true;
-            }
-          } else if ((ebayProd.status === 'active' || ebayProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.ebayStatus !== 'published') {
-              listing.ebayStatus = 'published';
-              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
-              changed = true;
-            }
-          } else if (listing.status !== 'sold' && listing.ebayStatus === 'delisted' && ebayProd.status !== 'sold') {
-            // Restore false-positive delisted item
-            listing.ebayStatus = 'published';
-            if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
-            changed = true;
-          }
-        } else if (listing.status !== 'sold' && listing.ebayStatus !== 'published') {
-          listing.ebayStatus = 'published';
-          if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
+      for (const p of PLATFORMS) {
+        if (!listing[p.idField]) continue;
+        const prod = await Product.findOne({ user: userId, [p.idField]: listing[p.idField], source: p.source });
+        if (prod && prod.status === 'sold' && listing[p.statusField] !== 'sold') {
+          listing[p.statusField] = 'sold';
+          if (listing.platformData?.[p.source]) listing.platformData[p.source].status = 'sold';
           changed = true;
-        }
-      }
-
-      // 2. Check Poshmark status
-      if (listing.poshmarkListingId) {
-        const poshProd = await Product.findOne({ user: userId, poshmarkListingId: listing.poshmarkListingId, source: 'poshmark' });
-        if (poshProd) {
-          if (poshProd.status === 'sold') {
-            if (listing.poshmarkStatus !== 'sold') {
-              listing.poshmarkStatus = 'sold';
-              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'sold';
-              changed = true;
-            }
-          } else if ((poshProd.status === 'active' || poshProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.poshmarkStatus !== 'published') {
-              listing.poshmarkStatus = 'published';
-              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 3. Check Mercari status
-      if (listing.mercariListingId) {
-        const mercProd = await Product.findOne({ user: userId, mercariListingId: listing.mercariListingId, source: 'mercari' });
-        if (mercProd) {
-          if (mercProd.status === 'sold') {
-            if (listing.mercariStatus !== 'sold') {
-              listing.mercariStatus = 'sold';
-              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'sold';
-              changed = true;
-            }
-          } else if ((mercProd.status === 'active' || mercProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.mercariStatus !== 'published') {
-              listing.mercariStatus = 'published';
-              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 4. Check Etsy status
-      if (listing.etsyListingId) {
-        const etsyProd = await Product.findOne({ user: userId, etsyListingId: listing.etsyListingId, source: 'etsy' });
-        if (etsyProd) {
-          if (etsyProd.status === 'sold') {
-            if (listing.etsyStatus !== 'sold') {
-              listing.etsyStatus = 'sold';
-              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'sold';
-              changed = true;
-            }
-          } else if ((etsyProd.status === 'active' || etsyProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.etsyStatus !== 'published') {
-              listing.etsyStatus = 'published';
-              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 5. Check Depop status
-      if (listing.depopListingId) {
-        const depopProd = await Product.findOne({ user: userId, depopListingId: listing.depopListingId, source: 'depop' });
-        if (depopProd) {
-          if (depopProd.status === 'inactive' || depopProd.status === 'sold') {
-            const targetStat = depopProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.depopStatus !== targetStat) {
-              listing.depopStatus = targetStat;
-              if (listing.platformData?.depop) listing.platformData.depop.status = targetStat;
-              changed = true;
-            }
-          } else if ((depopProd.status === 'active' || depopProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.depopStatus !== 'published') {
-              listing.depopStatus = 'published';
-              if (listing.platformData?.depop) listing.platformData.depop.status = 'published';
-              changed = true;
-            }
-          }
         }
       }
 
@@ -360,7 +223,7 @@ async function recheckMasterListingStatuses(userId) {
     await reconcileOrdersAndMasterListings(userId);
 
     if (updatedCount > 0) {
-      console.log(`[Status Recheck] Updated ${updatedCount} master listing(s) after channel status verification.`);
+      console.log(`[Status Recheck] Updated ${updatedCount} master listing(s) after sold verification.`);
     }
   } catch (err) {
     console.error('[Status Recheck] Error rechecking listing statuses:', err.message);
