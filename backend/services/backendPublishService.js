@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
+const { mapToPoshmarkCategory } = require('./poshmarkCategoryMapper');
 
 // Helper to construct axios config with HTTP Proxy support if configured
 function getAxiosConfig(options) {
@@ -832,6 +833,21 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   let sessionCookie = poshmarkAccount.sessionCookie;
   const csrfToken = poshmarkAccount.csrfToken;
 
+  // Validate everything before a draft is created on Poshmark, so a failed check leaves nothing behind.
+  const isHexId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+  const hasSize = !!(listing.size || listing.platformData?.ebay?.size);
+  if (!hasSize) {
+    throw new Error('Size is missing. Please enter the size before publishing to Poshmark.');
+  }
+  const hasPoshIds = isHexId(listing.categoryId || listing.platformData?.poshmark?.categoryId) &&
+    isHexId(listing.departmentId || listing.platformData?.poshmark?.departmentId);
+  const preRaw = listing.category || listing.platformData?.poshmark?.category || '';
+  const preEbayPath = preRaw && preRaw !== 'Clothing' && preRaw !== 'Needs category review' ? preRaw : '';
+  const preMapped = mapToPoshmarkCategory({ ebayPath: preEbayPath, title: listing.title });
+  if (!hasPoshIds && (!preMapped || !isHexId(preMapped.categoryId))) {
+    throw new Error('Poshmark category could not be identified. Please choose the category before publishing.');
+  }
+
   if (!csrfToken || !sessionCookie) {
     throw new Error('Poshmark cookies are missing. Please connect your Poshmark account.');
   }
@@ -1031,7 +1047,11 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 
   // Step 3: Populate and Save Listing Attributes
   console.log('[Poshmark Publisher] Step 3: Synchronizing draft attributes and categories...');
-  const size = listing.size || 'OS';
+  // No guessed size: "OS" for a shirt is wrong. The size must come from the listing.
+  const size = listing.size || listing.platformData?.ebay?.size || '';
+  if (!size) {
+    throw new Error('Size is missing. Please enter the size before publishing to Poshmark.');
+  }
   // Never invent a brand: use the listing's brand (or the eBay brand) and only fall back to a
   // "does not apply" placeholder when nothing is known. "Original" was being saved as the brand.
   const brand = listing.brand || listing.platformData?.ebay?.brand || 'Does Not Apply';
@@ -1057,8 +1077,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   const isPoshmarkHexId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
 
   if (!isPoshmarkHexId(effectiveDeptId) || !isPoshmarkHexId(effectiveCatId)) {
+    // Map from the stored category only. No heuristic guess: if the mapper is unsure, stop and ask.
     const rawCat = listing.category || listing.platformData?.poshmark?.category || '';
-    const resolved = resolvePoshmarkCategory(rawCat, listing.title);
+    const ebayPath = rawCat && rawCat !== 'Clothing' && rawCat !== 'Needs category review' ? rawCat : '';
+    const mapped = mapToPoshmarkCategory({ ebayPath, title: listing.title });
+    if (!mapped || !isPoshmarkHexId(mapped.categoryId)) {
+      throw new Error('Poshmark category could not be identified. Please choose the category before publishing.');
+    }
+    const resolved = { department: mapped.departmentId, category: mapped.categoryId, subcategories: [] };
     if (!isPoshmarkHexId(effectiveDeptId)) {
       effectiveDeptId = resolved.department;
     }
