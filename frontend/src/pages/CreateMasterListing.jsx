@@ -2140,6 +2140,34 @@ const CreateMasterListing = ({
         toast.error(`Please fill in required eBay Item Specifics: ${missingNames}`);
         return;
       }
+
+      // Check for required/recommended aspects with values that do not match the official dropdown
+      const invalidDropdownAspects = ebayAspects.filter(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        if (!isRequired && !isRecommended) return false;
+
+        const taxonomyVals = aspect.aspectValues || aspect.values || [];
+        const name = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+        const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+        const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+        if (vals.length === 0) return false;
+
+        const val = formData.ebayAspects[name]?.[0] || formData.ebayAspects[name];
+        if (!val || !String(val).trim()) return false;
+
+        const matches = vals.some(v => {
+          const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+          return valText.trim().toLowerCase() === String(val).trim().toLowerCase();
+        });
+        return !matches;
+      });
+
+      if (invalidDropdownAspects.length > 0) {
+        const invalidNames = invalidDropdownAspects.map(a => a.localizedAspectName || a.aspectConstraint?.aspectName || a.name).join(', ');
+        toast.error(`Value is not from the Dropdown for: ${invalidNames}`);
+        return;
+      }
     }
 
     const platKey = targetPlatforms.length === 1 ? targetPlatforms[0] : 'all';
@@ -2520,36 +2548,6 @@ const CreateMasterListing = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[11px] font-bold text-slate-700">Master Price ($) *</label>
-                  <PriceRecommendationCard
-                    compact={true}
-                    initialData={masterPricingRecommendation}
-                    autoFetch={true}
-                    onRecommendationLoaded={(rec) => {
-                      setMasterPricingRecommendation(rec);
-                      if (rec.recommendation?.suggested_price) {
-                        setFormData(p => ({
-                          ...p,
-                          price: p.price || rec.recommendation.suggested_price,
-                          ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
-                        }));
-                      }
-                    }}
-                    itemData={{
-                      title: formData.title,
-                      brand: formData.brand,
-                      model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
-                      upc: formData.ebayAspects?.['UPC']?.[0],
-                      condition: formData.selectedCondition || 'Used',
-                      category: formData.ebayCategory,
-                      categoryId: formData.ebayCategoryId
-                    }}
-                    currentPrice={formData.price}
-                    onApplyPrice={(newPrice) => setFormData(prev => ({ 
-                      ...prev, 
-                      price: newPrice,
-                      ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
-                    }))}
-                  />
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
@@ -2561,6 +2559,38 @@ const CreateMasterListing = ({
                     onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                     placeholder="0.00"
                   />
+                </div>
+                <div className="mt-2">
+                  <PriceRecommendationCard
+                      compact={true}
+                      initialData={masterPricingRecommendation}
+                      autoFetch={true}
+                      onRecommendationLoaded={(rec) => {
+                        setMasterPricingRecommendation(rec);
+                        if (rec.recommendation?.suggested_price) {
+                          setFormData(p => ({
+                            ...p,
+                            price: p.price || rec.recommendation.suggested_price,
+                            ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
+                          }));
+                        }
+                      }}
+                      itemData={{
+                        title: formData.title,
+                        brand: formData.brand,
+                        model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
+                        upc: formData.ebayAspects?.['UPC']?.[0],
+                        condition: formData.selectedCondition || 'Used',
+                        category: formData.ebayCategory,
+                        categoryId: formData.ebayCategoryId
+                      }}
+                      currentPrice={formData.price}
+                      onApplyPrice={(newPrice) => setFormData(prev => ({ 
+                        ...prev, 
+                        price: newPrice,
+                        ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
+                      }))}
+                    />
                 </div>
               </div>
             </div>
@@ -2797,6 +2827,11 @@ const CreateMasterListing = ({
                                 allowCustom={true}
                                 size="sm"
                               />
+                              {hasDropdownError && (
+                                <p className="text-[10px] font-semibold text-rose-500 mt-0.5 animate-pulse">
+                                  Value is not from the Dropdown
+                                </p>
+                              )}
                             ) : (
                               <input 
                                 type="text"
