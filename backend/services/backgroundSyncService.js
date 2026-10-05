@@ -705,6 +705,7 @@ async function runBackgroundInventorySyncCycle() {
                       sku: item.sku || '',
                       images: item.images || [],
                       status: item.status === 'active' ? 'active' : 'inactive',
+                      poshmarkState: item.poshmarkState,
                       poshmarkUrl: item.poshmarkUrl,
                       updated_at: Date.now()
                     }
@@ -717,6 +718,12 @@ async function runBackgroundInventorySyncCycle() {
                 await Product.bulkWrite(poshOps, { ordered: false });
               }
 
+              // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
+              const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
+              await Product.updateMany(
+                { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+                { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
+              );
               if (activePoshIds.size > 0) {
                 await Product.updateMany(
                   {
@@ -961,6 +968,7 @@ async function syncUserInventory(userId) {
                 sku: item.sku || '',
                 images: item.images || [],
                 status: item.status === 'active' ? 'active' : 'inactive',
+                poshmarkState: item.poshmarkState,
                 poshmarkUrl: item.poshmarkUrl,
                 updated_at: Date.now()
               }
@@ -973,6 +981,12 @@ async function syncUserInventory(userId) {
           await Product.bulkWrite(poshOps, { ordered: false });
         }
 
+        // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
+        const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
+        await Product.updateMany(
+          { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+          { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
+        );
         if (activePoshIds.size > 0) {
           await Product.updateMany(
             {

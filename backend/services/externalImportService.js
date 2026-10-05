@@ -523,6 +523,18 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
  * @param {Object} [credentials] Poshmark connection credentials (sessionCookie, csrfToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
+/**
+ * Maps Poshmark's raw post fields to one state:
+ * active | sold | not_for_sale | hidden | removed
+ */
+function poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post }) {
+  if (rawPostStatus === 'deleted') return 'removed';
+  if (rawInvStatus === 'sold_out' || rawPostStatus === 'sold' || rawPostStatus === 'sold_out' || isZeroQty) return 'sold';
+  if (rawInvStatus === 'not_for_sale' || rawInvStatus === 'nfs' || rawPostStatus === 'not_for_sale' || post.not_for_sale === true) return 'not_for_sale';
+  if (post.active_item === false || rawInvStatus === 'reserved' || rawPostStatus === 'archived') return 'hidden';
+  return 'active';
+}
+
 async function scrapePoshmarkCloset(username, credentials = {}) {
   let cleanUsername = username.trim().toLowerCase();
   
@@ -726,7 +738,9 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             brand: post.brand || '',
             size: post.size || '',
             quantity: 1,
-            status: isActive ? 'active' : 'inactive'
+            status: isActive ? 'active' : 'inactive',
+            // Real Poshmark state, so sold, hidden and active are not merged into one "inactive" bucket.
+            poshmarkState: poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post })
           });
         }
         return listings;
@@ -873,5 +887,6 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
 
 module.exports = {
   scrapeDepopShop,
-  scrapePoshmarkCloset
+  scrapePoshmarkCloset,
+  poshmarkStateOf
 };

@@ -477,7 +477,8 @@ exports.poshmarkGetLive = async (req, res) => {
     
     // 1. First return existing synced products from database if available (unless forceRefresh is requested)
     const forceRefresh = req.query.forceRefresh === 'true' || req.query.refresh === 'true';
-    const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark' }).sort({ updated_at: -1, createdAt: -1 });
+    // Records no longer in the Poshmark closet ("removed") are not shown.
+    const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark', poshmarkState: { $ne: 'removed' } }).sort({ updated_at: -1, createdAt: -1 });
     if (dbProducts.length > 0 && !forceRefresh) {
       const mappedListings = dbProducts.map(p => ({
         _id: p._id,
@@ -494,6 +495,8 @@ exports.poshmarkGetLive = async (req, res) => {
         poshmarkListingId: p.poshmarkListingId,
         poshmarkUrl: p.poshmarkUrl,
         quantity: p.quantity || 1,
+        // Real Poshmark state: active | hidden | sold | not_for_sale (null for records synced before this change)
+        poshmarkState: p.poshmarkState || null,
         status: (p.status === 'live' || p.status === 'active') ? 'active' : 'inactive',
         updated_at: p.updated_at || p.updatedAt,
         created_at: p.created_at || p.createdAt

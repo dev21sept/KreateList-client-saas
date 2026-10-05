@@ -1841,6 +1841,13 @@ const NewListings = () => {
       status = 'active';
     }
 
+    // Poshmark: show the real state (sold / hidden), not a generic "delisted"
+    if (isPoshmark && product.poshmarkState) {
+      if (product.poshmarkState === 'active') status = 'active';
+      else if (product.poshmarkState === 'sold') status = 'sold';
+      else status = 'hidden';
+    }
+
     // Price
     const price = product.selling_price !== undefined ? product.selling_price : product.price;
     const parsedPrice = typeof price === 'number' ? price : parseFloat(price) || 0;
@@ -1956,6 +1963,8 @@ const NewListings = () => {
     let all = channelProducts.length;
     let active = 0;
     let delisted = 0;
+    let sold = 0;
+    let hidden = 0;
     let draft = 0;
     let error = 0;
 
@@ -1964,12 +1973,14 @@ const NewListings = () => {
       const st = details.status;
       if (st === 'active') active++;
       else if (st === 'delisted') delisted++;
+      else if (st === 'sold') sold++;
+      else if (st === 'hidden') hidden++;
       else if (st === 'draft') draft++;
       else if (st === 'error') error++;
       else active++;
     });
 
-    return { all, active, delisted, draft, error };
+    return { all, active, delisted, sold, hidden, draft, error };
   }, [channelProducts, selectedChannel]);
 
   // Filter listings
@@ -4425,7 +4436,12 @@ const NewListings = () => {
               {[
                 { key: 'all', label: 'All Products', count: channelTabCounts.all },
                 { key: 'active', label: 'Active', count: channelTabCounts.active },
-                { key: 'delisted', label: 'Delisted', count: channelTabCounts.delisted },
+                ...(selectedChannel === 'poshmark'
+                  ? [
+                      { key: 'sold', label: 'Sold', count: channelTabCounts.sold },
+                      { key: 'hidden', label: 'Hidden', count: channelTabCounts.hidden },
+                    ]
+                  : [{ key: 'delisted', label: 'Delisted', count: channelTabCounts.delisted }]),
                 { key: 'draft', label: 'Drafts', count: channelTabCounts.draft },
                 { key: 'error', label: 'Errors', count: channelTabCounts.error },
               ].map((tab) => {

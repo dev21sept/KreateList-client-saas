@@ -28,6 +28,12 @@ const productSchema = new mongoose.Schema({
     enum: ['draft', 'live', 'active', 'inactive'],
     default: 'draft'
   },
+  // Real Poshmark state (Poshmark only). "removed" = no longer in the closet; kept out of the lists.
+  poshmarkState: {
+    type: String,
+    enum: ['active', 'hidden', 'sold', 'not_for_sale', 'removed'],
+    default: null
+  },
   ebayListingId: String,
   ebayUrl: String,
   poshmarkListingId: String,
