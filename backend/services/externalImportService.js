@@ -537,7 +537,8 @@ function poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post }) {
   if (rawPostStatus === 'deleted') return 'removed';
   if (rawInvStatus === 'sold_out' || rawPostStatus === 'sold' || rawPostStatus === 'sold_out' || isZeroQty) return 'sold';
   if (rawInvStatus === 'not_for_sale' || rawInvStatus === 'nfs' || rawPostStatus === 'not_for_sale' || post.not_for_sale === true) return 'not_for_sale';
-  if (post.active_item === false || rawInvStatus === 'reserved' || rawPostStatus === 'archived') return 'hidden';
+  // active_item=false is NOT treated as hidden: listings with that flag still appear in Poshmark search.
+  if (rawInvStatus === 'reserved' || rawPostStatus === 'archived') return 'hidden';
   return 'active';
 }
 
@@ -723,7 +724,6 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             rawPostStatus === 'sold_out' || 
             rawPostStatus === 'archived' || 
             rawPostStatus === 'deleted' ||
-            post.active_item === false ||
             post.not_for_sale === true ||
             isZeroQty;
 

@@ -19,8 +19,8 @@ test('sold_out inventory is sold, even when the flag says hidden', () => {
   assert.equal(state({ status: 'published', inventory: { status: 'sold_out' }, active_item: false }), 'sold');
 });
 
-test('available but active_item=false is hidden, not active', () => {
-  assert.equal(state({ status: 'published', inventory: { status: 'available' }, active_item: false }), 'hidden');
+test('active_item=false is still active (those listings appear in search)', () => {
+  assert.equal(state({ status: 'published', inventory: { status: 'available' }, active_item: false }), 'active');
 });
 
 test('not_for_sale inventory is not_for_sale', () => {
