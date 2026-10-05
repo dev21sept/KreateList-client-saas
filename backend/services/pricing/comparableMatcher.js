@@ -14,6 +14,20 @@ const STOPWORDS = new Set([
 ]);
 
 /**
+ * A model is strong enough to require in listing titles only if it looks like a real
+ * product number: letters and digits together (BTFP2350K, 501A), or a long number (50123).
+ * Short bare numbers such as an MPN or style code "677" are not reliable and are ignored.
+ */
+function isStrongModel(model) {
+  if (!model || isPlaceholder(model)) return false;
+  const clean = String(model).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.length < 3) return false;
+  const hasLetter = /[a-z]/.test(clean);
+  const hasDigit = /\d/.test(clean);
+  return (hasLetter && hasDigit) || clean.length >= 5;
+}
+
+/**
  * Computes token similarity between two titles (Jaccard on non-stopwords)
  */
 function computeTokenSimilarity(tokensA, textB) {
@@ -98,8 +112,8 @@ function evaluateHardRejections(targetItem, candidate) {
     reasons.push('new_vs_used_mismatch');
   }
 
-  // 5. Incompatible Model Check (Only check if target model is a REAL, non-placeholder model)
-  if (targetItem.model && !isPlaceholder(targetItem.model) && targetItem.model.length >= 3) {
+  // 5. Incompatible Model Check (only for a strong model number, see isStrongModel)
+  if (isStrongModel(targetItem.model)) {
     const targetModelClean = targetItem.model.toLowerCase().replace(/[^a-z0-9]/g, '');
     const candTitleClean = candidateTitle.replace(/[^a-z0-9]/g, '');
     
@@ -153,8 +167,8 @@ function calculateMatchScore(targetItem, candidate) {
     }
   }
 
-  // Strictly check model ONLY if target item has a genuine model number (NOT "Unknown", "N/A", etc.)
-  if (targetItem.model && !isPlaceholder(targetItem.model)) {
+  // Check model only when it is a strong model number (see isStrongModel)
+  if (isStrongModel(targetItem.model)) {
     const modelClean = targetItem.model.toLowerCase();
     if (candidateTitle.includes(modelClean)) {
       modelMatched = true;

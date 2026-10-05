@@ -795,7 +795,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           const finalCatId = (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId));
           const finalCatName = result.ebay_category_name || resolvedEbay.category || prev.category;
           const finalBrand = brandVal || (formattedAspects['Brand']?.[0]) || '';
-          const finalModel = formattedAspects['Model']?.[0] || formattedAspects['MPN']?.[0] || '';
+          // Only a real model name is sent to pricing; MPN/style codes are not reliable model names.
+          const finalModel = formattedAspects['Model']?.[0] || '';
 
           // Auto-fetch market pricing comps in background immediately upon AI scan
           if (finalTitle && finalTitle.length > 5) {
