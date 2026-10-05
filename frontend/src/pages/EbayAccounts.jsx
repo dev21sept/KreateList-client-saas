@@ -1037,7 +1037,7 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300 p-3.5">
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
                   <PlatformLogo src="/amazon.png" alt="Amazon" className="w-12 h-12" />
                 </div>
 
