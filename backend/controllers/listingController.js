@@ -1,4 +1,5 @@
 const { stripFields } = require('../utils/sanitizeBody');
+const { normalizeSizeAspect } = require('../utils/ebayAspects');
 const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
@@ -1339,9 +1340,14 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    const resolvedConditionId = resolveConditionForCategory(listing.conditionId, validConditionIds);
+    // The condition the seller picked on the eBay form is saved under platformData.ebay; prefer it.
+    const selectedConditionId = listing.platformData?.ebay?.conditionId || listing.conditionId;
+    const resolvedConditionId = resolveConditionForCategory(selectedConditionId, validConditionIds);
     const ebayConditionEnum = mapConditionIdToEnum(resolvedConditionId);
-    console.log(`[EBAY PUBLISH] Selected ConditionID: ${listing.conditionId}, Resolved ConditionID: ${resolvedConditionId}, Mapped Enum: ${ebayConditionEnum}`);
+    console.log(`[EBAY PUBLISH] Selected ConditionID: ${selectedConditionId}, Resolved ConditionID: ${resolvedConditionId}, Mapped Enum: ${ebayConditionEnum}`);
+
+    // Standard Size values only (see utils/ebayAspects.js)
+    Object.assign(aspects, normalizeSizeAspect(aspects));
 
     const inventoryItemData = {
       availability: {
