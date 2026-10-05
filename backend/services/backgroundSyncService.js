@@ -786,7 +786,7 @@ const syncInFlight = new Set();
 async function syncUserInventory(userId) {
   const key = String(userId);
   if (syncInFlight.has(key)) {
-    console.log();
+    console.log(`[Sync User Inventory] A sync is already running for ${key}; skipping this request.`);
     return { skipped: 'already running' };
   }
   syncInFlight.add(key);
