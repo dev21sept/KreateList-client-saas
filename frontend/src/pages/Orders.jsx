@@ -558,7 +558,7 @@ const Orders = () => {
                 }`}
               >
                 {plat.icon ? (
-                  <PlatformLogo src={plat.icon} alt={plat.label} />
+                  <PlatformLogo src={plat.icon} alt={plat.label} className="w-4 h-4 shrink-0" />
                 ) : (
                   <Package className="w-4 h-4 text-slate-400" />
                 )}

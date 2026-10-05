@@ -208,7 +208,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                 >
                                   <div className="flex items-center gap-3">
                                     {sub.logo && (
-                                      <PlatformLogo src={sub.logo} alt={sub.name} />
+                                      <PlatformLogo src={sub.logo} alt={sub.name} className="w-4 h-4" />
                                     )}
                                     <span>{sub.name}</span>
                                   </div>
@@ -253,7 +253,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                               }`}
                             >
                               {sub.logo && (
-                                <PlatformLogo src={sub.logo} alt={sub.name} />
+                                <PlatformLogo src={sub.logo} alt={sub.name} className="w-4 h-4" />
                               )}
                               <span>{sub.name}</span>
                             </Link>

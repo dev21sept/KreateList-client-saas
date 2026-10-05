@@ -645,7 +645,7 @@ const Settings = () => {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <PlatformLogo src="/mercari.png" alt="Mercari" className="rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <PlatformLogo src="/mercari.png" alt="Mercari" className="w-10 h-10" />
                           <div>
                             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                               Mercari Fast Automator
@@ -702,7 +702,7 @@ const Settings = () => {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <PlatformLogo src="/depop.png" alt="Depop" className="rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <PlatformLogo src="/depop.png" alt="Depop" className="w-10 h-10" />
                           <div>
                             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                               Depop Fast Automator
@@ -759,7 +759,7 @@ const Settings = () => {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <PlatformLogo src="/poshmark.png" alt="Poshmark" className="rounded-xl p-1.5 bg-slate-50 border border-slate-100" />
+                          <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-10 h-10" />
                           <div>
                             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                               Poshmark Fast Automator
@@ -816,7 +816,7 @@ const Settings = () => {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <PlatformLogo src="/vinted.jpg" alt="Vinted" className="object-cover p-1 bg-slate-50 border border-slate-100" />
+                          <PlatformLogo src="/vinted.jpg" alt="Vinted" className="w-10 h-10" />
                           <div>
                             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                               Vinted Fast Automator

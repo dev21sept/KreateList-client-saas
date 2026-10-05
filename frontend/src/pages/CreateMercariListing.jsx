@@ -704,7 +704,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <PlatformLogo src="/mercari.png" alt="Mercari" />
+            <PlatformLogo src="/mercari.png" alt="Mercari" className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">

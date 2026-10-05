@@ -1032,7 +1032,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <PlatformLogo src="/ebay.png" alt="eBay" />
+            <PlatformLogo src="/ebay.png" alt="eBay" className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">

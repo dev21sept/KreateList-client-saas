@@ -145,7 +145,7 @@ const Home = () => {
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/ebay.png" alt="eBay" />
+                <PlatformLogo src="/ebay.png" alt="eBay" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">eBay</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">LIVE</span>
@@ -153,7 +153,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/poshmark.png" alt="Poshmark" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Poshmark</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -161,7 +161,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/mercari.png" alt="Mercari" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Mercari</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -169,7 +169,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/etsy.png" alt="Etsy" />
+                <PlatformLogo src="/etsy.png" alt="Etsy" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Etsy</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -177,7 +177,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/amazon.png" alt="Amazon" />
+                <PlatformLogo src="/amazon.png" alt="Amazon" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Amazon</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -185,7 +185,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/depop.png" alt="Depop" />
+                <PlatformLogo src="/depop.png" alt="Depop" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Depop</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -230,7 +230,7 @@ const Home = () => {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/poshmark.png" alt="Poshmark" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span>Poshmark Listing #PM-4819</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -240,7 +240,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/mercari.png" alt="Mercari" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span>Mercari Listing #MC-9021</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -250,7 +250,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/etsy.png" alt="Etsy" />
+                <PlatformLogo src="/etsy.png" alt="Etsy" className="w-5 h-5" />
                 <span>Etsy Listing #ET-3301</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -374,7 +374,7 @@ const Home = () => {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/ebay.png" alt="eBay" />
+                <PlatformLogo src="/ebay.png" alt="eBay" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">eBay Rule (Standard)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$100.00 (0% Markup)</span>
@@ -382,7 +382,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/poshmark.png" alt="Poshmark" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Poshmark Rule (20% Fee Offset)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$120.00 (+20%)</span>
@@ -390,7 +390,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <PlatformLogo src="/mercari.png" alt="Mercari" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Mercari Rule (10% Fee Offset)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$110.00 (+10%)</span>
@@ -630,7 +630,7 @@ const Home = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 rounded-xl bg-slate-100 p-2 flex items-center justify-center border border-slate-200/60">
-                        <PlatformLogo src={p.logo} alt={p.name} />
+                        <PlatformLogo src={p.logo} alt={p.name} className="w-full h-full" />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-slate-900">{p.name}</h3>
