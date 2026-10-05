@@ -919,6 +919,34 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         toast.error(`Please fill in required eBay Item Specifics: ${missingNames}`);
         return;
       }
+
+      // Check for required/recommended aspects with values that do not match the official dropdown
+      const invalidDropdownAspects = aspects.filter(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        if (!isRequired && !isRecommended) return false;
+
+        const taxonomyVals = aspect.aspectValues || aspect.values || [];
+        const name = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+        const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+        const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+        if (vals.length === 0) return false;
+
+        const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name];
+        if (!val || !String(val).trim()) return false;
+
+        const matches = vals.some(v => {
+          const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+          return valText.trim().toLowerCase() === String(val).trim().toLowerCase();
+        });
+        return !matches;
+      });
+
+      if (invalidDropdownAspects.length > 0) {
+        const invalidNames = invalidDropdownAspects.map(a => a.localizedAspectName || a.aspectConstraint?.aspectName || a.name).join(', ');
+        toast.error(`Value is not from the Dropdown for: ${invalidNames}`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -1438,6 +1466,18 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   const taxonomyVals = aspect.aspectValues || aspect.values || [];
                   const fallbackVals = DEFAULT_ASPECT_OPTIONS[aspectName] || [];
                   const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+                  const hasValues = vals.length > 0;
+
+                  let hasDropdownError = false;
+                  if ((isRequired || isRecommended) && hasValues && currentVal) {
+                    const matchesDropdown = vals.some(v => {
+                      const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                      return valText.trim().toLowerCase() === String(currentVal).trim().toLowerCase();
+                    });
+                    if (!matchesDropdown) {
+                      hasDropdownError = true;
+                    }
+                  }
 
                   return (
                     <div key={aspectName} className="space-y-1">
@@ -1453,9 +1493,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                           return { id: text, label: text };
                         })}
                         placeholder={`Select or type ${aspectName}...`}
+                        error={hasDropdownError}
                         allowCustom={true}
                         size="sm"
                       />
+                      {hasDropdownError && (
+                        <p className="text-[10px] font-semibold text-rose-500 animate-pulse">
+                          Value is not from the Dropdown
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -1463,6 +1509,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 DEFAULT_COMMON_ASPECTS.map((name) => {
                   const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name] || '';
                   const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+                  const hasValues = fallbackVals.length > 0;
+                  let hasDropdownError = false;
+                  if (hasValues && val) {
+                    const matchesDropdown = fallbackVals.some(v => String(v).trim().toLowerCase() === String(val).trim().toLowerCase());
+                    if (!matchesDropdown) {
+                      hasDropdownError = true;
+                    }
+                  }
+
                   return (
                     <div key={name} className="space-y-1">
                       <label className="block text-[11px] font-bold text-slate-700">{name}</label>
@@ -1471,9 +1526,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                         onSelect={(opt) => handleAspectChange(name, opt.label || opt.name || opt.id)}
                         options={fallbackVals.map(o => ({ id: o, label: o }))}
                         placeholder={`Select or type ${name}...`}
+                        error={hasDropdownError}
                         allowCustom={true}
                         size="sm"
                       />
+                      {hasDropdownError && (
+                        <p className="text-[10px] font-semibold text-rose-500 animate-pulse">
+                          Value is not from the Dropdown
+                        </p>
+                      )}
                     </div>
                   );
                 })

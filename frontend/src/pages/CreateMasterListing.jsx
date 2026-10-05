@@ -2560,8 +2560,11 @@ const CreateMasterListing = ({
                     placeholder="0.00"
                   />
                 </div>
-                <div className="mt-2">
-                  <PriceRecommendationCard
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <PriceRecommendationCard
                       compact={true}
                       initialData={masterPricingRecommendation}
                       autoFetch={true}
@@ -2591,10 +2594,7 @@ const CreateMasterListing = ({
                         ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
                       }))}
                     />
-                </div>
-              </div>
             </div>
-
             {/* Description */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
@@ -2815,23 +2815,25 @@ const CreateMasterListing = ({
                               {isRecommended && <span className="text-[9px] text-slate-400 font-normal ml-0.5">(Rec)</span>}
                             </label>
                             {hasValues ? (
-                              <SearchableDropdown
-                                value={currentVal}
-                                onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
-                                options={vals.map(v => {
-                                  const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                                  return { id: text, label: text };
-                                })}
-                                placeholder={`Select ${aspectName}...`}
-                                error={hasDropdownError}
-                                allowCustom={true}
-                                size="sm"
-                              />
-                              {hasDropdownError && (
-                                <p className="text-[10px] font-semibold text-rose-500 mt-0.5 animate-pulse">
-                                  Value is not from the Dropdown
-                                </p>
-                              )}
+                              <>
+                                <SearchableDropdown
+                                  value={currentVal}
+                                  onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
+                                  options={vals.map(v => {
+                                    const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                                    return { id: text, label: text };
+                                  })}
+                                  placeholder={`Select ${aspectName}...`}
+                                  error={hasDropdownError}
+                                  allowCustom={true}
+                                  size="sm"
+                                />
+                                {hasDropdownError && (
+                                  <p className="text-[10px] font-semibold text-rose-500 mt-0.5 animate-pulse">
+                                    Value is not from the Dropdown
+                                  </p>
+                                )}
+                              </>
                             ) : (
                               <input 
                                 type="text"
