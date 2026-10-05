@@ -4,7 +4,7 @@
  * then ranks surviving candidates with a calibrated 0-100 match score.
  */
 
-const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder } = require('./itemResolver');
+const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder, stripGenericCategoryRoot } = require('./itemResolver');
 
 // Generic stopwords to discount in title similarity
 const STOPWORDS = new Set([
@@ -66,7 +66,7 @@ function evaluateHardRejections(targetItem, candidate) {
 
   // 1. Cross-Domain Hard Rejection (e.g. Shoes vs Jacket / Tracksuit)
   const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
-  const candCategories = (candidate.categories || []).join(' ');
+  const candCategories = stripGenericCategoryRoot((candidate.categories || []).join(' '));
   const candDomain = detectProductDomain(candidate.title, candCategories);
 
   if (targetDomain !== 'OTHER' && candDomain !== 'OTHER' && targetDomain !== candDomain) {
@@ -217,7 +217,7 @@ function calculateMatchScore(targetItem, candidate) {
 
   // Feature 6: Category / Domain Consistency - Weight: 10
   const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
-  const candCategories = (candidate.categories || []).join(' ');
+  const candCategories = stripGenericCategoryRoot((candidate.categories || []).join(' '));
   const candDomain = detectProductDomain(candidate.title, candCategories);
 
   if (targetDomain !== 'OTHER' && candDomain === targetDomain) {

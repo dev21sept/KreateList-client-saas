@@ -36,6 +36,13 @@ const PLACEHOLDER_STRINGS = new Set([
   'does not apply.', 'n / a', 'not applied', 'no brand'
 ]);
 
+// eBay category paths start with "Clothing, Shoes & Accessories" for every apparel item.
+// That root is not a product type, so it must not make a shirt look like footwear.
+function stripGenericCategoryRoot(text) {
+  if (!text) return text;
+  return String(text).replace(/(clothing,?\s*)?shoes\s*(?:&|and)\s*accessories/gi, " ");
+}
+
 function isPlaceholder(val) {
   if (!val) return true;
   const clean = String(val).trim().toLowerCase();
@@ -125,7 +132,7 @@ function resolveItem(rawItem = {}) {
   let rawModel = (rawItem.model || rawItem.mpn || '').trim();
   const rawUpc = (rawItem.upc || rawItem.ean || rawItem.gtin || '').trim();
   const categoryId = rawItem.category_id || rawItem.categoryId || null;
-  const categoryHint = rawItem.category_hint || rawItem.category || rawItem.category_name || null;
+  const categoryHint = stripGenericCategoryRoot(rawItem.category_hint || rawItem.category || rawItem.category_name || null);
 
   // Sanitize placeholder values (e.g. "Unknown", "N/A", "Does Not Apply")
   if (isPlaceholder(rawBrand)) rawBrand = '';
@@ -201,6 +208,7 @@ function resolveItem(rawItem = {}) {
 }
 
 module.exports = {
+  stripGenericCategoryRoot,
   resolveItem,
   normalizeCondition,
   detectConfiguration,
