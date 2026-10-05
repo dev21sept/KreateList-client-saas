@@ -781,7 +781,23 @@ function stopBackgroundSyncWorker() {
 /**
  * Synchronizes live marketplace inventory for a specific user across all connected channels.
  */
+// One sync per user at a time: a second request (double click, cron overlap) would import the same items twice.
+const syncInFlight = new Set();
 async function syncUserInventory(userId) {
+  const key = String(userId);
+  if (syncInFlight.has(key)) {
+    console.log();
+    return { skipped: 'already running' };
+  }
+  syncInFlight.add(key);
+  try {
+    return await syncUserInventoryUnlocked(userId);
+  } finally {
+    syncInFlight.delete(key);
+  }
+}
+
+async function syncUserInventoryUnlocked(userId) {
   const user = await User.findById(userId);
   if (!user) throw new Error('User not found');
 
