@@ -111,8 +111,9 @@ function scorePair(a, b) {
   const dist = hammingDistance(a.imageHash, b.imageHash);
   if (dist <= 5) { score += 30; reasons.push(`photo distance ${dist}`); }
 
-  // Photo alone is not enough; the details must agree too.
+  // Photo alone is not enough, and title + brand alone is not enough: a pair needs the same size AND a close photo.
   if (score < 50) return null;
+  if (!(sizeA && sizeB) || dist > 5) return null;
   return { score, reasons };
 }
 

@@ -95,3 +95,10 @@ test('a photo 8 bits apart is not a strong match on its own', () => {
   const s = m.scorePair(a, b);
   assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
 });
+
+
+test('title and brand alone (no size, no close photo) are not suggested', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '0'.repeat(64) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '1'.repeat(64) };
+  assert.equal(m.scorePair(a, b), null);
+});
