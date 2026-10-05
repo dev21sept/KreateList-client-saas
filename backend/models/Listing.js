@@ -71,6 +71,8 @@ const listingSchema = new mongoose.Schema({
     default: 'ebay'
   },
   poshmarkListingId: String,
+  // Visual hash (dHash) of the first photo, cached by the merge scan so each photo is downloaded once.
+  imageHash: String,
   poshmarkUrl: String,
   etsyListingId: String,
   etsyUrl: String,

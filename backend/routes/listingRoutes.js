@@ -53,6 +53,11 @@ router.post('/import-active-channels', requireActiveSubscription, importActiveCh
 router.get('/local-merge-preview', getLocalMergePreview);
 router.post('/bulk-merge', requireActiveSubscription, bulkMergeListings);
 
+// Background merge scan: start returns at once; poll the GET for suggestions (suggestions only, nothing is merged).
+const { startMergeScan, getMergeScan } = require('../services/mergeScanJob');
+router.post('/merge-scan', (req, res) => res.status(202).json({ success: true, data: startMergeScan(req.user.id) }));
+router.get('/merge-scan', (req, res) => res.json({ success: true, data: getMergeScan(req.user.id) }));
+
 router.route('/')
   .get(getListings)
   .post(requireActiveSubscription, createListing);
