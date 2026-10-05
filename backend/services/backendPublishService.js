@@ -1347,10 +1347,8 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       data: {}
     });
     const draftRes = await axios(draftConfig);
-    if (draftRes.data?.error?.statusCode === 404) {
-      console.log(`[Poshmark Delister] Listing ${listingId} not found on Poshmark (draft 404). Treating as already delisted.`);
-      return { success: true, alreadyDelisted: true };
-    }
+    // A 404 from the draft endpoint does not mean the listing is gone: the GET above
+    // returned the listing. Only a 404 from GET proves it is gone (handled above).
     if (draftRes.data?.error) {
       throw new Error(`Draft Creation Error: ${draftRes.data.error.errorMessage || JSON.stringify(draftRes.data.error)}`);
     }

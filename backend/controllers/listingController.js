@@ -2595,6 +2595,11 @@ exports.delistListing = async (req, res) => {
       listing.status = 'delisted';
     }
 
+    // The model requires a category; older records may only have it under platformData.
+    if (!listing.category) {
+      listing.category = listing.platformData?.ebay?.category || listing.platformData?.poshmark?.category || 'Clothing';
+    }
+
     await listing.save();
 
     // Reconcile across all matching Listing and Product records in DB
