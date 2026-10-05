@@ -4439,7 +4439,7 @@ const NewListings = () => {
                 ...(selectedChannel === 'poshmark'
                   ? [
                       { key: 'sold', label: 'Sold', count: channelTabCounts.sold },
-                      { key: 'hidden', label: 'Hidden', count: channelTabCounts.hidden },
+                      { key: 'hidden', label: 'Delisted', count: channelTabCounts.hidden },
                     ]
                   : [{ key: 'delisted', label: 'Delisted', count: channelTabCounts.delisted }]),
                 { key: 'draft', label: 'Drafts', count: channelTabCounts.draft },
