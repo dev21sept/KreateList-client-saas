@@ -775,6 +775,22 @@ async function executeEbayInventorySync(userId) {
 }
 
 // @desc    Sync Inventory from eBay for Logged-In User
+// After a sync, set each eBay record's real state from eBay's own lists.
+// Records no longer on eBay are marked removed, so they drop out of the eBay tab.
+async function reconcileEbayAfterSync(userId) {
+  const mongoose = require('mongoose');
+  const { reconcileEbayStates } = require('../services/ebayStateSync');
+  const User = require('../models/User');
+  const me = await User.findById(userId).select('ebayAccount').lean();
+  const username = me?.ebayAccount?.username;
+  const linked = username ? await User.find({ 'ebayAccount.username': username }).select('_id').lean() : [];
+  const userIds = linked.length ? linked.map(u => u._id) : [new mongoose.Types.ObjectId(String(userId))];
+  const token = await getValidToken(userId);
+  const result = await reconcileEbayStates(mongoose.connection.db, userIds, token);
+  console.log('[eBay State Sync]', JSON.stringify(result));
+  return result;
+}
+
 // @route   POST /api/ebay/sync/inventory
 // @access  Private
 exports.syncInventory = async (req, res) => {
@@ -802,6 +818,7 @@ exports.syncInventory = async (req, res) => {
         try {
           console.log(`[eBay Background Sync] Starting sync for user ${userId}...`);
           await executeEbayInventorySync(userId);
+          await reconcileEbayAfterSync(userId).catch(e => console.error('[eBay State Sync] failed:', e.message));
           console.log(`[eBay Background Sync] Sync finished for user ${userId}.`);
         } catch (bgErr) {
           console.error(`[eBay Background Sync] Error:`, bgErr.message);
@@ -811,7 +828,9 @@ exports.syncInventory = async (req, res) => {
     }
 
     // If called internally by cron
-    return await executeEbayInventorySync(userId);
+    const syncResult = await executeEbayInventorySync(userId);
+    await reconcileEbayAfterSync(userId).catch(e => console.error('[eBay State Sync] failed:', e.message));
+    return syncResult;
   } catch (err) {
     console.error('[eBay syncInventory] Error:', err.message);
     if (res) {
@@ -1048,12 +1067,15 @@ exports.getCategoryAspects = async (req, res) => {
 // @access  Private
 exports.getSyncedInventory = async (req, res) => {
   try {
-    const products = await Product.find({ 
+    // Only real eBay items: must have an eBay listing ID and must not be marked removed.
+    const products = await Product.find({
       user: req.user.id,
       $or: [
         { source: 'ebay' },
         { source: { $exists: false } }
-      ]
+      ],
+      ebayListingId: { $exists: true, $nin: [null, ''] },
+      ebayState: { $ne: 'removed' }
     }).sort({ updated_at: -1 });
     res.status(200).json({ success: true, count: products.length, data: products });
   } catch (err) {

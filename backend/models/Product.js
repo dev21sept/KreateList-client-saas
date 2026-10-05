@@ -34,6 +34,12 @@ const productSchema = new mongoose.Schema({
     enum: ['active', 'hidden', 'sold', 'not_for_sale', 'removed'],
     default: null
   },
+  // Real eBay state (eBay only). "removed" = not on eBay any more; hidden from the eBay inventory list.
+  ebayState: {
+    type: String,
+    enum: ['active', 'sold', 'ended', 'removed'],
+    default: null
+  },
   ebayListingId: String,
   ebayUrl: String,
   poshmarkListingId: String,
