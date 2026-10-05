@@ -62,3 +62,15 @@ test('suggestPairs returns pairs sorted by score', () => {
   assert.equal(pairs.length, 1);
   assert.deepEqual([pairs[0].a, pairs[0].b].sort(), ['e1', 'p1']);
 });
+
+test('a record that already holds an eBay and a Poshmark ID cannot pair with another eBay record', () => {
+  const both = { id: 'a', platforms: ['ebay', 'poshmark'], title: 'Levi 501 Jeans Blue', brand: 'Levi', size: '32', price: 20 };
+  const ebayOnly = { id: 'b', platforms: ['ebay'], title: 'Levi 501 Jeans Blue', brand: 'Levi', size: '32', price: 20 };
+  assert.equal(m.scorePair(both, ebayOnly), null);
+});
+
+test('a record with eBay and a record with Poshmark only can pair when details match', () => {
+  const ebay = { id: 'a', platforms: ['ebay'], title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23 };
+  const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22 };
+  assert.ok(m.scorePair(ebay, posh));
+});

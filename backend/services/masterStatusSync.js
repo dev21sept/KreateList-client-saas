@@ -71,7 +71,7 @@ function overallStatus(parts) {
  * Syncs one user's Master records. Returns counts, or null for platforms that could not be read.
  * `apply: false` computes everything but writes nothing.
  */
-async function syncMasterStatuses(userId, { apply = true } = {}) {
+async function syncMasterStatuses(userId, { apply = true, maxChangeShare = 0.4 } = {}) {
   const user = await User.findById(userId).lean();
   if (!user) return null;
 
@@ -116,12 +116,16 @@ async function syncMasterStatuses(userId, { apply = true } = {}) {
     }
   }
 
-  if (apply && ops.length) {
+  // Safety: if a large share of statuses would flip in one run, the marketplace response is suspect. Write nothing.
+  const changeShare = counts.checked ? counts.changed / counts.checked : 0;
+  const guarded = counts.checked >= 20 && changeShare > maxChangeShare;
+  if (apply && ops.length && !guarded) {
     for (let i = 0; i < ops.length; i += 1000) await Listing.bulkWrite(ops.slice(i, i + 1000), { ordered: false });
   }
   return {
     platforms_checked: Object.fromEntries(Object.entries(lives).map(([k, v]) => [k, v ? v.size : 'not read / not connected'])),
     ...counts,
+    skippedUnsafe: guarded,
   };
 }
 

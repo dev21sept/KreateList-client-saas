@@ -71,8 +71,10 @@ function hammingDistance(h1, h2) {
 
 /** Compares two records. Returns null if they cannot be the same item, else a score and the reasons. */
 function scorePair(a, b) {
-  // Records on the same platform are not cross-platform pairs.
-  if (a.platform && b.platform && a.platform === b.platform) return null;
+  // A merged master holds one ID per platform, so the two records must not share any platform.
+  const platformsA = new Set((a.platforms || [a.platform]).filter(Boolean));
+  const platformsB = (b.platforms || [b.platform]).filter(Boolean);
+  if (platformsB.some(p => platformsA.has(p))) return null;
   if (a.brand && b.brand && String(a.brand).trim().toLowerCase() !== String(b.brand).trim().toLowerCase()) return null;
   if (a.size && b.size && String(a.size).trim().toLowerCase() !== String(b.size).trim().toLowerCase()) return null;
   if (!priceClose(a.price, b.price)) return null;

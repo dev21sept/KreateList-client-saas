@@ -59,6 +59,7 @@ const runRenewalChecks = async () => {
 
 const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../services/backgroundSyncService');
 const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
+const { runMasterStatusCycle } = require('../services/masterStatusCron');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -78,6 +79,16 @@ const initCronJobs = () => {
         .catch(e => console.error('[StatusTracker] cycle failed:', e.message));
     });
     console.log('[Cron System] Listing status tracker scheduled every 20 minutes.');
+  }
+
+  // Master live check by listing ID: every 2 hours at :37 (off the top of the hour), one cycle at a time
+  if (process.env.MASTER_STATUS_SYNC_DISABLED !== 'true') {
+    cron.schedule('37 */2 * * *', () => {
+      runMasterStatusCycle()
+        .then(s => console.log('[MasterStatus]', JSON.stringify(s)))
+        .catch(e => console.error('[MasterStatus] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Master live status check scheduled every 2 hours.');
   }
 };
 
