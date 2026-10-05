@@ -228,19 +228,9 @@ export const resolveEbayCategoryFallback = (rawCategory = '', title = '', brand 
     };
   }
 
-  if (isWomen) {
-    return {
-      path: "Clothing, Shoes & Accessories > Women > Women's Clothing > Tops & Blouses",
-      category: "Clothing, Shoes & Accessories > Women > Women's Clothing > Tops & Blouses",
-      categoryId: '53159'
-    };
-  }
-
-  return {
-    path: "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts",
-    category: "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts",
-    categoryId: '57990'
-  };
+  // Not sure from the title: return no category so the user picks one.
+  // Defaulting to Men's T-Shirts filed pants and other items as T-shirts.
+  return { path: '', category: '', categoryId: '' };
 };
 
 /**

@@ -1,5 +1,6 @@
 const { stripFields } = require('../utils/sanitizeBody');
 const { normalizeSizeAspect } = require('../utils/ebayAspects');
+const { pickEbayCategory } = require('../utils/ebayCategoryPick');
 const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
@@ -1172,6 +1173,11 @@ exports.publishListing = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
 
+    // Never publish a listing whose category was not identified: the user must choose it.
+    if (listing.category === 'Needs category review') {
+      return res.status(400).json({ success: false, message: 'Category not selected. Please choose the category before publishing.' });
+    }
+
     // 1. Resolve a valid user token
     const token = await getValidToken(req.user.id);
     if (!token) {
@@ -1506,10 +1512,11 @@ exports.publishListing = async (req, res) => {
       if (!effectiveCategoryId || !/^\d+$/.test(effectiveCategoryId)) {
         try {
           const suggestions = await ebayService.getCategorySuggestions(token, listing.title || 'clothing');
-          if (suggestions && suggestions.length > 0 && suggestions[0].category?.categoryId) {
-            effectiveCategoryId = String(suggestions[0].category.categoryId);
+          const best = pickEbayCategory(suggestions, listing.title || '');
+          if (best) {
+            effectiveCategoryId = best.categoryId;
             listing.categoryId = effectiveCategoryId;
-            console.log(`[EBAY PUBLISH] Auto-resolved non-numeric category ID to: ${effectiveCategoryId} (${suggestions[0].category.categoryName})`);
+            console.log(`[EBAY PUBLISH] Auto-resolved non-numeric category ID to: ${effectiveCategoryId} (${best.categoryName})`);
           } else {
             effectiveCategoryId = '26315';
           }
@@ -5514,7 +5521,7 @@ exports.cleanGhostChannels = async (req, res) => {
         user: userId,
         title: eTitle,
         description: e.description || eTitle,
-        category: e.category || 'Clothing & Accessories',
+        category: e.category || 'Needs category review',
         sku: eSku,
         brand: e.brand || '',
         size: e.size || '',
@@ -5575,7 +5582,7 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: pTitle || 'Poshmark Listing',
           description: p.description || pTitle,
-          category: p.category || 'Clothing & Accessories',
+          category: p.category || 'Needs category review',
           sku: pSku,
           brand: p.brand || '',
           size: p.size || '',
@@ -5636,7 +5643,7 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: mTitle || 'Mercari Listing',
           description: m.description || mTitle,
-          category: m.category || 'Clothing & Accessories',
+          category: m.category || 'Needs category review',
           sku: mSku,
           brand: m.brand || '',
           size: m.size || '',

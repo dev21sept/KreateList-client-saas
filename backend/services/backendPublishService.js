@@ -1032,7 +1032,9 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   // Step 3: Populate and Save Listing Attributes
   console.log('[Poshmark Publisher] Step 3: Synchronizing draft attributes and categories...');
   const size = listing.size || 'OS';
-  const brand = listing.brand || 'Original';
+  // Never invent a brand: use the listing's brand (or the eBay brand) and only fall back to a
+  // "does not apply" placeholder when nothing is known. "Original" was being saved as the brand.
+  const brand = listing.brand || listing.platformData?.ebay?.brand || 'Does Not Apply';
   // Poshmark strictly requires whole integer dollar amounts (e.g. 25, not 24.99)
   let rawPrice = parseFloat(listing.price || '0');
   let price = Math.round(rawPrice);
@@ -1405,7 +1407,7 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         post: {
           title: postObj.title || 'Listing',
           description: postObj.description || '',
-          brand: postObj.brand || 'Original',
+          brand: postObj.brand || 'Does Not Apply',
           price_amount: { val: priceVal, currency_code: 'USD', currency_symbol: '$' },
           original_price_amount: { val: origPriceVal, currency_code: 'USD', currency_symbol: '$' },
           catalog: {
