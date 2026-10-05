@@ -7,8 +7,9 @@
  *   - in SoldList    -> ebayState "sold"
  *   - in UnsoldList  -> ebayState "ended"
  *   - in none        -> ebayState "removed" (not on eBay any more)
- * Records without an eBay listing ID are local-only and are marked "removed" so the eBay tab does not show them.
- * Nothing is deleted; "removed" records are hidden from the eBay inventory list.
+ * Records with an eBay listing ID that eBay no longer lists are deleted from the database, unless more than 30% of
+ * records would be deleted in one run (then nothing is deleted, in case eBay returned a partial list).
+ * Records without an eBay listing ID are not touched here; they are cleaned by a one-time script.
  */
 
 const axios = require('axios');
@@ -110,20 +111,30 @@ async function reconcileEbayStates(db, userIds, token) {
 
   const counts = { active: 0, sold: 0, ended: 0, removed: 0 };
   const now = Date.now();
-  const ops = docs.map(d => {
-    const id = String(d.ebayListingId || '').trim();
-    let state = id && !retire.has(String(d._id)) ? stateForEbayId(id, lists) : 'removed';
+  const withId = docs.filter(d => String(d.ebayListingId || '').trim());
+  const toDelete = [];
+  const ops = [];
+  for (const d of withId) {
+    const id = String(d.ebayListingId).trim();
+    const state = retire.has(String(d._id)) ? 'removed' : stateForEbayId(id, lists);
     counts[state]++;
-    return {
-      updateOne: {
-        filter: { _id: d._id },
-        update: { $set: { ebayState: state, status: state === 'active' ? 'active' : 'inactive', updated_at: now } }
-      }
-    };
-  });
+    if (state === 'removed') { toDelete.push(d._id); continue; }
+    ops.push({ updateOne: { filter: { _id: d._id }, update: { $set: { ebayState: state, status: state === 'active' ? 'active' : 'inactive', updated_at: now } } } });
+  }
+
+  // Safety: if an unusually large share of records would be deleted, the eBay read is suspect. Delete nothing then.
+  const deleteShare = withId.length ? toDelete.length / withId.length : 0;
+  let deleted = 0, skippedUnsafe = false;
+  if (deleteShare > 0.3) {
+    skippedUnsafe = true;
+    console.warn(`[eBay State Sync] ${toDelete.length}/${withId.length} records would be deleted (${(deleteShare * 100).toFixed(0)}%). Not deleting; check eBay response.`);
+  } else if (toDelete.length) {
+    const res = await prodCol.deleteMany({ _id: { $in: toDelete } });
+    deleted = res.deletedCount;
+  }
   if (ops.length) await prodCol.bulkWrite(ops, { ordered: false });
 
-  return { lists: { active: lists.active.size, sold: lists.sold.size, unsold: lists.unsold.size }, records: docs.length, counts };
+  return { lists: { active: lists.active.size, sold: lists.sold.size, unsold: lists.unsold.size }, records: docs.length, counts, deleted, skippedUnsafe };
 }
 
 module.exports = { readEbayLists, reconcileEbayStates, stateForEbayId };
