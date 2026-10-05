@@ -1120,6 +1120,9 @@ const detectActivePlatforms = (listing) => {
   return [listing.platform || 'ebay'];
 };
 
+// Fallback values for aspects that have no eBay suggestions. Empty: the form then shows a free-text input.
+const DEFAULT_ASPECT_OPTIONS = {};
+
 const CreateMasterListing = ({
   initialListing = null,
   isModal = false,
@@ -2563,38 +2566,6 @@ const CreateMasterListing = ({
               </div>
             </div>
 
-            <div className="mt-4">
-              <PriceRecommendationCard
-                      compact={true}
-                      initialData={masterPricingRecommendation}
-                      autoFetch={true}
-                      onRecommendationLoaded={(rec) => {
-                        setMasterPricingRecommendation(rec);
-                        if (rec.recommendation?.suggested_price) {
-                          setFormData(p => ({
-                            ...p,
-                            price: p.price || rec.recommendation.suggested_price,
-                            ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
-                          }));
-                        }
-                      }}
-                      itemData={{
-                        title: formData.title,
-                        brand: formData.brand,
-                        model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
-                        upc: formData.ebayAspects?.['UPC']?.[0],
-                        condition: formData.selectedCondition || 'Used',
-                        category: formData.ebayCategory,
-                        categoryId: formData.ebayCategoryId
-                      }}
-                      currentPrice={formData.price}
-                      onApplyPrice={(newPrice) => setFormData(prev => ({ 
-                        ...prev, 
-                        price: newPrice,
-                        ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
-                      }))}
-                    />
-            </div>
             {/* Description */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
