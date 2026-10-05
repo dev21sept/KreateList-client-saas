@@ -4437,10 +4437,7 @@ const NewListings = () => {
                 { key: 'all', label: 'All Products', count: channelTabCounts.all },
                 { key: 'active', label: 'Active', count: channelTabCounts.active },
                 ...(selectedChannel === 'poshmark'
-                  ? [
-                      { key: 'sold', label: 'Sold', count: channelTabCounts.sold },
-                      { key: 'hidden', label: 'Delisted', count: channelTabCounts.hidden },
-                    ]
+                  ? [{ key: 'hidden', label: 'Delisted', count: channelTabCounts.hidden }]
                   : [{ key: 'delisted', label: 'Delisted', count: channelTabCounts.delisted }]),
                 { key: 'draft', label: 'Drafts', count: channelTabCounts.draft },
                 { key: 'error', label: 'Errors', count: channelTabCounts.error },
