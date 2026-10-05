@@ -87,10 +87,22 @@ async function syncMasterStatuses(userId, { apply = true } = {}) {
   for (const l of listings) {
     const next = {};
     const parts = [];
-    if (lives.ebay && hasId(l.ebayListingId)) { next.ebayStatus = lives.ebay.id(l.ebayListingId); parts.push(next.ebayStatus); }
-    if (lives.poshmark && hasId(l.poshmarkListingId)) { next.poshmarkStatus = lives.poshmark.id(l.poshmarkListingId); parts.push(next.poshmarkStatus); }
-    if (lives.etsy && hasId(l.etsyListingId)) { next.etsyStatus = lives.etsy.id(l.etsyListingId); parts.push(next.etsyStatus); }
-    if (parts.length === 0) continue; // nothing checked for this record (or only Mercari, which is not checked)
+    const platforms = [
+      { live: lives.ebay, id: l.ebayListingId, field: 'ebayStatus', current: l.ebayStatus },
+      { live: lives.poshmark, id: l.poshmarkListingId, field: 'poshmarkStatus', current: l.poshmarkStatus },
+      { live: lives.etsy, id: l.etsyListingId, field: 'etsyStatus', current: l.etsyStatus },
+    ];
+    for (const p of platforms) {
+      if (!p.live) continue; // platform not read this run: leave it alone
+      if (hasId(p.id)) {
+        next[p.field] = p.live.id(p.id);
+        parts.push(next[p.field]);
+      } else if (p.current === 'published') {
+        // Marked published but has no listing ID on that platform: it is not live there.
+        next[p.field] = 'none';
+      }
+    }
+    if (parts.length === 0 && Object.keys(next).length === 0) continue; // nothing checked for this record
 
     counts.checked++;
     const overall = overallStatus(parts);

@@ -1072,7 +1072,7 @@ const NewListings = () => {
         const res = await ebayService.syncInventory();
         if (res.data.success) {
           // eBay sync runs in the background on the server; it does not return a count.
-          toast.info('eBay sync shuru ho gaya hai. List kuch der mein update hogi.');
+          toast.info('eBay sync started. The list will update shortly.');
           fetchChannelInventory('ebay');
         }
       } else if (selectedChannel === 'etsy') {
@@ -1139,7 +1139,7 @@ const NewListings = () => {
           }
         }
 
-        toast.info(`${selectedChannel} closet sync ho raha hai...`);
+        toast.info(`${selectedChannel} closet sync in progress...`);
         const res = await externalImportService.importCloset({
           platform: selectedChannel,
           username,
@@ -1155,7 +1155,7 @@ const NewListings = () => {
             ? ` Active ${sc.active || 0}, Sold ${sc.sold || 0}, Delisted ${(sc.hidden || 0) + (sc.not_for_sale || 0)}, Removed ${d.removedCount || 0}.`
             : '';
           if (count > 0) {
-            toast.success(`${count} naye products import hue ${selectedChannel} se.${stateText}`);
+            toast.success(`Imported ${count} new products from ${selectedChannel}.${stateText}`);
           } else {
             toast.success(`${selectedChannel} sync complete.${stateText}`);
           }
