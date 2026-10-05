@@ -1358,6 +1358,30 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               </div>
             </div>
 
+            <div className="mt-4">
+              {/* Live eBay Pricing Engine Insights Card */}
+              <PriceRecommendationCard
+                initialData={ebayPricingRecommendation}
+                autoFetch={true}
+                onRecommendationLoaded={(rec) => {
+                  setEbayPricingRecommendation(rec);
+                  if (rec.recommendation?.suggested_price) {
+                    setFormData(p => ({ ...p, price: p.price || rec.recommendation.suggested_price }));
+                  }
+                }}
+                itemData={{
+                  title: formData.title,
+                  brand: formData.brand || formData.selectedAspects['Brand']?.[0],
+                  model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
+                  upc: formData.selectedAspects['UPC']?.[0],
+                  condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
+                  category: formData.category,
+                  categoryId: formData.categoryId
+                }}
+                currentPrice={formData.price}
+                onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}
+              />
+            </div>
             {/* Condition & Condition Note */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <div>
@@ -1594,29 +1618,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 placeholder="Select payment policy..."
               />
             </div>
-
-            {/* Live eBay Pricing Engine Insights Card */}
-            <PriceRecommendationCard
-              initialData={ebayPricingRecommendation}
-              autoFetch={true}
-              onRecommendationLoaded={(rec) => {
-                setEbayPricingRecommendation(rec);
-                if (rec.recommendation?.suggested_price) {
-                  setFormData(p => ({ ...p, price: p.price || rec.recommendation.suggested_price }));
-                }
-              }}
-              itemData={{
-                title: formData.title,
-                brand: formData.brand || formData.selectedAspects['Brand']?.[0],
-                model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
-                upc: formData.selectedAspects['UPC']?.[0],
-                condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
-                category: formData.category,
-                categoryId: formData.categoryId
-              }}
-              currentPrice={formData.price}
-              onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}
-            />
 
             {/* Allow Offers (Best Offer) Toggle */}
             <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">
