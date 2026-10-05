@@ -49,7 +49,11 @@ router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 router.post('/merge-channel', requireActiveSubscription, mergeChannel);
 router.get('/active-channel-preview', getActiveChannelImportPreview);
-router.post('/import-active-channels', requireActiveSubscription, importActiveChannelsToLocal);
+// Disabled: this import grouped channel items by title/SKU/image and merged them into existing Master records,
+// joining different items and copying platform IDs onto the wrong records. Items are linked by live ID only.
+router.post('/import-active-channels', requireActiveSubscription, (req, res) => {
+  res.status(410).json({ success: false, message: 'This import is disabled. Use Sync Now; items are linked by live listing ID.' });
+});
 router.get('/local-merge-preview', getLocalMergePreview);
 router.post('/bulk-merge', requireActiveSubscription, bulkMergeListings);
 
