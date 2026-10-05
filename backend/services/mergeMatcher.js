@@ -18,6 +18,24 @@ function isSizeToken(t) {
   return /^\d+(x\d+)?(xs|xl|xxl|s|m|l)?y?$/.test(t) || /^(xxs|xs|xl|xxl|xxxl|s|m|l)$/.test(t) || /^\d+x+[sml]$/.test(t);
 }
 
+/** Normalizes a size field: "M", " m ", "35x34" -> lowercase, trimmed. Empty -> ''. */
+function normalizeSize(s) {
+  return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+/**
+ * Size written in a title: a waist x inseam pair (35x34) or a letter/number size (XL, M, 6.5).
+ * Returns '' when the title has no clear size.
+ */
+function sizeFromTitle(title) {
+  const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
+  const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
+  if (pair) return `${pair[1]}x${pair[2]}`;
+  const word = t.match(/\bsize\s+(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,2}(?:\.\d)?)\b/)
+    || t.match(/\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+  return word ? word[1].trim() : '';
+}
+
 /** Lowercased word set of a title, without sizes, punctuation and filler words. */
 function titleTokens(title) {
   return new Set(
@@ -76,7 +94,10 @@ function scorePair(a, b) {
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
   if (platformsB.some(p => platformsA.has(p))) return null;
   if (a.brand && b.brand && String(a.brand).trim().toLowerCase() !== String(b.brand).trim().toLowerCase()) return null;
-  if (a.size && b.size && String(a.size).trim().toLowerCase() !== String(b.size).trim().toLowerCase()) return null;
+  // Size: use the size field, or the size written in the title when the field is empty. Two different sizes never match.
+  const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
+  const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
+  if (sizeA && sizeB && sizeA !== sizeB) return null;
   if (!priceClose(a.price, b.price)) return null;
 
   const reasons = [];
@@ -84,10 +105,11 @@ function scorePair(a, b) {
   const overlap = titleOverlap(a.title, b.title);
   if (overlap >= 0.6) { score += 40; reasons.push(`title ${Math.round(overlap * 100)}%`); }
   if (a.brand && b.brand) { score += 15; reasons.push('brand'); }
-  if (a.size && b.size) { score += 15; reasons.push('size'); }
+  if (sizeA && sizeB) { score += 15; reasons.push('size'); }
 
+  // Tight threshold: photos of similar garments (jeans, pants) look alike at looser distances.
   const dist = hammingDistance(a.imageHash, b.imageHash);
-  if (dist <= 10) { score += 30; reasons.push(`photo distance ${dist}`); }
+  if (dist <= 5) { score += 30; reasons.push(`photo distance ${dist}`); }
 
   // Photo alone is not enough; the details must agree too.
   if (score < 50) return null;
@@ -110,4 +132,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle };

@@ -74,3 +74,24 @@ test('a record with eBay and a record with Poshmark only can pair when details m
   const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22 };
   assert.ok(m.scorePair(ebay, posh));
 });
+
+test('size is read from the title when the size field is empty', () => {
+  assert.equal(m.sizeFromTitle('Nike Jogger Pants Mens M Heather Gray'), 'm');
+  assert.equal(m.sizeFromTitle('Nike Jogger Pants Mens XL Gray'), 'xl');
+  assert.equal(m.sizeFromTitle('Levi 501 Jeans Mens 34x31 Black'), '34x31');
+  assert.equal(m.sizeFromTitle('Ceramic Coffee Mug Blue'), '');
+});
+
+test('different sizes in titles block the pair even when the size field is empty', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Nike Jogger Pants Mens M Heather Gray Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Nike Jogger Pants Mens XL Gray Slacker Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };
+  assert.equal(m.scorePair(a, b), null);
+});
+
+test('a photo 8 bits apart is not a strong match on its own', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: '0'.repeat(64) };
+  const far = '1'.repeat(8) + '0'.repeat(56);
+  const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: far };
+  const s = m.scorePair(a, b);
+  assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
+});
