@@ -1071,7 +1071,8 @@ const NewListings = () => {
       if (selectedChannel === 'ebay') {
         const res = await ebayService.syncInventory();
         if (res.data.success) {
-          toast.success(`Successfully synced ${res.data.count} items from eBay!`);
+          // eBay sync runs in the background on the server; it does not return a count.
+          toast.info('eBay sync shuru ho gaya hai. List kuch der mein update hogi.');
           fetchChannelInventory('ebay');
         }
       } else if (selectedChannel === 'etsy') {
@@ -1138,19 +1139,25 @@ const NewListings = () => {
           }
         }
 
-        toast.success(`Syncing ${selectedChannel} closet...`);
-        const res = await externalImportService.importCloset({ 
-          platform: selectedChannel, 
+        toast.info(`${selectedChannel} closet sync ho raha hai...`);
+        const res = await externalImportService.importCloset({
+          platform: selectedChannel,
           username,
           listings: listings.length > 0 ? listings : undefined
         });
 
         if (res.data?.success) {
-          const count = res.data.data.importedCount;
+          const d = res.data.data;
+          const count = d.importedCount;
+          const sc = d.stateCounts || {};
+          // Real result from the closet scan, not a "syncing" message.
+          const stateText = selectedChannel === 'poshmark' && d.stateCounts
+            ? ` Active ${sc.active || 0}, Sold ${sc.sold || 0}, Delisted ${(sc.hidden || 0) + (sc.not_for_sale || 0)}, Removed ${d.removedCount || 0}.`
+            : '';
           if (count > 0) {
-            toast.success(`Successfully imported ${count} new products from ${selectedChannel}!`);
+            toast.success(`${count} naye products import hue ${selectedChannel} se.${stateText}`);
           } else {
-            toast.success(`Synced successfully! Your ${selectedChannel} inventory is already up-to-date.`);
+            toast.success(`${selectedChannel} sync complete.${stateText}`);
           }
           fetchChannelInventory(selectedChannel);
           fetchListings(); // reload local listings in background too

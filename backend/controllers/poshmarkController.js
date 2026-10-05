@@ -228,6 +228,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         if (item.thumbnail) {
           existingProduct.thumbnail = item.thumbnail;
         }
+        existingProduct.poshmarkState = item.poshmarkState || existingProduct.poshmarkState;
         existingProduct.updated_at = Date.now();
         await existingProduct.save();
         duplicateCount++;
@@ -247,6 +248,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
         source: 'poshmark',
         status: resolvedStatus,
+        poshmarkState: item.poshmarkState || null,
         poshmarkListingId: item.poshmarkListingId,
         poshmarkUrl: item.poshmarkUrl,
         updated_at: Date.now()
@@ -257,19 +259,29 @@ exports.poshmarkImportCloset = async (req, res) => {
       importCount++;
     }
 
-    // Reconcile any existing Poshmark products not returned or not active in the latest closet scrape
+    // Reconcile: a record whose Poshmark post is not in the closet anymore is removed from Poshmark.
+    let removedCount = 0;
     if (scrapedListings.length > 0) {
       const allDbProducts = await Product.find({ user: req.user.id, source: 'poshmark' });
       for (const dbP of allDbProducts) {
         const matched = (dbP.poshmarkListingId && scrapedPoshmarkIds.has(dbP.poshmarkListingId)) ||
                         (dbP.sku && scrapedSkus.has(dbP.sku));
-        if (!matched && (dbP.status === 'live' || dbP.status === 'active')) {
+        if (!matched && dbP.poshmarkState !== 'removed') {
+          dbP.poshmarkState = 'removed';
           dbP.status = 'inactive';
           dbP.updated_at = Date.now();
           await dbP.save();
+          removedCount++;
         }
       }
     }
+
+    // Counts of the real Poshmark states in this closet (for the success message)
+    const stateCounts = scrapedListings.reduce((acc, s) => {
+      const k = s.poshmarkState || 'unknown';
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    }, {});
 
     res.status(200).json({
       success: true,
@@ -278,6 +290,8 @@ exports.poshmarkImportCloset = async (req, res) => {
         totalFound: scrapedListings.length,
         importedCount: importCount,
         skippedDuplicates: duplicateCount,
+        removedCount,
+        stateCounts,
         listings: importedItems
       }
     });
