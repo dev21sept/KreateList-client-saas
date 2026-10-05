@@ -38,8 +38,8 @@ test('different brand or size blocks the pair', () => {
 });
 
 test('a strong detail match across platforms is suggested with reasons', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23 };
-  const b = { id: 'b', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22 };
+  const a = { id: 'a', platform: 'ebay', title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(64) };
   const s = m.scorePair(a, b);
   assert.ok(s && s.score >= 50);
   assert.ok(s.reasons.includes('brand') && s.reasons.includes('size'));
@@ -54,8 +54,8 @@ test('a matching photo alone (no brand or size) is not enough', () => {
 
 test('suggestPairs returns pairs sorted by score', () => {
   const recs = [
-    { id: 'e1', platform: 'ebay', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23 },
-    { id: 'p1', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23 },
+    { id: 'e1', platform: 'ebay', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) },
+    { id: 'p1', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) },
     { id: 'p2', platform: 'poshmark', title: 'Nike Hoodie', brand: 'Nike', size: 'L', price: 40 },
   ];
   const pairs = m.suggestPairs(recs);
@@ -70,8 +70,8 @@ test('a record that already holds an eBay and a Poshmark ID cannot pair with ano
 });
 
 test('a record with eBay and a record with Poshmark only can pair when details match', () => {
-  const ebay = { id: 'a', platforms: ['ebay'], title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23 };
-  const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22 };
+  const ebay = { id: 'a', platforms: ['ebay'], title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) };
+  const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(64) };
   assert.ok(m.scorePair(ebay, posh));
 });
 
