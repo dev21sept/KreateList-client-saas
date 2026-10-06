@@ -42,3 +42,11 @@ test('invisible marks are removed from titles so search matches', () => {
   assert.equal(stripInvisible(raw), 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg');
   assert.equal(stripInvisible('plain title'), 'plain title');
 });
+
+const { poshmarkCategoryOf } = require('../services/externalImportService');
+
+test('Poshmark category comes from catalog: department and category names, and the category id', () => {
+  const post = { catalog: { department_obj: { display: 'Men' }, category_obj: { display: 'Jeans' }, category: '05008c10d97b4e1245005764' } };
+  assert.deepEqual(poshmarkCategoryOf(post), { path: 'Men > Jeans', id: '05008c10d97b4e1245005764' });
+  assert.deepEqual(poshmarkCategoryOf({}), { path: '', id: '' });
+});

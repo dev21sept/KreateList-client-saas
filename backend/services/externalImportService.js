@@ -530,6 +530,18 @@ function stripInvisible(text) {
 }
 
 /**
+ * Poshmark category of a closet post: readable path ("Men > Jeans") and the category id.
+ * Read from post.catalog (department_obj / category_obj), not from a top-level field.
+ */
+function poshmarkCategoryOf(post = {}) {
+  const cat = post.catalog || {};
+  const dept = cat.department_obj?.display || '';
+  const name = cat.category_obj?.display || post.category_v2?.display || (typeof post.category === 'string' ? post.category : '');
+  const id = cat.category || post.category_v2?.id || '';
+  return { path: [dept, name].filter(Boolean).join(' > '), id: String(id || '') };
+}
+
+/**
  * Maps Poshmark's raw post fields to one state:
  * active | sold | not_for_sale | hidden | removed
  */
@@ -735,8 +747,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             description: description.trim(),
             price: (formatPrice(priceVal) || "0.00"),
             sku: generatedSku,
-            category: post.category || 'Tops',
-            categoryId: post.category_features ? Object.keys(post.category_features)[0] : '',
+            category: poshmarkCategoryOf(post).path,
+            categoryId: poshmarkCategoryOf(post).id,
             images: imgUrls,
             thumbnail: imgUrl || '',
             platform: 'poshmark',
@@ -896,5 +908,6 @@ module.exports = {
   scrapeDepopShop,
   scrapePoshmarkCloset,
   poshmarkStateOf,
+  poshmarkCategoryOf,
   stripInvisible
 };

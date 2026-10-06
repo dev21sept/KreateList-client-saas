@@ -360,12 +360,28 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
 
     // One live ID becomes one Master record: the same ID is never imported twice in one run.
     const claimedIds = new Set();
+    let ebayTokenForCategory = null;
     for (const prod of unlinked) {
       const src = prod.source;
       const realId = prod[`${src}ListingId`] || prod.itemId || prod.listingId;
       if (!realId) continue; // no platform ID: not a live listing, do not create a Master record
       if (claimedIds.has(`${src}:${String(realId)}`)) continue;
       claimedIds.add(`${src}:${String(realId)}`);
+
+      // eBay active items come without a category: fetch the item's PrimaryCategory once (GetItem).
+      if (src === 'ebay' && !prod.categoryId) {
+        try {
+          if (!ebayTokenForCategory) ebayTokenForCategory = await require('./ebayService').getValidEbayToken(String(userId));
+          const det = await require('./ebayService').getTradingItemDetails(ebayTokenForCategory, String(realId));
+          if (det && det.categoryId) {
+            prod.categoryId = String(det.categoryId);
+            prod.category = det.categoryName || prod.category || '';
+            await Product.updateOne({ _id: prod._id }, { $set: { categoryId: prod.categoryId, category: prod.category } });
+          }
+        } catch (catErr) {
+          // Left blank: the next sync retries this item.
+        }
+      }
       const liveId = String(prod[`${src}ListingId`] || prod.itemId || prod.listingId || prod.sku || prod._id);
       let url = prod[`${src}Url`] || prod.url || '';
       if (!url) {
