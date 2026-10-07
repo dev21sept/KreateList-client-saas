@@ -375,7 +375,8 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
           const det = await require('./ebayService').getTradingItemDetails(ebayTokenForCategory, String(realId));
           if (det && det.categoryId) {
             prod.categoryId = String(det.categoryId);
-            prod.category = det.categoryName || prod.category || '';
+            // eBay returns the path with ':' separators; the app uses ' > ' (see categoryResolver).
+            prod.category = det.categoryName ? String(det.categoryName).split(':').map(x => x.trim()).join(' > ') : (prod.category || '');
             await Product.updateOne({ _id: prod._id }, { $set: { categoryId: prod.categoryId, category: prod.category } });
           }
         } catch (catErr) {
