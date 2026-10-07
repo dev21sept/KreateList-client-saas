@@ -286,6 +286,7 @@ function matchAndFilterComparables(targetItem, candidateList = [], minAcceptance
 }
 
 module.exports = {
+  isStrongModel,
   matchAndFilterComparables,
   evaluateHardRejections,
   calculateMatchScore

@@ -52,7 +52,7 @@ function isPlaceholder(val) {
 // Product domain taxonomy mapping to prevent cross-category contamination
 const DOMAIN_PATTERNS = {
   FOOTWEAR: /\b(shoes|shoe|sneakers|sneaker|boots|boot|sandals|sandal|slides|slide|loafers|cleats|heels|slippers|trainers|dunks|footwear|pumps|oxfords|clogs|mules)\b/i,
-  OUTERWEAR: /\b(jacket|jackets|coat|coats|windbreaker|windbreakers|tracksuit|tracksuits|parka|parkas|puffer|vest|vests|bomber|fleece|anorak|outerwear|blazer|blazers|overcoat)\b/i,
+  OUTERWEAR: /\b(jacket|jackets|coat|coats|windbreaker|windbreakers|tracksuit|tracksuits|parka|parkas|puffer|vest|vests|bomber|anorak|outerwear|blazer|blazers|overcoat)\b/i,
   TOPS: /\b(shirt|shirts|t-shirt|t-shirts|tee|tees|jersey|jerseys|polo|polos|tank|tanks|blouse|blouses|sweater|sweaters|sweatshirt|sweatshirts|hoodie|hoodies)\b/i,
   BOTTOMS: /\b(pants|pant|jeans|jean|shorts|short|leggings|sweatpants|joggers|trousers|skirt|skirts|slacks|chinos)\b/i,
   DRESSES_SUITS: /\b(dress|dresses|gown|gowns|suit|suits|tuxedo|romper|jumpsuit)\b/i,

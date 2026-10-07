@@ -12,7 +12,7 @@ const crypto = require('crypto');
 const { resolveItem } = require('./itemResolver');
 const { fetchActiveListings } = require('./ebayBrowseConnector');
 const { fetchSoldListings } = require('./soldDataConnector');
-const { matchAndFilterComparables } = require('./comparableMatcher');
+const { matchAndFilterComparables, isStrongModel } = require('./comparableMatcher');
 const { calculatePriceDistribution, applySellerObjective, removePriceOutliers } = require('./pricingCalculator');
 
 const PRICING_ALGORITHM_VERSION = 'pricing-v1.2';
@@ -212,7 +212,10 @@ async function recommendPrice(request = {}) {
   }
 
   // STAGE 3: FILTER & MATCH COMPARABLES
-  const { accepted, rejected } = matchAndFilterComparables(resolved.normalized, candidatePool, 30);
+  // Without a model number or UPC the identity is weak: accept looser matches, but only with the same brand,
+  // and mark the result LOW confidence. Hard rejections (domain, condition, kit, accessory) still apply.
+  const weakIdentity = !(isStrongModel(resolved.normalized.model) || resolved.normalized.upc);
+  const { accepted, rejected } = matchAndFilterComparables(resolved.normalized, candidatePool, weakIdentity ? 20 : 30);
 
   const soldComps = accepted.filter(c => c.source_type === 'SOLD');
   const activeComps = accepted.filter(c => c.source_type === 'ACTIVE');
@@ -227,14 +230,16 @@ async function recommendPrice(request = {}) {
 
   // Only strong matches set the price. Weak matches (bare tool vs kit, parts, other models)
   // used to pull the median far below the real product price.
-  const soldPool = selectPricingPool(soldComps);
-  const activePool = selectPricingPool(activeComps);
+  const brandMatches = c => !resolved.normalized.brand || String(c.title || '').toLowerCase().includes(String(resolved.normalized.brand).toLowerCase());
+  const weakPool = comps => removePriceOutliers(comps.filter(c => c.match_score >= 25 && brandMatches(c)));
+  const soldPool = weakIdentity ? weakPool(soldComps) : selectPricingPool(soldComps);
+  const activePool = weakIdentity ? weakPool(activeComps) : selectPricingPool(activeComps);
 
   if (soldPool.length >= MIN_SOLD_MATCHES) {
     relevantComps = soldPool;
     basis = 'SOLD_COMPS_MEDIAN';
     hasSoldData = true;
-  } else if (activePool.length >= MIN_ACTIVE_MATCHES) {
+  } else if (activePool.length >= (weakIdentity ? 3 : MIN_ACTIVE_MATCHES)) {
     relevantComps = activePool;
     basis = 'ACTIVE_ASKING_PRICE_ESTIMATE';
     hasSoldData = false;
@@ -275,6 +280,10 @@ async function recommendPrice(request = {}) {
   });
 
   const caveats = buildCaveats(resolved, hasSoldData, relevantComps.length, basis);
+  if (weakIdentity) {
+    caveats.push('No model number or UPC: this is an estimate from similar listings with the same brand. Add the model number for a stronger match.');
+    confidence.label = 'LOW';
+  }
 
   // Evidence for the user: comps that set the price first, then the rest by match score.
   const poolIds = new Set(relevantComps.map(c => c.item_id));
