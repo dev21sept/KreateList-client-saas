@@ -685,7 +685,10 @@ const NewListings = () => {
   const [channelSortOption, setChannelSortOption] = useState(() => {
     return localStorage.getItem('elister_channel_sort_option') || 'newest';
   });
-  const [sortOption, setSortOption] = useState('crosslisted-desc');
+  // Default to newest-first so a just-added or just-merged listing shows up at the top.
+  const [sortOption, setSortOption] = useState(() => {
+    return localStorage.getItem('elister_master_sort_option') || 'newest';
+  });
   
   // Favorites State
   const [favoriteIds, setFavoriteIds] = useState(() => {
@@ -4329,7 +4332,10 @@ const NewListings = () => {
               <div className="relative flex-1 sm:flex-none">
                 <select
                   value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value)}
+                  onChange={(e) => {
+                    setSortOption(e.target.value);
+                    try { localStorage.setItem('elister_master_sort_option', e.target.value); } catch {}
+                  }}
                   className="w-full sm:w-auto pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-xs font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer appearance-none shadow-2xs"
                   title="Sort Listings"
                 >

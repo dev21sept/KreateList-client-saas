@@ -18,12 +18,28 @@ test('uses the first relevant apparel suggestion, not the deepest one', () => {
   assert.equal(picked.categoryId, '11');
 });
 
-test('rejects fan/collectible matches outside the apparel root', () => {
+test('deprioritizes fan/collectible matches when a better one exists', () => {
   const picked = pickEbayCategory([
     node('99', 'Olympics', [{ categoryName: 'Sports Mem, Cards & Fan Shop', categoryTreeNodeLevel: 1 }]),
     node('33', 'Coats, Jackets & Vests', MEN)
   ], 'JCPenney Olympic Windbreaker Jacket Mens L');
   assert.equal(picked.categoryId, '33');
+});
+
+test('a non-apparel item gets a real category, not nothing', () => {
+  const HEALTH = [{ categoryName: 'Health & Beauty', categoryTreeNodeLevel: 1 }, { categoryName: 'Skin Care', categoryTreeNodeLevel: 2 }];
+  const picked = pickEbayCategory([
+    node('77', 'Cleansers', HEALTH)
+  ], 'Cardinal Health Perineal Cleanser Soothing No-Rinse Liquid Size 4 oz');
+  assert.equal(picked.categoryId, '77');
+  assert.equal(picked.path, 'Health & Beauty > Skin Care > Cleansers');
+});
+
+test('a low-priority root is still used when it is the only valid suggestion', () => {
+  const picked = pickEbayCategory([
+    node('99', 'Olympics', [{ categoryName: 'Sports Mem, Cards & Fan Shop', categoryTreeNodeLevel: 1 }])
+  ], 'Vintage 1980 Olympics Pin Collectible');
+  assert.equal(picked.categoryId, '99');
 });
 
 test('prefers the women branch when the title says Womens', () => {
@@ -34,7 +50,7 @@ test('prefers the women branch when the title says Womens', () => {
   assert.equal(picked.categoryId, '12');
 });
 
-test('returns null when nothing is an apparel leaf (caller must ask the user)', () => {
+test('returns null when nothing is a real leaf (caller must ask the user)', () => {
   assert.equal(pickEbayCategory([node('206', 'Clothing', APPAREL.slice(0, 0))], 'Some item'), null);
   assert.equal(pickEbayCategory([], 'Some item'), null);
 });
