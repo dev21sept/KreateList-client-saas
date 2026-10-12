@@ -708,13 +708,26 @@ async function runBackgroundInventorySyncCycle() {
 
         // 5.5 Auto-Import newly discovered channel items (title/SKU auto-merge is off; see Smart Merge)
         let newItemsCount = 0;
-        let mergedItemsCount = 0;
         try {
           const autoRes = await autoImportAndMergeUnlinkedChannels(userId);
           newItemsCount = autoRes.newItemsCount || 0;
-          mergedItemsCount = autoRes.mergedItemsCount || 0;
         } catch (autoErr) {
           console.warn(`[Background Inventory Worker] Auto-import notice for ${user.email}:`, autoErr.message);
+        }
+
+        // 5.6 Verified cross-platform merge: scan (photo + size + brand, same bar as Smart Merge) and
+        // apply automatically. A record is only ever folded (mergedInto), never deleted, so this is reversible.
+        let mergedItemsCount = 0;
+        try {
+          const { scanAndWait } = require('./mergeScanJob');
+          const { applyMerges } = require('./mergeApply');
+          const scan = await scanAndWait(userId, 45000);
+          if (scan.status === 'done' && scan.suggestions && scan.suggestions.length) {
+            const mergeReport = await applyMerges(userId, scan.suggestions, { apply: true });
+            mergedItemsCount = mergeReport.merged_records || 0;
+          }
+        } catch (mergeErr) {
+          console.warn(`[Background Inventory Worker] Auto-merge notice for ${user.email}:`, mergeErr.message);
         }
 
         // 6. Record lastSyncSummary for User so popup triggers on frontend (on app open & live)
