@@ -96,12 +96,23 @@ test('different sizes in titles block the pair even when the size field is empty
   assert.equal(m.scorePair(a, b), null);
 });
 
-test('a photo just past the distance threshold is not a strong match on its own', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: '0'.repeat(144) };
-  const far = '1'.repeat(33) + '0'.repeat(111); // one bit past PHOTO_DIST_THRESHOLD (32)
-  const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: far };
+test('a photo just past the normal distance threshold is not a strong match on its own', () => {
+  // Titles share 4 of 6 words (66%): enough for the title score (>=60%), not enough for the
+  // high-confidence tier (>=90%), so the normal PHOTO_DIST_THRESHOLD (32) applies.
+  const a = { id: 'a', platform: 'ebay', title: 'Nike Hoodie Mens Black Pullover Fleece Drawstring Comfortable', brand: 'Nike', size: '32', price: 20, imageHash: '0'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Nike Hoodie Black Pullover Casual Warm', brand: 'Nike', size: '32', price: 20, imageHash: '1'.repeat(33) + '0'.repeat(111) };
   const s = m.scorePair(a, b);
   assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
+});
+
+test('an exact title and a confirmed size tolerate a farther photo, up to a higher cap', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', size: '32', price: 20, imageHash: '0'.repeat(144) };
+  const withinHighConfidence = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', size: '32', price: 20, imageHash: '1'.repeat(45) + '0'.repeat(99) };
+  const pastHighConfidence = { id: 'c', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', size: '32', price: 20, imageHash: '1'.repeat(51) + '0'.repeat(93) };
+  const s1 = m.scorePair(a, withinHighConfidence);
+  assert.ok(s1 && s1.reasons.some(r => r.startsWith('photo distance')));
+  const s2 = m.scorePair(a, pastHighConfidence);
+  assert.ok(!s2 || !s2.reasons.some(r => r.startsWith('photo distance')));
 });
 
 test('a waist-only size field matches a waist x inseam size from the title', () => {

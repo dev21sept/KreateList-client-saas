@@ -134,6 +134,15 @@ function sizesCompatible(sizeA, sizeB) {
 // recall for keeping photo a real signal; title + brand + size still have to agree too.
 const PHOTO_DIST_THRESHOLD = 32;
 
+// A near-exact title (not just "shares most words") plus a confirmed, matching size is strong
+// enough corroboration on its own to trust a farther photo: compression/crop differences between
+// platforms can push even the same photo past the normal threshold. Still not unlimited - two
+// identical, templated titles from a bulk listing (e.g. several of the same generic item re-sold)
+// could otherwise coincide, so this stays well short of a typical different-item distance (p10 ~28,
+// median ~59 above).
+const PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE = 50;
+const EXACT_TITLE_OVERLAP = 0.9;
+
 /** Compares two records. Returns null if they cannot be the same item, else a score and the reasons. */
 function scorePair(a, b) {
   // A merged master holds one ID per platform, so the two records must not share any platform.
@@ -154,15 +163,19 @@ function scorePair(a, b) {
   if (a.brand && b.brand) { score += 15; reasons.push('brand'); }
   if (sizeA && sizeB) { score += 15; reasons.push('size'); }
 
-  // Photos of similar garments (jeans, pants) can still look alike at looser distances, so this stays tight.
+  const sizeConfirmed = Boolean(sizeA && sizeB); // both present and (per the check above) compatible
+  const threshold = (overlap >= EXACT_TITLE_OVERLAP && sizeConfirmed)
+    ? PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE
+    : PHOTO_DIST_THRESHOLD;
+
   const dist = hammingDistance(a.imageHash, b.imageHash);
-  if (dist <= PHOTO_DIST_THRESHOLD) { score += 30; reasons.push(`photo distance ${dist}`); }
+  if (dist <= threshold) { score += 30; reasons.push(`photo distance ${dist}`); }
 
   // A close photo is always required. A confirmed size clash was already rejected above; a size
   // missing on one side is not held against the pair, since the other evidence (title, brand, photo)
   // still has to clear the score bar on its own.
   if (score < 50) return null;
-  if (dist > PHOTO_DIST_THRESHOLD) return null;
+  if (dist > threshold) return null;
   return { score, reasons };
 }
 
