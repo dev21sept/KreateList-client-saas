@@ -246,3 +246,36 @@ test('a partial title match still works when brand or size is actually confirmed
   const bothSizeB = { id: 'd', platform: 'poshmark', title: 'Another Co Straight Jeans Mens 38x32 Medium Wash Blue Denim Everyday', size: '38', price: 21, imageHash: same };
   assert.ok(m.scorePair(bothSize, bothSizeB));
 });
+
+test('normalizeSize discards free text that is not plausibly a size', () => {
+  assert.equal(m.normalizeSize("Can't read tag, check measurements"), '');
+  assert.equal(m.normalizeSize('undefined'), '');
+  assert.equal(m.normalizeSize('Unknown'), '');
+  assert.equal(m.normalizeSize('3BB'), '3bb');
+  assert.equal(m.normalizeSize('9.5M'), '9.5m');
+  assert.equal(m.normalizeSize('14R'), '14r');
+});
+
+test('sizesCompatible: a waist x inseam pair matches a suffixed bare waist (15x32 vs 15J)', () => {
+  assert.ok(m.sizesCompatible('15x32', '15j'));
+  assert.ok(m.sizesCompatible('15j', '15x32'));
+  assert.ok(!m.sizesCompatible('15x32', '16j'));
+});
+
+test('a real production example: a junk size-field value does not block a title + photo match', () => {
+  // The Poshmark size field literally said "Can't read tag, check measurements" - not a size at
+  // all, but it used to be compared as if it conflicted with the eBay listing's title size "37x32".
+  const same = '1'.repeat(144);
+  const a = {
+    id: 'a', platform: 'ebay',
+    title: "Revtown Automatic Jeans Men's 37x32 Blue Decade Denim Stretch Dark Wash No Tag",
+    price: 29.95, imageHash: same
+  };
+  const b = {
+    id: 'b', platform: 'poshmark',
+    title: "Revtown Automatic Jeans Men's 37x32 Blue Decade Denim Stretch Dark Wash No Tag",
+    size: "Can't read tag, check measurements", price: 23, imageHash: same
+  };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.score >= 50);
+});

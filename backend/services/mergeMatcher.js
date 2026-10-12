@@ -18,9 +18,22 @@ function isSizeToken(t) {
   return /^\d+(x\d+)?(xs|xl|xxl|s|m|l)?y?$/.test(t) || /^(xxs|xs|xl|xxl|xxxl|s|m|l)$/.test(t) || /^\d+x+[sml]$/.test(t);
 }
 
-/** Normalizes a size field: "M", " m ", "35x34" -> lowercase, trimmed. Empty -> ''. */
+/**
+ * Whether a normalized string is plausibly a size at all, as opposed to free text a seller typed
+ * into the size field instead ("Can't read tag, check measurements", "Unknown"). Real size values
+ * are short: a few digits, a decimal, one or two trailing letters.
+ */
+function looksLikeSize(s) {
+  return s.length > 0 && s.length <= 8 && /^[0-9.]{0,3}[a-z0-9]{0,5}$/.test(s);
+}
+
+/**
+ * Normalizes a size field: "M", " m ", "35x34" -> lowercase, trimmed. Empty, or text that is not
+ * plausibly a size at all ("Can't read tag, check measurements"), -> ''.
+ */
 function normalizeSize(s) {
-  return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+  const t = String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+  return looksLikeSize(t) ? t : '';
 }
 
 // Spelled-out sizes ("Small", "X Large", "XX-Small") alongside the usual abbreviations. Longer
@@ -151,26 +164,27 @@ function hammingDistance(h1, h2) {
 const SIZE_PAIR = /^(\d{2})x(\d{2})$/;
 const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3})[a-z]$/;
 
+/** Strips one trailing sizing-convention letter (20W -> 20, 15J -> 15). Unchanged if there is none. */
+function bareNumber(s) {
+  const m = s.match(NUM_WITH_LETTER_SUFFIX);
+  return m ? m[1] : s;
+}
+
 /**
  * Whether two normalized sizes can be the same size. Equal strings always match. A bare waist
  * number also matches a "waist x inseam" pair on the same waist: some platforms' size field only
- * holds the waist (the inseam lives in the title), which is not a different size, just a shorter one.
- * A number with one trailing letter (20W, 32P, 7J, ...) also matches the bare number: that letter is
- * a sizing-convention suffix (women's, petite, junior, ...), not a different size.
+ * holds the waist (the inseam lives in the title), which is not a different size, just a shorter
+ * one - and that waist number may itself carry a sizing-convention letter (20W, 32P, 15J, ...),
+ * which is stripped on both sides before comparing: "35x32" vs "35" vs "35W" are all waist 35.
  */
 function sizesCompatible(sizeA, sizeB) {
   if (!sizeA || !sizeB) return false;
   if (sizeA === sizeB) return true;
   const pairA = sizeA.match(SIZE_PAIR), pairB = sizeB.match(SIZE_PAIR);
-  if (pairA && !pairB && pairA[1] === sizeB) return true;
-  if (pairB && !pairA && pairB[1] === sizeA) return true;
-  const suffixedA = sizeA.match(NUM_WITH_LETTER_SUFFIX);
-  const suffixedB = sizeB.match(NUM_WITH_LETTER_SUFFIX);
-  if (suffixedA || suffixedB) {
-    const coreA = suffixedA ? suffixedA[1] : sizeA;
-    const coreB = suffixedB ? suffixedB[1] : sizeB;
-    if (coreA === coreB) return true;
-  }
+  const bareA = bareNumber(sizeA), bareB = bareNumber(sizeB);
+  if (pairA && !pairB && pairA[1] === bareB) return true;
+  if (pairB && !pairA && pairB[1] === bareA) return true;
+  if (!pairA && !pairB && bareA === bareB) return true;
   return false;
 }
 
@@ -250,4 +264,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, normalizeSize, looksLikeSize };
