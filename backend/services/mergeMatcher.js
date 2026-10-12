@@ -43,6 +43,32 @@ function sizeFromTitle(title) {
   return word ? word[1].trim() : '';
 }
 
+/**
+ * Age/gender group word in a title, if any: 'kids' (kids, boys, girls, youth, toddler), 'mens',
+ * 'womens', or 'unisex'. '' when the title does not say.
+ */
+function ageGroupFromTitle(title) {
+  const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
+  if (/\bunisex\b/.test(t)) return 'unisex';
+  if (/\b(?:kids?|boys?|girls?|youth|toddler)\b/.test(t)) return 'kids';
+  if (/\b(?:mens?|men'?s)\b/.test(t)) return 'mens';
+  if (/\b(?:womens?|women'?s)\b/.test(t)) return 'womens';
+  return '';
+}
+
+/**
+ * Whether two detected age/gender groups can be the same listing. A blank group (the title did not
+ * say) does not block, since many titles omit it. Unisex matches anything. Kids and an adult group
+ * never match, and mens never matches womens: the size letter or number can be identical across
+ * these ("XL", "10") while meaning very different physical sizes.
+ */
+function ageGroupsCompatible(groupA, groupB) {
+  if (!groupA || !groupB) return true;
+  if (groupA === groupB) return true;
+  if (groupA === 'unisex' || groupB === 'unisex') return true;
+  return false;
+}
+
 /** Lowercased word set of a title, without sizes, punctuation and filler words. */
 function titleTokens(title) {
   return new Set(
@@ -150,6 +176,9 @@ function scorePair(a, b) {
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
   if (platformsB.some(p => platformsA.has(p))) return null;
   if (a.brand && b.brand && String(a.brand).trim().toLowerCase() !== String(b.brand).trim().toLowerCase()) return null;
+  // Kids sizing and adult sizing (and mens vs womens) reuse the same letters/numbers for very
+  // different physical sizes ("Kids XL" is nothing like "Mens XL"), so this is checked before size.
+  if (!ageGroupsCompatible(ageGroupFromTitle(a.title), ageGroupFromTitle(b.title))) return null;
   // Size: use the size field, or the size written in the title when the field is empty. Incompatible sizes never match.
   const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
   const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
@@ -195,4 +224,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible };

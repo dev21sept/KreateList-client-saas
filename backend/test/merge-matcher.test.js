@@ -184,3 +184,37 @@ test('title and brand alone (no size, no close photo) are not suggested', () => 
   const b = { id: 'b', platform: 'poshmark', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '1'.repeat(144) };
   assert.equal(m.scorePair(a, b), null);
 });
+
+test('ageGroupFromTitle reads kids/mens/womens/unisex words', () => {
+  assert.equal(m.ageGroupFromTitle('Nike Sportswear Club Knit Jogger Pants Kids XL Black'), 'kids');
+  assert.equal(m.ageGroupFromTitle('Nike Jogger Pants Mens XL Black Soft Fleece'), 'mens');
+  assert.equal(m.ageGroupFromTitle("Columbia Women's Peak to Park Coat Green"), 'womens');
+  assert.equal(m.ageGroupFromTitle('Champion Unisex Reverse Weave Hoodie Gray'), 'unisex');
+  assert.equal(m.ageGroupFromTitle('Ceramic Coffee Mug Blue'), '');
+});
+
+test('ageGroupsCompatible: kids never matches an adult group, unisex matches anything, blank never blocks', () => {
+  assert.ok(!m.ageGroupsCompatible('kids', 'mens'));
+  assert.ok(!m.ageGroupsCompatible('mens', 'womens'));
+  assert.ok(m.ageGroupsCompatible('unisex', 'mens'));
+  assert.ok(m.ageGroupsCompatible('mens', 'mens'));
+  assert.ok(m.ageGroupsCompatible('', 'kids'));
+  assert.ok(m.ageGroupsCompatible('', ''));
+});
+
+test('a real production false positive: "Kids XL" is never the same item as "Mens XL"', () => {
+  // Same photo distance, same brand, overlapping words and the same extracted size letter "xl" -
+  // this exact pair merged in production before the age-group check existed.
+  const same = '1'.repeat(144);
+  const a = {
+    id: 'a', platform: 'ebay',
+    title: 'Nike Sportswear Club Knit Jogger Pants Kids XL Black Elastic Waist Tapered Leg',
+    brand: 'Nike', price: 17.99, imageHash: same
+  };
+  const b = {
+    id: 'b', platform: 'poshmark',
+    title: 'Nike Jogger Pants Mens XL Black Soft Fleece Drawstring Tapered Leg Activewear',
+    brand: 'Nike', price: 27, imageHash: same
+  };
+  assert.equal(m.scorePair(a, b), null);
+});
