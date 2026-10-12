@@ -82,6 +82,13 @@ test('size is read from the title when the size field is empty', () => {
   assert.equal(m.sizeFromTitle('Ceramic Coffee Mug Blue'), '');
 });
 
+test('a bare size right after the gender word is read, even with no x-pair', () => {
+  assert.equal(m.sizeFromTitle("DUER N2X Slim Fit MFNS1001 Mens 31 Grey Performance Stretch Chino Pants"), '31');
+  assert.equal(m.sizeFromTitle('5.11 Tactical Stryke 64386 Womens 20 Long Black Cargo Utility Pants'), '20');
+  assert.equal(m.sizeFromTitle('American Apparel Riding Pant RSANP0310 Womens M Gold Ribbed Equestrian Trousers'), 'm');
+  assert.equal(m.sizeFromTitle('Nike Hoodie Mens 2XL Black Pullover'), '2xl');
+});
+
 test('different sizes in titles block the pair even when the size field is empty', () => {
   const a = { id: 'a', platform: 'ebay', title: 'Nike Jogger Pants Mens M Heather Gray Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };
   const b = { id: 'b', platform: 'poshmark', title: 'Nike Jogger Pants Mens XL Gray Slacker Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };

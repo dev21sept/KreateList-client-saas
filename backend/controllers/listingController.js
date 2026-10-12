@@ -29,7 +29,8 @@ exports.getListings = async (req, res) => {
   try {
     const userId = req.user.id;
     const [listings, products] = await Promise.all([
-      Listing.find({ user: userId })
+      // A verified merge folds a duplicate into another record (mergedInto) instead of deleting it; hide those here.
+      Listing.find({ user: userId, mergedInto: null })
         .select('-description -itemSpecifics')
         .sort({ createdAt: -1 })
         .lean(),

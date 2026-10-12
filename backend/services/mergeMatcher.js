@@ -23,15 +23,20 @@ function normalizeSize(s) {
   return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
 }
 
+const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?|\\d{1,2}xl|xxs|xs|s|m|l|xl|xxl|xxxl)';
+
 /**
- * Size written in a title: a waist x inseam pair (35x34) or a letter/number size (XL, M, 6.5).
- * Returns '' when the title has no clear size.
+ * Size written in a title: a waist x inseam pair (35x34), a size word right after the gender/age
+ * word (resale titles read "... Mens 31 ..." or "... Womens 20 Long ..."), an explicit "size X",
+ * or a standalone size token. Returns '' when the title has no clear size.
  */
 function sizeFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
   const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
   if (pair) return `${pair[1]}x${pair[2]}`;
-  const word = t.match(/\bsize\s+(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,2}(?:\.\d)?)\b/)
+  const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
+  if (genderAnchored) return genderAnchored[1];
+  const word = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`))
     || t.match(/\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
   return word ? word[1].trim() : '';
 }

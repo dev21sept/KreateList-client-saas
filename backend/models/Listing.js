@@ -73,6 +73,13 @@ const listingSchema = new mongoose.Schema({
   poshmarkListingId: String,
   // Visual hash (dHash) of the first photo, cached by the merge scan so each photo is downloaded once.
   imageHash: String,
+  // Set when a verified merge folds this record into another one (mergedInto). The record is kept,
+  // not deleted, and is hidden from the Master list; unsetting this field restores it.
+  mergedInto: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Listing',
+    default: null
+  },
   poshmarkUrl: String,
   etsyListingId: String,
   etsyUrl: String,
