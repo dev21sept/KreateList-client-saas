@@ -429,3 +429,24 @@ test('suggestPairs only treats a pair as title-unique when exactly two records s
   assert.ok(!pairs.includes('a-b'));
   assert.ok(pairs.includes('a-c'));
 });
+
+test('photo distance does not block a title-unique pair with a confirmed size either', () => {
+  const same = '0'.repeat(144);
+  const far = '1'.repeat(60) + '0'.repeat(84); // distance 60, past both normal and high-confidence thresholds
+  const title = 'The North Face Gordon Lyons 1/4 Zip Mens XL Red Black Buffaloe Plaid Fleece';
+  const a = { id: 'a', platform: 'ebay', title, size: 'XL', price: 38.99, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, size: 'XL', price: 35, imageHash: far };
+  assert.equal(m.scorePair(a, b), null); // without the flag, photo distance still blocks
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(s && s.score >= 50);
+});
+
+test('the photo waiver still requires a confirmed size, not just a unique title', () => {
+  const same = '0'.repeat(144);
+  const far = '1'.repeat(60) + '0'.repeat(84);
+  const title = 'The North Face Gordon Lyons 1/4 Zip Mens Red Black Buffaloe Plaid Fleece'; // no size anywhere
+  const a = { id: 'a', platform: 'ebay', title, price: 38.99, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, price: 35, imageHash: far };
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
+});

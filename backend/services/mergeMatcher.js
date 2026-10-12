@@ -274,9 +274,9 @@ const EXACT_TITLE_OVERLAP = 0.9;
 /**
  * Compares two records. Returns null if they cannot be the same item, else a score and the reasons.
  * `titleUniquePair`: true when these two are the ONLY records anywhere in this scan that share this
- * exact title - no other candidate on either platform to confuse this pairing with. Price is a
- * disambiguator for picking the right match among several similarly-titled candidates; it has
- * nothing left to disambiguate when there is only one candidate per side, so it does not block a
+ * exact title - no other candidate on either platform to confuse this pairing with. Price and photo
+ * distance are both disambiguators for picking the right match among several similarly-titled
+ * candidates; with a confirmed matching size and nothing left to disambiguate, neither blocks a
  * title-unique pair the way it blocks an ambiguous one.
  */
 function scorePair(a, b, { titleUniquePair = false } = {}) {
@@ -314,13 +314,20 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
     : PHOTO_DIST_THRESHOLD;
 
   const dist = hammingDistance(a.imageHash, b.imageHash);
+  // Same reasoning as the price bypass above: with no other candidate on either side and the size
+  // actually confirmed, there is no ambiguity left for the photo to resolve either. A verified real
+  // example (same garment, confirmed by eye) landed at distance 60 purely from one platform's photo
+  // being letterboxed - cross-platform compression/framing can push even the same photo well past
+  // the normal ceilings, same as it does to price.
+  const photoWaived = titleUniquePair && sizeConfirmed;
   if (dist <= threshold) { score += 30; reasons.push(`photo distance ${dist}`); }
+  else if (photoWaived) { reasons.push(`photo distance ${dist} (not required: title-unique + size match)`); }
 
-  // A close photo is always required. A confirmed size clash was already rejected above; a size
-  // missing on one side is not held against the pair, since the other evidence (title, brand, photo)
-  // still has to clear the score bar on its own.
+  // A close photo is required unless waived above. A confirmed size clash was already rejected
+  // above; a size missing on one side is not held against the pair, since the other evidence
+  // (title, brand, photo) still has to clear the score bar on its own.
   if (score < 50) return null;
-  if (dist > threshold) return null;
+  if (dist > threshold && !photoWaived) return null;
   return { score, reasons };
 }
 
