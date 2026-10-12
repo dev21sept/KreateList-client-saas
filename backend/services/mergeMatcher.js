@@ -319,7 +319,10 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   // example (same garment, confirmed by eye) landed at distance 60 purely from one platform's photo
   // being letterboxed - cross-platform compression/framing can push even the same photo well past
   // the normal ceilings, same as it does to price.
-  const photoWaived = titleUniquePair && sizeConfirmed;
+  // This only waives a far-but-computed distance, never a missing one: Infinity means a hash failed
+  // to compute on at least one side (a transient fetch error, usually), which is zero photo evidence
+  // rather than a noisy-but-real comparison, and title + size alone should not paper over that.
+  const photoWaived = titleUniquePair && sizeConfirmed && Number.isFinite(dist);
   if (dist <= threshold) { score += 30; reasons.push(`photo distance ${dist}`); }
   else if (photoWaived) { reasons.push(`photo distance ${dist} (not required: title-unique + size match)`); }
 

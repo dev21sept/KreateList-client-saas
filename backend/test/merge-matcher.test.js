@@ -450,3 +450,11 @@ test('the photo waiver still requires a confirmed size, not just a unique title'
   const s = m.scorePair(a, b, { titleUniquePair: true });
   assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
 });
+
+test('the photo waiver never applies when a hash is missing on either side (Infinity distance)', () => {
+  const title = 'Lucky Brand 412 Straight Jeans Mens 38x30 Black Denim Stretch Athletic Slim Fit';
+  const a = { id: 'a', platform: 'ebay', title, size: '38', price: 20, imageHash: null };
+  const b = { id: 'b', platform: 'poshmark', title, size: '38', price: 20, imageHash: '1'.repeat(144) };
+  // A missing hash is zero photo evidence, not a noisy-but-real one - title + size alone must not merge this.
+  assert.equal(m.scorePair(a, b, { titleUniquePair: true }), null);
+});
