@@ -54,8 +54,10 @@ function clusterPairs(pairs) {
 
 const hasId = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== 'undefined' && String(v) !== 'null';
 
+// Live only: a delisted/ended ID left on the document is not a real claim on that platform - it is
+// exactly the stale leftover a merge is supposed to replace, not a second holder to pick between.
 function platformsOf(doc) {
-  return PLATFORMS.filter(p => hasId(doc[`${p}ListingId`]));
+  return PLATFORMS.filter(p => hasId(doc[`${p}ListingId`]) && doc[`${p}Status`] === 'published');
 }
 
 /**
