@@ -159,11 +159,18 @@ function titleOverlap(a, b) {
   return common / Math.min(ta.size, tb.size);
 }
 
-/** Price is "sensible" when the two prices are within 40% of each other. */
+/**
+ * Price is "sensible" when the two prices are within 70% of each other. Confirmed on real pairs
+ * (same photo, same title) priced 42-49% apart across platforms: sellers routinely set a higher
+ * "firm" price on Poshmark, where buyers haggle via offers, than on eBay for the same physical
+ * item. Price is a business decision, not a physical trait like size or brand, so this stays a
+ * loose sanity check against gross mismatches (a single item vs. a bundle, a data error) rather
+ * than a tight one.
+ */
 function priceClose(a, b) {
   const pa = parseFloat(a), pb = parseFloat(b);
   if (!pa || !pb) return true; // unknown price does not block a match
-  return Math.abs(pa - pb) / Math.max(pa, pb) <= 0.4;
+  return Math.abs(pa - pb) / Math.max(pa, pb) <= 0.7;
 }
 
 /**

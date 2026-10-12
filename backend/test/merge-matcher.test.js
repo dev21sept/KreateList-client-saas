@@ -389,3 +389,13 @@ test('a real production example: Peter Millar Corduroy Pants eBay and Poshmark n
   const s = m.scorePair(a, b);
   assert.ok(s && s.reasons.includes('size'));
 });
+
+test('a real production example: cross-platform prices 42-49% apart are still the same item (verified same photo)', () => {
+  // User-verified by comparing the actual eBay and Poshmark photos: these are the same garment,
+  // priced differently per platform (eBay lower, Poshmark higher where buyers haggle via offers).
+  assert.ok(m.priceClose('34.95', '69'));   // MASONS Italian Pants: 49% apart
+  assert.ok(m.priceClose('49.95', '27'));   // Robert Graham Shirt: 46% apart
+  assert.ok(m.priceClose('49.95', '86'));   // Nike Dunk High SE: 42% apart
+  // a gross mismatch (single item vs. a bundle, a data error) still blocks
+  assert.ok(!m.priceClose('10', '100'));
+});
