@@ -76,8 +76,10 @@ function sizeFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
   const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
-  const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
-  if (pair) return `${pair[1]}x${pair[2]}`;
+  // Waist x inseam ("35x32") or a dress shirt's collar/sleeve ("16.5/36") - same two-number-pair
+  // shape, just a different separator and the first number sometimes carrying a half size.
+  const pair = t.match(/\b(\d{1,2}(?:\.\d)?)\s*([x/])\s*(\d{2})\b/);
+  if (pair) return `${pair[1]}${pair[2]}${pair[3]}`;
   const explicitSize = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`));
   if (explicitSize) return normalizeSizeWord(explicitSize[1]);
   // Unanchored fallback: short abbreviations only. Spelled-out words ("Medium", "Large") are not
@@ -205,7 +207,7 @@ function hammingDistance(h1, h2) {
   return d;
 }
 
-const SIZE_PAIR = /^(\d{2})x(\d{2})$/;
+const SIZE_PAIR = /^(\d{1,2}(?:\.\d)?)[x/](\d{2})$/;
 const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3}(?:\.\d)?)[a-z]$/;
 
 /** Strips one trailing sizing-convention letter (20W -> 20, 15J -> 15, 8.5B -> 8.5). Unchanged if there is none. */

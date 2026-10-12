@@ -458,3 +458,20 @@ test('the photo waiver never applies when a hash is missing on either side (Infi
   // A missing hash is zero photo evidence, not a noisy-but-real one - title + size alone must not merge this.
   assert.equal(m.scorePair(a, b, { titleUniquePair: true }), null);
 });
+
+test('a dress shirt collar/sleeve size ("16.5/36") is read the same shape as a waist x inseam pair', () => {
+  assert.equal(m.sizeFromTitle('Charles Tyrwhitt Slim Fit Dress Shirt 16.5/36 Blue Geometric Cotton'), '16.5/36');
+  assert.ok(m.sizesCompatible('16.5/36', '16.5'));
+  assert.ok(!m.sizesCompatible('16.5/36', '17'));
+  // the existing waist x inseam shape still works unchanged
+  assert.equal(m.sizeFromTitle('Levi 501 Jeans Mens 35x34 Blue Denim'), '35x34');
+  assert.ok(m.sizesCompatible('35x34', '35'));
+});
+
+test('a real production example: Charles Tyrwhitt dress shirt now matches on size', () => {
+  const same = '1'.repeat(144);
+  const a = { id: 'a', platform: 'ebay', title: 'Charles Tyrwhitt Slim Fit Dress Shirt 16.5/36 Blue Geometric Cotton', price: 22.95, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title: 'Charles Tyrwhitt Slim Fit Dress Shirt 16.5/36 Blue Geometric Cotton', brand: 'Charles Tyrwhitt', size: '16.5', price: 18, imageHash: same };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('size'));
+});

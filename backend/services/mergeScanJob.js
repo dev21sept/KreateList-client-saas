@@ -16,6 +16,10 @@ const { dHashFromPixels, suggestPairs } = require('./mergeMatcher');
 
 const CONCURRENCY = 2;
 const MAX_BYTES = 5 * 1024 * 1024;
+// dHashFromPixels' current output length (9x9, both directions: 72 + 72 bits). A cached hash of any
+// other length is from a since-changed algorithm, not just uncomputed - compared via hammingDistance
+// it would silently return Infinity rather than throw, so this is checked explicitly and recomputed.
+const EXPECTED_HASH_LENGTH = 144;
 const jobs = new Map(); // userId -> { status, startedAt, finishedAt, processed, total, suggestions, error }
 
 const hasId = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== 'undefined' && String(v) !== 'null';
@@ -69,7 +73,7 @@ async function runScan(userId) {
     const records = [];
     await mapLimit(usable, CONCURRENCY, async (l) => {
       let imageHash = l.imageHash || null;
-      if (!imageHash) {
+      if (!imageHash || imageHash.length !== EXPECTED_HASH_LENGTH) {
         const first = (l.images && l.images[0]) || l.thumbnail;
         const url = typeof first === 'string' ? first : first?.url;
         try {
