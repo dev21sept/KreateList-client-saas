@@ -77,13 +77,20 @@ function normalizeSizeWord(w) {
  * steals a legitimate "Mens 35x32"-style match from the pair regex below it.
  */
 function sizeFromTitle(title) {
-  const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
-  const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men${APOS}?s|womens?|women${APOS}?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
+  // "15 1/2" (a mixed-fraction collar size) -> "15.5", before anything else looks at the digits.
+  const t = String(title || '').toLowerCase().replace(INVISIBLE, '').replace(/(\d{1,2})\s+1\/2\b/g, '$1.5');
+  const GENDER_WORD = `(?:mens?|men${APOS}?s|womens?|women${APOS}?s|unisex|boys?|girls?|kids?|youth)`;
+  // Tried before the bare word below: "Mens 15.5-33" is a pair (collar x sleeve), not a bare "15.5"
+  // followed by an unrelated "-33" - the bare SIZE_WORD match alone would stop right after "15.5",
+  // since the following "-" already satisfies its trailing \b.
+  const genderAnchoredPair = t.match(new RegExp(`\\b${GENDER_WORD}\\s+(\\d{1,2}(?:\\.\\d)?)\\s*([x/-])\\s*(\\d{2})\\b`));
+  if (genderAnchoredPair) return `${genderAnchoredPair[1]}${genderAnchoredPair[2] === '-' ? 'x' : genderAnchoredPair[2]}${genderAnchoredPair[3]}`;
+  const genderAnchored = t.match(new RegExp(`\\b${GENDER_WORD}\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
-  // Waist x inseam ("35x32") or a dress shirt's collar/sleeve ("16.5/36") - same two-number-pair
-  // shape, just a different separator and the first number sometimes carrying a half size.
-  const pair = t.match(/\b(\d{1,2}(?:\.\d)?)\s*([x/])\s*(\d{2})\b/);
-  if (pair) return `${pair[1]}${pair[2]}${pair[3]}`;
+  // Waist x inseam ("35x32") or a dress shirt's collar/sleeve ("16.5/36" or "15.5-33") - same two-
+  // number-pair shape, just a different separator and the first number sometimes a half size.
+  const pair = t.match(/\b(\d{1,2}(?:\.\d)?)\s*([x/-])\s*(\d{2})\b/);
+  if (pair) return `${pair[1]}${pair[2] === '-' ? 'x' : pair[2]}${pair[3]}`;
   const explicitSize = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`));
   if (explicitSize) return normalizeSizeWord(explicitSize[1]);
   // Unanchored fallback: short abbreviations only. Spelled-out words ("Medium", "Large") are not
@@ -94,6 +101,19 @@ function sizeFromTitle(title) {
     // (?<!-) excludes a style/SKU code's trailing letter, e.g. the "L" in "11080111-L".
     .match(/(?<!['’])(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
   return word ? word[1].trim() : '';
+}
+
+/**
+ * A "(Tag-NN)" / "(Tag-NNxNN)" note in a title: the seller's own caveat that the garment's tag (or
+ * a remeasurement) disagrees with the size stated earlier in the same title - "Mens 38x30 ...
+ * (Tag-40x32)". Either the stated size or this one can turn out to be the one that matches the
+ * other platform's size field, so both get checked rather than only ever trusting one.
+ */
+function tagSizeFromTitle(title) {
+  const t = String(title || '').toLowerCase().replace(INVISIBLE, '').replace(/(\d{1,2})\s+1\/2\b/g, '$1.5');
+  const m = t.match(/\btag[\s-]*(\d{1,2}(?:\.\d)?)(?:\s*([x/-])\s*(\d{2}))?\b/);
+  if (!m) return '';
+  return m[2] ? `${m[1]}${m[2] === '-' ? 'x' : m[2]}${m[3]}` : m[1];
 }
 
 /**
@@ -294,10 +314,20 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   // Kids sizing and adult sizing (and mens vs womens) reuse the same letters/numbers for very
   // different physical sizes ("Kids XL" is nothing like "Mens XL"), so this is checked before size.
   if (!ageGroupsCompatible(ageGroupFromTitle(a.title), ageGroupFromTitle(b.title))) return null;
-  // Size: use the size field, or the size written in the title when the field is empty. Incompatible sizes never match.
+  // Size: use the size field, or the size written in the title when the field is empty. A "(Tag-X)"
+  // caveat elsewhere in the title is a second candidate size - either it or the stated size can be
+  // the one that actually matches the other side, so a clash only blocks when every combination does.
   const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
   const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
-  if (sizeA && sizeB && !sizesCompatible(sizeA, sizeB)) return null;
+  if (sizeA && sizeB && !sizesCompatible(sizeA, sizeB)) {
+    const tagA = tagSizeFromTitle(a.title);
+    const tagB = tagSizeFromTitle(b.title);
+    // Not tagA-vs-tagB: with an (near-)identical title on both sides, a tag note on one is ~always
+    // read identically from the other - that would trivially "match" regardless of what the actual
+    // size fields say, so only a tag actually crossed against the other side's real size counts.
+    const altMatch = (tagA && sizesCompatible(tagA, sizeB)) || (tagB && sizesCompatible(sizeA, tagB));
+    if (!altMatch) return null;
+  }
   if (!titleUniquePair && !priceClose(a.price, b.price)) return null;
 
   const reasons = [];
@@ -367,4 +397,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, brandsCompatible, normalizeSize, looksLikeSize };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, tagSizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, brandsCompatible, normalizeSize, looksLikeSize };

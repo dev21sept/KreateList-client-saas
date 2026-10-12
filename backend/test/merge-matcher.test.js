@@ -484,3 +484,29 @@ test('a real production bug: the curly "smart quote" apostrophe in "Men\u2019s" 
   assert.notEqual(m.sizeFromTitle("Tommy Bahama Sweater Men\u2019s Blue No Tags"), 's');
   assert.notEqual(m.sizeFromTitle("Tommy Bahama Sweater Men's Blue No Tags"), 's');
 });
+
+test('a mixed-fraction collar size ("15 1/2-33") is read as "15.5x33"', () => {
+  assert.equal(m.sizeFromTitle('Brooks Brothers Dress Shirt Mens 15 1/2-33 Blue White Plaid Non-Iron Long Sleeve'), '15.5x33');
+  assert.ok(m.sizesCompatible('15.5x33', '15.5'));
+});
+
+test('a "(Tag-X)" caveat is a second candidate size, checked when the stated size does not match', () => {
+  const title = 'Duluth Trading Flex Ballroom Jeans Mens 38x30 Blue Denim Relaxed Fit (Tag-40x32)';
+  assert.equal(m.sizeFromTitle(title), '38x30');
+  assert.equal(m.tagSizeFromTitle(title), '40x32');
+
+  const same = '1'.repeat(144);
+  const a = { id: 'a', platform: 'ebay', title, price: 27.95, imageHash: same };
+  // the other side's size field matches the TAG size, not the title's stated size
+  const b = { id: 'b', platform: 'poshmark', title, brand: 'Duluth Pack', size: '40', price: 25, imageHash: same };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('size'));
+});
+
+test('a "(Tag-X)" caveat does not rescue a pair whose sizes are genuinely unrelated', () => {
+  const title = 'Some Jeans Mens 38x30 Blue Denim (Tag-40x32)';
+  const same = '1'.repeat(144);
+  const a = { id: 'a', platform: 'ebay', title, price: 20, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, size: '52', price: 20, imageHash: same }; // matches neither 38x30 nor 40x32
+  assert.equal(m.scorePair(a, b), null);
+});
