@@ -271,8 +271,15 @@ const PHOTO_DIST_THRESHOLD = 32;
 const PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE = 50;
 const EXACT_TITLE_OVERLAP = 0.9;
 
-/** Compares two records. Returns null if they cannot be the same item, else a score and the reasons. */
-function scorePair(a, b) {
+/**
+ * Compares two records. Returns null if they cannot be the same item, else a score and the reasons.
+ * `titleUniquePair`: true when these two are the ONLY records anywhere in this scan that share this
+ * exact title - no other candidate on either platform to confuse this pairing with. Price is a
+ * disambiguator for picking the right match among several similarly-titled candidates; it has
+ * nothing left to disambiguate when there is only one candidate per side, so it does not block a
+ * title-unique pair the way it blocks an ambiguous one.
+ */
+function scorePair(a, b, { titleUniquePair = false } = {}) {
   // A merged master holds one ID per platform, so the two records must not share any platform.
   const platformsA = new Set((a.platforms || [a.platform]).filter(Boolean));
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
@@ -285,7 +292,7 @@ function scorePair(a, b) {
   const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
   const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
   if (sizeA && sizeB && !sizesCompatible(sizeA, sizeB)) return null;
-  if (!priceClose(a.price, b.price)) return null;
+  if (!titleUniquePair && !priceClose(a.price, b.price)) return null;
 
   const reasons = [];
   let score = 0;
@@ -322,11 +329,22 @@ function scorePair(a, b) {
  * Records already linked (more than one platform ID) are skipped.
  */
 function suggestPairs(records) {
+  // How many records share each exact title, so a pair can tell whether it is the only candidate
+  // on each side (titleUniquePair) or one of several the price check still needs to pick among.
+  const titleCounts = new Map();
+  for (const r of records) {
+    const key = String(r.title || '').trim().toLowerCase();
+    titleCounts.set(key, (titleCounts.get(key) || 0) + 1);
+  }
+
   const out = [];
   for (let i = 0; i < records.length; i++) {
     for (let j = i + 1; j < records.length; j++) {
       const a = records[i], b = records[j];
-      const s = scorePair(a, b);
+      const keyA = String(a.title || '').trim().toLowerCase();
+      const keyB = String(b.title || '').trim().toLowerCase();
+      const titleUniquePair = keyA === keyB && titleCounts.get(keyA) === 2;
+      const s = scorePair(a, b, { titleUniquePair });
       if (s) out.push({ a: a.id, b: b.id, platforms: [a.platform, b.platform], ...s });
     }
   }

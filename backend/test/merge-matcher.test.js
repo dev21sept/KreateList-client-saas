@@ -399,3 +399,33 @@ test('a real production example: cross-platform prices 42-49% apart are still th
   // a gross mismatch (single item vs. a bundle, a data error) still blocks
   assert.ok(!m.priceClose('10', '100'));
 });
+
+test('price does not block a title-unique pair (no other candidate to disambiguate against)', () => {
+  const same = '1'.repeat(144);
+  const title = 'Some Rare Jacket Mens XL Blue Vintage Workwear Canvas';
+  const a = { id: 'a', platform: 'ebay', title, size: 'XL', price: 20, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, size: 'XL', price: 95, imageHash: same }; // >70% apart
+  assert.equal(m.scorePair(a, b), null); // without the flag, price still blocks
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(s && s.score >= 50);
+});
+
+test('suggestPairs only treats a pair as title-unique when exactly two records share that title', () => {
+  const same = '1'.repeat(144);
+  const title = 'Some Rare Jacket Mens XL Blue Vintage Workwear Canvas';
+  const twoRecords = [
+    { id: 'a', platform: 'ebay', title, size: 'XL', price: 20, imageHash: same },
+    { id: 'b', platform: 'poshmark', title, size: 'XL', price: 95, imageHash: same },
+  ];
+  assert.equal(m.suggestPairs(twoRecords).length, 1); // price gap forgiven: these are each other's only candidate
+
+  const threeRecords = [
+    ...twoRecords,
+    { id: 'c', platform: 'mercari', title, size: 'XL', price: 18, imageHash: same }, // close to a, not to b
+  ];
+  // a-b is no longer the only candidate on each side, so its price gap is held against it again;
+  // a-c's own price is close enough to pass on its own merits, without needing the bypass at all.
+  const pairs = m.suggestPairs(threeRecords).map(p => [p.a, p.b].sort().join('-'));
+  assert.ok(!pairs.includes('a-b'));
+  assert.ok(pairs.includes('a-c'));
+});
