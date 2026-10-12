@@ -37,7 +37,8 @@ function sizeFromTitle(title) {
   const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return genderAnchored[1];
   const word = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`))
-    || t.match(/\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+    // (?<!') excludes the "s" in a possessive like "Men's": that is a contraction, not a Small.
+    || t.match(/(?<!')\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
   return word ? word[1].trim() : '';
 }
 
@@ -134,9 +135,11 @@ function scorePair(a, b) {
   const dist = hammingDistance(a.imageHash, b.imageHash);
   if (dist <= PHOTO_DIST_THRESHOLD) { score += 30; reasons.push(`photo distance ${dist}`); }
 
-  // Photo alone is not enough, and title + brand alone is not enough: a pair needs a compatible size AND a close photo.
+  // A close photo is always required. A confirmed size clash was already rejected above; a size
+  // missing on one side is not held against the pair, since the other evidence (title, brand, photo)
+  // still has to clear the score bar on its own.
   if (score < 50) return null;
-  if (!sizesCompatible(sizeA, sizeB) || dist > PHOTO_DIST_THRESHOLD) return null;
+  if (dist > PHOTO_DIST_THRESHOLD) return null;
   return { score, reasons };
 }
 

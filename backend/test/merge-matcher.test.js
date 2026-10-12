@@ -125,6 +125,35 @@ test('sizesCompatible: equal sizes, waist-only vs waist x inseam, and mismatches
   assert.ok(!m.sizesCompatible('', '32'));
 });
 
+test('the possessive "s" in "Men\'s" / "Women\'s" is never read as a Small', () => {
+  assert.equal(m.sizeFromTitle("Tommy Bahama Sarasota Stretch Men's Long Sleeve Blue Check No Tags Read"), '');
+  assert.equal(m.sizeFromTitle("Nike Sweatpants Vintage 80's Mens Black Embroidered Swoosh \"Read\""), '');
+  assert.notEqual(m.sizeFromTitle("Levi's 569 Jean Shorts Mens W38 Blue Denim Medium Wash"), 's');
+});
+
+test('a size missing on one side does not block an otherwise strong title + photo match', () => {
+  const same = '1'.repeat(64);
+  const a = {
+    id: 'a', platform: 'ebay',
+    title: 'Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg',
+    price: 24, imageHash: same
+  }; // no size field, and "Lg" is not a recognized size word, so sizeFromTitle is ''
+  const b = {
+    id: 'b', platform: 'poshmark',
+    title: 'Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg',
+    size: 'L', price: 23, imageHash: same
+  };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.score >= 50);
+});
+
+test('a size present and genuinely different on both sides still blocks, even with a strong photo', () => {
+  const same = '1'.repeat(64);
+  const a = { id: 'a', platform: 'ebay', title: 'Nike Hoodie Mens M Black Pullover', brand: 'Nike', size: 'M', price: 24, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title: 'Nike Hoodie Mens M Black Pullover', brand: 'Nike', size: 'XL', price: 23, imageHash: same };
+  assert.equal(m.scorePair(a, b), null);
+});
+
 
 test('title and brand alone (no size, no close photo) are not suggested', () => {
   const a = { id: 'a', platform: 'ebay', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '0'.repeat(64) };
