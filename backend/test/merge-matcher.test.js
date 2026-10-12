@@ -151,7 +151,9 @@ test('the possessive "s" in "Men\'s" / "Women\'s" is never read as a Small', () 
 });
 
 test('a style/SKU code\'s trailing letter is not read as a size', () => {
-  assert.equal(m.sizeFromTitle("Mud Pie Caramel Cord Shacket 11080111-L Kids 4T-5T Brown Corduroy Shirt"), '');
+  // The gender-anchored match ("kids 4t") now wins before the bare fallback is even tried, so the
+  // SKU code's "L" is never reached - correctly reading the real size "4t" instead of nothing.
+  assert.equal(m.sizeFromTitle("Mud Pie Caramel Cord Shacket 11080111-L Kids 4T-5T Brown Corduroy Shirt"), '4t');
   assert.equal(m.sizeFromTitle("Some Item ABC123-M Blue"), '');
 });
 
@@ -278,4 +280,41 @@ test('a real production example: a junk size-field value does not block a title 
   };
   const s = m.scorePair(a, b);
   assert.ok(s && s.score >= 50);
+});
+
+test('spelled-out size words are only read right after the gender word or "size", not scanned for everywhere', () => {
+  // "Medium Wash" is a denim finish, not a Medium - reading it as one blocked a real match (both
+  // sides share the same exact title) until this was found via production data.
+  assert.equal(m.sizeFromTitle('Mott & Bow Straight Jeans W38 L30 Mens Blue Medium Wash Comfort Stretch Denim'), '');
+  assert.equal(m.sizeFromTitle('Carhartt Jacket Mens Large Pocket Workwear Canvas'), 'l');
+  assert.equal(m.sizeFromTitle('Levi Jeans Size Large Blue Denim'), 'l');
+});
+
+test('a decimal size with a trailing width letter keeps the decimal (8.5B, not 8)', () => {
+  assert.equal(m.sizeFromTitle('Hoka One One Challenger ATR 6 Running Shoes Womens 8.5B Vallarta Blue Pink'), '8.5b');
+  assert.equal(m.sizesCompatible('8.5b', '8.5'), true);
+});
+
+test('"2XL" and "XXL" (and "3XL"/"XXXL") are the same size, written two ways', () => {
+  assert.ok(m.sizesCompatible('2xl', 'xxl'));
+  assert.ok(m.sizesCompatible('xxl', '2xl'));
+  assert.ok(m.sizesCompatible('3xl', 'xxxl'));
+  assert.ok(m.sizesCompatible('xl', 'xl'));
+  assert.ok(!m.sizesCompatible('2xl', 'xl'));
+  assert.ok(!m.sizesCompatible('2xl', '3xl'));
+});
+
+test('three more real production examples that now correctly match', () => {
+  const same = '1'.repeat(144);
+  const mottA = { id: 'a', platform: 'ebay', title: 'Mott & Bow Straight Jeans W38 L30 Mens Blue Medium Wash Comfort Stretch Denim', price: 35, imageHash: same };
+  const mottB = { id: 'b', platform: 'poshmark', title: 'Mott & Bow Straight Jeans W38 L30 Mens Blue Medium Wash Comfort Stretch Denim', brand: 'Mott & Bow', size: '38', price: 39, imageHash: same };
+  assert.ok(m.scorePair(mottA, mottB));
+
+  const hokaA = { id: 'a', platform: 'ebay', title: 'Hoka One One Challenger ATR 6 Running Shoes Womens 8.5B Vallarta Blue Pink', price: 69.99, imageHash: same };
+  const hokaB = { id: 'b', platform: 'poshmark', title: 'Hoka One One Challenger ATR 6 Running Shoes Womens 8.5B Vallarta Blue Pink', brand: 'Hoka One One', size: '8.5', price: 70, imageHash: same };
+  assert.ok(m.scorePair(hokaA, hokaB));
+
+  const cremA = { id: 'a', platform: 'ebay', title: 'Vintage Cremieux Suede Bomber Jacket Mens 2XL Brown Genuine Leather Outdoor', price: 69.95, imageHash: same };
+  const cremB = { id: 'b', platform: 'poshmark', title: 'Vintage Cremieux Suede Bomber Jacket Mens 2XL Brown Genuine Leather Outdoor', brand: 'Flight Mode', size: 'XXL', price: 70, imageHash: same };
+  assert.ok(m.scorePair(cremA, cremB));
 });

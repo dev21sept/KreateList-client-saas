@@ -39,7 +39,10 @@ function normalizeSize(s) {
 // Spelled-out sizes ("Small", "X Large", "XX-Small") alongside the usual abbreviations. Longer
 // phrases are listed before the shorter words they contain (e.g. "x small" before "small") so a
 // title that says "XX Small" is not read as a plain Small - see sizeFromTitle's note on match order.
-const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?|\\d{1,2}xl|xx[\\s-]?small|x[\\s-]?small|small|xx[\\s-]?large|x[\\s-]?large|large|medium|xxs|xs|s|m|l|xl|xxl|xxxl)';
+// The numeric alternative allows one optional trailing letter (8.5B, 9.5M, 10D: shoe-width codes)
+// so the whole thing is captured together - without it, the \b requirement at the end of this
+// group forces the engine to drop the decimal to find a boundary before the letter instead.
+const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?[a-z]?|\\d{1,2}xl|xx[\\s-]?small|x[\\s-]?small|small|xx[\\s-]?large|x[\\s-]?large|large|medium|xxs|xs|s|m|l|xl|xxl|xxxl)';
 
 const SPELLED_SIZE = {
   'xxsmall': 'xxs', 'xx small': 'xxs', 'xx-small': 'xxs',
@@ -68,11 +71,16 @@ function sizeFromTitle(title) {
   if (pair) return `${pair[1]}x${pair[2]}`;
   const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
-  const word = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`))
+  const explicitSize = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`));
+  if (explicitSize) return normalizeSizeWord(explicitSize[1]);
+  // Unanchored fallback: short abbreviations only. Spelled-out words ("Medium", "Large") are not
+  // included here - unlike the anchored matches above, this one scans the whole title, and those
+  // words show up constantly in non-size contexts ("Medium Wash", "Large Pocket").
+  const word = t
     // (?<!') excludes the "s" in a possessive like "Men's": that is a contraction, not a Small.
     // (?<!-) excludes a style/SKU code's trailing letter, e.g. the "L" in "11080111-L".
-    || t.match(/(?<!')(?<!-)\b(xx[\s-]?small|x[\s-]?small|small|xx[\s-]?large|x[\s-]?large|large|medium|xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
-  return word ? normalizeSizeWord(word[1].trim()) : '';
+    .match(/(?<!')(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+  return word ? word[1].trim() : '';
 }
 
 /**
@@ -162,23 +170,34 @@ function hammingDistance(h1, h2) {
 }
 
 const SIZE_PAIR = /^(\d{2})x(\d{2})$/;
-const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3})[a-z]$/;
+const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3}(?:\.\d)?)[a-z]$/;
 
-/** Strips one trailing sizing-convention letter (20W -> 20, 15J -> 15). Unchanged if there is none. */
+/** Strips one trailing sizing-convention letter (20W -> 20, 15J -> 15, 8.5B -> 8.5). Unchanged if there is none. */
 function bareNumber(s) {
   const m = s.match(NUM_WITH_LETTER_SUFFIX);
   return m ? m[1] : s;
 }
 
+/** "xxl" -> "2xl", "xxxl" -> "3xl", "xl" -> "xl": the digit form and the repeated-X form are the same size. */
+function canonicalXL(s) {
+  const xForm = s.match(/^(x+)l$/);
+  if (!xForm) return s;
+  const n = xForm[1].length;
+  return n === 1 ? 'xl' : `${n}xl`;
+}
+
 /**
- * Whether two normalized sizes can be the same size. Equal strings always match. A bare waist
- * number also matches a "waist x inseam" pair on the same waist: some platforms' size field only
- * holds the waist (the inseam lives in the title), which is not a different size, just a shorter
- * one - and that waist number may itself carry a sizing-convention letter (20W, 32P, 15J, ...),
- * which is stripped on both sides before comparing: "35x32" vs "35" vs "35W" are all waist 35.
+ * Whether two normalized sizes can be the same size. Equal strings always match, after "XXL" and
+ * "2XL" (and "XXXL"/"3XL", ...) are brought to the same form. A bare waist number also matches a
+ * "waist x inseam" pair on the same waist: some platforms' size field only holds the waist (the
+ * inseam lives in the title), which is not a different size, just a shorter one - and that waist
+ * number may itself carry a sizing-convention letter (20W, 32P, 15J, ...), which is stripped on
+ * both sides before comparing: "35x32" vs "35" vs "35W" are all waist 35.
  */
 function sizesCompatible(sizeA, sizeB) {
   if (!sizeA || !sizeB) return false;
+  sizeA = canonicalXL(sizeA);
+  sizeB = canonicalXL(sizeB);
   if (sizeA === sizeB) return true;
   const pairA = sizeA.match(SIZE_PAIR), pairB = sizeB.match(SIZE_PAIR);
   const bareA = bareNumber(sizeA), bareB = bareNumber(sizeB);
