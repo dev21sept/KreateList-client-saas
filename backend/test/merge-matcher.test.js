@@ -336,3 +336,21 @@ test('a real production example: "Mens Lg" in the title matches a Poshmark "L" s
   const s = m.scorePair(a, b);
   assert.ok(s && s.reasons.includes('size'));
 });
+
+test('brandsCompatible: exact match, one a prefix-expansion of the other, punctuation-only differences', () => {
+  assert.ok(m.brandsCompatible('Lululemon', 'lululemon athletica'));
+  assert.ok(m.brandsCompatible('Ralph Lauren', 'Polo Ralph Lauren'));
+  assert.ok(m.brandsCompatible('L.L. Bean', 'L.L.Bean'));
+  assert.ok(m.brandsCompatible('Mizzen + Main', 'Mizzen+Main'));
+  assert.ok(!m.brandsCompatible('Nike', 'Adidas'));
+  // a plain substring check would wrongly match these - must be a whole-word prefix, not mid-word
+  assert.ok(!m.brandsCompatible('Levi', 'Levine'));
+  assert.ok(!m.brandsCompatible('ID', 'ID.EIGHT'));
+});
+
+test('a real production example: "Lululemon" matches "lululemon athletica" (and everything else agrees)', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Lululemon ABC Pants Mens 34 Navy Blue Warpstreme Slim Fit 5-Pocket Flat Front', brand: 'Lululemon', size: '34', price: 30.99, imageHash: '1'.repeat(28) + '0'.repeat(116) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Lululemon ABC Pants Mens 34 Navy Blue Warpstreme Slim Fit 5-Pocket Flat Front', brand: 'lululemon athletica', size: '34', price: 31, imageHash: '0'.repeat(144) };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('brand'));
+});

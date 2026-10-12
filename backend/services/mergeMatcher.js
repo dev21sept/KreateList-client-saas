@@ -110,6 +110,28 @@ function ageGroupsCompatible(groupA, groupB) {
   return false;
 }
 
+/**
+ * Whether two brand strings can be the same brand. Exact match (case/whitespace-insensitive)
+ * always counts. One also counts as a whole-word prefix of the other, each at least 3 characters:
+ * a platform's catalog often expands or shortens a brand ("Lululemon" vs "Lululemon Athletica",
+ * "Ralph Lauren" vs "Polo Ralph Lauren") rather than disagreeing about it. The match is anchored to
+ * word boundaries so "Levi" does not match "Levine" - a plain substring check would.
+ */
+function brandsCompatible(brandA, brandB) {
+  const a = String(brandA || '').trim().toLowerCase();
+  const b = String(brandB || '').trim().toLowerCase();
+  if (!a || !b) return true;
+  if (a === b) return true;
+  // Punctuation/spacing-only differences: "L.L. Bean" vs "L.L.Bean", "Mizzen + Main" vs "Mizzen+Main".
+  const alnumOnly = (s) => s.replace(/[^a-z0-9]/g, '');
+  if (alnumOnly(a) === alnumOnly(b)) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return new RegExp(`\\b${escape(shorter)}\\b`).test(longer);
+}
+
 /** Lowercased word set of a title, without sizes, punctuation and filler words. */
 function titleTokens(title) {
   return new Set(
@@ -236,7 +258,7 @@ function scorePair(a, b) {
   const platformsA = new Set((a.platforms || [a.platform]).filter(Boolean));
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
   if (platformsB.some(p => platformsA.has(p))) return null;
-  if (a.brand && b.brand && String(a.brand).trim().toLowerCase() !== String(b.brand).trim().toLowerCase()) return null;
+  if (a.brand && b.brand && !brandsCompatible(a.brand, b.brand)) return null;
   // Kids sizing and adult sizing (and mens vs womens) reuse the same letters/numbers for very
   // different physical sizes ("Kids XL" is nothing like "Mens XL"), so this is checked before size.
   if (!ageGroupsCompatible(ageGroupFromTitle(a.title), ageGroupFromTitle(b.title))) return null;
@@ -292,4 +314,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, normalizeSize, looksLikeSize };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, brandsCompatible, normalizeSize, looksLikeSize };
