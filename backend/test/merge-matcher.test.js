@@ -125,10 +125,22 @@ test('sizesCompatible: equal sizes, waist-only vs waist x inseam, and mismatches
   assert.ok(!m.sizesCompatible('', '32'));
 });
 
+test('sizesCompatible: a sizing-convention letter suffix (20W, 32P, 7J) matches the bare number', () => {
+  assert.ok(m.sizesCompatible('20', '20w'));
+  assert.ok(m.sizesCompatible('32p', '32'));
+  assert.ok(m.sizesCompatible('7', '7j'));
+  assert.ok(!m.sizesCompatible('20', '22w'));
+});
+
 test('the possessive "s" in "Men\'s" / "Women\'s" is never read as a Small', () => {
   assert.equal(m.sizeFromTitle("Tommy Bahama Sarasota Stretch Men's Long Sleeve Blue Check No Tags Read"), '');
   assert.equal(m.sizeFromTitle("Nike Sweatpants Vintage 80's Mens Black Embroidered Swoosh \"Read\""), '');
   assert.notEqual(m.sizeFromTitle("Levi's 569 Jean Shorts Mens W38 Blue Denim Medium Wash"), 's');
+});
+
+test('a style/SKU code\'s trailing letter is not read as a size', () => {
+  assert.equal(m.sizeFromTitle("Mud Pie Caramel Cord Shacket 11080111-L Kids 4T-5T Brown Corduroy Shirt"), '');
+  assert.equal(m.sizeFromTitle("Some Item ABC123-M Blue"), '');
 });
 
 test('a size missing on one side does not block an otherwise strong title + photo match', () => {

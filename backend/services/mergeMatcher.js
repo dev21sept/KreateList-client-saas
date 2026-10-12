@@ -38,7 +38,8 @@ function sizeFromTitle(title) {
   if (genderAnchored) return genderAnchored[1];
   const word = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`))
     // (?<!') excludes the "s" in a possessive like "Men's": that is a contraction, not a Small.
-    || t.match(/(?<!')\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+    // (?<!-) excludes a style/SKU code's trailing letter, e.g. the "L" in "11080111-L".
+    || t.match(/(?<!')(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
   return word ? word[1].trim() : '';
 }
 
@@ -94,11 +95,14 @@ function hammingDistance(h1, h2) {
 }
 
 const SIZE_PAIR = /^(\d{2})x(\d{2})$/;
+const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3})[a-z]$/;
 
 /**
  * Whether two normalized sizes can be the same size. Equal strings always match. A bare waist
  * number also matches a "waist x inseam" pair on the same waist: some platforms' size field only
  * holds the waist (the inseam lives in the title), which is not a different size, just a shorter one.
+ * A number with one trailing letter (20W, 32P, 7J, ...) also matches the bare number: that letter is
+ * a sizing-convention suffix (women's, petite, junior, ...), not a different size.
  */
 function sizesCompatible(sizeA, sizeB) {
   if (!sizeA || !sizeB) return false;
@@ -106,6 +110,13 @@ function sizesCompatible(sizeA, sizeB) {
   const pairA = sizeA.match(SIZE_PAIR), pairB = sizeB.match(SIZE_PAIR);
   if (pairA && !pairB && pairA[1] === sizeB) return true;
   if (pairB && !pairA && pairB[1] === sizeA) return true;
+  const suffixedA = sizeA.match(NUM_WITH_LETTER_SUFFIX);
+  const suffixedB = sizeB.match(NUM_WITH_LETTER_SUFFIX);
+  if (suffixedA || suffixedB) {
+    const coreA = suffixedA ? suffixedA[1] : sizeA;
+    const coreB = suffixedB ? suffixedB[1] : sizeB;
+    if (coreA === coreB) return true;
+  }
   return false;
 }
 
