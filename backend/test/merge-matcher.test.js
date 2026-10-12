@@ -354,3 +354,15 @@ test('a real production example: "Lululemon" matches "lululemon athletica" (and 
   const s = m.scorePair(a, b);
   assert.ok(s && s.reasons.includes('brand'));
 });
+
+test('a size letter code plus one trailing letter is the base size (kids Boys/Girls suffix on a platform)', () => {
+  assert.ok(m.sizesCompatible('xlb', 'xl'));
+  assert.ok(m.sizesCompatible('sb', 's'));
+  assert.ok(m.sizesCompatible('lb', 'l'));
+  assert.ok(m.sizesCompatible('lg', 'l'));
+  assert.ok(m.sizesCompatible('sm', 's'));
+  assert.ok(m.sizesCompatible('md', 'm'));
+  // distinct real sizes must not collapse into each other
+  assert.ok(!m.sizesCompatible('xs', 's'));
+  assert.ok(!m.sizesCompatible('m', 'l'));
+});

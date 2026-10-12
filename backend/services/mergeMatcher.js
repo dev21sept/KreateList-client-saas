@@ -201,12 +201,15 @@ function bareNumber(s) {
   return m ? m[1] : s;
 }
 
-const LETTER_SIZE_SYNONYMS = { sm: 's', md: 'm', lg: 'l' };
+// Longest first: a base must be checked before a shorter base it starts with would wrongly match.
+const BASE_LETTER_SIZES = ['xxxl', 'xxl', 'xxs', 'xs', 'xl', 's', 'm', 'l'];
 
 /**
- * "xxl" -> "2xl", "xxxl" -> "3xl" (the digit form and the repeated-X form are the same size), and
- * "lg"/"sm"/"md" -> "l"/"s"/"m": both forms show up directly in a platform's size field (not just
- * in a title, where sizeFromTitle already normalizes them).
+ * "xxl" -> "2xl", "xxxl" -> "3xl": the digit form and the repeated-X form are the same size.
+ * "lg"/"sm"/"md" -> "l"/"s"/"m", and the same one-letter-longer pattern also covers a platform's
+ * kids-specific suffix ("xlb" boys XL, "sb" small boys, "lg" girls large -> "xl"/"s"/"l"): a size
+ * letter code plus exactly one trailing letter is read as that base size. These show up directly in
+ * a platform's size field (not just in a title, where sizeFromTitle already normalizes "Lg"/"Sm").
  */
 function canonicalSize(s) {
   const xForm = s.match(/^(x+)l$/);
@@ -214,7 +217,10 @@ function canonicalSize(s) {
     const n = xForm[1].length;
     return n === 1 ? 'xl' : `${n}xl`;
   }
-  return LETTER_SIZE_SYNONYMS[s] || s;
+  for (const base of BASE_LETTER_SIZES) {
+    if (s.length === base.length + 1 && s.startsWith(base)) return base;
+  }
+  return s;
 }
 
 /**
