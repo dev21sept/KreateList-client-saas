@@ -73,8 +73,6 @@ export const listingService = {
   moveToNewItem: (id, platform) => API.post(`/listings/${id}/move-to-new-item`, { platform }),
   mergeChannel: (data) => API.post('/listings/merge-channel', data),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
-  getActiveChannelPreview: () => API.get('/listings/active-channel-preview'),
-  importActiveChannels: (data) => API.post('/listings/import-active-channels', data),
   getLocalMergePreview: () => API.get('/listings/local-merge-preview'),
   bulkMergeListings: (data) => API.post('/listings/bulk-merge', data),
   syncAll: () => API.post('/listings/sync-all'),
