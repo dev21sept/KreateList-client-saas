@@ -12,6 +12,10 @@
 
 const STOP = new Set(['the', 'and', 'with', 'for', 'a', 'an', 'in', 'of', 'to', 'size', 'sz', 'mens', 'men', 'womens', 'women', 'nwt', 'new', 'used', 'no', 'tags', 'read']);
 const INVISIBLE = /[​-‏‪-‮⁠-⁤﻿]/g;
+// Straight (') and the "smart quote" curly apostrophe (U+2019) a phone keyboard or pasted text
+// commonly substitutes - "Men's" and "Men’s" both need to read as a possessive, not two different
+// strings where only one is recognized.
+const APOS = `['’]`;
 
 /** Size words and measurements: 3xl, xl, 2xl, 35x34, 32, 6.5y, etc. */
 function isSizeToken(t) {
@@ -74,7 +78,7 @@ function normalizeSizeWord(w) {
  */
 function sizeFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
-  const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
+  const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men${APOS}?s|womens?|women${APOS}?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
   // Waist x inseam ("35x32") or a dress shirt's collar/sleeve ("16.5/36") - same two-number-pair
   // shape, just a different separator and the first number sometimes carrying a half size.
@@ -86,9 +90,9 @@ function sizeFromTitle(title) {
   // included here - unlike the anchored matches above, this one scans the whole title, and those
   // words show up constantly in non-size contexts ("Medium Wash", "Large Pocket").
   const word = t
-    // (?<!') excludes the "s" in a possessive like "Men's": that is a contraction, not a Small.
+    // (?<!['’]) excludes the "s" in a possessive like "Men's"/"Men’s": a contraction, not a Small.
     // (?<!-) excludes a style/SKU code's trailing letter, e.g. the "L" in "11080111-L".
-    .match(/(?<!')(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+    .match(/(?<!['’])(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
   return word ? word[1].trim() : '';
 }
 
@@ -100,8 +104,8 @@ function ageGroupFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
   if (/\bunisex\b/.test(t)) return 'unisex';
   if (/\b(?:kids?|boys?|girls?|youth|toddler)\b/.test(t)) return 'kids';
-  if (/\b(?:mens?|men'?s)\b/.test(t)) return 'mens';
-  if (/\b(?:womens?|women'?s)\b/.test(t)) return 'womens';
+  if (new RegExp(`\\b(?:mens?|men${APOS}?s)\\b`).test(t)) return 'mens';
+  if (new RegExp(`\\b(?:womens?|women${APOS}?s)\\b`).test(t)) return 'womens';
   return '';
 }
 

@@ -475,3 +475,12 @@ test('a real production example: Charles Tyrwhitt dress shirt now matches on siz
   const s = m.scorePair(a, b);
   assert.ok(s && s.reasons.includes('size'));
 });
+
+test('a real production bug: the curly "smart quote" apostrophe in "Men\u2019s" works the same as a straight one', () => {
+  const curlyTitle = "Untuckit Button Down Shirt Men\u2019s 2XL XXL Plaid Blue Nylon Elastane";
+  assert.equal(m.sizeFromTitle(curlyTitle), '2xl');
+  assert.equal(m.ageGroupFromTitle(curlyTitle), 'mens');
+  // the possessive is still never read as a Small, for either apostrophe style
+  assert.notEqual(m.sizeFromTitle("Tommy Bahama Sweater Men\u2019s Blue No Tags"), 's');
+  assert.notEqual(m.sizeFromTitle("Tommy Bahama Sweater Men's Blue No Tags"), 's');
+});
