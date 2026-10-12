@@ -56,7 +56,9 @@ function livePlatforms(l) {
 async function runScan(userId) {
   const job = jobs.get(String(userId));
   try {
-    const listings = await Listing.find({ user: userId })
+    // Records already folded into another one (mergedInto) are skipped: they are hidden and may
+    // still hold stale platform fields until the next cleanup pass.
+    const listings = await Listing.find({ user: userId, mergedInto: null })
       .select('title brand size price platform ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus mercariListingId mercariStatus images thumbnail imageHash')
       .lean();
 
@@ -108,4 +110,17 @@ function getMergeScan(userId) {
   return jobs.get(String(userId)) || { status: 'idle' };
 }
 
-module.exports = { startMergeScan, getMergeScan, computeImageHash, livePlatforms };
+/**
+ * Starts a scan (or reuses one already running) and waits up to maxWaitMs for it to finish.
+ * Returns the job either way; the caller checks `status` ('done', 'failed', or still 'running' on timeout).
+ */
+async function scanAndWait(userId, maxWaitMs = 45000) {
+  startMergeScan(userId);
+  const start = Date.now();
+  while (getMergeScan(userId).status === 'running' && Date.now() - start < maxWaitMs) {
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return getMergeScan(userId);
+}
+
+module.exports = { startMergeScan, getMergeScan, scanAndWait, computeImageHash, livePlatforms };

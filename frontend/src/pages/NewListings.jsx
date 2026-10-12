@@ -2872,7 +2872,19 @@ const NewListings = () => {
     setLocalMergeSearchTerm('');
     setLocalMergeFilterTab('all');
     try {
-      const res = await listingService.getLocalMergePreview();
+      // The scan compares photos; on a cold cache (new listings not hashed yet) the server returns
+      // "scanning" instead of making the request wait indefinitely. Poll a few times in that case.
+      let res = await listingService.getLocalMergePreview();
+      let attempts = 0;
+      while (res.data?.scanning && attempts < 6) {
+        await new Promise(r => setTimeout(r, 4000));
+        res = await listingService.getLocalMergePreview();
+        attempts++;
+      }
+      if (res.data?.scanning) {
+        toast.info('Still comparing photos across your listings. Try Smart Merge again in a minute.');
+        return;
+      }
       if (res.data.success) {
         const groups = res.data.groups || [];
         setLocalMergeGroups(groups);
@@ -7344,7 +7356,7 @@ const NewListings = () => {
                                     Merge {group.totalListingsInGroup} into 1 Master
                                   </span>
                                   <span className="text-[9px] font-bold text-slate-400">
-                                    Deletes {group.duplicateCount} Redundant
+                                    Hides {group.duplicateCount} Redundant (not deleted)
                                   </span>
                                 </div>
                               </td>
@@ -7365,7 +7377,7 @@ const NewListings = () => {
                   const counts = getSelectedLocalMergeCounts();
                   return (
                     <span>
-                      Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} item clusters</span> ({counts.duplicateCount} duplicate listings will be safely merged and removed)
+                      Selected: <span className="text-indigo-600 font-extrabold">{counts.groupCount} item clusters</span> ({counts.duplicateCount} duplicate listings will be merged and hidden, not deleted)
                     </span>
                   );
                 })()}

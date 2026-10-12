@@ -60,7 +60,8 @@ function platformsOf(doc) {
 async function applyMerges(userId, pairs, { apply = true } = {}) {
   const clusters = clusterPairs(pairs);
   const allIds = [...new Set(clusters.flat())];
-  const docs = await Listing.find({ _id: { $in: allIds } }).lean();
+  // Scoped to this user: a record id that does not belong to them is simply not found, never touched.
+  const docs = await Listing.find({ _id: { $in: allIds }, user: userId }).lean();
   const byId = new Map(docs.map(d => [String(d._id), d]));
 
   const report = { clusters: clusters.length, merged_records: 0, skipped_conflict: [], primaries: [] };
@@ -96,14 +97,23 @@ async function applyMerges(userId, pairs, { apply = true } = {}) {
 
     const set = {};
     const images = new Set(primary.images || []);
+    // Per-absorbed-record field clearing: once a platform id moves to the primary, the absorbed
+    // record must not keep its own copy, or a duplicate-id check elsewhere (masterStatusSync) could
+    // treat the absorbed (often older) record as the "owner" and flip the primary back to unlisted.
+    const unsetByAbsorbed = new Map();
     for (const a of absorbed) {
+      const unset = {};
       for (const p of PLATFORMS) {
         if (!hasId(a[`${p}ListingId`])) continue;
         set[`${p}ListingId`] = a[`${p}ListingId`];
         if (a[`${p}Url`]) set[`${p}Url`] = a[`${p}Url`];
         if (a[`${p}Status`]) set[`${p}Status`] = a[`${p}Status`];
         if (a.platformData && a.platformData[p]) set[`platformData.${p}`] = a.platformData[p];
+        unset[`${p}ListingId`] = '';
+        unset[`${p}Url`] = '';
+        unset[`${p}Status`] = '';
       }
+      unsetByAbsorbed.set(String(a._id), unset);
       for (const img of (a.images || [])) images.add(img);
     }
     if (images.size > (primary.images || []).length) set.images = [...images].slice(0, 24);
@@ -111,7 +121,10 @@ async function applyMerges(userId, pairs, { apply = true } = {}) {
     if (apply) {
       if (Object.keys(set).length) ops.push({ updateOne: { filter: { _id: primary._id }, update: { $set: set } } });
       for (const a of absorbed) {
-        ops.push({ updateOne: { filter: { _id: a._id }, update: { $set: { mergedInto: primary._id, updated_at: Date.now() } } } });
+        const unset = unsetByAbsorbed.get(String(a._id)) || {};
+        const update = { $set: { mergedInto: primary._id, updated_at: Date.now() } };
+        if (Object.keys(unset).length) update.$unset = unset;
+        ops.push({ updateOne: { filter: { _id: a._id }, update } });
       }
     }
     report.merged_records += absorbed.length;

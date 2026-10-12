@@ -16,8 +16,8 @@ const {
   mergeChannel,
   getActiveChannelImportPreview,
   importActiveChannelsToLocal,
-  getLocalMergePreview,
-  bulkMergeListings,
+  getVerifiedMergePreview,
+  applyVerifiedMerge,
   forceDelistPoshmark,
   forceRelistPoshmark,
   cleanDuplicatePoshmarkListings,
@@ -54,8 +54,8 @@ router.get('/active-channel-preview', getActiveChannelImportPreview);
 router.post('/import-active-channels', requireActiveSubscription, (req, res) => {
   res.status(410).json({ success: false, message: 'This import is disabled. Use Sync Now; items are linked by live listing ID.' });
 });
-router.get('/local-merge-preview', getLocalMergePreview);
-router.post('/bulk-merge', requireActiveSubscription, bulkMergeListings);
+router.get('/local-merge-preview', getVerifiedMergePreview);
+router.post('/bulk-merge', requireActiveSubscription, applyVerifiedMerge);
 
 // Background merge scan: start returns at once; poll the GET for suggestions (suggestions only, nothing is merged).
 const { startMergeScan, getMergeScan } = require('../services/mergeScanJob');

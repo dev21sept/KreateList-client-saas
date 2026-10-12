@@ -4176,9 +4176,70 @@ exports.importActiveChannelsToLocal = async (req, res) => {
   }
 };
 
-// @desc    Get preview of local listings that can be merged (duplicates across channels)
+// @desc    Verified merge preview: same title + size + a near-identical photo, across platforms.
+//          Replaces the old title/SKU grouping, which joined different items that only shared a title.
 // @route   GET /api/listings/local-merge-preview
 // @access  Private
+exports.getVerifiedMergePreview = async (req, res) => {
+  try {
+    const { scanAndWait } = require('../services/mergeScanJob');
+    const { clusterPairs } = require('../services/mergeApply');
+    const userId = req.user.id;
+
+    const job = await scanAndWait(userId, 45000);
+    if (job.status === 'failed') {
+      return res.status(500).json({ success: false, message: job.error || 'Scan failed.' });
+    }
+    if (job.status === 'running') {
+      // Cold start (many un-hashed photos): tell the UI to poll again rather than block the request.
+      return res.status(202).json({ success: true, scanning: true, processed: job.processed, total: job.total,
+        message: `Still comparing photos (${job.processed}/${job.total}). Try again in a moment.` });
+    }
+
+    const pairs = job.suggestions || [];
+    const clusters = clusterPairs(pairs);
+    if (clusters.length === 0) {
+      return res.json({ success: true, groups: [], scanned: job.total });
+    }
+
+    const PLATFORM_FIELDS = ['ebay', 'poshmark', 'mercari', 'etsy'];
+    const allIds = [...new Set(clusters.flat())];
+    const docs = await Listing.find({ _id: { $in: allIds }, user: userId })
+      .select('title thumbnail images price sku ebayListingId poshmarkListingId mercariListingId etsyListingId')
+      .lean();
+    const byId = new Map(docs.map(d => [String(d._id), d]));
+
+    const thumbOf = (d) => d.thumbnail || (d.images && d.images[0]) || '';
+    const groups = clusters.map((ids) => {
+      const members = ids.map(id => byId.get(id)).filter(Boolean);
+      if (members.length < 2) return null;
+      members.sort((a, b) => PLATFORM_FIELDS.filter(p => a[`${p}ListingId`]).length - PLATFORM_FIELDS.filter(p => b[`${p}ListingId`]).length).reverse();
+      const [primary, ...absorbed] = members;
+
+      const channels = {};
+      members.forEach(m => PLATFORM_FIELDS.forEach(p => {
+        if (m[`${p}ListingId`]) channels[p] = { liveId: m[`${p}ListingId`] };
+      }));
+
+      return {
+        groupId: ids.slice().sort().join('_'),
+        memberIds: ids,
+        masterListing: { _id: primary._id, title: primary.title, thumbnail: thumbOf(primary), price: primary.price, sku: primary.sku },
+        duplicateListings: absorbed.map(a => ({ _id: a._id, title: a.title, thumbnail: thumbOf(a), platform: PLATFORM_FIELDS.find(p => a[`${p}ListingId`]) || '' })),
+        channels,
+        duplicateCount: absorbed.length,
+        totalListingsInGroup: members.length,
+        channelCount: Object.keys(channels).length
+      };
+    }).filter(Boolean);
+
+    res.json({ success: true, groups, scanned: job.total });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Kept only so old code referring to it by name does not throw; no route points here any more.
 exports.getLocalMergePreview = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -4385,9 +4446,37 @@ exports.getLocalMergePreview = async (req, res) => {
   }
 };
 
-// @desc    Execute bulk merge of local listings
+// @desc    Applies the groups from getVerifiedMergePreview. Nothing is deleted: an absorbed record
+//          is marked mergedInto and hidden from the Master list (see models/Listing.js).
 // @route   POST /api/listings/bulk-merge
 // @access  Private
+exports.applyVerifiedMerge = async (req, res) => {
+  try {
+    const { applyMerges } = require('../services/mergeApply');
+    const userId = req.user.id;
+    const groups = Array.isArray(req.body.groups) ? req.body.groups : [];
+
+    const pairs = [];
+    for (const g of groups) {
+      const ids = Array.isArray(g.memberIds) ? g.memberIds : [];
+      for (let i = 1; i < ids.length; i++) pairs.push({ a: ids[0], b: ids[i] });
+    }
+    if (pairs.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one cluster to merge.' });
+    }
+
+    const report = await applyMerges(userId, pairs, { apply: true });
+    const skipped = report.skipped_conflict.length;
+    const message = skipped > 0
+      ? `Merged ${report.merged_records} duplicate listing(s). ${skipped} group(s) were skipped: a record in them already had a conflicting platform id.`
+      : `Merged ${report.merged_records} duplicate listing(s).`;
+    res.json({ success: true, message, report });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Kept only so old code referring to it by name does not throw; no route points here any more.
 exports.bulkMergeListings = async (req, res) => {
   try {
     const userId = req.user.id;
