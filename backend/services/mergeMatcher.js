@@ -59,19 +59,25 @@ function normalizeSizeWord(w) {
 }
 
 /**
- * Size written in a title: a waist x inseam pair (35x34), a size word right after the gender/age
- * word (resale titles read "... Mens 31 ..." or "... Womens 20 Long ..." or "... Women's X Small
- * ..."), an explicit "size X", or a standalone size token. Returns '' when the title has no clear
- * size. Regex alternation here finds the leftmost match across the whole string, trying each
- * starting position in order, so "XX Small" is matched (and normalized) as a whole before the
- * engine would otherwise reach "Small" alone a few characters later.
+ * Size written in a title: a size word right after the gender/age word (resale titles read "...
+ * Mens 31 ..." or "... Womens 20 Long ..." or "... Women's X Small ..."), a waist x inseam pair
+ * (35x34), an explicit "size X", or a standalone size token. Returns '' when the title has no
+ * clear size.
+ *
+ * The gender-anchored size is checked first and the bare pair regex second, not the other way
+ * round, because a title sometimes adds a parenthetical measurement after the real size -
+ * "Mens 32 ... (31x29)" (tag says 32, actual measurement 31x29) - and a plain left-to-right pair
+ * search would grab that parenthetical instead of the stated size "32" that the platform's own
+ * size field agrees with. The gender-anchored pattern itself can never match a pair (the trailing
+ * \b it needs can't be satisfied once "x" is followed by more digits), so checking it first never
+ * steals a legitimate "Mens 35x32"-style match from the pair regex below it.
  */
 function sizeFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
-  const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
-  if (pair) return `${pair[1]}x${pair[2]}`;
   const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
+  const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
+  if (pair) return `${pair[1]}x${pair[2]}`;
   const explicitSize = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`));
   if (explicitSize) return normalizeSizeWord(explicitSize[1]);
   // Unanchored fallback: short abbreviations only. Spelled-out words ("Medium", "Large") are not

@@ -366,3 +366,26 @@ test('a size letter code plus one trailing letter is the base size (kids Boys/Gi
   assert.ok(!m.sizesCompatible('xs', 's'));
   assert.ok(!m.sizesCompatible('m', 'l'));
 });
+
+test('a real production bug: a parenthetical measurement note no longer outranks the stated size', () => {
+  // User-reported: the Poshmark listing's own size field says "Waist 32", matching the eBay
+  // title's "Mens 32" - the "(31x29)" is a tag/actual-measurement caveat, not the real size.
+  assert.equal(
+    m.sizeFromTitle('Peter Millar Corduroy Pants Mens 32 Brown 5-Pocket Straight Leg Classic (31x29)'),
+    '32'
+  );
+  assert.equal(
+    m.sizeFromTitle("Wrangler Retro Jeans Women's 14R Blue Denim Relaxed Straight Fit Jeans  (26x30)"),
+    '14r'
+  );
+  // a title with no gender-anchored size still reads the pair as before
+  assert.equal(m.sizeFromTitle('Levi 501 Jeans Mens 35x34 Blue Denim'), '35x34');
+});
+
+test('a real production example: Peter Millar Corduroy Pants eBay and Poshmark now match', () => {
+  const same = '1'.repeat(144);
+  const a = { id: 'a', platform: 'ebay', title: 'Peter Millar Corduroy Pants Mens 32 Brown 5-Pocket Straight Leg Classic (31x29)', price: 26.09, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title: 'Peter Millar Corduroy Pants Mens 32 Brown 5-Pocket Straight Leg Classic (31x29)', brand: 'Peter Millar', size: '32', price: 26, imageHash: same };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('size'));
+});
