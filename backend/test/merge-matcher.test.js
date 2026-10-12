@@ -18,11 +18,12 @@ test('hamming distance counts differing bits', () => {
   assert.equal(m.hammingDistance('1010', '10'), Infinity);
 });
 
-test('dHash: an increasing row gives all-one bits, a decreasing row gives all-zero bits', () => {
-  const inc = Array.from({ length: 72 }, (_, i) => i % 9);      // each row 0..8 increasing
-  const dec = Array.from({ length: 72 }, (_, i) => 8 - (i % 9)); // each row decreasing
-  assert.equal(m.dHashFromPixels(inc), '1'.repeat(64));
-  assert.equal(m.dHashFromPixels(dec), '0'.repeat(64));
+test('dHash: pixels increasing in both directions give all-one bits, decreasing give all-zero bits', () => {
+  // 9x9 grid, value = row*10 + col: strictly increasing left-to-right and top-to-bottom, no ties.
+  const inc = Array.from({ length: 81 }, (_, i) => Math.floor(i / 9) * 10 + (i % 9));
+  const dec = Array.from({ length: 81 }, (_, i) => 100 - (Math.floor(i / 9) * 10 + (i % 9)));
+  assert.equal(m.dHashFromPixels(inc), '1'.repeat(144));
+  assert.equal(m.dHashFromPixels(dec), '0'.repeat(144));
 });
 
 test('same platform records are never suggested as a pair', () => {
@@ -38,15 +39,15 @@ test('different brand or size blocks the pair', () => {
 });
 
 test('a strong detail match across platforms is suggested with reasons', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) };
-  const b = { id: 'b', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(64) };
+  const a = { id: 'a', platform: 'ebay', title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(144) };
   const s = m.scorePair(a, b);
   assert.ok(s && s.score >= 50);
   assert.ok(s.reasons.includes('brand') && s.reasons.includes('size'));
 });
 
 test('a matching photo alone (no brand or size) is not enough', () => {
-  const same = '1'.repeat(64);
+  const same = '1'.repeat(144);
   const a = { id: 'a', platform: 'ebay', title: 'Nike Hoodie Black', imageHash: same };
   const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue', imageHash: same };
   assert.equal(m.scorePair(a, b), null);
@@ -54,8 +55,8 @@ test('a matching photo alone (no brand or size) is not enough', () => {
 
 test('suggestPairs returns pairs sorted by score', () => {
   const recs = [
-    { id: 'e1', platform: 'ebay', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) },
-    { id: 'p1', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) },
+    { id: 'e1', platform: 'ebay', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(144) },
+    { id: 'p1', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(144) },
     { id: 'p2', platform: 'poshmark', title: 'Nike Hoodie', brand: 'Nike', size: 'L', price: 40 },
   ];
   const pairs = m.suggestPairs(recs);
@@ -70,8 +71,8 @@ test('a record that already holds an eBay and a Poshmark ID cannot pair with ano
 });
 
 test('a record with eBay and a record with Poshmark only can pair when details match', () => {
-  const ebay = { id: 'a', platforms: ['ebay'], title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(64) };
-  const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(64) };
+  const ebay = { id: 'a', platforms: ['ebay'], title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', size: '35', price: 23, imageHash: '1'.repeat(144) };
+  const posh = { id: 'b', platforms: ['poshmark'], title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', size: '35', price: 22, imageHash: '1'.repeat(144) };
   assert.ok(m.scorePair(ebay, posh));
 });
 
@@ -90,29 +91,29 @@ test('a bare size right after the gender word is read, even with no x-pair', () 
 });
 
 test('different sizes in titles block the pair even when the size field is empty', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Nike Jogger Pants Mens M Heather Gray Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };
-  const b = { id: 'b', platform: 'poshmark', title: 'Nike Jogger Pants Mens XL Gray Slacker Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(64) };
+  const a = { id: 'a', platform: 'ebay', title: 'Nike Jogger Pants Mens M Heather Gray Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Nike Jogger Pants Mens XL Gray Slacker Therma Fit', brand: 'Nike', price: 30, imageHash: '1'.repeat(144) };
   assert.equal(m.scorePair(a, b), null);
 });
 
 test('a photo just past the distance threshold is not a strong match on its own', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: '0'.repeat(64) };
-  const far = '1'.repeat(9) + '0'.repeat(55); // one bit past PHOTO_DIST_THRESHOLD (8)
+  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: '0'.repeat(144) };
+  const far = '1'.repeat(33) + '0'.repeat(111); // one bit past PHOTO_DIST_THRESHOLD (32)
   const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: far };
   const s = m.scorePair(a, b);
   assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
 });
 
 test('a waist-only size field matches a waist x inseam size from the title', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Duluth Trading Jeans Mens 35x32 Black Dark Wash Straight Leg', brand: 'Duluth', price: 22, imageHash: '1'.repeat(64) };
-  const b = { id: 'b', platform: 'poshmark', title: 'Duluth Trading Jeans Mens Black Dark Wash Straight Leg', brand: 'Duluth', size: '35', price: 18, imageHash: '1'.repeat(64) };
+  const a = { id: 'a', platform: 'ebay', title: 'Duluth Trading Jeans Mens 35x32 Black Dark Wash Straight Leg', brand: 'Duluth', price: 22, imageHash: '1'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Duluth Trading Jeans Mens Black Dark Wash Straight Leg', brand: 'Duluth', size: '35', price: 18, imageHash: '1'.repeat(144) };
   const s = m.scorePair(a, b);
   assert.ok(s && s.reasons.includes('size'));
 });
 
 test('a waist-only size does not match a different waist x inseam pair', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Mens 36x32 Blue Denim Straight', brand: 'Levi', price: 22, imageHash: '1'.repeat(64) };
-  const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Mens Blue Denim Straight', brand: 'Levi', size: '34', price: 22, imageHash: '1'.repeat(64) };
+  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Mens 36x32 Blue Denim Straight', brand: 'Levi', price: 22, imageHash: '1'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Mens Blue Denim Straight', brand: 'Levi', size: '34', price: 22, imageHash: '1'.repeat(144) };
   assert.equal(m.scorePair(a, b), null);
 });
 
@@ -144,7 +145,7 @@ test('a style/SKU code\'s trailing letter is not read as a size', () => {
 });
 
 test('a size missing on one side does not block an otherwise strong title + photo match', () => {
-  const same = '1'.repeat(64);
+  const same = '1'.repeat(144);
   const a = {
     id: 'a', platform: 'ebay',
     title: 'Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg',
@@ -160,7 +161,7 @@ test('a size missing on one side does not block an otherwise strong title + phot
 });
 
 test('a size present and genuinely different on both sides still blocks, even with a strong photo', () => {
-  const same = '1'.repeat(64);
+  const same = '1'.repeat(144);
   const a = { id: 'a', platform: 'ebay', title: 'Nike Hoodie Mens M Black Pullover', brand: 'Nike', size: 'M', price: 24, imageHash: same };
   const b = { id: 'b', platform: 'poshmark', title: 'Nike Hoodie Mens M Black Pullover', brand: 'Nike', size: 'XL', price: 23, imageHash: same };
   assert.equal(m.scorePair(a, b), null);
@@ -168,7 +169,7 @@ test('a size present and genuinely different on both sides still blocks, even wi
 
 
 test('title and brand alone (no size, no close photo) are not suggested', () => {
-  const a = { id: 'a', platform: 'ebay', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '0'.repeat(64) };
-  const b = { id: 'b', platform: 'poshmark', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '1'.repeat(64) };
+  const a = { id: 'a', platform: 'ebay', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '0'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Tommy Bahama Cargo Shorts Mens Blue Pleated', brand: 'Tommy Bahama', price: 30, imageHash: '1'.repeat(144) };
   assert.equal(m.scorePair(a, b), null);
 });

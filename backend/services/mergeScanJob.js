@@ -24,7 +24,7 @@ async function computeImageHash(url) {
   const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000, maxContentLength: MAX_BYTES });
   const { data } = await sharp(Buffer.from(res.data))
     .grayscale()
-    .resize(9, 8, { fit: 'fill' })
+    .resize(9, 9, { fit: 'fill' })
     .raw()
     .toBuffer({ resolveWithObject: true });
   return dHashFromPixels(Array.from(data));
