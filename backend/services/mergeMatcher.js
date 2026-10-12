@@ -23,24 +23,43 @@ function normalizeSize(s) {
   return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
 }
 
-const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?|\\d{1,2}xl|xxs|xs|s|m|l|xl|xxl|xxxl)';
+// Spelled-out sizes ("Small", "X Large", "XX-Small") alongside the usual abbreviations. Longer
+// phrases are listed before the shorter words they contain (e.g. "x small" before "small") so a
+// title that says "XX Small" is not read as a plain Small - see sizeFromTitle's note on match order.
+const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?|\\d{1,2}xl|xx[\\s-]?small|x[\\s-]?small|small|xx[\\s-]?large|x[\\s-]?large|large|medium|xxs|xs|s|m|l|xl|xxl|xxxl)';
+
+const SPELLED_SIZE = {
+  'xxsmall': 'xxs', 'xx small': 'xxs', 'xx-small': 'xxs',
+  'xsmall': 'xs', 'x small': 'xs', 'x-small': 'xs',
+  small: 's', medium: 'm', large: 'l',
+  'xlarge': 'xl', 'x large': 'xl', 'x-large': 'xl',
+  'xxlarge': 'xxl', 'xx large': 'xxl', 'xx-large': 'xxl',
+};
+
+/** A spelled-out size word ("Small", "X-Large") -> its abbreviation ("s", "xl"). Anything else unchanged. */
+function normalizeSizeWord(w) {
+  return SPELLED_SIZE[w] || w;
+}
 
 /**
  * Size written in a title: a waist x inseam pair (35x34), a size word right after the gender/age
- * word (resale titles read "... Mens 31 ..." or "... Womens 20 Long ..."), an explicit "size X",
- * or a standalone size token. Returns '' when the title has no clear size.
+ * word (resale titles read "... Mens 31 ..." or "... Womens 20 Long ..." or "... Women's X Small
+ * ..."), an explicit "size X", or a standalone size token. Returns '' when the title has no clear
+ * size. Regex alternation here finds the leftmost match across the whole string, trying each
+ * starting position in order, so "XX Small" is matched (and normalized) as a whole before the
+ * engine would otherwise reach "Small" alone a few characters later.
  */
 function sizeFromTitle(title) {
   const t = String(title || '').toLowerCase().replace(INVISIBLE, '');
   const pair = t.match(/\b(\d{2})\s*x\s*(\d{2})\b/);
   if (pair) return `${pair[1]}x${pair[2]}`;
   const genderAnchored = t.match(new RegExp(`\\b(?:mens?|men'?s|womens?|women'?s|unisex|boys?|girls?|kids?|youth)\\s+${SIZE_WORD}\\b`));
-  if (genderAnchored) return genderAnchored[1];
+  if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
   const word = t.match(new RegExp(`\\bsize\\s+${SIZE_WORD}\\b`))
     // (?<!') excludes the "s" in a possessive like "Men's": that is a contraction, not a Small.
     // (?<!-) excludes a style/SKU code's trailing letter, e.g. the "L" in "11080111-L".
-    || t.match(/(?<!')(?<!-)\b(xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
-  return word ? word[1].trim() : '';
+    || t.match(/(?<!')(?<!-)\b(xx[\s-]?small|x[\s-]?small|small|xx[\s-]?large|x[\s-]?large|large|medium|xxs|xs|xxl|xxxl|xl|s|m|l)\b/);
+  return word ? normalizeSizeWord(word[1].trim()) : '';
 }
 
 /**
@@ -189,10 +208,17 @@ function scorePair(a, b) {
   let score = 0;
   const overlap = titleOverlap(a.title, b.title);
   if (overlap >= 0.6) { score += 40; reasons.push(`title ${Math.round(overlap * 100)}%`); }
-  if (a.brand && b.brand) { score += 15; reasons.push('brand'); }
-  if (sizeA && sizeB) { score += 15; reasons.push('size'); }
-
+  const brandConfirmed = Boolean(a.brand && b.brand); // both present and (per the check above) matching
   const sizeConfirmed = Boolean(sizeA && sizeB); // both present and (per the check above) compatible
+  if (brandConfirmed) { score += 15; reasons.push('brand'); }
+  if (sizeConfirmed) { score += 15; reasons.push('size'); }
+
+  // A partial title match (60-89%) shares a lot of generic, descriptive words - "straight jeans
+  // mens blue medium wash denim" reads almost the same for two different brands of jeans. Without
+  // brand or size actually confirmed, title + photo alone is not enough to tell those apart; an
+  // (near-)exact title is specific enough on its own to skip this.
+  if (overlap < EXACT_TITLE_OVERLAP && !brandConfirmed && !sizeConfirmed) return null;
+
   const threshold = (overlap >= EXACT_TITLE_OVERLAP && sizeConfirmed)
     ? PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE
     : PHOTO_DIST_THRESHOLD;

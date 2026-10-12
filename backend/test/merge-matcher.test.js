@@ -218,3 +218,31 @@ test('a real production false positive: "Kids XL" is never the same item as "Men
   };
   assert.equal(m.scorePair(a, b), null);
 });
+
+test('a real production false positive: two different brands of generic jeans do not match on title + photo alone', () => {
+  // Neither brand field nor size is confirmed on both sides (one is blank/unrecognized), and the
+  // title overlap is only the generic "straight jeans mens blue medium wash denim" wording, not an
+  // (near-)exact title - this exact pair matched in production before this guard existed.
+  const a = {
+    id: 'a', platform: 'ebay',
+    title: 'Mott & Bow Straight Jeans W38 L30 Mens Blue Medium Wash Comfort Stretch Denim',
+    brand: '', size: '', price: '35', imageHash: '1'.repeat(126) + '0'.repeat(18)
+  };
+  const b = {
+    id: 'b', platform: 'poshmark',
+    title: "Levi's Premium 511 Straight Jeans Mens 38x32 Medium Wash Blue Denim Everyday",
+    brand: "Levi's", size: '38', price: '21', imageHash: '1'.repeat(144)
+  };
+  assert.equal(m.scorePair(a, b), null);
+});
+
+test('a partial title match still works when brand or size is actually confirmed', () => {
+  const same = '1'.repeat(144);
+  const bothBrand = { id: 'a', platform: 'ebay', title: 'Bonobos Jeans Mens 35x34 Blue Denim Straight Leg', brand: 'Bonobos', price: 23, imageHash: same };
+  const bothBrandB = { id: 'b', platform: 'poshmark', title: 'Bonobos Jeans Blue Denim Straight Leg Athletic Fit', brand: 'Bonobos', price: 22, imageHash: same };
+  assert.ok(m.scorePair(bothBrand, bothBrandB));
+
+  const bothSize = { id: 'c', platform: 'ebay', title: 'Target Brand Straight Jeans Mens Blue Medium Wash Comfort Stretch Denim', size: '38', price: 20, imageHash: same };
+  const bothSizeB = { id: 'd', platform: 'poshmark', title: 'Another Co Straight Jeans Mens 38x32 Medium Wash Blue Denim Everyday', size: '38', price: 21, imageHash: same };
+  assert.ok(m.scorePair(bothSize, bothSizeB));
+});
