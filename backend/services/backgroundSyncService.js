@@ -697,7 +697,16 @@ async function runBackgroundInventorySyncCycle() {
         // 5. Recheck Master Listing Platform Statuses & Reconcile Orders
         await recheckMasterListingStatuses(userId);
 
-        // 5.5 Auto-Import and Auto-Merge newly discovered channel items
+        // 5.4 Live check by listing ID, same as Sync Now, so this 12-hour cycle does not skip it
+        let liveResult = null;
+        try {
+          const { syncMasterStatuses } = require('./masterStatusSync');
+          liveResult = await syncMasterStatuses(userId, { apply: true });
+        } catch (liveErr) {
+          console.warn(`[Background Inventory Worker] Live ID check notice for ${user.email}:`, liveErr.message);
+        }
+
+        // 5.5 Auto-Import newly discovered channel items (title/SKU auto-merge is off; see Smart Merge)
         let newItemsCount = 0;
         let mergedItemsCount = 0;
         try {
@@ -724,6 +733,7 @@ async function runBackgroundInventorySyncCycle() {
             newItemsCount: newItemsCount,
             mergedItemsCount: mergedItemsCount,
             platforms: connectedPlatforms,
+            live: liveResult ? { active: liveResult.live.active, delisted: liveResult.live.delisted, sold: liveResult.live.sold, changed: liveResult.changed } : undefined,
             shownToUser: false
           };
           user.markModified('lastSyncSummary');
