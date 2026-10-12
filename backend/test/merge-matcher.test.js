@@ -95,12 +95,34 @@ test('different sizes in titles block the pair even when the size field is empty
   assert.equal(m.scorePair(a, b), null);
 });
 
-test('a photo 8 bits apart is not a strong match on its own', () => {
+test('a photo just past the distance threshold is not a strong match on its own', () => {
   const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: '0'.repeat(64) };
-  const far = '1'.repeat(8) + '0'.repeat(56);
+  const far = '1'.repeat(9) + '0'.repeat(55); // one bit past PHOTO_DIST_THRESHOLD (8)
   const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Blue Denim Straight', brand: 'Levi', size: '32', price: 20, imageHash: far };
   const s = m.scorePair(a, b);
   assert.ok(!s || !s.reasons.some(r => r.startsWith('photo distance')));
+});
+
+test('a waist-only size field matches a waist x inseam size from the title', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Duluth Trading Jeans Mens 35x32 Black Dark Wash Straight Leg', brand: 'Duluth', price: 22, imageHash: '1'.repeat(64) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Duluth Trading Jeans Mens Black Dark Wash Straight Leg', brand: 'Duluth', size: '35', price: 18, imageHash: '1'.repeat(64) };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('size'));
+});
+
+test('a waist-only size does not match a different waist x inseam pair', () => {
+  const a = { id: 'a', platform: 'ebay', title: 'Levi Jeans Mens 36x32 Blue Denim Straight', brand: 'Levi', price: 22, imageHash: '1'.repeat(64) };
+  const b = { id: 'b', platform: 'poshmark', title: 'Levi Jeans Mens Blue Denim Straight', brand: 'Levi', size: '34', price: 22, imageHash: '1'.repeat(64) };
+  assert.equal(m.scorePair(a, b), null);
+});
+
+test('sizesCompatible: equal sizes, waist-only vs waist x inseam, and mismatches', () => {
+  assert.ok(m.sizesCompatible('32', '32'));
+  assert.ok(m.sizesCompatible('35x32', '35'));
+  assert.ok(m.sizesCompatible('35', '35x32'));
+  assert.ok(!m.sizesCompatible('35x32', '36'));
+  assert.ok(!m.sizesCompatible('m', 'l'));
+  assert.ok(!m.sizesCompatible('', '32'));
 });
 
 

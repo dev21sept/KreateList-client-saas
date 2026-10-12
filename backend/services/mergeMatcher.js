@@ -92,6 +92,24 @@ function hammingDistance(h1, h2) {
   return d;
 }
 
+const SIZE_PAIR = /^(\d{2})x(\d{2})$/;
+
+/**
+ * Whether two normalized sizes can be the same size. Equal strings always match. A bare waist
+ * number also matches a "waist x inseam" pair on the same waist: some platforms' size field only
+ * holds the waist (the inseam lives in the title), which is not a different size, just a shorter one.
+ */
+function sizesCompatible(sizeA, sizeB) {
+  if (!sizeA || !sizeB) return false;
+  if (sizeA === sizeB) return true;
+  const pairA = sizeA.match(SIZE_PAIR), pairB = sizeB.match(SIZE_PAIR);
+  if (pairA && !pairB && pairA[1] === sizeB) return true;
+  if (pairB && !pairA && pairB[1] === sizeA) return true;
+  return false;
+}
+
+const PHOTO_DIST_THRESHOLD = 8;
+
 /** Compares two records. Returns null if they cannot be the same item, else a score and the reasons. */
 function scorePair(a, b) {
   // A merged master holds one ID per platform, so the two records must not share any platform.
@@ -99,10 +117,10 @@ function scorePair(a, b) {
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
   if (platformsB.some(p => platformsA.has(p))) return null;
   if (a.brand && b.brand && String(a.brand).trim().toLowerCase() !== String(b.brand).trim().toLowerCase()) return null;
-  // Size: use the size field, or the size written in the title when the field is empty. Two different sizes never match.
+  // Size: use the size field, or the size written in the title when the field is empty. Incompatible sizes never match.
   const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
   const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
-  if (sizeA && sizeB && sizeA !== sizeB) return null;
+  if (sizeA && sizeB && !sizesCompatible(sizeA, sizeB)) return null;
   if (!priceClose(a.price, b.price)) return null;
 
   const reasons = [];
@@ -112,13 +130,13 @@ function scorePair(a, b) {
   if (a.brand && b.brand) { score += 15; reasons.push('brand'); }
   if (sizeA && sizeB) { score += 15; reasons.push('size'); }
 
-  // Tight threshold: photos of similar garments (jeans, pants) look alike at looser distances.
+  // Photos of similar garments (jeans, pants) can still look alike at looser distances, so this stays tight.
   const dist = hammingDistance(a.imageHash, b.imageHash);
-  if (dist <= 5) { score += 30; reasons.push(`photo distance ${dist}`); }
+  if (dist <= PHOTO_DIST_THRESHOLD) { score += 30; reasons.push(`photo distance ${dist}`); }
 
-  // Photo alone is not enough, and title + brand alone is not enough: a pair needs the same size AND a close photo.
+  // Photo alone is not enough, and title + brand alone is not enough: a pair needs a compatible size AND a close photo.
   if (score < 50) return null;
-  if (!(sizeA && sizeB) || dist > 5) return null;
+  if (!sizesCompatible(sizeA, sizeB) || dist > PHOTO_DIST_THRESHOLD) return null;
   return { score, reasons };
 }
 
@@ -138,4 +156,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, sizesCompatible };
