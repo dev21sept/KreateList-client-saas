@@ -318,3 +318,21 @@ test('three more real production examples that now correctly match', () => {
   const cremB = { id: 'b', platform: 'poshmark', title: 'Vintage Cremieux Suede Bomber Jacket Mens 2XL Brown Genuine Leather Outdoor', brand: 'Flight Mode', size: 'XXL', price: 70, imageHash: same };
   assert.ok(m.scorePair(cremA, cremB));
 });
+
+test('"Lg" and "Sm" (two-letter abbreviations) are read as Large and Small', () => {
+  assert.equal(m.sizeFromTitle('Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg'), 'l');
+  assert.equal(m.sizeFromTitle('TOMMY HILFIGER Shawl Neck Knit Cotton Jumper Sweater Men Sm Gray VR1827'), 's');
+  assert.ok(m.sizesCompatible('lg', 'l'));
+  assert.ok(m.sizesCompatible('sm', 's'));
+  assert.ok(m.sizesCompatible('md', 'm'));
+  assert.ok(!m.sizesCompatible('lg', 's'));
+});
+
+test('a real production example: "Mens Lg" in the title matches a Poshmark "L" size field', () => {
+  const hashA = '0'.repeat(144);
+  const hashB = '1'.repeat(36) + '0'.repeat(108); // distance 36: past the normal threshold, within the high-confidence one
+  const a = { id: 'a', platform: 'ebay', title: 'Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg', price: 24.25, imageHash: hashA };
+  const b = { id: 'b', platform: 'poshmark', title: 'Polo Ralph Lauren Camouflage Waffle Knit Thermal Type Cuffed Mens Lg', brand: 'Ralph Lauren', size: 'L', price: 23, imageHash: hashB };
+  const s = m.scorePair(a, b);
+  assert.ok(s && s.reasons.includes('size'));
+});

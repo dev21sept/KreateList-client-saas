@@ -42,7 +42,7 @@ function normalizeSize(s) {
 // The numeric alternative allows one optional trailing letter (8.5B, 9.5M, 10D: shoe-width codes)
 // so the whole thing is captured together - without it, the \b requirement at the end of this
 // group forces the engine to drop the decimal to find a boundary before the letter instead.
-const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?[a-z]?|\\d{1,2}xl|xx[\\s-]?small|x[\\s-]?small|small|xx[\\s-]?large|x[\\s-]?large|large|medium|xxs|xs|s|m|l|xl|xxl|xxxl)';
+const SIZE_WORD = '(\\d{1,3}(?:\\.\\d)?[a-z]?|\\d{1,2}xl|xx[\\s-]?small|x[\\s-]?small|small|xx[\\s-]?large|x[\\s-]?large|large|medium|xxs|xs|sm|md|lg|s|m|l|xl|xxl|xxxl)';
 
 const SPELLED_SIZE = {
   'xxsmall': 'xxs', 'xx small': 'xxs', 'xx-small': 'xxs',
@@ -50,6 +50,7 @@ const SPELLED_SIZE = {
   small: 's', medium: 'm', large: 'l',
   'xlarge': 'xl', 'x large': 'xl', 'x-large': 'xl',
   'xxlarge': 'xxl', 'xx large': 'xxl', 'xx-large': 'xxl',
+  sm: 's', md: 'm', lg: 'l',
 };
 
 /** A spelled-out size word ("Small", "X-Large") -> its abbreviation ("s", "xl"). Anything else unchanged. */
@@ -178,26 +179,34 @@ function bareNumber(s) {
   return m ? m[1] : s;
 }
 
-/** "xxl" -> "2xl", "xxxl" -> "3xl", "xl" -> "xl": the digit form and the repeated-X form are the same size. */
-function canonicalXL(s) {
+const LETTER_SIZE_SYNONYMS = { sm: 's', md: 'm', lg: 'l' };
+
+/**
+ * "xxl" -> "2xl", "xxxl" -> "3xl" (the digit form and the repeated-X form are the same size), and
+ * "lg"/"sm"/"md" -> "l"/"s"/"m": both forms show up directly in a platform's size field (not just
+ * in a title, where sizeFromTitle already normalizes them).
+ */
+function canonicalSize(s) {
   const xForm = s.match(/^(x+)l$/);
-  if (!xForm) return s;
-  const n = xForm[1].length;
-  return n === 1 ? 'xl' : `${n}xl`;
+  if (xForm) {
+    const n = xForm[1].length;
+    return n === 1 ? 'xl' : `${n}xl`;
+  }
+  return LETTER_SIZE_SYNONYMS[s] || s;
 }
 
 /**
  * Whether two normalized sizes can be the same size. Equal strings always match, after "XXL" and
- * "2XL" (and "XXXL"/"3XL", ...) are brought to the same form. A bare waist number also matches a
- * "waist x inseam" pair on the same waist: some platforms' size field only holds the waist (the
- * inseam lives in the title), which is not a different size, just a shorter one - and that waist
- * number may itself carry a sizing-convention letter (20W, 32P, 15J, ...), which is stripped on
- * both sides before comparing: "35x32" vs "35" vs "35W" are all waist 35.
+ * "2XL" (and "XXXL"/"3XL", "LG"/"L", ...) are brought to the same form. A bare waist number also
+ * matches a "waist x inseam" pair on the same waist: some platforms' size field only holds the
+ * waist (the inseam lives in the title), which is not a different size, just a shorter one - and
+ * that waist number may itself carry a sizing-convention letter (20W, 32P, 15J, ...), which is
+ * stripped on both sides before comparing: "35x32" vs "35" vs "35W" are all waist 35.
  */
 function sizesCompatible(sizeA, sizeB) {
   if (!sizeA || !sizeB) return false;
-  sizeA = canonicalXL(sizeA);
-  sizeB = canonicalXL(sizeB);
+  sizeA = canonicalSize(sizeA);
+  sizeB = canonicalSize(sizeB);
   if (sizeA === sizeB) return true;
   const pairA = sizeA.match(SIZE_PAIR), pairB = sizeB.match(SIZE_PAIR);
   const bareA = bareNumber(sizeA), bareB = bareNumber(sizeB);
