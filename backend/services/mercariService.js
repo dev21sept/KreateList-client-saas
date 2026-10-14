@@ -7,6 +7,19 @@ const os = require('os');
 
 puppeteer.use(StealthPlugin());
 
+// Spaces out requests to Mercari from this process by a minimum gap, regardless of which function
+// fires them. Several calls firing back-to-back (bulk publish/reactivate, background sync) is the
+// kind of burst traffic from one server IP that gets Cloudflare/Mercari to flag that IP, making even
+// a single later login attempt start failing. This does not fix an IP already flagged, but keeps
+// normal day-to-day use from building up a fresh one.
+let lastMercariRequestAt = 0;
+const MIN_MERCARI_GAP_MS = 4000;
+async function paceMercariRequest() {
+  const waitMs = lastMercariRequestAt + MIN_MERCARI_GAP_MS - Date.now();
+  if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+  lastMercariRequestAt = Date.now();
+}
+
 /**
  * Helper to download an image from a URL and save it to a temporary file.
  */
@@ -115,6 +128,7 @@ async function applyMercariCookies(page, sessionCookie) {
  * @returns {Promise<Array>} Scraped products
  */
 async function scrapeMercariCloset(username, credentials = {}) {
+  await paceMercariRequest();
   console.log(`[Mercari Scraper] Fetching all listings (Active, Inactive, Sold) for ${username}...`);
   let browser = null;
   try {
@@ -281,6 +295,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
  * @returns {Promise<Object>} Published listing metadata
  */
 async function publishToMercari(listing, credentials = {}) {
+  await paceMercariRequest();
   const isEditing = !!(listing.mercariListingId && (listing.mercariStatus === 'published' || listing.mercariStatus === 'active' || listing.status === 'published' || listing.status === 'active'));
   console.log(`[Mercari Publisher] ${isEditing ? 'Updating' : 'Creating'} listing: ${listing.title} on Mercari (ID: ${listing.mercariListingId || 'NEW'})`);
   let browser = null;
@@ -875,6 +890,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
  * @returns {Promise<Object>}
  */
 async function reactivateMercariListing(mercariListingId, credentials = {}) {
+  await paceMercariRequest();
   console.log(`[Mercari Activator] Reactivating listing ${mercariListingId} (status: "on_sale")...`);
   let browser = null;
   try {
@@ -1664,6 +1680,7 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
  * @returns {Promise<Object>} Sync outcome metrics
  */
 async function syncMercariOrders(credentials = {}, userId = null) {
+  await paceMercariRequest();
   let browser = null;
   const Order = require('../models/Order');
 
@@ -1910,7 +1927,8 @@ module.exports = {
   verifyMercariListingStatus,
   getMercariProfile,
   fetchMercariItemDetails,
-  syncMercariOrders
+  syncMercariOrders,
+  paceMercariRequest
 };
 
 
