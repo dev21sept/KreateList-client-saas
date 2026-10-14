@@ -148,6 +148,17 @@ async function loginToMercari(username, password, sessionId, userId) {
     await page.type('input[type="email"], input[name="email"]', username, { delay: 50 });
     sessionState.latestScreenshot = await captureScreenshot(page);
 
+    // Mercari's current login is two steps: email first, then a "Continue" button reveals the
+    // password field on the next screen - it is not present alongside the email field at all.
+    const continueBtn = await page.$('button[type="submit"]');
+    if (continueBtn) {
+      await continueBtn.click();
+    } else {
+      await page.keyboard.press('Enter');
+    }
+    await new Promise(r => setTimeout(r, 1500));
+    sessionState.latestScreenshot = await captureScreenshot(page);
+
     await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 15000 });
     await page.type('input[type="password"], input[name="password"]', password, { delay: 50 });
     sessionState.latestScreenshot = await captureScreenshot(page);
