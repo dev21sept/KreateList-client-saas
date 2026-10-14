@@ -3,7 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
 const User = require('../models/User');
-const { paceMercariRequest } = require('./mercariService');
+const { paceMercariRequest, gotoWithRetry } = require('./mercariService');
 
 // Global map to hold active Mercari login sessions in memory
 const activeSessions = new Map();
@@ -21,36 +21,6 @@ async function captureScreenshot(page) {
     // Silent fail
   }
   return null;
-}
-
-/**
- * Cloudflare's bot-check on this login page is probabilistic, not a hard block: the same request
- * from the same IP sometimes passes straight through and sometimes shows the "Performing security
- * verification" interstitial (verified by hand - several retries in a row cleared it). A single
- * failed attempt is therefore not treated as final; this retries the navigation with a growing
- * delay before giving up for real.
- */
-async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, sessionState = null } = {}) {
-  let lastError;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const response = await page.goto(url, gotoOptions);
-      const status = response ? response.status() : 0;
-      const title = await page.title().catch(() => '');
-      const blocked = !response || status >= 400 || /just a moment/i.test(title);
-      if (!blocked) return response;
-      lastError = new Error(`Blocked by security check (status ${status}, title "${title}")`);
-    } catch (e) {
-      lastError = e;
-    }
-    if (attempt < maxAttempts) {
-      const waitMs = 5000 + attempt * 4000; // 9s, 13s, 17s
-      console.log(`[Mercari Login] Navigation attempt ${attempt}/${maxAttempts} blocked, retrying in ${waitMs}ms...`);
-      if (sessionState) sessionState.message = `Verifying... (attempt ${attempt}/${maxAttempts})`;
-      await new Promise(r => setTimeout(r, waitMs));
-    }
-  }
-  throw lastError;
 }
 
 /**
@@ -152,7 +122,10 @@ async function loginToMercari(username, password, sessionId, userId) {
     await gotoWithRetry(page, 'https://www.mercari.com/login/', {
       waitUntil: 'domcontentloaded',
       timeout: 45000
-    }, { sessionState });
+    }, {
+      label: 'Mercari Login',
+      onRetry: (attempt, maxAttempts) => { sessionState.message = `Verifying... (attempt ${attempt}/${maxAttempts})`; }
+    });
 
     // Dismiss cookie consent if present to prevent it from overlaying elements
     try {

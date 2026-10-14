@@ -21,6 +21,37 @@ async function paceMercariRequest() {
 }
 
 /**
+ * Cloudflare's bot-check on Mercari is probabilistic, not a hard block: the same request from the
+ * same IP sometimes passes straight through and sometimes shows the "Performing security
+ * verification" interstitial or a flat 403 - verified by hand, repeatedly, on both the login page
+ * and an authenticated account page. A single blocked navigation is therefore not treated as final;
+ * this retries with a growing delay before giving up for real. Used everywhere this process
+ * navigates a Mercari page: login, publish, reactivate, closet scrape.
+ */
+async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, label = 'Mercari', onRetry = null } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await page.goto(url, gotoOptions);
+      const status = response ? response.status() : 0;
+      const title = await page.title().catch(() => '');
+      const blocked = !response || status >= 400 || /just a moment/i.test(title);
+      if (!blocked) return response;
+      lastError = new Error(`Blocked by security check (status ${status}, title "${title}")`);
+    } catch (e) {
+      lastError = e;
+    }
+    if (attempt < maxAttempts) {
+      const waitMs = 5000 + attempt * 4000; // 9s, 13s, 17s
+      console.log(`[${label}] Navigation attempt ${attempt}/${maxAttempts} blocked, retrying in ${waitMs}ms...`);
+      if (onRetry) onRetry(attempt, maxAttempts);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Helper to download an image from a URL and save it to a temporary file.
  */
 async function downloadImageToTempFile(url) {
@@ -178,10 +209,10 @@ async function scrapeMercariCloset(username, credentials = {}) {
     const { token, sellerId } = extractMercariAuth(credentials);
 
     console.log(`[Mercari Scraper] Navigating to Mercari home (sellerId: ${sellerId})...`);
-    await page.goto('https://www.mercari.com/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/', {
       waitUntil: 'domcontentloaded',
       timeout: 30000
-    });
+    }, { label: 'Mercari Scraper' });
     await new Promise(r => setTimeout(r, 2000));
 
     console.log(`[Mercari Scraper] Querying Mercari GraphQL API for closet inventory...`);
@@ -398,7 +429,7 @@ async function publishToMercari(listing, credentials = {}) {
       // --- EDIT FLOW ---
       const editUrl = `https://www.mercari.com/sell/edit/${listing.mercariListingId}/`;
       console.log(`[Mercari Publisher] Navigating to Edit page: ${editUrl} ...`);
-      await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 35000 }, { label: 'Mercari Publisher' });
       
       const buttonSelectors = 'button[data-testid="ListButton"], button[data-testid="UpdateButton"], button[data-testid="SaveButton"], button[data-testid="ActivateDeactivateButton"], button[data-testid="SubmitButton"], button[type="submit"]';
       try {
@@ -493,10 +524,10 @@ async function publishToMercari(listing, credentials = {}) {
     } else {
       // --- CREATE NEW FLOW VIA DIRECT GRAPHQL NETWORK API ---
       console.log('[Mercari Publisher] Navigating to Sell page...');
-      await page.goto('https://www.mercari.com/sell/', {
+      await gotoWithRetry(page, 'https://www.mercari.com/sell/', {
         waitUntil: 'domcontentloaded',
         timeout: 35000
-      });
+      }, { label: 'Mercari Publisher' });
       await new Promise(r => setTimeout(r, 2500));
 
       if (page.url().includes('/signin/') || page.url().includes('/login/')) {
@@ -796,7 +827,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
 
     // Fast GraphQL status update path
     console.log(`[Mercari Deactivator] Navigating to active listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deactivator' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Deactivator] Executing UpdateItemStatusMutation (status: "stop") for ${mercariListingId}...`);
@@ -849,7 +880,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Deactivate button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Deactivator] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deactivator' });
     await page.waitForSelector('button[data-testid="ActivateDeactivateButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -924,7 +955,7 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
 
     // Fast GraphQL status update path
     console.log(`[Mercari Activator] Navigating to active listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Activator' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Activator] Executing UpdateItemStatusMutation (status: "on_sale") for ${mercariListingId}...`);
@@ -977,7 +1008,7 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Activate button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Activator] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Activator' });
     await page.waitForSelector('button[data-testid="ActivateDeactivateButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -1051,7 +1082,7 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
 
     // Fast GraphQL cancel mutation path
     console.log(`[Mercari Deletor] Navigating to listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deletor' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Deletor] Executing UpdateItemStatusMutation (status: "cancel") for ${mercariListingId}...`);
@@ -1104,7 +1135,7 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Delete button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Deletor] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deletor' });
     await page.waitForSelector('button[data-testid="DeleteButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -1195,7 +1226,7 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
     const { token, sellerId } = extractMercariAuth(credentials);
 
     await applyMercariCookies(page, credentials.sessionCookie);
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Status Check' });
     await new Promise(r => setTimeout(r, 1500));
 
     const checkResult = await page.evaluate(async (targetId, token, passedSellerId) => {
@@ -1416,10 +1447,10 @@ async function getMercariProfile(sessionCookie) {
     }
 
     console.log('[Mercari Profile Checker] Navigating to Profile Settings...');
-    await page.goto('https://www.mercari.com/mypage/profile/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/profile/', {
       waitUntil: 'domcontentloaded',
       timeout: 20000
-    });
+    }, { label: 'Mercari Profile Checker' });
 
     const currentUrl = page.url();
     if (currentUrl.includes('/login/') || currentUrl.includes('/signin/')) {
@@ -1588,7 +1619,7 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
 
     const { token } = extractMercariAuth(credentials);
 
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Item Details' });
     await new Promise(r => setTimeout(r, 1500));
 
     const result = await page.evaluate(async (token, itemId) => {
@@ -1734,7 +1765,7 @@ async function syncMercariOrders(credentials = {}, userId = null) {
 
     const { token, sellerId } = extractMercariAuth(credentials);
 
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Order Sync' });
     await new Promise(r => setTimeout(r, 1500));
 
     const scrapedOrders = await page.evaluate(async (token, passedSellerId) => {
@@ -1928,7 +1959,8 @@ module.exports = {
   getMercariProfile,
   fetchMercariItemDetails,
   syncMercariOrders,
-  paceMercariRequest
+  paceMercariRequest,
+  gotoWithRetry
 };
 
 
