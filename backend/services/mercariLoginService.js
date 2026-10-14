@@ -124,6 +124,7 @@ async function loginToMercari(username, password, sessionId, userId) {
       timeout: 45000
     }, {
       label: 'Mercari Login',
+      verifySelector: 'input[type="email"], input[name="email"]',
       onRetry: (attempt, maxAttempts) => { sessionState.message = `Verifying... (attempt ${attempt}/${maxAttempts})`; }
     });
 

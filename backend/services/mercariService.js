@@ -27,23 +27,39 @@ async function paceMercariRequest() {
  * and an authenticated account page. A single blocked navigation is therefore not treated as final;
  * this retries with a growing delay before giving up for real. Used everywhere this process
  * navigates a Mercari page: login, publish, reactivate, closet scrape.
+ *
+ * A third failure mode showed up alongside that: status 200, a normal (non-challenge) title, but
+ * the page is actually just the generic homepage shell - the real content (e.g. the login form)
+ * never mounted. `verifySelector` catches this: after a navigation that looks clean, it also
+ * confirms that selector actually appears within a short window; if not, the whole navigation is
+ * retried rather than letting the caller's own waitForSelector time out downstream with no context.
  */
-async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, label = 'Mercari', onRetry = null } = {}) {
+async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, label = 'Mercari', onRetry = null, verifySelector = null, verifyTimeout = 8000 } = {}) {
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let attemptError = null;
     try {
       const response = await page.goto(url, gotoOptions);
       const status = response ? response.status() : 0;
       const title = await page.title().catch(() => '');
-      const blocked = !response || status >= 400 || /just a moment/i.test(title);
+      let blocked = !response || status >= 400 || /just a moment/i.test(title);
+      if (blocked) {
+        attemptError = new Error(`Blocked by security check (status ${status}, title "${title}")`);
+      } else if (verifySelector) {
+        const found = await page.waitForSelector(verifySelector, { timeout: verifyTimeout }).catch(() => null);
+        if (!found) {
+          blocked = true;
+          attemptError = new Error(`Page loaded (status ${status}) but expected content "${verifySelector}" never appeared`);
+        }
+      }
       if (!blocked) return response;
-      lastError = new Error(`Blocked by security check (status ${status}, title "${title}")`);
     } catch (e) {
-      lastError = e;
+      attemptError = e;
     }
+    lastError = attemptError;
     if (attempt < maxAttempts) {
       const waitMs = 5000 + attempt * 4000; // 9s, 13s, 17s
-      console.log(`[${label}] Navigation attempt ${attempt}/${maxAttempts} blocked, retrying in ${waitMs}ms...`);
+      console.log(`[${label}] Navigation attempt ${attempt}/${maxAttempts} blocked (${lastError.message}), retrying in ${waitMs}ms...`);
       if (onRetry) onRetry(attempt, maxAttempts);
       await new Promise(r => setTimeout(r, waitMs));
     }
