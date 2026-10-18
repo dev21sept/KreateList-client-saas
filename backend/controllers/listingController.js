@@ -30,7 +30,9 @@ exports.getListings = async (req, res) => {
     const userId = req.user.id;
     const [listings, products] = await Promise.all([
       // A verified merge folds a duplicate into another record (mergedInto) instead of deleting it; hide those here.
-      Listing.find({ user: userId, mergedInto: null })
+      // A listing confirmed gone from every platform (status: 'delisted') is kept for its history but
+      // left out of the active inventory view - nothing to "List on X" or manage, so it is just clutter.
+      Listing.find({ user: userId, mergedInto: null, status: { $ne: 'delisted' } })
         .select('-description -itemSpecifics')
         .sort({ createdAt: -1 })
         .lean(),
