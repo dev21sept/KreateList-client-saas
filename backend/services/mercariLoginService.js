@@ -151,6 +151,15 @@ async function loginToMercari(username, password, sessionId, userId) {
 
     // Mercari's current login is two steps: email first, then a "Continue" button reveals the
     // password field on the next screen - it is not present alongside the email field at all.
+    // The button stays disabled until React re-renders after the typed value, so this waits for
+    // it to actually become clickable instead of racing it right after the last keystroke.
+    await page.waitForFunction(() => {
+      const btn = document.querySelector('button[type="submit"]');
+      return btn && !btn.disabled;
+    }, { timeout: 5000 }).catch(() => {
+      console.warn('[Mercari Login] Continue button never enabled within 5s, proceeding anyway...');
+    });
+
     const continueBtn = await page.$('button[type="submit"]');
     if (continueBtn) {
       await continueBtn.click();
