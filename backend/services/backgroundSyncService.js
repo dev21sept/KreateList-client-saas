@@ -618,7 +618,11 @@ async function runBackgroundInventorySyncCycle() {
               } else {
                 await Product.updateMany(
                   { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
-                  { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
+                  // status also flips here, not only when it was literally 'active' (see below) - a
+                  // product's status can read 'live' or other values, and leaving status untouched
+                  // keeps it eligible for the unlinked-import pass even once it's confirmed gone from
+                  // the closet entirely, recreating a fresh Listing for it every cycle forever.
+                  { $set: { poshmarkState: 'removed', status: 'inactive', updated_at: Date.now() } }
                 );
                 if (activePoshIds.size > 0) {
                   await Product.updateMany(
@@ -930,7 +934,7 @@ async function syncUserInventoryUnlocked(userId) {
         } else {
           await Product.updateMany(
             { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
-            { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
+            { $set: { poshmarkState: 'removed', status: 'inactive', updated_at: Date.now() } }
           );
           if (activePoshIds.size > 0) {
             await Product.updateMany(
