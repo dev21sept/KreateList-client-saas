@@ -825,8 +825,24 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -953,8 +969,24 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -1080,8 +1112,24 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    const proxyUrl = process.env.HTTP_PROXY_URL;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -1418,7 +1466,7 @@ async function getMercariProfile(sessionCookie) {
       ]
     };
 
-    const proxyUrl = process.env.PROXY_URL;
+    const proxyUrl = process.env.HTTP_PROXY_URL || process.env.PROXY_URL;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
