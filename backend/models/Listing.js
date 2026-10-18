@@ -227,5 +227,9 @@ listingSchema.index({ user: 1, status: 1 });
 listingSchema.index({ user: 1, ebayListingId: 1 });
 listingSchema.index({ user: 1, poshmarkListingId: 1 });
 listingSchema.index({ user: 1, mercariListingId: 1 });
+// The main inventory list query filters on exactly these two fields and sorts by createdAt - without
+// this, Mongo falls back to a broader user-only scan plus an in-memory sort, examining roughly twice
+// as many documents as it returns once a user's listing count gets into the thousands.
+listingSchema.index({ user: 1, mergedInto: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Listing || mongoose.model('Listing', listingSchema);

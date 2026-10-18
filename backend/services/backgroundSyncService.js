@@ -590,6 +590,13 @@ async function runBackgroundInventorySyncCycle() {
                       status: item.status === 'active' ? 'active' : 'inactive',
                       poshmarkState: item.poshmarkState,
                       poshmarkUrl: item.poshmarkUrl,
+                      // The scraper has read these from Poshmark for a while; this update just never
+                      // saved them, so every edit on a Poshmark-sourced item showed them blank.
+                      brand: item.brand || '',
+                      size: item.size || '',
+                      color: item.color || '',
+                      category: item.category || 'Clothing',
+                      categoryId: item.categoryId || '',
                       updated_at: Date.now()
                     }
                   },
@@ -910,6 +917,11 @@ async function syncUserInventoryUnlocked(userId) {
                 status: item.status === 'active' ? 'active' : 'inactive',
                 poshmarkState: item.poshmarkState,
                 poshmarkUrl: item.poshmarkUrl,
+                brand: item.brand || '',
+                size: item.size || '',
+                color: item.color || '',
+                category: item.category || 'Clothing',
+                categoryId: item.categoryId || '',
                 updated_at: Date.now()
               }
             },

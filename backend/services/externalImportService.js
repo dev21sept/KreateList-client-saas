@@ -756,6 +756,9 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             poshmarkUrl: fullUrl,
             brand: post.brand || '',
             size: post.size || '',
+            // Poshmark returns this as a `colors` array (same shape backendPublishService sends back
+            // when publishing), not a single `color` string - reading only `post.color` left it empty.
+            color: Array.isArray(post.colors) ? (post.colors[0] || '') : (post.color || post.color_name || ''),
             quantity: 1,
             status: isActive ? 'active' : 'inactive',
             // Real Poshmark state, so sold, hidden and active are not merged into one "inactive" bucket.
@@ -838,6 +841,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
                 poshmarkUrl: fullUrl,
                 brand: item.brand?.name || item.brand || '',
                 size: item.size || '',
+                color: Array.isArray(item.colors) ? (item.colors[0] || '') : (item.color?.name || item.color || ''),
                 quantity: 1,
                 status: isSchemaActive ? 'active' : 'inactive'
               });
