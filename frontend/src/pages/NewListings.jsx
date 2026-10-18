@@ -1023,31 +1023,50 @@ const NewListings = () => {
 
   const handleSyncAllMaster = async () => {
     setMasterSyncing(true);
+    // The actual sync (every platform + the live status recheck) runs in the background on the
+    // server and can easily take well past a few seconds - Mercari alone retries through a proxy.
+    // A single fixed-delay check was reading whatever lastSyncSummary happened to already be sitting
+    // there (often a stale one, missing the `live` breakdown), not this run's real result. Polling
+    // until a summary newer than this trigger shows up gets the actual, complete numbers instead.
+    const triggeredAt = new Date();
     try {
       toast.info('Syncing all connected marketplaces & reconciling inventory...');
       const res = await listingService.syncAll();
-      if (res.data?.success) {
-        toast.success(res.data.message || 'All marketplaces synchronized successfully!');
-        setLastLocalSyncTime(new Date());
-        setTimeout(async () => {
-          await fetchListings(true);
-          try {
-            const sumRes = await listingService.getSyncSummary();
-            if (sumRes.data?.data) {
-              const sum = sumRes.data.data;
-              setSyncStats({
-                totalProcessed: sum.totalProcessed || listings.length,
-                newItemsCount: sum.newItemsCount || 0,
-                mergedItemsCount: sum.mergedItemsCount || 0,
-                platforms: sum.platforms || [],
-                live: sum.live || null
-              });
-              setSyncCompleteModalOpen(true);
-            }
-          } catch (e) {}
-        }, 3000);
-      } else {
+      if (!res.data?.success) {
         toast.error(res.data?.message || 'Failed to sync marketplace inventory.');
+        setMasterSyncing(false);
+        return;
+      }
+      toast.success(res.data.message || 'All marketplaces synchronized successfully!');
+      setLastLocalSyncTime(new Date());
+
+      const maxWaitMs = 120000;
+      const pollIntervalMs = 4000;
+      const startedAt = Date.now();
+      let found = false;
+      while (Date.now() - startedAt < maxWaitMs) {
+        await new Promise(r => setTimeout(r, pollIntervalMs));
+        try {
+          const sumRes = await listingService.getSyncSummary();
+          const sum = sumRes.data?.data;
+          if (sum && sum.syncedAt && new Date(sum.syncedAt) > triggeredAt) {
+            await fetchListings(true);
+            setSyncStats({
+              totalProcessed: sum.totalProcessed || listings.length,
+              newItemsCount: sum.newItemsCount || 0,
+              mergedItemsCount: sum.mergedItemsCount || 0,
+              platforms: sum.platforms || [],
+              live: sum.live || null
+            });
+            setSyncCompleteModalOpen(true);
+            found = true;
+            break;
+          }
+        } catch (e) {}
+      }
+      if (!found) {
+        toast.info('Sync is taking longer than usual - it will keep running in the background.');
+        await fetchListings(true);
       }
     } catch (err) {
       console.error('Error syncing all inventory:', err);
