@@ -603,32 +603,46 @@ async function runBackgroundInventorySyncCycle() {
 
               // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
               const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
-              await Product.updateMany(
-                { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
-                { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
-              );
-              if (activePoshIds.size > 0) {
-                await Product.updateMany(
-                  {
-                    user: userId,
-                    source: 'poshmark',
-                    status: 'active',
-                    poshmarkListingId: { $nin: Array.from(activePoshIds) }
-                  },
-                  { $set: { status: 'inactive', updated_at: Date.now() } }
-                );
 
-                await Listing.updateMany(
-                  {
-                    user: userId,
-                    poshmarkListingId: { $nin: Array.from(activePoshIds) },
-                    poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
-                  },
-                  {
-                    $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
-                    $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
-                  }
+              // Safety: a scrape that comes back with far fewer active items than were already known
+              // live is more likely an incomplete/partial read (pagination hiccup, rate limit, a
+              // transient Poshmark error) than a sudden mass-delist. Clearing poshmarkListingId on a
+              // false read makes that record look "unlinked" to the next import pass, which then
+              // creates a brand new duplicate Listing for the exact same item - repeating every cycle
+              // and never actually fixing itself. Skipping the clearing step on a suspicious read costs
+              // one cycle of staleness; running it anyway costs an accumulating pile of ghost listings.
+              const previousActiveCount = await Listing.countDocuments({ user: userId, poshmarkStatus: { $in: ['published', 'active'] } });
+              const scrapeLooksIncomplete = previousActiveCount >= 10 && activePoshIds.size < previousActiveCount * 0.5;
+              if (scrapeLooksIncomplete) {
+                console.warn(`[Background Inventory Worker] Poshmark scrape for @${user.poshmarkAccount.username} looks incomplete (${activePoshIds.size} active vs ${previousActiveCount} previously known) - skipping removal/ID-clearing this cycle.`);
+              } else {
+                await Product.updateMany(
+                  { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+                  { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
                 );
+                if (activePoshIds.size > 0) {
+                  await Product.updateMany(
+                    {
+                      user: userId,
+                      source: 'poshmark',
+                      status: 'active',
+                      poshmarkListingId: { $nin: Array.from(activePoshIds) }
+                    },
+                    { $set: { status: 'inactive', updated_at: Date.now() } }
+                  );
+
+                  await Listing.updateMany(
+                    {
+                      user: userId,
+                      poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                      poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
+                    },
+                    {
+                      $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+                      $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+                    }
+                  );
+                }
               }
             }
           } catch (poshErr) {
@@ -905,32 +919,42 @@ async function syncUserInventoryUnlocked(userId) {
 
         // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
         const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
-        await Product.updateMany(
-          { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
-          { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
-        );
-        if (activePoshIds.size > 0) {
-          await Product.updateMany(
-            {
-              user: userId,
-              source: 'poshmark',
-              status: 'active',
-              poshmarkListingId: { $nin: Array.from(activePoshIds) }
-            },
-            { $set: { status: 'inactive', updated_at: Date.now() } }
-          );
 
-          await Listing.updateMany(
-            {
-              user: userId,
-              poshmarkListingId: { $nin: Array.from(activePoshIds) },
-              poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
-            },
-            {
-              $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
-              $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
-            }
+        // Safety: see the matching guard in runBackgroundInventorySyncCycle - a scrape with far fewer
+        // active items than already known live is more likely incomplete than a mass-delist, and
+        // clearing poshmarkListingId on a false read spawns a duplicate "unlinked" Listing every cycle.
+        const previousActiveCount = await Listing.countDocuments({ user: userId, poshmarkStatus: { $in: ['published', 'active'] } });
+        const scrapeLooksIncomplete = previousActiveCount >= 10 && activePoshIds.size < previousActiveCount * 0.5;
+        if (scrapeLooksIncomplete) {
+          console.warn(`[Sync User Inventory] Poshmark scrape for @${user.poshmarkAccount.username} looks incomplete (${activePoshIds.size} active vs ${previousActiveCount} previously known) - skipping removal/ID-clearing this run.`);
+        } else {
+          await Product.updateMany(
+            { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+            { $set: { poshmarkState: 'removed', updated_at: Date.now() } }
           );
+          if (activePoshIds.size > 0) {
+            await Product.updateMany(
+              {
+                user: userId,
+                source: 'poshmark',
+                status: 'active',
+                poshmarkListingId: { $nin: Array.from(activePoshIds) }
+              },
+              { $set: { status: 'inactive', updated_at: Date.now() } }
+            );
+
+            await Listing.updateMany(
+              {
+                user: userId,
+                poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
+              },
+              {
+                $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+                $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+              }
+            );
+          }
         }
         results.poshmark = { status: 'success', count: scraped.length };
       }
