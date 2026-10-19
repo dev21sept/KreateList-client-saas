@@ -16,6 +16,23 @@ let lastOrdersSyncTime = null;
 let ordersCronTask = null;
 let inventoryCronTask = null;
 
+// Shared per-user sync lock: the 12-hour background cron, the manual "Sync Now" button and each
+// platform's own "Sync X" button (e.g. poshmarkImportCloset) all scrape and write the same
+// Product/Listing records for a user. Without one shared lock across all three entry points, two
+// of them running at once race on the same documents - interleaved writes from two concurrent
+// closet scrapes can leave a record with a title from one pass and a status from another, and
+// doubles the real work (and Poshmark/eBay request volume) for no benefit.
+const userSyncInFlight = new Set();
+function acquireUserSyncLock(userId) {
+  const key = String(userId);
+  if (userSyncInFlight.has(key)) return false;
+  userSyncInFlight.add(key);
+  return true;
+}
+function releaseUserSyncLock(userId) {
+  userSyncInFlight.delete(String(userId));
+}
+
 /**
  * Reconciles all Orders for a user with Master Listings with SMART MULTI-TIER MATCHING.
  * - Ensures genuine sold orders accurately reflect as `status: 'sold'` in Master Crosslisting.
@@ -547,9 +564,12 @@ async function runBackgroundInventorySyncCycle() {
     });
 
     for (const user of users) {
+      const userId = user._id.toString();
+      if (!acquireUserSyncLock(userId)) {
+        console.log(`[Background Inventory Worker] A sync is already running for ${user.email} (manual trigger or another entry point); skipping this user for this cycle.`);
+        continue;
+      }
       try {
-        const userId = user._id.toString();
-
         // 1. eBay Inventory Sync
         const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
         if (isEbayConnected) {
@@ -783,6 +803,8 @@ async function runBackgroundInventorySyncCycle() {
 
       } catch (userErr) {
         console.error(`[Background Inventory Worker] Error processing user ${user.email}:`, userErr.message);
+      } finally {
+        releaseUserSyncLock(userId);
       }
     }
 
@@ -846,19 +868,19 @@ function stopBackgroundSyncWorker() {
 /**
  * Synchronizes live marketplace inventory for a specific user across all connected channels.
  */
-// One sync per user at a time: a second request (double click, cron overlap) would import the same items twice.
-const syncInFlight = new Set();
+// One sync per user at a time, shared with the background cron and each platform's own "Sync X"
+// button via acquireUserSyncLock/releaseUserSyncLock above - a second request (double click, cron
+// overlap, a dedicated-platform sync) would otherwise race the same records.
 async function syncUserInventory(userId) {
   const key = String(userId);
-  if (syncInFlight.has(key)) {
+  if (!acquireUserSyncLock(key)) {
     console.log(`[Sync User Inventory] A sync is already running for ${key}; skipping this request.`);
     return { skipped: 'already running' };
   }
-  syncInFlight.add(key);
   try {
     return await syncUserInventoryUnlocked(userId);
   } finally {
-    syncInFlight.delete(key);
+    releaseUserSyncLock(key);
   }
 }
 
@@ -1103,6 +1125,8 @@ module.exports = {
   syncUserInventory,
   recheckMasterListingStatuses,
   reconcileOrdersAndMasterListings,
-  autoImportAndMergeUnlinkedChannels
+  autoImportAndMergeUnlinkedChannels,
+  acquireUserSyncLock,
+  releaseUserSyncLock
 };
 

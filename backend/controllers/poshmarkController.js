@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const { scrapePoshmarkCloset } = require('../services/externalImportService');
 const { publishToPoshmark } = require('../services/backendPublishService');
 const { loginToPoshmark, verify2FA } = require('../services/poshmarkLoginService');
+const { acquireUserSyncLock, releaseUserSyncLock } = require('../services/backgroundSyncService');
 
 // @desc    Connect Poshmark credentials manually or via extension (cookies / token)
 // @route   POST /api/poshmark/connect
@@ -165,19 +166,27 @@ exports.poshmarkVerify2FA = async (req, res) => {
 // @route   POST /api/poshmark/import
 // @access  Private
 exports.poshmarkImportCloset = async (req, res) => {
+  // Shares the same per-user lock as the background cron and the manual "Sync Now" button: two of
+  // them scraping/writing this user's Poshmark products at once race the same documents.
+  if (!acquireUserSyncLock(req.user.id)) {
+    return res.status(409).json({
+      success: false,
+      message: 'A Poshmark sync is already running for your account. Please wait for it to finish.'
+    });
+  }
   try {
     const { username } = req.body;
-    
+
     if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Please provide Poshmark username' 
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide Poshmark username'
       });
     }
 
     const cleanUsername = username.trim();
     console.log(`[Poshmark Controller] Starting closet import for: ${cleanUsername}, UserID: ${req.user.id}`);
-    
+
     const user = await User.findById(req.user.id);
     const poshAccount = user?.poshmarkAccount || {};
     const scrapedListings = await scrapePoshmarkCloset(cleanUsername, poshAccount);
@@ -306,10 +315,12 @@ exports.poshmarkImportCloset = async (req, res) => {
 
   } catch (err) {
     console.error(`[Poshmark Controller] Error importing closet:`, err.message);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to import Poshmark closet: ${err.message}` 
+    res.status(500).json({
+      success: false,
+      message: `Failed to import Poshmark closet: ${err.message}`
     });
+  } finally {
+    releaseUserSyncLock(req.user.id);
   }
 };
 
