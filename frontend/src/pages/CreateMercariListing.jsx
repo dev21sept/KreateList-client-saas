@@ -398,10 +398,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
           quantity: mData.quantity || 1,
           size: mData.size || initialListing.size || '',
           sizeId: mData.sizeId || '',
-          category: mData.category || (initialListing.platform === 'mercari' ? initialListing.category : '') || '',
-          categoryId: mData.categoryId || '',
+          // The master Listing's own fields (title/description/category) are kept fresher by the
+          // merge/enrichment pipeline than the platformData.mercari snapshot, which can be stuck with
+          // a placeholder saved at initial import (e.g. description === title, category "Clothing").
+          // Prefer the master value whenever it looks like real data, not a leftover placeholder.
+          category: (initialListing.category && initialListing.category !== 'Clothing') ? initialListing.category : (mData.category || initialListing.category || ''),
+          categoryId: initialListing.categoryId || mData.categoryId || '',
           price: mData.price !== undefined ? mData.price : (initialListing.price || ''),
-          description: cleanMercariText(mData.description || initialListing.description || ''),
+          description: cleanMercariText(
+            (initialListing.description && initialListing.description !== initialListing.title) ? initialListing.description : (mData.description || initialListing.description || '')
+          ),
           selectedCondition: mapMercariCondition(mData.selectedCondition || mData.condition || initialListing.condition),
           sku: mData.sku || initialListing.sku || ''
         }));
@@ -442,17 +448,19 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
               size: mData.size || rawListing.size || prev.size,
               sizeId: mData.sizeId || prev.sizeId,
               category: resolveMercariCategory(
-                mData.category || (rawListing.platform === 'mercari' ? rawListing.category : '') || prev.category,
+                (rawListing.category && rawListing.category !== 'Clothing') ? rawListing.category : (mData.category || rawListing.category || prev.category),
                 rawListing.title || prev.title,
                 mData.brand || rawListing.brand || prev.brand
               ).category,
-              categoryId: mData.categoryId || (rawListing.platform === 'mercari' ? rawListing.categoryId : '') || resolveMercariCategory(
-                mData.category || (rawListing.platform === 'mercari' ? rawListing.category : '') || prev.category,
+              categoryId: rawListing.categoryId || mData.categoryId || resolveMercariCategory(
+                (rawListing.category && rawListing.category !== 'Clothing') ? rawListing.category : (mData.category || rawListing.category || prev.category),
                 rawListing.title || prev.title,
                 mData.brand || rawListing.brand || prev.brand
               ).categoryId,
               price: mData.price !== undefined ? mData.price : (rawListing.price || prev.price),
-              description: cleanMercariText(mData.description || rawListing.description || prev.description),
+              description: cleanMercariText(
+                (rawListing.description && rawListing.description !== rawListing.title) ? rawListing.description : (mData.description || rawListing.description || prev.description)
+              ),
               conditionNote: mData.conditionNote || rawListing.conditionNote || prev.conditionNote,
               sku: mData.sku || rawListing.sku || prev.sku
             }));
