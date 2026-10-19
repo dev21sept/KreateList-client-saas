@@ -1086,33 +1086,12 @@ async function syncUserInventoryUnlocked(userId) {
     console.warn(`[Sync User Inventory] Auto-import notice:`, autoErr.message);
   }
 
-  // 6. Record and calculate Sync Summary (New items vs Merged items)
-  try {
-    const connectedPlatforms = [];
-    if (isEbayConnected) connectedPlatforms.push('eBay');
-    if (user.poshmarkAccount?.connected) connectedPlatforms.push('Poshmark');
-    if (user.mercariAccount?.connected) connectedPlatforms.push('Mercari');
-    if (user.etsyAccount?.connected) connectedPlatforms.push('Etsy');
-
-    const totalProcessed = (results.ebay?.count || 0) + (results.poshmark?.count || 0) + (results.mercari?.count || 0) + (results.etsy?.count || 0);
-    
-    const allUserListings = await Listing.find({ user: userId, status: { $ne: 'sold' } }).lean();
-
-    user.lastSyncSummary = {
-      syncedAt: new Date(),
-      totalProcessed: totalProcessed || allUserListings.length,
-      newItemsCount: newItemsCount,
-      mergedItemsCount: mergedItemsCount,
-      platforms: connectedPlatforms,
-      live: liveResult ? { active: liveResult.live.active, delisted: liveResult.live.delisted, sold: liveResult.live.sold, changed: liveResult.changed } : undefined,
-      shownToUser: false
-    };
-    user.markModified('lastSyncSummary');
-    await user.save();
-    console.log(`[Sync Summary] Recorded for User ${userId}: Processed=${totalProcessed || allUserListings.length}, New=${newItemsCount}, Merged=${mergedItemsCount}`);
-  } catch (sumErr) {
-    console.warn(`[Sync Summary] Failed to record sync summary:`, sumErr.message);
-  }
+  // Manual "Sync Now" runs do not touch lastSyncSummary / the "Sync Complete" popup. That popup is
+  // meant to always reflect the 12-hour background cron's result and to surface once per login - a
+  // manual click overwriting it with its own (often much smaller, same-minute) numbers made the popup
+  // show stale-looking "+0 / 0" results instead of the real 12-hour reconciliation. Only
+  // runBackgroundInventorySyncCycle below writes lastSyncSummary now.
+  console.log(`[Sync Summary] Manual sync finished for User ${userId}: New=${newItemsCount}, Merged=${mergedItemsCount} (not recorded to lastSyncSummary - that reflects the 12-hour cron only)`);
 
   return results;
 }
