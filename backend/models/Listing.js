@@ -112,6 +112,7 @@ const listingSchema = new mongoose.Schema({
   shippingPrice: String,
   originalPrice: String,
   color: String,
+  gender: String,
   styleTag: String,
   age: String,
   source: String,

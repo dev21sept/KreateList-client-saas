@@ -33,6 +33,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import { resolvePoshmarkCategory, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POSHMARK_COLORS = [
@@ -741,6 +742,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
     selectedCondition: 'Good',
     title: '',
     department: 'Women',
+    gender: 'Not Required',
     category: '',
     subcategory: '',
     brand: '',
@@ -788,6 +790,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
         );
         const rawBrand = pData.brand || initialListing.brand || initialListing.itemSpecifics?.Brand || initialListing.itemSpecifics?.['Brand'] || '';
         const rawSize = pData.size || initialListing.size || initialListing.itemSpecifics?.Size || initialListing.itemSpecifics?.['Size'] || initialListing.itemSpecifics?.['Size (Men\'s)'] || initialListing.itemSpecifics?.['Size (Women\'s)'] || '';
+        const rawGender = pData.gender || initialListing.gender || '';
         const rawColors = Array.isArray(pData.colors) && pData.colors.length > 0
           ? pData.colors
           : (pData.color ? [pData.color] : (Array.isArray(initialListing.colors) && initialListing.colors.length > 0 ? initialListing.colors : (initialListing.color ? [initialListing.color] : (initialListing.itemSpecifics?.Color ? [initialListing.itemSpecifics.Color] : []))));
@@ -802,6 +805,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
           category: resolvedCat.path || '',
           subcategory: pData.subcategory || '',
           department: pData.department || resolvedCat.department || initialListing.department || initialListing.itemSpecifics?.Department || 'Women',
+          gender: rawGender || 'Not Required',
           brand: rawBrand,
           size: rawSize,
           colors: rawColors,
@@ -851,6 +855,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
               category: resolvedCat.path || prev.category,
               subcategory: pData.subcategory || raw.subcategory || prev.subcategory,
               department: pData.department || resolvedCat.department || raw.department || raw.itemSpecifics?.Department || prev.department,
+              gender: pData.gender || raw.gender || prev.gender,
               brand: rawBrand || prev.brand,
               size: rawSize || prev.size,
               colors: rawColors.length > 0 ? rawColors : prev.colors,
@@ -908,6 +913,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -976,6 +982,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
         selectedRule: formData.selectedRule,
         title: formData.title,
         department: formData.department,
+        gender: formData.gender,
         category: formData.category,
         subcategory: formData.subcategory,
         brand: formData.brand,
@@ -1293,7 +1300,7 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
             </div>
 
             {/* Brand & Size Search Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand Name</label>
                 <PoshmarkBrandDropdown 
@@ -1311,6 +1318,17 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
                   department={formData.department}
                   placeholder="Select size or type custom..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
+                <select
+                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import PlatformLogo from '../components/PlatformLogo';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -179,6 +180,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
     quantity: '1',
     sku: '',
     conditionNote: '',
+    gender: 'Not Required',
     asin: '',
     standardProductId: { idType: 'UPC', value: '' },
     bulletPoints: ['', '', '', ''],
@@ -218,6 +220,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
           images: initialListing.images || [],
           title: aData.title || initialListing.title || '',
           brand: aData.brand || initialListing.brand || '',
+          gender: aData.gender || initialListing.gender || prev.gender,
           price: aData.price !== undefined ? aData.price : (initialListing.price || ''),
           description: aData.description || initialListing.description || '',
           productType: aData.productType || 'PRODUCT',
@@ -244,6 +247,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
               images: (raw.images && raw.images.length > 0) ? raw.images : (aData.images || []),
               title: aData.title || raw.title || prev.title,
               brand: aData.brand || raw.brand || prev.brand,
+              gender: aData.gender || raw.gender || prev.gender,
               price: aData.price !== undefined ? aData.price : (raw.price || prev.price),
               description: aData.description || raw.description || prev.description,
               productType: aData.productType || prev.productType,
@@ -304,6 +308,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -386,6 +391,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
         quantity: formData.quantity,
         sku: formData.sku,
         conditionNote: formData.conditionNote,
+        gender: formData.gender,
         asin: formData.asin,
         standardProductId: formData.standardProductId,
         bulletPoints: formData.bulletPoints.filter(b => b.trim().length > 0),
@@ -605,7 +611,7 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Condition</label>
                   <SearchableDropdown 
@@ -617,8 +623,19 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
                 </div>
 
                 <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                     options={modelOptions}

@@ -37,6 +37,7 @@ import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import { resolveMercariCategory, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
@@ -251,6 +252,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
     price: '',
     description: '',
     conditionNote: '',
+    gender: 'Not Required',
     sku: '',
     selectedModel: 'gpt-4o-mini'
   });
@@ -380,6 +382,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
           title: mData.title || initialListing.title || '',
           brand: mData.brand || initialListing.brand || '',
           brandId: mData.brandId || '',
+          gender: mData.gender || initialListing.gender || prev.gender,
           originalPrice: mData.originalPrice || initialListing.originalPrice || '',
           shippingPayer: mData.shippingPayer || 'buyer',
           shippingMethod: mData.shippingMethod || 'prepaid',
@@ -535,6 +538,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -624,6 +628,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         price: formData.price,
         description: formData.description,
         conditionNote: formData.conditionNote,
+        gender: formData.gender,
         sku: formData.sku,
         platformData: {
           mercari: {
@@ -936,7 +941,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
             </div>
 
             {/* Brand, Condition, Size */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Brand Autocomplete */}
               <div className="relative" ref={brandDropdownRef}>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand</label>
@@ -997,6 +1002,17 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
                     placeholder="e.g. Medium, 10, One Size"
                   />
                 )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
+                <select
+                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
             </div>
 

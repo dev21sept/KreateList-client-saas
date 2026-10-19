@@ -43,6 +43,7 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import PriceRecommendationCard from '../components/pricing/PriceRecommendationCard';
 
 // Books and media conditions do not apply to clothing listings, so they are hidden from the picker.
@@ -477,6 +478,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
     price: '',
     description: '',
     conditionNote: '',
+    gender: 'Not Required',
     selectedAspects: {},
     sku: '',
     selectedModel: 'gpt-4o-mini',
@@ -578,6 +580,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         const b = initialListing.brand || eData.brand || rawAspects['Brand']?.[0] || '';
         const s = initialListing.size || eData.size || rawAspects['Size']?.[0] || '';
         const c = initialListing.color || eData.color || rawAspects['Color']?.[0] || '';
+        const g = initialListing.gender || eData.gender || '';
         if (b && !rawAspects['Brand']) rawAspects['Brand'] = [b];
         if (s && !rawAspects['Size']) rawAspects['Size'] = [s];
         if (c && !rawAspects['Color']) rawAspects['Color'] = [c];
@@ -592,6 +595,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           categoryId: eData.categoryId || (initialListing.platform === 'ebay' ? initialListing.categoryId : '') || '',
           selectedAspects: { ...prev.selectedAspects, ...rawAspects },
           sku: eData.sku || initialListing.sku || '',
+          gender: g || prev.gender,
           conditionId: eData.conditionId || mapEbayCondition(initialListing.condition),
           yourCost: eData.yourCost || prev.yourCost,
           format: eData.format || prev.format,
@@ -664,6 +668,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               ).categoryId || prev.categoryId),
               selectedAspects: { ...prev.selectedAspects, ...rawAspects },
               sku: eData.sku || raw.sku || prev.sku,
+              gender: eData.gender || raw.gender || prev.gender,
               fulfillmentPolicyId: eData.fulfillmentPolicyId || prev.fulfillmentPolicyId,
               paymentPolicyId: eData.paymentPolicyId || prev.paymentPolicyId,
               returnPolicyId: eData.returnPolicyId || prev.returnPolicyId,
@@ -763,6 +768,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Pre-owned - Good',
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -962,6 +968,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         description: formData.description,
         conditionId: formData.conditionId,
         conditionNote: formData.conditionNote,
+        gender: formData.gender,
         selectedAspects: formData.selectedAspects,
         itemSpecifics: formData.selectedAspects,
         sku: formData.sku,
@@ -1402,6 +1409,16 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   onChange={(e) => setFormData(prev => ({ ...prev, conditionNote: e.target.value }))}
                   placeholder="e.g. Minor wear, intact and fully functional"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
+                <select
+                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
             </div>
           </div>

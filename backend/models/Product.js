@@ -15,6 +15,7 @@ const productSchema = new mongoose.Schema({
   brand: String,
   size: String,
   color: String,
+  gender: String,
   categoryId: String,
   itemSpecifics: mongoose.Schema.Types.Mixed,
   images: [String],
