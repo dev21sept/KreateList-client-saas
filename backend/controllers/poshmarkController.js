@@ -260,8 +260,16 @@ exports.poshmarkImportCloset = async (req, res) => {
     }
 
     // Reconcile: a record whose Poshmark post is not in the closet anymore is removed from Poshmark.
+    // Safety: scrapePoshmarkCloset falls back to an unauthenticated public-page scrape when the
+    // authenticated REST call times out/fails, and that fallback can return a tiny fraction of the
+    // real closet (sometimes 0). Reconciling against a partial read marks genuinely-active items
+    // "removed", which this count check (mirrors backgroundSyncService.js's own guard) prevents.
     let removedCount = 0;
-    if (scrapedListings.length > 0) {
+    const previouslyActiveCount = await Product.countDocuments({ user: req.user.id, source: 'poshmark', poshmarkState: { $ne: 'removed' } });
+    const scrapeLooksIncomplete = previouslyActiveCount >= 10 && scrapedPoshmarkIds.size < previouslyActiveCount * 0.5;
+    if (scrapeLooksIncomplete) {
+      console.warn(`[Poshmark Controller] Closet scrape for ${cleanUsername} looks incomplete (${scrapedPoshmarkIds.size} items vs ${previouslyActiveCount} previously known active) - skipping removal reconcile this run.`);
+    } else if (scrapedListings.length > 0) {
       const allDbProducts = await Product.find({ user: req.user.id, source: 'poshmark' });
       for (const dbP of allDbProducts) {
         const matched = (dbP.poshmarkListingId && scrapedPoshmarkIds.has(dbP.poshmarkListingId)) ||
