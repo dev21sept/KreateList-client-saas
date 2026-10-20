@@ -1227,13 +1227,24 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                     options={modelOptions}
                     placeholder="Select model..."
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                <select
+                  className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
 
               <Button
@@ -1300,10 +1311,10 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
             </div>
 
             {/* Brand & Size Search Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand Name</label>
-                <PoshmarkBrandDropdown 
+                <PoshmarkBrandDropdown
                   value={formData.brand}
                   onChange={(val) => setFormData(prev => ({ ...prev, brand: val }))}
                   placeholder="Search brand (Nike, Lululemon, Zara, Coach...)"
@@ -1312,23 +1323,12 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Size *</label>
-                <PoshmarkSizeDropdown 
+                <PoshmarkSizeDropdown
                   value={formData.size}
                   onChange={(val) => setFormData(prev => ({ ...prev, size: val }))}
                   department={formData.department}
                   placeholder="Select size or type custom..."
                 />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
-                <select
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.gender}
-                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                >
-                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
               </div>
             </div>
 

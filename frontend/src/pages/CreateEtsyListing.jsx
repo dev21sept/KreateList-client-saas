@@ -653,12 +653,23 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                <SearchableDropdown 
+                <SearchableDropdown
                   value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                   onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                   options={modelOptions}
                   placeholder="Select model..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                <select
+                  className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
 
               <Button
@@ -746,16 +757,6 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Gender</label>
-                <select
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.gender}
-                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                >
-                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
             </div>
 
             {/* Price, Quantity, SKU */}
