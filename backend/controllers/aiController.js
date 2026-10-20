@@ -455,6 +455,20 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
             aspectNamesList = ['Brand', 'Type', 'Size', 'Color', 'Material', 'Condition', 'Style', 'Department'];
         }
 
+        // eBay rejects/flags an aspect value that isn't one of its own recommended values for that
+        // category (shown to the seller as "Value is not from the Dropdown"). Free-generating text
+        // for every aspect - as the prompt used to - ignored that constraint entirely. For any aspect
+        // that HAS a fixed value list, the AI must pick one of those values verbatim; aspects with no
+        // fixed list (free text, e.g. Model) are unconstrained.
+        const MAX_ASPECT_VALUES_IN_PROMPT = 60;
+        const constrainedAspects = officialAspects.filter(a => a.aspectValues && a.aspectValues.length > 0);
+        const aspectValueConstraintsText = constrainedAspects.length > 0
+            ? constrainedAspects.map(a => {
+                const values = a.aspectValues.map(v => v.localizedValue).slice(0, MAX_ASPECT_VALUES_IN_PROMPT);
+                return `   - "${a.localizedAspectName}": MUST be exactly one of [${values.map(v => `"${v}"`).join(', ')}]${a.aspectValues.length > MAX_ASPECT_VALUES_IN_PROMPT ? ' (list truncated - pick the closest match)' : ''}`;
+              }).join('\n')
+            : '';
+
         // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
 
@@ -518,6 +532,7 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
 ${descriptionInstruction}
    
 3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}.
+${aspectValueConstraintsText ? `   CRITICAL - eBay only accepts specific values for some of these fields. For those fields you MUST choose a value EXACTLY as written (same spelling/casing) from its list below - never invent your own wording, even if it seems more accurate, and never leave it blank just because the exact value isn't obvious; pick the closest match from the list instead:\n${aspectValueConstraintsText}` : ''}
     
 4. Pricing: Estimate a realistic 'selling_price' in USD.
 
@@ -564,6 +579,31 @@ Response ONLY as JSON: {
 
         if (!finalData) {
             throw new Error("OpenAI returned an empty or invalid JSON response.");
+        }
+
+        // Safety net: the prompt asks the model to only use eBay's own aspect values, but it doesn't
+        // always comply exactly (wrong casing, a close paraphrase, etc). Snap each constrained aspect
+        // to its real eBay value when there's a confident match, instead of shipping free text that
+        // eBay's UI would flag as "Value is not from the Dropdown".
+        if (finalData.item_specifics && constrainedAspects.length > 0) {
+            for (const aspect of constrainedAspects) {
+                const aspectKey = Object.keys(finalData.item_specifics).find(k => k.toLowerCase() === aspect.localizedAspectName.toLowerCase());
+                if (!aspectKey) continue;
+                const aiValue = String(finalData.item_specifics[aspectKey] || '').trim();
+                if (!aiValue) continue;
+                const allowedValues = aspect.aspectValues.map(v => v.localizedValue);
+                const exactMatch = allowedValues.find(v => v.toLowerCase() === aiValue.toLowerCase());
+                if (exactMatch) {
+                    finalData.item_specifics[aspectKey] = exactMatch;
+                    continue;
+                }
+                const partialMatch = allowedValues.find(v => aiValue.toLowerCase().includes(v.toLowerCase()) || v.toLowerCase().includes(aiValue.toLowerCase()));
+                if (partialMatch) {
+                    finalData.item_specifics[aspectKey] = partialMatch;
+                } else {
+                    console.warn(`[AI] Item specific "${aspect.localizedAspectName}" = "${aiValue}" has no close match in eBay's allowed values; leaving as-is.`);
+                }
+            }
         }
 
         // --- DYNAMIC SKU GENERATION ---
