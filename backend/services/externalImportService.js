@@ -756,9 +756,19 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             poshmarkUrl: fullUrl,
             brand: post.brand || '',
             size: post.size || '',
-            // Poshmark returns this as a `colors` array (same shape backendPublishService sends back
-            // when publishing), not a single `color` string - reading only `post.color` left it empty.
-            color: Array.isArray(post.colors) ? (post.colors[0] || '') : (post.color || post.color_name || ''),
+            // Poshmark returns color as a `colors` array (same shape backendPublishService sends back
+            // when publishing) or as a single `color`/`color_name` field - and either one can itself be
+            // a catalog object ({name, rgb, message_id}), not a plain string. Product.color is a String
+            // field, so passing the raw object through made Mongoose's schema cast silently drop the
+            // ENTIRE bulkWrite update for that item (not just the color field) - this is why most of a
+            // closet's items never actually got their sync applied, regardless of how complete/correct
+            // the rest of the scrape was. Always resolve to a plain string here.
+            color: (() => {
+              const raw = Array.isArray(post.colors) ? post.colors[0] : (post.color || post.color_name);
+              if (!raw) return '';
+              if (typeof raw === 'string') return raw;
+              return raw.name || raw.message_id || '';
+            })(),
             quantity: 1,
             status: isActive ? 'active' : 'inactive',
             // Real Poshmark state, so sold, hidden and active are not merged into one "inactive" bucket.
@@ -841,7 +851,11 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
                 poshmarkUrl: fullUrl,
                 brand: item.brand?.name || item.brand || '',
                 size: item.size || '',
-                color: Array.isArray(item.colors) ? (item.colors[0] || '') : (item.color?.name || item.color || ''),
+                color: (() => {
+                  const raw = Array.isArray(item.colors) ? item.colors[0] : item.color;
+                  if (!raw) return '';
+                  return typeof raw === 'string' ? raw : (raw.name || raw.message_id || '');
+                })(),
                 quantity: 1,
                 status: isSchemaActive ? 'active' : 'inactive'
               });

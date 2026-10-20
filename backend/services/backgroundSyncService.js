@@ -625,7 +625,17 @@ async function runBackgroundInventorySyncCycle() {
               }));
 
               if (poshOps.length > 0) {
-                await Product.bulkWrite(poshOps, { ordered: false });
+                // See the matching comment in syncUserInventoryUnlocked's Poshmark block: a schema-cast
+                // failure on one $set field silently drops that op under ordered:false, with no thrown
+                // error - this warning is the only signal a recurrence would otherwise leave behind.
+                try {
+                  const bwResult = await Product.bulkWrite(poshOps, { ordered: false });
+                  if (bwResult.matchedCount + bwResult.upsertedCount < poshOps.length * 0.9) {
+                    console.warn(`[Background Inventory Worker] Poshmark bulkWrite only touched ${bwResult.matchedCount + bwResult.upsertedCount}/${poshOps.length} ops (matched=${bwResult.matchedCount}, upserted=${bwResult.upsertedCount}) - check for a schema-cast mismatch on one of the $set fields.`);
+                  }
+                } catch (bwErr) {
+                  console.error(`[Background Inventory Worker] Poshmark bulkWrite failed:`, bwErr.message);
+                }
               }
 
               // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
@@ -952,7 +962,19 @@ async function syncUserInventoryUnlocked(userId) {
         }));
 
         if (poshOps.length > 0) {
-          await Product.bulkWrite(poshOps, { ordered: false });
+          // A schema-cast failure on any single $set field (e.g. a non-string value reaching a
+          // String field) silently drops that whole op from the batch under ordered:false, with
+          // matchedCount/modifiedCount just coming back lower - no thrown error, no write-error entry.
+          // That's exactly how a bad `color` value once left most of a closet's items unsynced while
+          // looking like a normal "success" result. Logging the counts makes a recurrence visible.
+          try {
+            const bwResult = await Product.bulkWrite(poshOps, { ordered: false });
+            if (bwResult.matchedCount + bwResult.upsertedCount < poshOps.length * 0.9) {
+              console.warn(`[Sync User Inventory] Poshmark bulkWrite only touched ${bwResult.matchedCount + bwResult.upsertedCount}/${poshOps.length} ops (matched=${bwResult.matchedCount}, upserted=${bwResult.upsertedCount}) - check for a schema-cast mismatch on one of the $set fields.`);
+            }
+          } catch (bwErr) {
+            console.error(`[Sync User Inventory] Poshmark bulkWrite failed:`, bwErr.message);
+          }
         }
 
         // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
