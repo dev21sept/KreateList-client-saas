@@ -422,7 +422,12 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
                         localizedAspectName: aspect.localizedAspectName,
                         aspectConstraint: {
                             aspectRequired: aspect.aspectConstraint?.aspectRequired || false,
-                            aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL'
+                            aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL',
+                            // SELECTION_ONLY = eBay rejects anything outside the list (must constrain).
+                            // FREE_TEXT = the list is just eBay's suggested/common values - real text
+                            // outside it is still valid, so a huge list (Brand can have 9000+ values)
+                            // isn't something to truncate-and-force; it's one to leave unconstrained.
+                            aspectMode: aspect.aspectConstraint?.aspectMode || 'FREE_TEXT'
                         },
                         aspectValues: aspect.aspectValues ? aspect.aspectValues.map(v => ({ localizedValue: v.localizedValue })) : []
                     }));
@@ -456,18 +461,38 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
         }
 
         // eBay rejects/flags an aspect value that isn't one of its own recommended values for that
-        // category (shown to the seller as "Value is not from the Dropdown"). Free-generating text
-        // for every aspect - as the prompt used to - ignored that constraint entirely. For any aspect
-        // that HAS a fixed value list, the AI must pick one of those values verbatim; aspects with no
-        // fixed list (free text, e.g. Model) are unconstrained.
-        const MAX_ASPECT_VALUES_IN_PROMPT = 60;
-        const constrainedAspects = officialAspects.filter(a => a.aspectValues && a.aspectValues.length > 0);
-        const aspectValueConstraintsText = constrainedAspects.length > 0
-            ? constrainedAspects.map(a => {
-                const values = a.aspectValues.map(v => v.localizedValue).slice(0, MAX_ASPECT_VALUES_IN_PROMPT);
-                return `   - "${a.localizedAspectName}": MUST be exactly one of [${values.map(v => `"${v}"`).join(', ')}]${a.aspectValues.length > MAX_ASPECT_VALUES_IN_PROMPT ? ' (list truncated - pick the closest match)' : ''}`;
-              }).join('\n')
-            : '';
+        // category (shown to the seller as "Value is not from the Dropdown"). But a category's aspect
+        // value lists range from tiny (Color: ~17) to Brand's own list of 9000+ values - sending that
+        // whole list, or even a truncated slice of it, to the model is both wasteful and useless (the
+        // real brand in the photo is rarely in whichever 9000-item slice gets sent). eBay's own
+        // `aspectMode` tells us which aspects actually require list-matching:
+        //   SELECTION_ONLY - eBay hard-rejects anything else, so the full list must be sent regardless
+        //                    of size (in practice these lists stay small/bounded, e.g. Country of
+        //                    Origin's ~244 countries).
+        //   FREE_TEXT      - the list is just eBay's common/suggested values; real, accurate text
+        //                    outside it is still accepted. Only worth constraining when the list is
+        //                    small enough to plausibly contain the real answer and cheap to send.
+        const MAX_SELECTION_ONLY_VALUES = 300;
+        const MAX_FREE_TEXT_SUGGESTION_VALUES = 80;
+        const mustMatchAspects = officialAspects.filter(a =>
+            a.aspectValues?.length > 0 && a.aspectConstraint.aspectMode === 'SELECTION_ONLY'
+        );
+        const suggestedAspects = officialAspects.filter(a =>
+            a.aspectValues?.length > 0 && a.aspectConstraint.aspectMode !== 'SELECTION_ONLY' &&
+            a.aspectValues.length <= MAX_FREE_TEXT_SUGGESTION_VALUES
+        );
+        const aspectValueConstraintsText = [
+            ...mustMatchAspects.map(a => {
+                const values = a.aspectValues.map(v => v.localizedValue).slice(0, MAX_SELECTION_ONLY_VALUES);
+                return `   - "${a.localizedAspectName}": MUST be exactly one of [${values.map(v => `"${v}"`).join(', ')}] (eBay rejects any other value for this field)`;
+            }),
+            ...suggestedAspects.map(a => {
+                const values = a.aspectValues.map(v => v.localizedValue);
+                return `   - "${a.localizedAspectName}": prefer one of [${values.map(v => `"${v}"`).join(', ')}] if it accurately describes the item; otherwise use accurate text of your own`;
+            })
+        ].join('\n');
+        // Only SELECTION_ONLY aspects are hard constraints the response gets snapped back to.
+        const constrainedAspects = mustMatchAspects;
 
         // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
@@ -532,7 +557,7 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
 ${descriptionInstruction}
    
 3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}.
-${aspectValueConstraintsText ? `   CRITICAL - eBay only accepts specific values for some of these fields. For those fields you MUST choose a value EXACTLY as written (same spelling/casing) from its list below - never invent your own wording, even if it seems more accurate, and never leave it blank just because the exact value isn't obvious; pick the closest match from the list instead:\n${aspectValueConstraintsText}` : ''}
+${aspectValueConstraintsText ? `   Field-specific rules (read carefully - "MUST" fields are hard-rejected by eBay if you use anything else; "prefer" fields accept your own accurate text when nothing in the list fits):\n${aspectValueConstraintsText}` : ''}
     
 4. Pricing: Estimate a realistic 'selling_price' in USD.
 
