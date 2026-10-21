@@ -86,7 +86,19 @@ function mapToPoshmarkCategory({ ebayPath = '', title = '', gender = null } = {}
   if (!targetWords) return null;
 
   const matches = POSHMARK_TAXONOMY.filter(entry => inGender(entry) && wordSet(singularKey(entry.path.split(' > ').pop())) === targetWords);
-  return matches.length ? toResult(matches[0]) : null;
+  if (matches.length) return toResult(matches[0]);
+
+  // 3. eBay's leaf IS one of Poshmark's own generic groups ("Jeans", "Dresses", "Jackets") rather than
+  // a specific subtype ("Straight Leg", "Maxi") - every subtype under one group shares the same
+  // categoryId/departmentId (Poshmark's publish API only needs that pair; the subtype only changes
+  // Poshmark's own display label), so any entry in the group satisfies publishing just as well as
+  // guessing the "right" subtype would, and leaves the actual subtype pick to the seller instead of
+  // silently blocking the whole listing.
+  const groupMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const middle = entry.path.split(' > ');
+    return middle.length === 3 && inGender(entry) && singularKey(middle[1]) === leafKey;
+  });
+  return groupMatches.length ? toResult(groupMatches[0]) : null;
 }
 
 function toResult(entry) {

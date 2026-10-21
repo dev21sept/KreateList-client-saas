@@ -2193,7 +2193,19 @@ const CreateMasterListing = ({
       const savedListing = res.data?.data;
       const targetListingId = activeId || savedListing?._id || savedListing?.id;
 
-      toast.info(`Updating on ${targetPlatforms.map(p => p.toUpperCase()).join(', ')}...`);
+      // A platform the item has no live ID on yet is being listed for the first time, not updated -
+      // the "List on Poshmark" button text already reflects that; the toast after clicking it should too.
+      const hasLiveId = (plat) => {
+        const idField = `${plat}ListingId`;
+        const id = initialListing?.[idField] || initialListing?.platformData?.[plat]?.[idField];
+        return Boolean(id && id !== '-' && id !== 'undefined' && id !== 'null');
+      };
+      const newPlats = targetPlatforms.filter(p => !hasLiveId(p));
+      const updatingPlats = targetPlatforms.filter(p => hasLiveId(p));
+      const toastParts = [];
+      if (newPlats.length) toastParts.push(`Listing on ${newPlats.map(p => p.toUpperCase()).join(', ')}`);
+      if (updatingPlats.length) toastParts.push(`Updating on ${updatingPlats.map(p => p.toUpperCase()).join(', ')}`);
+      toast.info(`${toastParts.join(' / ')}...`);
 
       const syncResults = await Promise.allSettled(
         targetPlatforms.map(async (plat) => {
