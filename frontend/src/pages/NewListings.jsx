@@ -2717,6 +2717,13 @@ const NewListings = () => {
   const [activeListedDropdown, setActiveListedDropdown] = useState(null);
   const [activeMasterDropdown, setActiveMasterDropdown] = useState(null);
 
+  // "Link Existing Listing" modal - manually attach a platform's real listing (by URL/ID) onto
+  // this item when the auto-merge scan never matched it (e.g. a title/SKU mismatch).
+  const [linkExistingModal, setLinkExistingModal] = useState(null); // { item }
+  const [linkExistingPlatform, setLinkExistingPlatform] = useState('poshmark');
+  const [linkExistingUrl, setLinkExistingUrl] = useState('');
+  const [linkExistingSubmitting, setLinkExistingSubmitting] = useState(false);
+
   useEffect(() => {
     const handleClickOutside = () => {
       setActiveListedDropdown(null);
@@ -2835,6 +2842,20 @@ const NewListings = () => {
           <span>Edit Listing</span>
         </button>
 
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMasterDropdown(null);
+            setLinkExistingPlatform('poshmark');
+            setLinkExistingUrl('');
+            setLinkExistingModal({ item });
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer text-left"
+        >
+          <GitMerge size={13} className="text-slate-400" />
+          <span>Link Existing Listing</span>
+        </button>
+
         <div className="h-px bg-slate-100 my-1" />
 
         <button
@@ -2894,6 +2915,30 @@ const NewListings = () => {
       : item;
     const targetId = targetItem._id || item._id;
     navigate(`/create-${platformName}-listing?edit=${targetId}`);
+  };
+
+  const handleLinkExistingSubmit = async () => {
+    if (!linkExistingModal?.item) return;
+    const url = linkExistingUrl.trim();
+    if (!url) {
+      toast.error('Paste the listing URL (or ID) first.');
+      return;
+    }
+    setLinkExistingSubmitting(true);
+    try {
+      const res = await listingService.linkExisting(linkExistingModal.item._id, {
+        platform: linkExistingPlatform,
+        url
+      });
+      toast.success(res.data?.message || `Linked ${linkExistingPlatform} listing to this item.`);
+      setLinkExistingModal(null);
+      setLinkExistingUrl('');
+      await fetchListings(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to link that listing.');
+    } finally {
+      setLinkExistingSubmitting(false);
+    }
   };
 
   const handleMoveToNewList = async (item, platformName) => {
@@ -5556,6 +5601,70 @@ const NewListings = () => {
 
       {/* Master Item Dropdown Portal */}
       {renderMasterPortalDropdown()}
+
+      {/* Link Existing Listing Modal - attach a real platform listing by URL when auto-merge missed it */}
+      {linkExistingModal && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"
+          onClick={() => !linkExistingSubmitting && setLinkExistingModal(null)}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">Link Existing Listing</h2>
+              <button
+                type="button"
+                onClick={() => !linkExistingSubmitting && setLinkExistingModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
+              Already have this exact item listed on another marketplace that didn't auto-merge? Paste its link here to attach it to <span className="font-bold text-slate-700">{linkExistingModal.item?.title}</span>.
+            </p>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Platform</label>
+              <select
+                className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                value={linkExistingPlatform}
+                onChange={(e) => setLinkExistingPlatform(e.target.value)}
+              >
+                <option value="ebay">eBay</option>
+                <option value="poshmark">Poshmark</option>
+                <option value="mercari">Mercari</option>
+                <option value="etsy">Etsy</option>
+                <option value="amazon">Amazon</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Listing URL (or ID)</label>
+              <input
+                type="text"
+                autoFocus
+                className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                value={linkExistingUrl}
+                onChange={(e) => setLinkExistingUrl(e.target.value)}
+                placeholder="Paste the listing link..."
+                onKeyDown={(e) => { if (e.key === 'Enter') handleLinkExistingSubmit(); }}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={linkExistingSubmitting}
+              onClick={handleLinkExistingSubmit}
+              className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-black rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
+            >
+              {linkExistingSubmitting ? 'Linking...' : 'Link Listing'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Crosslisting Modal */}
       <CrosslistingModal

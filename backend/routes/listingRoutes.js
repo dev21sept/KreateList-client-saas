@@ -14,6 +14,7 @@ const {
   deletePlatformListing,
   moveToNewItem,
   mergeChannel,
+  linkExistingListing,
   getActiveChannelImportPreview,
   importActiveChannelsToLocal,
   getVerifiedMergePreview,
@@ -48,6 +49,7 @@ router.post('/sync-all', requireActiveSubscription, syncAllInventory);
 router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 router.post('/merge-channel', requireActiveSubscription, mergeChannel);
+router.post('/:id/link-existing', requireActiveSubscription, linkExistingListing);
 router.get('/active-channel-preview', getActiveChannelImportPreview);
 // Disabled: this import grouped channel items by title/SKU/image and merged them into existing Master records,
 // joining different items and copying platform IDs onto the wrong records. Items are linked by live ID only.

@@ -3462,6 +3462,156 @@ exports.mergeChannel = async (req, res) => {
   }
 };
 
+/** Pulls the platform's own listing ID out of a pasted URL; falls back to treating the input as a
+ * raw ID if it isn't a recognizable URL for that platform. */
+function parsePlatformIdFromUrl(platformLower, input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+
+  const patterns = {
+    ebay: /\/itm\/(?:[^/]+\/)?(\d+)/i,
+    poshmark: /\/listing\/[^/]*?-([a-f0-9]{24})(?:[/?]|$)/i,
+    mercari: /\/item\/(m\d+)/i,
+    etsy: /\/listing\/(\d+)/i,
+    amazon: /\/dp\/([A-Z0-9]{10})/i
+  };
+
+  if (/^https?:\/\//i.test(raw)) {
+    const match = raw.match(patterns[platformLower]);
+    if (match) return match[1];
+    // URL didn't match the expected shape for this platform - try the last path segment as a
+    // best-effort fallback rather than failing outright.
+    const segments = raw.split('?')[0].split('/').filter(Boolean);
+    return segments[segments.length - 1] || null;
+  }
+
+  // Not a URL: treat the whole input as the raw ID (e.g. user pasted just the item number).
+  return raw;
+}
+
+/** Mirrors getListingUrl() on the frontend, server-side, for when the user pastes a bare ID. */
+function buildPlatformUrl(platformLower, id) {
+  switch (platformLower) {
+    case 'ebay': return `https://www.ebay.com/itm/${id}`;
+    case 'poshmark': return `https://poshmark.com/listing/${id}`;
+    case 'mercari': return `https://www.mercari.com/us/item/${id}/`;
+    case 'etsy': return `https://www.etsy.com/listing/${id}`;
+    case 'amazon': return `https://www.amazon.com/dp/${id}`;
+    default: return '';
+  }
+}
+
+// @desc    Manually link an existing marketplace listing (by URL or ID) onto this Master item, for
+//          when the auto-merge scan never matched them (e.g. a title/SKU mismatch across platforms).
+// @route   POST /api/listings/:id/link-existing
+// @access  Private
+exports.linkExistingListing = async (req, res) => {
+  try {
+    const { platform, url } = req.body;
+    const targetListingId = req.params.id;
+    if (!platform || !url) {
+      return res.status(400).json({ success: false, message: 'Platform and a listing URL (or ID) are required.' });
+    }
+
+    const platformLower = platform.toLowerCase();
+    const validPlatforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari', 'amazon'];
+    if (!validPlatforms.includes(platformLower)) {
+      return res.status(400).json({ success: false, message: 'Unknown platform.' });
+    }
+
+    const externalId = parsePlatformIdFromUrl(platformLower, url);
+    if (!externalId) {
+      return res.status(400).json({ success: false, message: 'Could not read a listing ID from that link.' });
+    }
+
+    const targetListing = await Listing.findById(targetListingId);
+    if (!targetListing || targetListing.user.toString() !== req.user.id) {
+      return res.status(404).json({ success: false, message: 'Listing not found.' });
+    }
+
+    if (targetListing[`${platformLower}ListingId`]) {
+      return res.status(409).json({ success: false, message: `This item is already linked on ${platform}. Unlink it first if you want to replace it.` });
+    }
+
+    // Does a separate (not-yet-merged) Listing already track this exact platform ID - created by
+    // the normal sync/import pass, but never auto-matched to this item? If so, fold it in using the
+    // same copy-then-retire logic as mergeChannel above, instead of just attaching the bare ID.
+    const sourceListing = await Listing.findOne({
+      user: req.user.id,
+      _id: { $ne: targetListingId },
+      [`${platformLower}ListingId`]: externalId,
+      mergedInto: null
+    });
+
+    let mergedFromExisting = false;
+    let sourceDeleted = false;
+
+    if (sourceListing) {
+      mergedFromExisting = true;
+      const platformDetails = (sourceListing.platforms?.[platformLower]) || (sourceListing.crosslistingDetails?.[platformLower]) || (sourceListing.platformData?.[platformLower]) || {};
+      const platformStatus = sourceListing[`${platformLower}Status`] || (sourceListing.platform === platformLower ? sourceListing.status : 'published');
+      const platformUrl = sourceListing[`${platformLower}Url`] || buildPlatformUrl(platformLower, externalId);
+      const platformImages = platformDetails.images?.length > 0 ? platformDetails.images : (sourceListing.images || []);
+      const platformThumb = platformDetails.thumbnail || platformImages[0] || '';
+      const platformPrice = platformDetails.price || sourceListing[`${platformLower}Price`] || sourceListing.price;
+
+      targetListing[`${platformLower}Status`] = platformStatus;
+      targetListing[`${platformLower}ListingId`] = externalId;
+      targetListing[`${platformLower}Url`] = platformUrl;
+      if (platformPrice) targetListing[`${platformLower}Price`] = platformPrice;
+
+      if (!targetListing.platformData) targetListing.platformData = {};
+      targetListing.platformData[platformLower] = { ...platformDetails, thumbnail: platformThumb, images: platformImages, price: platformPrice, status: platformStatus, liveId: externalId, listingId: externalId, url: platformUrl };
+      targetListing.markModified('platformData');
+
+      if ((!targetListing.images || targetListing.images.length === 0) && platformImages.length > 0) {
+        targetListing.images = platformImages;
+        targetListing.thumbnail = platformThumb;
+      }
+      if (targetListing.status === 'draft' && platformStatus === 'published') {
+        targetListing.status = 'published';
+      }
+      await targetListing.save();
+
+      sourceListing[`${platformLower}ListingId`] = undefined;
+      sourceListing[`${platformLower}Url`] = undefined;
+      sourceListing[`${platformLower}Status`] = 'none';
+      if (sourceListing.platforms?.[platformLower]) { delete sourceListing.platforms[platformLower]; sourceListing.markModified('platforms'); }
+      if (sourceListing.crosslistingDetails?.[platformLower]) { delete sourceListing.crosslistingDetails[platformLower]; sourceListing.markModified('crosslistingDetails'); }
+
+      const remainingPlatforms = validPlatforms.filter(p => {
+        const st = sourceListing[`${p}Status`];
+        return st && st !== 'none' && st !== 'unlisted';
+      });
+      if (remainingPlatforms.length === 0) {
+        await Listing.findByIdAndDelete(sourceListing._id);
+        sourceDeleted = true;
+      } else {
+        if (sourceListing.platform === platformLower) sourceListing.platform = remainingPlatforms[0];
+        await sourceListing.save();
+      }
+    } else {
+      // Nothing in our own database tracks this ID yet - just attach it directly.
+      targetListing[`${platformLower}ListingId`] = externalId;
+      targetListing[`${platformLower}Url`] = /^https?:\/\//i.test(url) ? url : buildPlatformUrl(platformLower, externalId);
+      targetListing[`${platformLower}Status`] = 'published';
+      if (targetListing.status === 'draft') targetListing.status = 'published';
+      await targetListing.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Linked your ${platform} listing to this item.`,
+      targetListing,
+      mergedFromExisting,
+      sourceDeleted
+    });
+  } catch (err) {
+    console.error(`[Link Existing Listing] Error:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // @desc    Get preview of all active channel listings grouped & matched across platforms
 // @route   GET /api/listings/active-channel-preview
 // @access  Private

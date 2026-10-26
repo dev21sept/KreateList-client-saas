@@ -72,6 +72,7 @@ export const listingService = {
   deletePlatform: (id, platform, disconnectOnly = false) => API.post(`/listings/${id}/delete-platform`, { platform, disconnectOnly }),
   moveToNewItem: (id, platform) => API.post(`/listings/${id}/move-to-new-item`, { platform }),
   mergeChannel: (data) => API.post('/listings/merge-channel', data),
+  linkExisting: (id, data) => API.post(`/listings/${id}/link-existing`, data),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
   getLocalMergePreview: () => API.get('/listings/local-merge-preview'),
   bulkMergeListings: (data) => API.post('/listings/bulk-merge', data),
