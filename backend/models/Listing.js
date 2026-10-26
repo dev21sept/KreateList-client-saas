@@ -71,6 +71,9 @@ const listingSchema = new mongoose.Schema({
     default: 'ebay'
   },
   poshmarkListingId: String,
+  // Set only on a confirmed "Share to Followers" response from the Poshmark Automation module -
+  // used to pick eligible listings for the next Share run (not shared today) and shown in Activity.
+  poshmarkLastSharedAt: Date,
   // Visual hash (dHash) of the first photo, cached by the merge scan so each photo is downloaded once.
   imageHash: String,
   // Set when a verified merge folds this record into another one (mergedInto). The record is kept,

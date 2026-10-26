@@ -248,7 +248,7 @@
         const responseClone = response.clone();
         const responseText = await responseClone.text();
         
-        if (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts')) {
+        if (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts') || url.includes('share') || url.includes('follow')) {
           window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
             detail: {
               url,
@@ -391,7 +391,7 @@
             }
           } catch (e) {}
 
-          if (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts')) {
+          if (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts') || this._url.includes('share') || this._url.includes('follow')) {
             window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
               detail: {
                 url: this._url,
