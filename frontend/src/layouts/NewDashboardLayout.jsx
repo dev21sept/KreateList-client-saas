@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   CreditCard,
-  Database
+  Database,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
@@ -39,6 +40,7 @@ const sidebarItems = [
   { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
   { name: 'Listings', icon: <List size={20} />, path: '/listings' },
   { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
+  { name: 'Poshmark Automation', icon: <Zap size={20} />, path: '/poshmark-automation' },
   { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
   { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
   { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
@@ -123,6 +125,7 @@ const NewDashboardLayout = () => {
     { title: 'Listings', subtitle: 'Manage your local database', path: '/listings', type: 'page', badge: 'Inventory' },
     { title: 'New Listing', subtitle: 'Create a new AI-generated listing', path: 'new_listing_action', type: 'page', badge: 'AI Tool' },
     { title: 'Orders', subtitle: 'View customer sales & invoices', path: '/orders', type: 'page', badge: 'Orders' },
+    { title: 'Poshmark Automation', subtitle: 'Daily Share, Follow, Relist and Offers workflows', path: '/poshmark-automation', type: 'page', badge: 'Automation' },
     { title: 'Analytics', subtitle: 'View platform charts and metrics', path: '/analytics', type: 'page', badge: 'Reports' },
     { title: 'Rules Engine', subtitle: 'Manage listing templates and AI rules', path: '/rules', type: 'page', badge: 'AI Rules' },
     { title: 'Subscription', subtitle: 'Manage active plans and billing', path: '/subscription', type: 'page', badge: 'Billing' },

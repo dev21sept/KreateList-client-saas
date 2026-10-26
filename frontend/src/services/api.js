@@ -209,4 +209,14 @@ export const pricingService = {
   getSourcesStatus: () => API.get('/v1/pricing/sources/status'),
 };
 
+export const poshmarkAutomationService = {
+  getSettings: () => API.get('/poshmark-automation/settings'),
+  updateSettings: (feature, data) => API.put(`/poshmark-automation/settings/${feature}`, data),
+  createJob: (data) => API.post('/poshmark-automation/jobs', data),
+  getJobs: (feature) => API.get('/poshmark-automation/jobs', { params: feature ? { feature } : {} }),
+  getJob: (id) => API.get(`/poshmark-automation/jobs/${id}`),
+  cancelJob: (id) => API.post(`/poshmark-automation/jobs/${id}/cancel`),
+  getActivity: () => API.get('/poshmark-automation/activity'),
+};
+
 export default API;

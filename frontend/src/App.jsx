@@ -23,6 +23,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Listings = lazy(() => import('./pages/NewListings'));
+const PoshmarkAutomation = lazy(() => import('./pages/PoshmarkAutomation'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const CreateListing = lazy(() => import('./pages/CreateMasterListing'));
@@ -166,6 +167,7 @@ const App = () => {
               <Route path="/sales" element={<Navigate to="/orders" replace />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/integrations" element={<EbayAccounts />} />
+              <Route path="/poshmark-automation" element={<PoshmarkAutomation />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
               <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />
