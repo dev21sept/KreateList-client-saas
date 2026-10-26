@@ -1,6 +1,5 @@
 const OpenAI = require('openai');
 const sharp = require('sharp');
-const Listing = require('../models/Listing');
 const { logActivity } = require('../utils/activityUtils');
 const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
 const mercariBrands = require('../constants/mercariBrands.json');
@@ -448,21 +447,9 @@ Response ONLY as JSON:
             description: textData.description
         };
 
-        // DYNAMIC SKU GENERATION
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
-            }
-        }
-        finalData.sku = skuCode;
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};

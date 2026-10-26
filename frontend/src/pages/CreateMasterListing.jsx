@@ -1952,7 +1952,7 @@ const CreateMasterListing = ({
       description: formData.description || '',
       price: formData.price || '0.00',
       originalPrice: formData.originalPrice || '',
-      sku: formData.sku || `KL${Date.now().toString().slice(-6)}`,
+      sku: formData.sku || '',
       brand: formData.brand || '',
       size: formData.size || '',
       color: formData.color || '',
@@ -2489,15 +2489,27 @@ const CreateMasterListing = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
-                <select
-                  className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-                  value={formData.gender}
-                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                >
-                  {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
 
               <Button

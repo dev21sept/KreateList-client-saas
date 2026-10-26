@@ -383,12 +383,8 @@ exports.createListing = async (req, res) => {
       }
     }
 
-    if (!req.body.sku) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'SKU is required.' 
-      });
-    }
+    // SKU is optional - a listing saved without one gets a stable AUTO-L-* fallback from the
+    // schema's own pre-save default (models/Listing.js), so there is nothing to block here.
 
     const platform = req.body.platform || 'ebay';
     req.body[`${platform}Status`] = req.body.status || 'draft';

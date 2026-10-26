@@ -611,14 +611,24 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Condition</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={formData.selectedCondition}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedCondition: opt.id }))}
                     options={AMAZON_CONDITIONS}
                     placeholder="Select condition..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
+                  <SearchableDropdown
+                    value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
+                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
+                    options={modelOptions}
+                    placeholder="Select model..."
                   />
                 </div>
 
@@ -634,12 +644,13 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown
-                    value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
-                    onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
-                    options={modelOptions}
-                    placeholder="Select model..."
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
                   />
                 </div>
               </div>
@@ -710,8 +721,8 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
               </div>
             </div>
 
-            {/* Price, Quantity, SKU */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Price, Quantity */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Price ($) *</label>
                 <div className="relative">
@@ -738,16 +749,6 @@ const CreateAmazonListing = ({ isModal = false, editId: propEditId = null, initi
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Merchant SKU</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-slate-800"
-                  value={formData.sku}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                  placeholder="Optional SKU"
-                />
-              </div>
             </div>
 
             {/* Standard Product ID (UPC/EAN/ASIN) */}
