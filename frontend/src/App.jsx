@@ -96,7 +96,9 @@ const DomainRedirect = ({ children }) => {
       '/settings',
       '/checkout',
       '/admin',
-      '/help'
+      '/help',
+      '/poshmark-automation',
+      '/affiliate'
     ];
 
     const isAppPath = appPaths.some(path => 
