@@ -7,7 +7,7 @@ const {
   getJob,
   cancelJob,
   getActivity
-} = require('../controllers/poshmarkAutomationController');
+} = require('../controllers/automationController');
 const { protect } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
@@ -17,7 +17,7 @@ router.use(protect);
 router.use(requireActiveSubscription);
 
 router.get('/settings', getSettings);
-router.put('/settings/:feature', updateSettings);
+router.put('/settings/:platform/:feature', updateSettings);
 router.post('/jobs', createJob);
 router.get('/jobs', listJobs);
 router.get('/jobs/:id', getJob);

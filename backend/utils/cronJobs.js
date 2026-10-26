@@ -60,7 +60,7 @@ const runRenewalChecks = async () => {
 const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../services/backgroundSyncService');
 const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
 const { runMasterStatusCycle } = require('../services/masterStatusCron');
-const { runShareClosetTick } = require('../services/poshmarkAutomationWorker');
+const { runShareClosetTick } = require('../services/automationWorker');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -92,13 +92,13 @@ const initCronJobs = () => {
     console.log('[Cron System] Master live status check scheduled every 2 hours.');
   }
 
-  // Poshmark Automation: checks every 5 minutes for users whose Share Closet schedule is due now
-  // (in their own timezone), then runs the job with human-like pacing (utils/humanPacing.js).
-  if (process.env.POSHMARK_AUTOMATION_DISABLED !== 'true') {
+  // Automation: checks every 5 minutes for users on any platform whose Share Closet schedule is due
+  // now (in their own timezone), then runs the job with human-like pacing (utils/humanPacing.js).
+  if (process.env.AUTOMATION_DISABLED !== 'true') {
     cron.schedule('*/5 * * * *', () => {
-      runShareClosetTick().catch(e => console.error('[Poshmark Automation] Share closet tick failed:', e.message));
+      runShareClosetTick().catch(e => console.error('[Automation] Share closet tick failed:', e.message));
     });
-    console.log('[Cron System] Poshmark Automation (Share Closet) scheduled every 5 minutes.');
+    console.log('[Cron System] Automation (Share Closet) scheduled every 5 minutes.');
   }
 };
 

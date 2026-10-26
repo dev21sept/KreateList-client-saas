@@ -15,11 +15,20 @@ import {
   Activity as ActivityIcon,
   Lock
 } from 'lucide-react';
-import { poshmarkAutomationService } from '../services/api';
+import { automationService } from '../services/api';
 import Button from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LoadingState } from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
+
+const PLATFORM_META = {
+  poshmark: { label: 'Poshmark' },
+  ebay: { label: 'eBay' },
+  mercari: { label: 'Mercari' },
+  etsy: { label: 'Etsy' },
+  amazon: { label: 'Amazon' }
+};
+const PLATFORMS = Object.keys(PLATFORM_META);
 
 const FEATURE_META = {
   share_closet: { label: 'Share Closet', icon: Zap, description: 'Shares eligible listings to your followers once a day.' },
@@ -27,6 +36,7 @@ const FEATURE_META = {
   relist: { label: 'Relist', icon: RefreshCw, description: 'Relists aging listings with duplicate protection.' },
   offers_to_likers: { label: 'Offers to Likers', icon: Tag, description: 'Sends approved offers to people who liked a listing.' }
 };
+const FEATURES = Object.keys(FEATURE_META);
 
 const STATUS_BADGE = {
   queued: { variant: 'neutral', label: 'Queued' },
@@ -39,10 +49,11 @@ const STATUS_BADGE = {
   blocked: { variant: 'danger', label: 'Blocked' }
 };
 
-export default function PoshmarkAutomation() {
+export default function Automation() {
   const { toast } = useNotification();
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
+  const [platform, setPlatform] = useState('poshmark');
+  const [connected, setConnected] = useState({});
   const [settings, setSettings] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -54,11 +65,11 @@ export default function PoshmarkAutomation() {
   const loadAll = useCallback(async () => {
     try {
       const [settingsRes, jobsRes, activityRes] = await Promise.all([
-        poshmarkAutomationService.getSettings(),
-        poshmarkAutomationService.getJobs(),
-        poshmarkAutomationService.getActivity()
+        automationService.getSettings(),
+        automationService.getJobs(),
+        automationService.getActivity()
       ]);
-      setConnected(!!settingsRes.data?.data?.connected);
+      setConnected(settingsRes.data?.data?.connected || {});
       setSettings(settingsRes.data?.data?.settings || []);
       setJobs(jobsRes.data?.data || []);
       setActivity(activityRes.data?.data || []);
@@ -75,12 +86,15 @@ export default function PoshmarkAutomation() {
     return () => clearInterval(interval);
   }, [loadAll]);
 
-  const shareSettings = settings.find(s => s.feature === 'share_closet');
+  const platformSettings = settings.filter(s => s.platform === platform);
+  const platformJobs = jobs.filter(j => j.platform === platform);
+  const shareSettings = platformSettings.find(s => s.feature === 'share_closet');
+  const platformHasAnyAvailable = platformSettings.some(s => s.available);
 
   const handleToggleEnabled = async (feature, nextEnabled) => {
     setSavingFeature(feature);
     try {
-      await poshmarkAutomationService.updateSettings(feature, { enabled: nextEnabled });
+      await automationService.updateSettings(platform, feature, { enabled: nextEnabled });
       toast.success(nextEnabled ? `${FEATURE_META[feature].label} enabled.` : `${FEATURE_META[feature].label} paused.`);
       await loadAll();
     } catch (err) {
@@ -92,7 +106,7 @@ export default function PoshmarkAutomation() {
 
   const handleScheduleChange = async (feature, hour, minute) => {
     try {
-      await poshmarkAutomationService.updateSettings(feature, { schedule: { hour, minute } });
+      await automationService.updateSettings(platform, feature, { schedule: { hour, minute } });
       toast.success('Schedule updated.');
       await loadAll();
     } catch (err) {
@@ -103,7 +117,7 @@ export default function PoshmarkAutomation() {
   const handleRunNow = async () => {
     setRunningNow(true);
     try {
-      const res = await poshmarkAutomationService.createJob({ feature: 'share_closet', mode: 'execute' });
+      const res = await automationService.createJob({ platform, feature: 'share_closet', mode: 'execute' });
       toast.success(res.data?.data?.message || 'Share Closet run started - it paces itself with human-like delays, so it may take a while.');
       await loadAll();
     } catch (err) {
@@ -121,7 +135,7 @@ export default function PoshmarkAutomation() {
     setExpandedJobId(jobId);
     if (!jobDetails[jobId]) {
       try {
-        const res = await poshmarkAutomationService.getJob(jobId);
+        const res = await automationService.getJob(jobId);
         setJobDetails(prev => ({ ...prev, [jobId]: res.data?.data }));
       } catch (_err) {
         toast.error('Failed to load job details.');
@@ -131,7 +145,7 @@ export default function PoshmarkAutomation() {
 
   const handleCancelJob = async (jobId) => {
     try {
-      await poshmarkAutomationService.cancelJob(jobId);
+      await automationService.cancelJob(jobId);
       toast.success('Job cancelled.');
       await loadAll();
     } catch (err) {
@@ -140,31 +154,61 @@ export default function PoshmarkAutomation() {
   };
 
   if (loading) {
-    return <LoadingState label="Loading Poshmark Automation..." />;
+    return <LoadingState label="Loading Automation..." />;
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div>
-        <h1 className="text-xl font-black text-slate-900">Poshmark Automation</h1>
+        <h1 className="text-xl font-black text-slate-900">Automation</h1>
         <p className="text-xs font-semibold text-slate-500 mt-1">
-          Daily Share, Follow, Relist, and Offers workflows for your Poshmark closet.
+          Daily Share, Follow, Relist, and Offers workflows across your connected platforms.
         </p>
       </div>
 
-      {!connected && (
+      {/* Platform tabs */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {PLATFORMS.map(p => {
+          const hasAvailable = settings.some(s => s.platform === p && s.available);
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPlatform(p)}
+              className={`px-3.5 h-8 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                platform === p ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {PLATFORM_META[p].label}
+              {!hasAvailable && <Lock size={10} className={platform === p ? 'text-white/70' : 'text-slate-400'} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {!connected[platform] && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
           <AlertTriangle size={18} className="text-amber-600 flex-shrink-0" />
           <p className="text-xs font-bold text-amber-800">
-            Your Poshmark account is not connected. Connect it from Integrations before enabling automation.
+            Your {PLATFORM_META[platform].label} account is not connected. Connect it from Integrations before enabling automation.
+          </p>
+        </div>
+      )}
+
+      {!platformHasAnyAvailable && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+          <Lock size={18} className="text-slate-400 flex-shrink-0" />
+          <p className="text-xs font-bold text-slate-600">
+            {PLATFORM_META[platform].label} automation is coming soon - it's wired into this module but waiting on a confirmed, working integration before any feature goes live, same as it was for Poshmark's own Follow, Relist and Offers.
           </p>
         </div>
       )}
 
       {/* Feature cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Object.entries(FEATURE_META).map(([feature, meta]) => {
-          const s = settings.find(x => x.feature === feature);
+        {FEATURES.map(feature => {
+          const meta = FEATURE_META[feature];
+          const s = platformSettings.find(x => x.feature === feature);
           const Icon = meta.icon;
           const available = s?.available;
           return (
@@ -176,7 +220,7 @@ export default function PoshmarkAutomation() {
                 {available ? (
                   <button
                     type="button"
-                    disabled={!connected || savingFeature === feature}
+                    disabled={!connected[platform] || savingFeature === feature}
                     onClick={() => handleToggleEnabled(feature, !s?.enabled)}
                     className={`relative w-10 h-5.5 rounded-full transition-colors ${s?.enabled ? 'bg-indigo-600' : 'bg-slate-200'} disabled:opacity-50`}
                   >
@@ -210,7 +254,7 @@ export default function PoshmarkAutomation() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">Share Closet Settings</h2>
-            <Button size="sm" variant="primary" icon={<Play size={13} />} loading={runningNow} disabled={!connected || !shareSettings.enabled} onClick={handleRunNow}>
+            <Button size="sm" variant="primary" icon={<Play size={13} />} loading={runningNow} disabled={!connected[platform] || !shareSettings.enabled} onClick={handleRunNow}>
               Run Now
             </Button>
           </div>
@@ -254,11 +298,11 @@ export default function PoshmarkAutomation() {
         <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <ActivityIcon size={16} /> Jobs
         </h2>
-        {jobs.length === 0 ? (
+        {platformJobs.length === 0 ? (
           <EmptyState title="No jobs yet" description="Enable a feature above and it will run on its schedule, or use Run Now." />
         ) : (
           <div className="divide-y divide-slate-100">
-            {jobs.map(job => {
+            {platformJobs.map(job => {
               const badge = STATUS_BADGE[job.status] || STATUS_BADGE.queued;
               const isExpanded = expandedJobId === job._id;
               const detail = jobDetails[job._id];
@@ -309,11 +353,11 @@ export default function PoshmarkAutomation() {
         <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <Clock size={16} /> Activity (last 7 days)
         </h2>
-        {activity.length === 0 ? (
+        {activity.filter(ev => ev.platform === platform).length === 0 ? (
           <EmptyState title="No activity yet" description="Configuration changes and job runs will show up here." />
         ) : (
           <div className="space-y-1.5 max-h-72 overflow-y-auto">
-            {activity.map(ev => (
+            {activity.filter(ev => ev.platform === platform).map(ev => (
               <div key={ev._id} className="flex items-center justify-between text-[10px] py-1.5 border-b border-slate-50 last:border-0">
                 <span className="font-semibold text-slate-700">{ev.eventType}</span>
                 <span className="text-slate-400">{new Date(ev.createdAt).toLocaleString()}</span>

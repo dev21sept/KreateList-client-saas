@@ -210,14 +210,14 @@ export const pricingService = {
   getSourcesStatus: () => API.get('/v1/pricing/sources/status'),
 };
 
-export const poshmarkAutomationService = {
-  getSettings: () => API.get('/poshmark-automation/settings'),
-  updateSettings: (feature, data) => API.put(`/poshmark-automation/settings/${feature}`, data),
-  createJob: (data) => API.post('/poshmark-automation/jobs', data),
-  getJobs: (feature) => API.get('/poshmark-automation/jobs', { params: feature ? { feature } : {} }),
-  getJob: (id) => API.get(`/poshmark-automation/jobs/${id}`),
-  cancelJob: (id) => API.post(`/poshmark-automation/jobs/${id}/cancel`),
-  getActivity: () => API.get('/poshmark-automation/activity'),
+export const automationService = {
+  getSettings: () => API.get('/automation/settings'),
+  updateSettings: (platform, feature, data) => API.put(`/automation/settings/${platform}/${feature}`, data),
+  createJob: (data) => API.post('/automation/jobs', data),
+  getJobs: (params = {}) => API.get('/automation/jobs', { params }),
+  getJob: (id) => API.get(`/automation/jobs/${id}`),
+  cancelJob: (id) => API.post(`/automation/jobs/${id}/cancel`),
+  getActivity: () => API.get('/automation/activity'),
 };
 
 export const affiliateService = {

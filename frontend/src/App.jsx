@@ -23,7 +23,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Listings = lazy(() => import('./pages/NewListings'));
-const PoshmarkAutomation = lazy(() => import('./pages/PoshmarkAutomation'));
+const Automation = lazy(() => import('./pages/Automation'));
 const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -97,7 +97,7 @@ const DomainRedirect = ({ children }) => {
       '/checkout',
       '/admin',
       '/help',
-      '/poshmark-automation',
+      '/automation',
       '/affiliate'
     ];
 
@@ -184,7 +184,7 @@ const App = () => {
               <Route path="/sales" element={<Navigate to="/orders" replace />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/integrations" element={<EbayAccounts />} />
-              <Route path="/poshmark-automation" element={<PoshmarkAutomation />} />
+              <Route path="/automation" element={<Automation />} />
               <Route path="/affiliate" element={<AffiliateDashboard />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />

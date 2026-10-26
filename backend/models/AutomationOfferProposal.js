@@ -1,10 +1,16 @@
 const mongoose = require('mongoose');
 
-const poshmarkOfferProposalSchema = new mongoose.Schema({
+const automationOfferProposalSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  platform: {
+    type: String,
+    enum: ['poshmark', 'ebay', 'mercari', 'etsy', 'amazon'],
+    required: true,
+    default: 'poshmark'
   },
   listing: {
     type: mongoose.Schema.Types.ObjectId,
@@ -57,7 +63,7 @@ const poshmarkOfferProposalSchema = new mongoose.Schema({
   }
 });
 
-poshmarkOfferProposalSchema.index({ user: 1, status: 1 });
-poshmarkOfferProposalSchema.index({ listing: 1, targetUsername: 1 });
+automationOfferProposalSchema.index({ user: 1, status: 1 });
+automationOfferProposalSchema.index({ listing: 1, targetUsername: 1 });
 
-module.exports = mongoose.model('PoshmarkOfferProposal', poshmarkOfferProposalSchema);
+module.exports = mongoose.model('AutomationOfferProposal', automationOfferProposalSchema);
