@@ -219,4 +219,19 @@ export const poshmarkAutomationService = {
   getActivity: () => API.get('/poshmark-automation/activity'),
 };
 
+export const affiliateService = {
+  apply: () => API.post('/affiliate/apply'),
+  getMe: () => API.get('/affiliate/me'),
+  getCommissions: (page) => API.get('/affiliate/commissions', { params: page ? { page } : {} }),
+};
+
+export const adminAffiliateService = {
+  list: (status) => API.get('/admin/affiliates', { params: status ? { status } : {} }),
+  get: (id) => API.get(`/admin/affiliates/${id}`),
+  approve: (id) => API.post(`/admin/affiliates/${id}/approve`),
+  reject: (id, reason) => API.post(`/admin/affiliates/${id}/reject`, { reason }),
+  terminate: (id, reason) => API.post(`/admin/affiliates/${id}/terminate`, { reason }),
+  reactivate: (id) => API.post(`/admin/affiliates/${id}/reactivate`),
+};
+
 export default API;

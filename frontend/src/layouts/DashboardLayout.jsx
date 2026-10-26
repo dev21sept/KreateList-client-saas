@@ -17,7 +17,8 @@ import {
   Users,
   ChevronDown,
   User,
-  Lock
+  Lock,
+  Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -99,6 +100,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const adminMenuItems = [
     { name: 'Admin Overview', icon: <LayoutDashboard size={20} />, path: '/admin' },
     { name: 'Manage Users', icon: <Users size={20} />, path: '/admin/users' },
+    { name: 'Affiliates', icon: <Gift size={20} />, path: '/admin/affiliates' },
     { name: 'System Settings', icon: <Settings size={20} />, path: '/admin/settings' },
   ];
 

@@ -19,7 +19,7 @@ const matchesOtp = async (submittedOtp, storedOtp) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, affiliateCode } = req.body;
     const cleanEmail = email ? email.trim().toLowerCase() : '';
 
     // Check if user exists
@@ -47,6 +47,15 @@ exports.register = async (req, res) => {
       otpExpires: new Date(Date.now() + 15 * 60 * 1000),
       otpAttempts: 0
     });
+
+    if (affiliateCode) {
+      try {
+        const { attributeSignup } = require('../services/affiliateService');
+        await attributeSignup(user, affiliateCode);
+      } catch (affErr) {
+        console.warn('[Affiliate] Signup attribution notice:', affErr.message);
+      }
+    }
 
     // Send OTP Email
     await sendOtpEmail(cleanEmail, otp, firstName);

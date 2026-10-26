@@ -158,6 +158,9 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Affiliate code captured at signup (?via=CODE), set once and never overwritten - first-click
+  // attribution. Used to find the referring AffiliateProfile when this user's first payment lands.
+  referredByAffiliateCode: String,
   otpCode: String,
   otpExpires: Date,
   otpAttempts: {

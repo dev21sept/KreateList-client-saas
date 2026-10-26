@@ -24,6 +24,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Listings = lazy(() => import('./pages/NewListings'));
 const PoshmarkAutomation = lazy(() => import('./pages/PoshmarkAutomation'));
+const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const CreateListing = lazy(() => import('./pages/CreateMasterListing'));
@@ -42,6 +43,7 @@ const Testimonials = lazy(() => import('./pages/Testimonials'));
 const HelpSupport = lazy(() => import('./pages/HelpSupport'));
 const AdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminAffiliates = lazy(() => import('./pages/admin/AdminAffiliates'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 // Components
@@ -124,6 +126,19 @@ const DomainRedirect = ({ children }) => {
     }
   }, [location, navigate, hostname, shouldRedirect, externalRedirectUrl]);
 
+  // Affiliate tracking: capture ?via=CODE on whichever page it first appears (the person may land
+  // on the home page and not sign up until several clicks later), persist it, and read it back in
+  // Signup.jsx. Never overwrite an already-stored code with a blank one from a later page visit.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const via = params.get('via');
+      if (via && via.trim()) {
+        localStorage.setItem('elister_affiliate_code', via.trim());
+      }
+    } catch (e) {}
+  }, [location]);
+
   if (externalRedirectUrl) return null;
 
   return children;
@@ -168,6 +183,7 @@ const App = () => {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/integrations" element={<EbayAccounts />} />
               <Route path="/poshmark-automation" element={<PoshmarkAutomation />} />
+              <Route path="/affiliate" element={<AffiliateDashboard />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-ebay-listing" element={<CreateEbayListing />} />
               <Route path="/create-ebay-bulk-listing" element={<BulkListingEbay />} />
@@ -192,6 +208,7 @@ const App = () => {
             <Route element={<DashboardLayout isAdmin={true} />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/affiliates" element={<AdminAffiliates />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
             </Route>
           </Route>

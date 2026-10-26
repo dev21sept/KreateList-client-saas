@@ -104,6 +104,7 @@ app.use('/api/ai', require('./routes/aiRoutes'));
 // Poshmark Routes
 app.use('/api/poshmark', require('./routes/poshmarkRoutes'));
 app.use('/api/poshmark-automation', require('./routes/poshmarkAutomationRoutes'));
+app.use('/api/affiliate', require('./routes/affiliateRoutes'));
 // Depop Routes
 app.use('/api/depop', require('./routes/depopRoutes'));
 // Etsy Routes

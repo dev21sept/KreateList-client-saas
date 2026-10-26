@@ -18,7 +18,8 @@ import {
   X,
   CreditCard,
   Database,
-  Zap
+  Zap,
+  Gift
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
@@ -43,6 +44,7 @@ const sidebarItems = [
   { name: 'Poshmark Automation', icon: <Zap size={20} />, path: '/poshmark-automation' },
   { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
   { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
+  { name: 'Affiliate Program', icon: <Gift size={20} />, path: '/affiliate' },
   { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
   { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
   { name: 'Help & Support', icon: <HelpCircle size={20} />, path: '/help' },

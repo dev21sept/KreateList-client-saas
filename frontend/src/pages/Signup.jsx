@@ -49,12 +49,18 @@ const Signup = () => {
     }
 
     try {
+      let affiliateCode = '';
+      try {
+        affiliateCode = localStorage.getItem('elister_affiliate_code') || '';
+      } catch (e) {}
+
       const data = await signup({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        password: formData.password
+        password: formData.password,
+        affiliateCode
       });
 
       if (data.verificationRequired) {

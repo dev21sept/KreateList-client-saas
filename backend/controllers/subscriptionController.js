@@ -113,6 +113,18 @@ async function handleSubscriptionCreated(session) {
 
   if (user) {
     await sendSubscriptionEmail(user.email, user.subscription.plan, amountPaid, user.subscription.expiresAt, user.firstName);
+    try {
+      const { recordCommission } = require('../services/affiliateService');
+      await recordCommission({
+        userId: user._id,
+        plan: user.subscription.plan,
+        paymentAmount: amountPaid,
+        currency: 'usd',
+        sourceRef: `stripe:${stripeSubscriptionId}:${subscription.current_period_start}`
+      });
+    } catch (affErr) {
+      console.warn('[Affiliate] Commission notice (Stripe):', affErr.message);
+    }
   }
 }
 
@@ -268,6 +280,18 @@ exports.verifyRazorpayPayment = async (req, res) => {
 
     // Send confirmation email
     await sendSubscriptionEmail(user.email, targetPlan, amountPaid, expiresAt, user.firstName);
+    try {
+      const { recordCommission } = require('../services/affiliateService');
+      await recordCommission({
+        userId: user._id,
+        plan: targetPlan,
+        paymentAmount: amountPaid,
+        currency: 'usd',
+        sourceRef: `razorpay:${razorpay_payment_id}`
+      });
+    } catch (affErr) {
+      console.warn('[Affiliate] Commission notice (Razorpay):', affErr.message);
+    }
 
     res.status(200).json({
       success: true,
