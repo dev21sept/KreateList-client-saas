@@ -662,15 +662,33 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
           apiUrl += `&max_id=${maxId}`;
         }
 
-        const apiResponse = await axios.get(apiUrl, {
-          headers: {
-            'cookie': sessionCookie,
-            'x-csrf-token': csrfToken || '',
-            'accept': 'application/json',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          },
-          timeout: 15000
-        });
+        // A large closet can be 30-40+ sequential pages; a single transient network hiccup on any
+        // one of them (seen in production as a bare "aborted" connection reset) used to throw away
+        // every page already fetched and fall back to the much worse public-page scraper. Retry the
+        // individual page a few times before giving up on the whole closet.
+        let apiResponse = null;
+        let lastPageErr = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            apiResponse = await axios.get(apiUrl, {
+              headers: {
+                'cookie': sessionCookie,
+                'x-csrf-token': csrfToken || '',
+                'accept': 'application/json',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              },
+              timeout: 15000
+            });
+            break;
+          } catch (pageErr) {
+            lastPageErr = pageErr;
+            if (attempt < 3) {
+              console.warn(`[Import Scraper] Poshmark closet page ${page} for ${cleanUsername} failed (attempt ${attempt}/3): ${pageErr.message}. Retrying...`);
+              await new Promise(r => setTimeout(r, attempt * 1500));
+            }
+          }
+        }
+        if (!apiResponse) throw lastPageErr;
 
         const posts = apiResponse.data?.data || [];
         if (posts.length > 0) {
