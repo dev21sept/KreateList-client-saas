@@ -73,7 +73,7 @@ async function setStatus(req, res, status) {
       {
         $set: {
           status,
-          statusReason: req.body.reason || '',
+          statusReason: (req.body && req.body.reason) || '',
           reviewedBy: req.user.id,
           reviewedAt: new Date()
         }

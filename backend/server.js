@@ -75,6 +75,10 @@ app.use(morgan('dev', {
 app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json', limit: '2mb' }));
 app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '50mb' }));
 app.use(express.urlencoded({ limit: process.env.REQUEST_BODY_LIMIT || '50mb', extended: true }));
+// express.json()/urlencoded() leave req.body as undefined (not {}) when a request has no body or no
+// matching Content-Type - e.g. a POST sent with no data at all. Default it so every controller can
+// safely read req.body.whatever without each one needing its own guard.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
