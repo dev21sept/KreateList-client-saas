@@ -19,8 +19,13 @@ function getAxiosConfig(options) {
     config.responseType = options.responseType;
   }
 
+  // Poshmark does not block this server's IP (confirmed via the app's own reliably-working
+  // closet-scrape and automation-share code, which both connect directly) - routing Poshmark
+  // calls through the proxy only adds an extra point of failure for no benefit, and takes every
+  // Poshmark publish/delist/reactivate call down whenever the proxy vendor itself has an outage.
+  const isPoshmark = /poshmark\.com/i.test(options.url || '');
   const proxyUrl = process.env.HTTP_PROXY_URL;
-  if (proxyUrl) {
+  if (proxyUrl && !isPoshmark) {
     console.log(`[Backend Publisher] Routing request to ${options.url} via proxy agent...`);
     config.httpsAgent = new HttpsProxyAgent(proxyUrl);
   }
