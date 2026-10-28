@@ -187,7 +187,7 @@ Return a valid JSON object with EXACTLY these keys:
       gender: inputGender || '',
       condition: parsed.condition || inputCondition || 'New',
       price: parsed.price ? String(parsed.price).replace(/[^0-9.]/g, '') : (inputPrice || '29.99'),
-      sku: parsed.sku || inputSku || `AMZ-${Date.now().toString().slice(-6)}`
+      sku: parsed.sku || inputSku || ''
     };
 
     res.status(200).json({

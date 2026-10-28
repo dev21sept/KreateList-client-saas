@@ -1164,7 +1164,7 @@ exports.publishListing = async (req, res) => {
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku || `KL${Date.now()}`,
+            sku: prod.sku || '',
             brand: prod.brand || '',
             size: prod.size || '',
             color: prod.color || '',
@@ -1345,8 +1345,10 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    // Use exact listing.sku if present; fallback to auto-generated SKU
-    const sku = listing.sku ? listing.sku.trim() : `SKU-${listing._id.toString().substring(18)}`;
+    // SKU is optional in the form; the schema's own pre-validate hook already guarantees listing.sku
+    // is never blank on a saved document (AUTO-L-{id}), so just use whatever is already stored -
+    // never invent a new value here (eBay's Inventory API still needs a non-empty SKU to publish).
+    const sku = listing.sku ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     // Fetch valid conditions from Taxonomy API for listing.categoryId
     let validConditionIds = [];

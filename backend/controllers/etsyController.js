@@ -332,7 +332,7 @@ exports.etsyPublish = async (req, res) => {
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku || `KL${Date.now()}`,
+            sku: prod.sku || '',
             brand: prod.brand || '',
             size: prod.size || '',
             color: prod.color || '',

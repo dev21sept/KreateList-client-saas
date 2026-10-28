@@ -470,7 +470,7 @@ async function publishToDepop(listing, depopAccount) {
           price_currency: "USD",
           product_type: listingData.categoryId || "shirts",
           shipping_methods: shippingMethods,
-          sku: listingData.sku || `KL${Date.now()}`,
+          sku: listingData.sku || '',
           source: listingData.source ? [listingData.source.toLowerCase()] : ["preloved"],
           style: listingData.styleTag ? listingData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {

@@ -108,23 +108,7 @@ exports.bulkSaveDrafts = async (userId, listingsData, baseUrl) => {
         }
       }
 
-      // Generate dynamic SKU if not present
-      if (!item.sku) {
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1 + savedListings.length;
-        let isUnique = false;
-        let skuCode = '';
-        while (!isUnique) {
-          skuCode = `KL${currentNum}A`;
-          const existingListing = await Listing.findOne({ sku: skuCode });
-          if (!existingListing) {
-            isUnique = true;
-          } else {
-            currentNum++;
-          }
-        }
-        item.sku = skuCode;
-      }
+      item.sku = item.sku || '';
 
       let listing;
       if (item._id || item.id) {
@@ -281,9 +265,10 @@ async function publishSingleEbayListing(listing, token) {
       }
     }
 
-    // 5. Structure inventory item with unique SKU code
-    const timestamp = Date.now().toString().substring(8);
-    const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
+    // SKU is optional in the form; the schema's own pre-validate hook already guarantees listing.sku
+    // is never blank on a saved document (AUTO-L-{id}), so just use whatever is already stored -
+    // never invent a new value here (eBay's Inventory API still needs a non-empty SKU to publish).
+    const sku = listing.sku ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     let validConditionIds = [];
     let effectiveCategoryId = String(listing.categoryId || '').trim();
@@ -551,23 +536,7 @@ exports.bulkPublishListings = async (userId, listingsData, baseUrl) => {
           }
         }
 
-        // SKU code
-        if (!itemData.sku) {
-          const productCount = await Listing.countDocuments();
-          let currentNum = productCount + 1 + results.length;
-          let isUnique = false;
-          let skuCode = '';
-          while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-              isUnique = true;
-            } else {
-              currentNum++;
-            }
-          }
-          itemData.sku = skuCode;
-        }
+        itemData.sku = itemData.sku || '';
 
         listing = await Listing.create(itemData);
       }
