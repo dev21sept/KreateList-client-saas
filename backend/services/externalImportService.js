@@ -657,7 +657,10 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       let page = 1;
 
       while (hasMore) {
-        let apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
+        // 50 is Poshmark's confirmed real ceiling for this endpoint - anything above it silently
+        // falls back to 20 per page instead of erroring, so there's no bulk/"fetch everything in one
+        // request" option; this is the largest page size that still returns the full count.
+        let apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=50`;
         if (maxId) {
           apiUrl += `&max_id=${maxId}`;
         }
