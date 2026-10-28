@@ -2955,7 +2955,7 @@ const NewListings = () => {
           brand: item.brand || '',
           size: item.size || '',
           color: item.color || '',
-          sku: item.sku ? `${item.sku}-NEW` : `KL${Date.now()}`,
+          sku: item.sku ? `${item.sku}-NEW` : '',
           category: item.category || '',
           categoryId: item.categoryId || '',
           material: item.material || '',

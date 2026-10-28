@@ -517,10 +517,9 @@ exports.relistOrder = async (req, res) => {
       const finalCategory = liveCategory || existingListing?.category || extractCategoryFromTitle(title);
       const finalDescription = liveDescription || existingListing?.description || `${title}.\n- Brand: ${finalBrand || 'N/A'}\n- Size: ${finalSize || 'N/A'}\n- Condition: Pre-owned in good condition.`;
 
-      const skuTimestamp = Date.now().toString().slice(-6) + Math.floor(Math.random() * 90 + 10);
-      const newSku = originalSku 
-        ? `${originalSku.replace(/-RELIST-\d+$/i, '')}-RELIST-${skuTimestamp}`
-        : `RL-${skuTimestamp}`;
+      const newSku = originalSku
+        ? `${originalSku.replace(/-RELIST-\d+$/i, '')}-RELIST-${Date.now().toString().slice(-6)}`
+        : '';
 
       const listingData = {
         user: req.user.id,

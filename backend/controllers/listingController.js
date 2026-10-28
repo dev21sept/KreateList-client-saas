@@ -3219,10 +3219,12 @@ exports.moveToNewItem = async (req, res) => {
     const baseSize = platformDetails.size || (listing && listing.size) || (prod && prod.size) || '';
     const baseColor = platformDetails.color || (listing && listing.color) || (prod && prod.color) || '';
 
-    // Generate a unique SKU for the new item
-    const timestamp = Date.now().toString().slice(-4);
-    const origSku = (listing && listing.sku) || (prod && prod.sku) || 'ITEM';
-    const newSku = `${origSku}-${platformLower.toUpperCase()}-${timestamp}`;
+    // Keep the SKU optional: only derive a suffixed one when the source actually had a real,
+    // user-entered SKU (so the split copy doesn't collide with the original); otherwise leave it
+    // blank for the schema's own AUTO-L-{id} fallback to handle.
+    const origSku = (listing && listing.sku) || (prod && prod.sku) || '';
+    const isRealSku = origSku && !/^AUTO-[LP]-/.test(origSku);
+    const newSku = isRealSku ? `${origSku}-${platformLower.toUpperCase()}-${Date.now().toString().slice(-4)}` : '';
 
     // Create the new independent Listing document
     const newListing = new Listing({
@@ -4256,9 +4258,7 @@ exports.importActiveChannelsToLocal = async (req, res) => {
         // Create new master Listing in local database
         const primaryPlatform = activeSelectedPlatforms[0] || 'ebay';
         const primaryChannel = channels[primaryPlatform] || item;
-        const finalSku = item.sku && item.sku.trim() 
-          ? item.sku.trim() 
-          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+        const finalSku = item.sku && item.sku.trim() ? item.sku.trim() : '';
 
         const newListing = new Listing({
           user: userId,

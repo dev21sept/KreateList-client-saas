@@ -687,7 +687,7 @@ async function executeDepopUpload(productData) {
       price_currency: currency,
       product_type: mapProductType(productData.categoryId || productData.category),
       shipping_methods: shippingMethods,
-      sku: productData.sku || `KL${Date.now()}`,
+      sku: productData.sku || '',
       source: productData.source ? [productData.source.toLowerCase()] : ["preloved"],
       style: productData.styleTag ? productData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
       variant_set: variantSet,
@@ -1365,7 +1365,7 @@ if (currentSite === 'depop') {
           price_currency: currency,
           product_type: mapProductType(listing.categoryId || listing.category),
           shipping_methods: shippingMethods,
-          sku: listing.sku || `KL${Date.now()}`,
+          sku: listing.sku || '',
           source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
           style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {

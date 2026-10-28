@@ -468,9 +468,7 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
         console.log(`[Auto-Import/Merge] Merged ${src} item "${prod.title}" into listing ${matchedListing._id}`);
       } else {
         // Auto-create new Master Listing
-        const finalSku = prod.sku && prod.sku.trim()
-          ? prod.sku.trim()
-          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+        const finalSku = prod.sku && prod.sku.trim() ? prod.sku.trim() : '';
 
         const newListing = new Listing({
           user: userId,

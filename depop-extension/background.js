@@ -821,7 +821,7 @@ async function publishDepopBackground(listing, token) {
       price_currency: currency,
       product_type: mapProductType(listing.categoryId || listing.category),
       shipping_methods: shippingMethods,
-      sku: listing.sku || `KL${Date.now()}`,
+      sku: listing.sku || '',
       source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
       style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
       variant_set: (() => {
