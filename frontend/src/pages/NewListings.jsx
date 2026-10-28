@@ -2562,6 +2562,97 @@ const NewListings = () => {
     }
   };
 
+  // Export Inventory Handlers
+  const EXPORT_PLATFORMS = ['ebay', 'poshmark', 'mercari', 'etsy', 'amazon'];
+
+  const buildExportRows = () => {
+    return (listings || []).map(item => {
+      const row = {
+        Title: item.title || '',
+        SKU: item.sku || '',
+        Brand: item.brand || '',
+        Size: item.size || '',
+        Color: item.color || '',
+        Category: item.category || '',
+        Price: item.price != null ? String(item.price) : '',
+        Quantity: item.quantity != null ? String(item.quantity) : ''
+      };
+      EXPORT_PLATFORMS.forEach(p => {
+        const label = p.charAt(0).toUpperCase() + p.slice(1);
+        row[`${label} Status`] = item[`${p}Status`] || 'none';
+        row[`${label} URL`] = item[`${p}Url`] || '';
+      });
+      return row;
+    });
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const rows = buildExportRows();
+      if (rows.length === 0) {
+        toast.info('No inventory to export.');
+        return;
+      }
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+      XLSX.writeFile(workbook, `elister-inventory-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success('Inventory exported as Excel.');
+      setExportModalOpen(false);
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error('Failed to export Excel file.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const rows = (listings || []);
+      if (rows.length === 0) {
+        toast.info('No inventory to export.');
+        return;
+      }
+      const doc = new jsPDF({ orientation: 'landscape' });
+      doc.setFontSize(14);
+      doc.text('Elister Inventory Export', 14, 14);
+      doc.setFontSize(9);
+      doc.text(new Date().toLocaleString(), 14, 20);
+
+      autoTable(doc, {
+        startY: 26,
+        head: [['Title', 'SKU', 'Price', 'eBay', 'Poshmark', 'Mercari', 'Etsy', 'Amazon']],
+        body: rows.map(item => [
+          (item.title || '').slice(0, 45),
+          item.sku || '',
+          item.price != null ? `$${item.price}` : '',
+          item.ebayStatus || 'none',
+          item.poshmarkStatus || 'none',
+          item.mercariStatus || 'none',
+          item.etsyStatus || 'none',
+          item.amazonStatus || 'none'
+        ]),
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [79, 70, 229] }
+      });
+
+      doc.save(`elister-inventory-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success('Inventory exported as PDF.');
+      setExportModalOpen(false);
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast.error('Failed to export PDF file.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const filteredLocalMergeGroups = localMergeGroups.filter(grp => {
     if (localMergeFilterTab === 'multi' && grp.channelCount <= 1) return false;
     if (localMergeFilterTab === '2plus' && grp.duplicateCount < 2) return false;
@@ -2723,6 +2814,10 @@ const NewListings = () => {
   const [linkExistingPlatform, setLinkExistingPlatform] = useState('poshmark');
   const [linkExistingUrl, setLinkExistingUrl] = useState('');
   const [linkExistingSubmitting, setLinkExistingSubmitting] = useState(false);
+
+  // "Export Inventory" modal - pick PDF or Excel, then download the full Master inventory.
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -3879,14 +3974,14 @@ const NewListings = () => {
             </>
           )}
 
-          {/* Smart Merge Button (Universal) */}
+          {/* Export Inventory Button (Universal) */}
           <button
-            onClick={handleOpenLocalMergeModal}
+            onClick={() => setExportModalOpen(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-[0.98]"
-            title="Scan and merge duplicated or cross-channel listings"
+            title="Export your full inventory as a PDF or Excel file"
           >
-            <GitMerge size={14} className="text-indigo-600" />
-            <span>Smart Merge</span>
+            <Download size={14} className="text-indigo-600" />
+            <span>Export Inventory</span>
           </button>
 
           {/* Sync Platforms Button (Universal) */}
@@ -5601,6 +5696,54 @@ const NewListings = () => {
 
       {/* Master Item Dropdown Portal */}
       {renderMasterPortalDropdown()}
+
+      {/* Export Inventory Modal - pick PDF or Excel, then download the full Master inventory */}
+      {exportModalOpen && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"
+          onClick={() => !exporting && setExportModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">Export Inventory</h2>
+              <button
+                type="button"
+                onClick={() => !exporting && setExportModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs font-semibold text-slate-500">
+              Downloads your full inventory ({(listings || []).length} items) with SKU, price, and status across every platform.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={handleExportPdf}
+                className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <FileText size={22} className="text-rose-500" />
+                <span className="text-xs font-black text-slate-800">Export as PDF</span>
+              </button>
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={handleExportExcel}
+                className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Boxes size={22} className="text-emerald-600" />
+                <span className="text-xs font-black text-slate-800">Export as Excel</span>
+              </button>
+            </div>
+            {exporting && <p className="text-[10px] font-bold text-indigo-600 text-center">Preparing your file...</p>}
+          </div>
+        </div>
+      )}
 
       {/* Link Existing Listing Modal - attach a real platform listing by URL when auto-merge missed it */}
       {linkExistingModal && (
