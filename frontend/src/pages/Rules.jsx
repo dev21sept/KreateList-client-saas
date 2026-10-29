@@ -304,6 +304,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
 
 const Rules = () => {
   const { toast, confirm } = useNotification();
+  const sequenceScrollRef = useRef(null);
   const [rules, setRules] = useState([]);
   const [showRuleList, setShowRuleList] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -400,6 +401,23 @@ const Rules = () => {
 
   const removeFieldFromSequence = (field) => {
     setTitleSequence(titleSequence.filter(f => f !== field));
+  };
+
+  // Auto-scrolls the Active Sequence row while dragging a chip near its left/right edge, so a chip
+  // can still be dragged all the way to the other end even when the row is wider than the screen
+  // and has its own scrollbar - otherwise the drag gesture has no way to reach past what's visible.
+  const handleSequenceDragScroll = (event, info) => {
+    const container = sequenceScrollRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const edge = 60;
+    const maxSpeed = 16;
+    const x = info.point.x;
+    if (x < rect.left + edge) {
+      container.scrollLeft -= maxSpeed * ((rect.left + edge - x) / edge);
+    } else if (x > rect.right - edge) {
+      container.scrollLeft += maxSpeed * ((x - (rect.right - edge)) / edge);
+    }
   };
 
   const applyPreset = (preset) => {
@@ -787,6 +805,7 @@ const Rules = () => {
                      of growing a full row of height per attribute. Drag any chip straight to either
                      end to move it there in one motion. */
                   <Reorder.Group
+                    ref={sequenceScrollRef}
                     axis="x"
                     values={titleSequence}
                     onReorder={setTitleSequence}
@@ -800,6 +819,7 @@ const Rules = () => {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
+                          onDrag={handleSequenceDragScroll}
                           className="pl-2.5 pr-1.5 py-1.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-colors shrink-0"
                         >
                           <span className="w-4.5 h-4.5 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
