@@ -793,7 +793,8 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             quantity: 1,
             status: isActive ? 'active' : 'inactive',
             // Real Poshmark state, so sold, hidden and active are not merged into one "inactive" bucket.
-            poshmarkState: poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post })
+            poshmarkState: poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post }),
+            styleTags: Array.isArray(post.style_tags) ? post.style_tags : []
           });
         }
         return listings;
@@ -943,9 +944,51 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
   }
 }
 
+/**
+ * Fetches one Poshmark listing's full detail (vm-rest/posts/{id}) for the auto-enrich-on-open flow -
+ * the same real request shape already confirmed working for the closet scrape, just for a single
+ * post instead of paging through the whole closet. Used when an existing listing opened for editing
+ * is still missing fields (style tags, category, brand/size/color) that the closet scrape itself
+ * never backfilled onto it.
+ */
+async function fetchSinglePoshmarkPost(poshmarkListingId, credentials = {}) {
+  const { sessionCookie, csrfToken } = credentials;
+  if (!sessionCookie || !poshmarkListingId) return null;
+  try {
+    const res = await axios.get(`https://poshmark.com/vm-rest/posts/${poshmarkListingId}?pm_version=2026.26.01`, {
+      headers: {
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken || '',
+        accept: 'application/json',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 15000
+    });
+    const post = res.data?.post || res.data;
+    if (!post || !post.id) return null;
+    return {
+      styleTags: Array.isArray(post.style_tags) ? post.style_tags : [],
+      category: poshmarkCategoryOf(post).path,
+      categoryId: poshmarkCategoryOf(post).id,
+      brand: post.brand || '',
+      size: post.size || '',
+      color: (() => {
+        const raw = Array.isArray(post.colors) ? post.colors[0] : (post.color || post.color_name);
+        if (!raw) return '';
+        if (typeof raw === 'string') return raw;
+        return raw.name || raw.message_id || '';
+      })()
+    };
+  } catch (err) {
+    console.warn(`[Import Scraper] fetchSinglePoshmarkPost failed for ${poshmarkListingId}:`, err.response?.status || err.message);
+    return null;
+  }
+}
+
 module.exports = {
   scrapeDepopShop,
   scrapePoshmarkCloset,
+  fetchSinglePoshmarkPost,
   poshmarkStateOf,
   poshmarkCategoryOf,
   stripInvisible

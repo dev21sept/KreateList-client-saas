@@ -617,6 +617,57 @@ exports.getListing = async (req, res) => {
       }
     }
 
+    // Auto-enrich Poshmark listings with style tags (and category/brand/size/color as a backstop) if
+    // missing - the closet scrape itself only ever wrote a handful of fields into platformData.poshmark
+    // (thumbnail/images/price/url), style_tags was never read from Poshmark's own response at all.
+    const poshmarkId = listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
+    const existingPoshTags = listing.platformData?.poshmark?.styleTags;
+    if (poshmarkId && (!Array.isArray(existingPoshTags) || existingPoshTags.length === 0)) {
+      try {
+        const User = require('../models/User');
+        const user = await User.findById(req.user.id).select('poshmarkAccount');
+        if (user?.poshmarkAccount?.connected && user.poshmarkAccount.sessionCookie) {
+          const { fetchSinglePoshmarkPost } = require('../services/externalImportService');
+          console.log(`[GET LISTING] Auto-enriching Poshmark details for PostID: ${poshmarkId}`);
+          const poshDetails = await fetchSinglePoshmarkPost(poshmarkId, user.poshmarkAccount);
+          if (poshDetails) {
+            listing.platformData = listing.platformData || {};
+            listing.platformData.poshmark = listing.platformData.poshmark || {};
+            let poshChanged = false;
+            if (poshDetails.styleTags?.length > 0) {
+              listing.platformData.poshmark.styleTags = poshDetails.styleTags;
+              poshChanged = true;
+            }
+            if (poshDetails.category && (!listing.platformData.poshmark.category || listing.platformData.poshmark.category === 'Clothing')) {
+              listing.platformData.poshmark.category = poshDetails.category;
+              poshChanged = true;
+            }
+            if (poshDetails.brand && !listing.platformData.poshmark.brand) {
+              listing.platformData.poshmark.brand = poshDetails.brand;
+              poshChanged = true;
+            }
+            if (poshDetails.size && !listing.platformData.poshmark.size) {
+              listing.platformData.poshmark.size = poshDetails.size;
+              poshChanged = true;
+            }
+            if (poshDetails.color && !listing.platformData.poshmark.color) {
+              listing.platformData.poshmark.color = poshDetails.color;
+              poshChanged = true;
+            }
+            if (poshChanged) {
+              listing.markModified('platformData');
+              if (!isFromProduct && typeof listing.save === 'function') {
+                await listing.save();
+              }
+              console.log(`[GET LISTING] Successfully enriched Poshmark post ${poshmarkId} with ${poshDetails.styleTags?.length || 0} style tags`);
+            }
+          }
+        }
+      } catch (enrichErr) {
+        console.warn(`[GET LISTING] Failed to auto-enrich Poshmark post ${poshmarkId}:`, enrichErr.message);
+      }
+    }
+
     // Auto-enrich Mercari listings with full details (all photos, description, category, size, brand) if missing/minimal
     const mercariId = listing.mercariListingId || (listing.sku && listing.sku.startsWith('M-m') ? listing.sku.replace('M-', '') : null);
     if (mercariId && (!listing.images || listing.images.length <= 1 || !listing.description || listing.description === listing.title)) {
