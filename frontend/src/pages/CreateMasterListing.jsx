@@ -55,11 +55,12 @@ import { Badge } from '../components/ui/Badge';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
-import { 
-  resolveMercariCategory, 
-  resolvePoshmarkCategory, 
-  resolveEbayCategoryFallback, 
+import {
+  resolveMercariCategory,
+  resolvePoshmarkCategory,
+  resolveEbayCategoryFallback,
   resolveEtsyCategoryFallback,
+  pickRichestCategorySource,
   cleanHtmlDescription
 } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
@@ -1558,14 +1559,14 @@ const CreateMasterListing = ({
 
         // Poshmark
         poshmarkCategory: resolvePoshmarkCategory(
-          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          pickRichestCategorySource(pmData.category, ebData.category, listing.category, prev.poshmarkCategory),
           listing.title || pmData.title || prev.title,
           extractedBrand || prev.brand
         ).category,
         poshmarkPrice: pmData.price !== undefined ? String(pmData.price) : (listing.price !== undefined ? String(listing.price) : prev.poshmarkPrice),
         poshmarkOriginalPrice: pmData.originalPrice !== undefined ? String(pmData.originalPrice) : (listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.poshmarkOriginalPrice),
         poshmarkDepartment: pmData.departmentId || pmData.department || resolvePoshmarkCategory(
-          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          pickRichestCategorySource(pmData.category, ebData.category, listing.category, prev.poshmarkCategory),
           listing.title || pmData.title || prev.title,
           extractedBrand || prev.brand
         ).department || prev.poshmarkDepartment || 'Women',

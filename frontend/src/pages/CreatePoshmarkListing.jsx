@@ -34,7 +34,7 @@ import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { GENDER_OPTIONS } from '../constants/genderOptions';
-import { resolvePoshmarkCategory, cleanHtmlDescription } from '../utils/categoryResolver';
+import { resolvePoshmarkCategory, pickRichestCategorySource, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POSHMARK_COLORS = [
   'Red', 'Pink', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Gold', 'Silver', 'Black', 'Gray', 'White', 'Cream', 'Brown', 'Tan'
@@ -784,7 +784,11 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
       if (initialListing) {
         const pData = initialListing.platformData?.poshmark || (initialListing.platform === 'poshmark' ? initialListing : {});
         const resolvedCat = resolvePoshmarkCategory(
-          pData.category || (initialListing.platform === 'poshmark' ? initialListing.category : '') || initialListing.category || '',
+          pickRichestCategorySource(
+            pData.category,
+            initialListing.platformData?.ebay?.category,
+            initialListing.category
+          ),
           pData.title || initialListing.title,
           pData.brand || initialListing.brand || initialListing.itemSpecifics?.Brand || ''
         );
@@ -828,7 +832,12 @@ const CreatePoshmarkListing = ({ isModal = false, editId: propEditId = null, ini
             const rawSize = pData.size || raw.size || raw.itemSpecifics?.Size || raw.itemSpecifics?.['Size'] || raw.itemSpecifics?.['Size (Men\'s)'] || raw.itemSpecifics?.['Size (Women\'s)'] || '';
 
             const resolvedCat = resolvePoshmarkCategory(
-              pData.category || (raw.platform === 'poshmark' ? raw.category : '') || raw.category || raw.category_name || '',
+              pickRichestCategorySource(
+                pData.category,
+                raw.platformData?.ebay?.category,
+                raw.category,
+                raw.category_name
+              ),
               pData.title || raw.title || '',
               rawBrand
             );

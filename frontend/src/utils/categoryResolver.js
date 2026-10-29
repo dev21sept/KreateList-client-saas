@@ -179,6 +179,23 @@ export const mapEbayToPoshmark = ({ ebayPath = '', title = '', gender = null } =
   return groupContainsMatches[0] || null;
 };
 
+/**
+ * Picks the most specific (most " > " levels) non-generic category string out of several possible
+ * sources on a listing (its own Poshmark field, the eBay field, the top-level category, ...).
+ * A listing's platformData.poshmark.category is frequently just the bare word "Clothing" - a
+ * placeholder stored at publish time rather than an actual resolved category - while another field
+ * on the very same document (platformData.ebay.category, or the top-level category) often already
+ * has the real full path. Blindly taking whichever field happens to be truthy first picks "Clothing"
+ * over a perfectly good "Men > Shirts > Dress Shirts" and the category ends up blank in the form.
+ */
+export const pickRichestCategorySource = (...candidates) => {
+  const valid = candidates
+    .map(c => String(c || '').trim())
+    .filter(c => c && c.toLowerCase() !== 'clothing');
+  if (valid.length === 0) return '';
+  return valid.reduce((best, cur) => (cur.split('>').length > best.split('>').length ? cur : best));
+};
+
 export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = '', gender = 'Unisex') => {
   const cleanCat = String(rawCategory || '').trim();
   const ebayPath = cleanCat && cleanCat.toLowerCase() !== 'clothing' ? cleanCat : '';
