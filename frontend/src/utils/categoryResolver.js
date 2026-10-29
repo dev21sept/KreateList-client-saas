@@ -176,7 +176,32 @@ export const mapEbayToPoshmark = ({ ebayPath = '', title = '', gender = null } =
     const parts = entry.path.split(' > ');
     return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(leafKey);
   });
-  return groupContainsMatches[0] || null;
+  if (groupContainsMatches.length) return groupContainsMatches[0];
+
+  // eBay's own leaf is itself a compound ("Activewear Tops", "Golf ... Shirts & Tops", "Coats,
+  // Jackets & Vests") - leafKey never matches as one unit since it's multiple words. The LAST word
+  // of an English compound is usually the actual garment type ("Activewear Tops" -> "Tops"; a
+  // qualifier like "Activewear"/"Golf" is a prefix, not the category). Try each word from the end
+  // through the same three tiers above until one hits.
+  const leafWords = leafKey.split(' ').filter(w => w.length > 1 && !POSHMARK_STOP_WORDS.has(w));
+  for (let i = leafWords.length - 1; i >= 0; i--) {
+    const word = leafWords[i];
+    if (leafWords.length < 2) break; // already tried as the whole leafKey above
+    const exact = POSHMARK_TAXONOMY.filter(entry => poshmarkSingularKey(entry.path.split(' > ').pop()) === word && inGender(entry));
+    if (exact.length) return exact[0];
+    const group = POSHMARK_TAXONOMY.filter(entry => {
+      const parts = entry.path.split(' > ');
+      return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]) === word;
+    });
+    if (group.length) return group[0];
+    const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+      const parts = entry.path.split(' > ');
+      return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(word);
+    });
+    if (groupContains.length) return groupContains[0];
+  }
+
+  return null;
 };
 
 /**

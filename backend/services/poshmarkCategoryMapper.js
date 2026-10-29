@@ -83,10 +83,10 @@ function mapToPoshmarkCategory({ ebayPath = '', title = '', gender = null } = {}
   // 2. Same words in a different order or with a leading gender word ("Women's Athletic Shoes").
   const wordSet = key => [...new Set(key.split(' ').filter(w => w.length > 1 && !STOP_WORDS.has(w) && !GENDER_WORDS.has(w)))].sort().join(' ');
   const targetWords = wordSet(leafKey);
-  if (!targetWords) return null;
-
-  const matches = POSHMARK_TAXONOMY.filter(entry => inGender(entry) && wordSet(singularKey(entry.path.split(' > ').pop())) === targetWords);
-  if (matches.length) return toResult(matches[0]);
+  if (targetWords) {
+    const matches = POSHMARK_TAXONOMY.filter(entry => inGender(entry) && wordSet(singularKey(entry.path.split(' > ').pop())) === targetWords);
+    if (matches.length) return toResult(matches[0]);
+  }
 
   // 3. eBay's leaf IS one of Poshmark's own generic groups ("Jeans", "Dresses", "Jackets") rather than
   // a specific subtype ("Straight Leg", "Maxi") - every subtype under one group shares the same
@@ -106,7 +106,32 @@ function mapToPoshmarkCategory({ ebayPath = '', title = '', gender = null } = {}
     const middle = entry.path.split(' > ');
     return middle.length === 3 && inGender(entry) && singularKey(middle[1]).split(' ').includes(leafKey);
   });
-  return groupContainsMatches.length ? toResult(groupContainsMatches[0]) : null;
+  if (groupContainsMatches.length) return toResult(groupContainsMatches[0]);
+
+  // 4. eBay's own leaf is itself a compound ("Activewear Tops", "Golf ... Shirts & Tops", "Coats,
+  // Jackets & Vests") - leafKey never matches as one unit since it's multiple words. The LAST word of
+  // an English compound is usually the actual garment type ("Activewear Tops" -> "Tops"; a qualifier
+  // like "Activewear"/"Golf" is a prefix, not the category). Try each word from the end through the
+  // same three tiers above until one hits.
+  const leafWords = leafKey.split(' ').filter(w => w.length > 1 && !STOP_WORDS.has(w));
+  for (let i = leafWords.length - 1; i >= 0; i--) {
+    if (leafWords.length < 2) break; // already tried as the whole leafKey above
+    const word = leafWords[i];
+    const exact = POSHMARK_TAXONOMY.filter(entry => singularKey(entry.path.split(' > ').pop()) === word && inGender(entry));
+    if (exact.length) return toResult(exact[0]);
+    const group = POSHMARK_TAXONOMY.filter(entry => {
+      const middle = entry.path.split(' > ');
+      return middle.length === 3 && inGender(entry) && singularKey(middle[1]) === word;
+    });
+    if (group.length) return toResult(group[0]);
+    const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+      const middle = entry.path.split(' > ');
+      return middle.length === 3 && inGender(entry) && singularKey(middle[1]).split(' ').includes(word);
+    });
+    if (groupContains.length) return toResult(groupContains[0]);
+  }
+
+  return null;
 }
 
 function toResult(entry) {
