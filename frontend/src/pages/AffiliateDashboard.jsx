@@ -19,7 +19,7 @@ export default function AffiliateDashboard() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [applying, setApplying] = useState(false);
-  const [data, setData] = useState({ entries: [], total: 0, totalReferred: 0, totalCommissionEarned: 0 });
+  const [data, setData] = useState({ entries: [], pendingSignups: [], total: 0, totalReferred: 0, totalCommissionEarned: 0 });
 
   const load = useCallback(async () => {
     try {
@@ -135,10 +135,19 @@ export default function AffiliateDashboard() {
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <h2 className="text-sm font-bold text-slate-900 mb-3">Commission History</h2>
-            {data.entries.length === 0 ? (
-              <EmptyState title="No commissions yet" description="Share your tracking link - commissions appear here when someone you referred subscribes." />
+            {data.entries.length === 0 && (data.pendingSignups || []).length === 0 ? (
+              <EmptyState title="No referrals yet" description="Share your tracking link - signups and commissions appear here." />
             ) : (
               <div className="divide-y divide-slate-100">
+                {(data.pendingSignups || []).map(p => (
+                  <div key={p.referredUser} className="py-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-slate-800">{p.referredUserName}</p>
+                      <p className="text-[10px] text-slate-400">Signed up &middot; {new Date(p.signedUpAt).toLocaleDateString()}</p>
+                    </div>
+                    <Badge variant="warning">Pending - no payment yet</Badge>
+                  </div>
+                ))}
                 {data.entries.map(e => (
                   <div key={e._id} className="py-2.5 flex items-center justify-between text-xs">
                     <div>

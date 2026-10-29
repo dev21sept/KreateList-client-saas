@@ -58,10 +58,35 @@ exports.getCommissions = async (req, res) => {
       AffiliateCommission.find({ affiliate: profile._id }).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       AffiliateCommission.countDocuments({ affiliate: profile._id })
     ]);
+
+    // Signups that haven't paid yet have no AffiliateCommission entry at all, so they were
+    // invisible in this list even though the "Signed Up" stat already counted them - looked like
+    // the tracking link silently wasn't working. Surfaced here (page 1 only, to keep this simple)
+    // as a separate "pending" row so there's one place to see "they signed up, awaiting payment".
+    let pendingSignups = [];
+    if (page === 1) {
+      const paidUserIds = new Set(
+        (await AffiliateCommission.distinct('referredUser', { affiliate: profile._id })).map(String)
+      );
+      const signedUpUsers = await User.find({ referredByAffiliateCode: profile.code })
+        .select('firstName lastName email createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      pendingSignups = signedUpUsers
+        .filter(u => !paidUserIds.has(String(u._id)))
+        .map(u => ({
+          referredUser: u._id,
+          referredUserName: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+          referredUserEmail: u.email,
+          signedUpAt: u.createdAt
+        }));
+    }
+
     res.json({
       success: true,
       data: {
         entries,
+        pendingSignups,
         total,
         page,
         pages: Math.ceil(total / limit),
