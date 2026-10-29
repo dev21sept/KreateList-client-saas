@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, Reorder } from 'framer-motion';
 import {
   Plus,
   Trash2,
@@ -8,8 +8,7 @@ import {
   RefreshCw,
   Save,
   Search,
-  ChevronRight,
-  ChevronLeft,
+  GripVertical,
   CheckCircle2,
   X,
   List as ListIcon,
@@ -404,16 +403,6 @@ const Rules = () => {
     setTitleSequence(titleSequence.filter(f => f !== field));
   };
 
-  const moveField = (index, direction) => {
-    setTitleSequence(prev => {
-      const target = index + direction;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  };
-
   const applyPreset = (preset) => {
     setTitleSequence([...preset.sequence]);
     toast.success(`Applied "${preset.name}" preset`);
@@ -672,10 +661,10 @@ const Rules = () => {
                   <Zap size={18} className="text-amber-500" /> Title Construction & Live Preview
                 </label>
                 <p className="text-slate-400 text-xs font-medium mt-0.5">
-                  Click attributes below to add them, then use the arrows to put them in order. See how your titles format with real product samples.
+                  Click attributes below to add them, then drag to put them in order. See how your titles format with real product samples.
                 </p>
               </div>
-              <Badge variant="indigo" className="self-start sm:self-auto">Easy Reorder</Badge>
+              <Badge variant="indigo" className="self-start sm:self-auto">Drag & Drop Enabled</Badge>
             </div>
 
             {/* LIVE DYNAMIC EXAMPLE PREVIEW WIDGET */}
@@ -780,65 +769,55 @@ const Rules = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                  Active Sequence (Use the Arrows to Reorder)
+                  Active Sequence (Drag to Reorder)
                 </p>
                 <span className="text-[11px] text-slate-400 font-semibold">
                   {titleSequence.length} attributes active
                 </span>
               </div>
 
-              <div className="min-h-[90px] p-5 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
+              <div className="min-h-[90px] p-3 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
                 {titleSequence.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold italic py-6">
                     Click any attribute button below to start assembling your title sequence...
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2.5">
+                  /* A single vertical column, not a wrapping row - drag position stays correct no
+                     matter how many attributes are picked or how narrow the screen is. Drag any item
+                     straight to the top or bottom to move it there in one motion. */
+                  <Reorder.Group
+                    axis="y"
+                    values={titleSequence}
+                    onReorder={setTitleSequence}
+                    className="space-y-2"
+                  >
                     <AnimatePresence>
                       {titleSequence.map((field, idx) => (
-                        <motion.div
+                        <Reorder.Item
                           key={field}
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.8 }}
-                          className="pl-3.5 pr-1.5 py-1.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2 hover:border-indigo-400 hover:shadow-md transition-all"
+                          value={field}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-colors"
                         >
+                          <GripVertical size={15} className="text-slate-300 shrink-0" />
                           <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black flex items-center justify-center shrink-0">
                             {idx + 1}
                           </span>
-                          <span className="text-xs font-black text-slate-700">{field}</span>
-                          <div className="flex items-center gap-0.5 ml-1">
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => moveField(idx, -1)}
-                              className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-300 disabled:cursor-not-allowed rounded-lg transition-all cursor-pointer"
-                              title="Move earlier in title"
-                            >
-                              <ChevronLeft size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === titleSequence.length - 1}
-                              onClick={() => moveField(idx, 1)}
-                              className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-300 disabled:cursor-not-allowed rounded-lg transition-all cursor-pointer"
-                              title="Move later in title"
-                            >
-                              <ChevronRight size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeFieldFromSequence(field)}
-                              className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                              title="Remove from sequence"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </motion.div>
+                          <span className="text-xs font-black text-slate-700 flex-1 truncate">{field}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFieldFromSequence(field)}
+                            className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0"
+                            title="Remove from sequence"
+                          >
+                            <X size={14} />
+                          </button>
+                        </Reorder.Item>
                       ))}
                     </AnimatePresence>
-                  </div>
+                  </Reorder.Group>
                 )}
               </div>
             </div>
