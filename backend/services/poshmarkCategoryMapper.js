@@ -98,7 +98,15 @@ function mapToPoshmarkCategory({ ebayPath = '', title = '', gender = null } = {}
     const middle = entry.path.split(' > ');
     return middle.length === 3 && inGender(entry) && singularKey(middle[1]) === leafKey;
   });
-  return groupMatches.length ? toResult(groupMatches[0]) : null;
+  if (groupMatches.length) return toResult(groupMatches[0]);
+
+  // Compound group names ("Shirts & Tops", "Jackets & Coats") don't equal a single-word eBay leaf
+  // ("Shirts") exactly - a group whose name contains the eBay leaf word is still a confident match.
+  const groupContainsMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const middle = entry.path.split(' > ');
+    return middle.length === 3 && inGender(entry) && singularKey(middle[1]).split(' ').includes(leafKey);
+  });
+  return groupContainsMatches.length ? toResult(groupContainsMatches[0]) : null;
 }
 
 function toResult(entry) {

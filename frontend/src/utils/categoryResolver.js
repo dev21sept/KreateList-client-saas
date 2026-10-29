@@ -151,12 +151,32 @@ export const mapEbayToPoshmark = ({ ebayPath = '', title = '', gender = null } =
   // Same words in a different order or with a leading gender word.
   const wordSet = key => [...new Set(key.split(' ').filter(w => w.length > 1 && !POSHMARK_STOP_WORDS.has(w) && !POSHMARK_GENDER_WORDS.has(w)))].sort().join(' ');
   const targetWords = wordSet(leafKey);
-  if (!targetWords) return null;
+  if (targetWords) {
+    const matches = POSHMARK_TAXONOMY.filter(entry =>
+      inGender(entry) && wordSet(poshmarkSingularKey(entry.path.split(' > ').pop())) === targetWords
+    );
+    if (matches.length) return matches[0];
+  }
 
-  const matches = POSHMARK_TAXONOMY.filter(entry =>
-    inGender(entry) && wordSet(poshmarkSingularKey(entry.path.split(' > ').pop())) === targetWords
-  );
-  return matches[0] || null;
+  // eBay's leaf IS one of Poshmark's own generic groups ("Jeans", "Dresses", "Jackets & Coats", etc)
+  // rather than a specific subtype ("Straight Leg", "Maxi") - Poshmark's taxonomy only has those as
+  // 3-level paths with the group as the middle segment, never as a leaf by itself, so tiers above
+  // always miss them. Every subtype under one group shares the same categoryId/departmentId (that's
+  // all Poshmark's publish API actually needs), so any entry in the group is as valid a starting
+  // point as guessing the "right" subtype would be - mirrors backend/services/poshmarkCategoryMapper.js.
+  const groupMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const parts = entry.path.split(' > ');
+    return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]) === leafKey;
+  });
+  if (groupMatches.length) return groupMatches[0];
+
+  // Compound group names ("Shirts & Tops", "Jackets & Coats") don't equal a single-word eBay leaf
+  // ("Shirts") exactly - a group whose name contains the eBay leaf word is still a confident match.
+  const groupContainsMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const parts = entry.path.split(' > ');
+    return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(leafKey);
+  });
+  return groupContainsMatches[0] || null;
 };
 
 export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = '', gender = 'Unisex') => {
