@@ -8,7 +8,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  GripVertical,
   CheckCircle2,
   X,
   List as ListIcon,
@@ -776,20 +775,22 @@ const Rules = () => {
                 </span>
               </div>
 
-              <div className="min-h-[90px] p-3 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
+              <div className="min-h-[70px] p-3 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
                 {titleSequence.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold italic py-6">
+                  <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold italic py-5">
                     Click any attribute button below to start assembling your title sequence...
                   </div>
                 ) : (
-                  /* A single vertical column, not a wrapping row - drag position stays correct no
-                     matter how many attributes are picked or how narrow the screen is. Drag any item
-                     straight to the top or bottom to move it there in one motion. */
+                  /* A single row that scrolls sideways instead of wrapping onto a second line - drag
+                     position stays correct no matter how many attributes are picked (wrapping onto
+                     multiple rows is what broke drag positions before), and it stays compact instead
+                     of growing a full row of height per attribute. Drag any chip straight to either
+                     end to move it there in one motion. */
                   <Reorder.Group
-                    axis="y"
+                    axis="x"
                     values={titleSequence}
                     onReorder={setTitleSequence}
-                    className="space-y-2"
+                    className="flex flex-nowrap gap-2 overflow-x-auto pb-1"
                   >
                     <AnimatePresence>
                       {titleSequence.map((field, idx) => (
@@ -799,20 +800,19 @@ const Rules = () => {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-colors"
+                          className="pl-2.5 pr-1.5 py-1.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-colors shrink-0"
                         >
-                          <GripVertical size={15} className="text-slate-300 shrink-0" />
-                          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black flex items-center justify-center shrink-0">
+                          <span className="w-4.5 h-4.5 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
                             {idx + 1}
                           </span>
-                          <span className="text-xs font-black text-slate-700 flex-1 truncate">{field}</span>
+                          <span className="text-xs font-black text-slate-700 whitespace-nowrap">{field}</span>
                           <button
                             type="button"
                             onClick={() => removeFieldFromSequence(field)}
-                            className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0"
+                            className="p-0.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all cursor-pointer shrink-0"
                             title="Remove from sequence"
                           >
-                            <X size={14} />
+                            <X size={13} />
                           </button>
                         </Reorder.Item>
                       ))}
