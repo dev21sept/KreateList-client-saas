@@ -498,8 +498,20 @@ exports.getListing = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
 
-    // Auto-enrich eBay listings with full details (all photos, aspects, condition, category, description) if missing/minimal
-    if (listing.ebayListingId && (!listing.itemSpecifics || Object.keys(listing.itemSpecifics).length === 0 || !listing.images || listing.images.length <= 1 || !listing.categoryId || listing.category === 'Clothing')) {
+    // Auto-enrich eBay listings with full details (all photos, aspects, condition, category,
+    // description, business policies, package weight/dimensions, item location) if missing/minimal.
+    // A listing synced in from eBay (rather than created in-app) only ever gets the handful of
+    // fields the sync list call returns - everything else here comes from a full GetItem call,
+    // triggered once, on-demand, the first time the listing is actually opened.
+    if (listing.ebayListingId && (
+      !listing.itemSpecifics || Object.keys(listing.itemSpecifics).length === 0 ||
+      !listing.images || listing.images.length <= 1 ||
+      !listing.categoryId || listing.category === 'Clothing' ||
+      !listing.conditionNote ||
+      !listing.fulfillmentPolicyId || !listing.returnPolicyId || !listing.paymentPolicyId ||
+      !listing.itemLocationCity ||
+      !listing.packageWeight?.lbs && !listing.packageWeight?.oz
+    )) {
       try {
         const token = await getValidToken(req.user.id);
         if (token) {
@@ -546,6 +558,34 @@ exports.getListing = async (req, res) => {
             }
             if (ebayDetails.color && !listing.color) {
               listing.color = ebayDetails.color;
+              changed = true;
+            }
+            if (ebayDetails.fulfillmentPolicyId && !listing.fulfillmentPolicyId) {
+              listing.fulfillmentPolicyId = ebayDetails.fulfillmentPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.returnPolicyId && !listing.returnPolicyId) {
+              listing.returnPolicyId = ebayDetails.returnPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.paymentPolicyId && !listing.paymentPolicyId) {
+              listing.paymentPolicyId = ebayDetails.paymentPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.itemLocationCity && !listing.itemLocationCity) {
+              listing.itemLocationCity = ebayDetails.itemLocationCity;
+              changed = true;
+            }
+            if (ebayDetails.itemLocationZip && !listing.itemLocationZip) {
+              listing.itemLocationZip = ebayDetails.itemLocationZip;
+              changed = true;
+            }
+            if (ebayDetails.packageWeight && !listing.packageWeight?.lbs && !listing.packageWeight?.oz) {
+              listing.packageWeight = ebayDetails.packageWeight;
+              changed = true;
+            }
+            if (ebayDetails.packageDimensions && !listing.packageDimensions?.length) {
+              listing.packageDimensions = ebayDetails.packageDimensions;
               changed = true;
             }
 

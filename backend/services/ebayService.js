@@ -977,6 +977,35 @@ async function getTradingItemDetails(token, itemId) {
         const quantity = parseInt($('Item > Quantity').text() || '1', 10);
         const quantitySold = parseInt($('Item > SellingStatus > QuantitySold').text() || '0', 10);
 
+        // Business policies (shipping/return/payment) - only present when the seller has Business
+        // Policies enabled, which is how eBay has required sellers to manage these for years now.
+        const fulfillmentPolicyId = $('Item > SellerProfiles > SellerShippingProfile > ShippingProfileID').text();
+        const returnPolicyId = $('Item > SellerProfiles > SellerReturnProfile > ReturnProfileID').text();
+        const paymentPolicyId = $('Item > SellerProfiles > SellerPaymentProfile > PaymentProfileID').text();
+
+        // Item location - a free-text "City, State" plus postal code, not the REST API's
+        // merchantLocationKey (that's a separate inventory-location concept with no reliable mapping
+        // back from this text), so these populate the plain city/zip fields only.
+        const itemLocationCity = $('Item > Location').text();
+        const itemLocationZip = $('Item > PostalCode').text();
+
+        // Package weight/dimensions - only present when the listing uses calculated shipping with a
+        // manually-entered package (flat-rate-only listings won't have this block).
+        const weightMajor = $('Item > ShippingDetails > CalculatedShippingRate > WeightMajor').text();
+        const weightMinor = $('Item > ShippingDetails > CalculatedShippingRate > WeightMinor').text();
+        const packageWeight = (weightMajor || weightMinor) ? {
+            lbs: parseInt(weightMajor || '0', 10),
+            oz: parseInt(weightMinor || '0', 10)
+        } : null;
+        const packageLength = $('Item > ShippingPackageDetails > PackageLength').text();
+        const packageWidth = $('Item > ShippingPackageDetails > PackageWidth').text();
+        const packageDepth = $('Item > ShippingPackageDetails > PackageDepth').text();
+        const packageDimensions = (packageLength || packageWidth || packageDepth) ? {
+            length: Math.round(parseFloat(packageLength || '0')),
+            width: Math.round(parseFloat(packageWidth || '0')),
+            height: Math.round(parseFloat(packageDepth || '0'))
+        } : null;
+
         return {
             itemId,
             title,
@@ -993,7 +1022,14 @@ async function getTradingItemDetails(token, itemId) {
             color,
             listingStatus,
             quantity,
-            quantitySold
+            quantitySold,
+            fulfillmentPolicyId,
+            returnPolicyId,
+            paymentPolicyId,
+            itemLocationCity,
+            itemLocationZip,
+            packageWeight,
+            packageDimensions
         };
     } catch (error) {
         console.error(`Error fetching GetItem details for ${itemId}:`, error.response?.data || error.message);
