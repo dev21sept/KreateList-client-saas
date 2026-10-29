@@ -56,7 +56,37 @@ function mapToPoshmarkCategory({ ebayPath = '', title = '', gender = null } = {}
   const rawLeafKey = singularKey(leafText);
   const leafKey = LEAF_SYNONYMS[rawLeafKey] || rawLeafKey;
 
-  if (!leafKey) return null;
+  if (!leafKey) {
+    // Neither eBay nor anywhere else stored any category hierarchy at all for this item (ebayPath was
+    // empty or just the bare "Clothing" placeholder) - the title itself is the only signal left. Scan
+    // its words from the end: in these resale-listing titles the actual garment type word almost
+    // always sits right before the gender/size block ("... Sweater Jacket Womens 3X Red Black
+    // Houndstooth"), the same position a compound eBay leaf's head noun sits in, so each word is tried
+    // through this same function recursively - never an invented/unrelated guess, only real taxonomy matches.
+    if (!title) return null;
+    const titleTargetGender = gender || genderFromText(title);
+    const titleInGender = entry => !titleTargetGender || entry.path.split(' > ')[0] === titleTargetGender;
+    const words = normalize(title).split(' ').filter(w => w.length > 2 && !/^\d+$/.test(w)).map(w => singularKey(w));
+    for (let i = words.length - 1; i >= 0; i--) {
+      const word = words[i];
+      if (STOP_WORDS.has(word) || GENDER_WORDS.has(word)) continue;
+      // Only a garment-FAMILY word (a group name - "Jacket", "Shorts", "Dress") is trustworthy here,
+      // not a specific-style leaf ("V-Neck", "Crew") - a style descriptor coincidentally appearing in
+      // the title ("Mock Neck" on a fleece jacket) could otherwise match an unrelated leaf by accident
+      // ("Neck" -> Sweaters > V-Neck) and produce a confidently wrong category instead of none.
+      const group = POSHMARK_TAXONOMY.filter(entry => {
+        const middle = entry.path.split(' > ');
+        return middle.length === 3 && titleInGender(entry) && singularKey(middle[1]) === word;
+      });
+      if (group.length) return toResult(group[0]);
+      const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+        const middle = entry.path.split(' > ');
+        return middle.length === 3 && titleInGender(entry) && singularKey(middle[1]).split(' ').includes(word);
+      });
+      if (groupContains.length) return toResult(groupContains[0]);
+    }
+    return null;
+  }
 
   const inGender = entry => !targetGender || entry.path.split(' > ')[0] === targetGender;
 

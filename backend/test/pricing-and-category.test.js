@@ -38,8 +38,15 @@ test('full eBay taxonomy path uses the leaf and the gender from the path', () =>
 });
 
 test('generic Clothing never maps to an unrelated pet category', () => {
-  const result = mapToPoshmarkCategory({ ebayPath: 'Clothing', title: 'Blue cotton top', gender: 'Women' });
+  const result = mapToPoshmarkCategory({ ebayPath: 'Clothing', title: 'Blue cotton fabric remnant', gender: 'Women' });
   assert.equal(result, null);
+});
+
+test('generic Clothing falls back to a garment-family word in the title, not a specific style', () => {
+  // "top" is a real Poshmark group (Women > Tops); the title also has no size/style noise that could
+  // coincidentally match an unrelated leaf, so this should resolve instead of staying blank.
+  const result = mapToPoshmarkCategory({ ebayPath: 'Clothing', title: 'Blue cotton top', gender: 'Women' });
+  assert.equal(result?.path, 'Women > Tops > Blouses');
 });
 
 test('unknown categories return null instead of a random guess', () => {

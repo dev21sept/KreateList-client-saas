@@ -225,7 +225,35 @@ export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = ''
   const cleanCat = String(rawCategory || '').trim();
   const ebayPath = cleanCat && cleanCat.toLowerCase() !== 'clothing' ? cleanCat : '';
   const knownGender = gender && gender !== 'Unisex' ? gender : null;
-  const match = mapEbayToPoshmark({ ebayPath, title, gender: knownGender });
+  let match = mapEbayToPoshmark({ ebayPath, title, gender: knownGender });
+
+  // Neither eBay nor anywhere else stored any category hierarchy at all for this item (both fields
+  // are just the bare "Clothing" placeholder) - the title itself is the only signal left. Scan its
+  // words from the end: in these resale-listing titles the actual garment type word almost always
+  // sits right before the gender/size block ("... Sweater Jacket Womens 3X Red Black Houndstooth").
+  // Only match a garment-FAMILY word (a group name - "Jacket", "Shorts", "Dress"), not a specific-
+  // style leaf ("V-Neck", "Crew") - a style descriptor coincidentally in the title ("Mock Neck" on a
+  // fleece jacket) could otherwise match an unrelated leaf by accident ("Neck" -> Sweaters > V-Neck)
+  // and produce a confidently wrong category instead of none.
+  if (!match && title) {
+    const titleTargetGender = knownGender || poshmarkGenderFromText(title);
+    const titleInGender = entry => !titleTargetGender || entry.path.split(' > ')[0] === titleTargetGender;
+    const words = normalizePoshmarkText(title).split(' ').filter(w => w.length > 2 && !/^\d+$/.test(w)).map(w => poshmarkSingularKey(w));
+    for (let i = words.length - 1; i >= 0; i--) {
+      const word = words[i];
+      if (POSHMARK_STOP_WORDS.has(word) || POSHMARK_GENDER_WORDS.has(word)) continue;
+      const group = POSHMARK_TAXONOMY.filter(entry => {
+        const parts = entry.path.split(' > ');
+        return parts.length === 3 && titleInGender(entry) && poshmarkSingularKey(parts[1]) === word;
+      });
+      if (group.length) { match = group[0]; break; }
+      const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+        const parts = entry.path.split(' > ');
+        return parts.length === 3 && titleInGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(word);
+      });
+      if (groupContains.length) { match = groupContains[0]; break; }
+    }
+  }
 
   if (!match) {
     // No confident match: empty path, so the form does not get a wrong default.
