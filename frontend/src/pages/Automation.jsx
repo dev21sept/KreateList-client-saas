@@ -158,13 +158,10 @@ export default function Automation() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-black text-slate-900">Automation</h1>
-        <p className="text-xs font-semibold text-slate-500 mt-1">
-          Daily Share, Follow, Relist, and Offers workflows across your connected platforms.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-xs font-semibold text-slate-500">
+        Daily Share, Follow, Relist, and Offers workflows across your connected platforms.
+      </p>
 
       {/* Platform tabs */}
       <div className="flex items-center gap-2 flex-wrap">

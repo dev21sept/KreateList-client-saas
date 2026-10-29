@@ -62,7 +62,7 @@ export default function AffiliateDashboard() {
 
   if (!profile) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-10 text-center">
+      <div className="max-w-2xl py-10 text-center">
         <h1 className="text-xl font-black text-slate-900">Join the eLister Affiliate Program</h1>
         <p className="text-xs font-semibold text-slate-500 mt-2 mb-6">
           Earn 10% commission on every subscription payment from people you refer.
@@ -76,9 +76,8 @@ export default function AffiliateDashboard() {
   const StatusIcon = meta.icon;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-black text-slate-900">Affiliate Program</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
         <Badge variant={meta.variant}><StatusIcon size={11} className="inline mr-1" />{meta.label}</Badge>
       </div>
 

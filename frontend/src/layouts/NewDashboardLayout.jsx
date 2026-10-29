@@ -281,6 +281,8 @@ const NewDashboardLayout = () => {
     if (path.includes('/settings')) return 'Settings';
     if (path.includes('/integrations')) return 'Integrations';
     if (path.includes('/help')) return 'Help & Support';
+    if (path.includes('/affiliate')) return 'Affiliate Program';
+    if (path.includes('/automation')) return 'Automation';
     return 'Listings';
   };
 
