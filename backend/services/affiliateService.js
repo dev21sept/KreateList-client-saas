@@ -51,6 +51,10 @@ async function attributeSignup(newUser, rawCode) {
  * an approved affiliate. Safe to call on every successful payment webhook (Stripe checkout, Razorpay
  * verify, subscription renewals) - the unique (affiliate, sourceRef) index makes a webhook retry a
  * no-op instead of a duplicate credit.
+ *
+ * Commission is a one-time reward for bringing in the referral, not a recurring cut of every renewal -
+ * once a referredUser has any commission entry under this affiliate, later payments (renewals,
+ * upgrades, re-subscribes) from that same person never create another one.
  */
 async function recordCommission({ userId, plan, paymentAmount, currency = 'usd', sourceRef }) {
   if (!paymentAmount || paymentAmount <= 0 || !sourceRef) return null;
@@ -60,6 +64,9 @@ async function recordCommission({ userId, plan, paymentAmount, currency = 'usd',
 
   const affiliate = await AffiliateProfile.findOne({ code: user.referredByAffiliateCode, status: 'approved' });
   if (!affiliate) return null;
+
+  const alreadyCredited = await AffiliateCommission.exists({ affiliate: affiliate._id, referredUser: user._id });
+  if (alreadyCredited) return null;
 
   const commissionAmount = Math.round(paymentAmount * COMMISSION_RATE * 100) / 100;
   const referredUserName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
@@ -83,8 +90,8 @@ async function recordCommission({ userId, plan, paymentAmount, currency = 'usd',
       { _id: affiliate._id },
       { $inc: { totalCommissionEarned: commissionAmount } }
     );
-    // totalReferred counts distinct referredUser values, not commission entries (one user can renew
-    // and earn multiple entries) - recomputed here rather than $inc'd to stay correct on retries.
+    // totalReferred counts distinct referredUser values - recomputed here rather than $inc'd to stay
+    // correct on retries (each referredUser has at most one entry now that commission is one-time).
     const distinctReferred = await AffiliateCommission.distinct('referredUser', { affiliate: affiliate._id });
     await AffiliateProfile.updateOne({ _id: affiliate._id }, { $set: { totalReferred: distinctReferred.length } });
 
