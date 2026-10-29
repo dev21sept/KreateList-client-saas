@@ -1149,6 +1149,23 @@ const CreateMasterListing = ({
     return [initialListing?.platform || 'ebay'];
   });
 
+  // A platform the item has no live ID on yet is being listed for the first time, not updated -
+  // isEditMode only reflects whether the Master record itself already exists in the DB, which is
+  // true for every item opened from Cross-Listing even when a given platform was never published.
+  const platformHasLiveId = (plat) => {
+    const idField = `${plat}ListingId`;
+    const id = initialListing?.[idField] || initialListing?.platformData?.[plat]?.[idField];
+    return Boolean(id && id !== '-' && id !== 'undefined' && id !== 'null');
+  };
+
+  // "List on X" for a platform the item has never been listed on prompts to link an existing
+  // listing first (if the item is already live on some OTHER platform), instead of always creating
+  // a brand new one - mirrors the manual "Link Existing Listing" 3-dot menu action, triggered here
+  // automatically at the moment it's most useful.
+  const [linkPromptPlatform, setLinkPromptPlatform] = useState(null);
+  const [linkPromptUrl, setLinkPromptUrl] = useState('');
+  const [linkPromptSubmitting, setLinkPromptSubmitting] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishingPlat, setPublishingPlat] = useState(null); // 'all' or specific platform id
@@ -1459,8 +1476,10 @@ const CreateMasterListing = ({
         });
       }
 
-      // Auto-detect platforms if in edit mode or multi-platform
-      if (!isSinglePlatformOnly) {
+      // Auto-detect platforms if in edit mode or multi-platform. Skipped when a specific platform
+      // was explicitly requested (e.g. clicking an empty platform slot in Cross-Listing) - that
+      // choice must win, not get silently overwritten back to whatever listing.platform happens to be.
+      if (!isSinglePlatformOnly && !initialPlatform) {
         const detected = detectActivePlatforms(listing);
         if (detected.length > 0) {
           setSelectedPlatforms(detected);
@@ -2195,13 +2214,8 @@ const CreateMasterListing = ({
 
       // A platform the item has no live ID on yet is being listed for the first time, not updated -
       // the "List on Poshmark" button text already reflects that; the toast after clicking it should too.
-      const hasLiveId = (plat) => {
-        const idField = `${plat}ListingId`;
-        const id = initialListing?.[idField] || initialListing?.platformData?.[plat]?.[idField];
-        return Boolean(id && id !== '-' && id !== 'undefined' && id !== 'null');
-      };
-      const newPlats = targetPlatforms.filter(p => !hasLiveId(p));
-      const updatingPlats = targetPlatforms.filter(p => hasLiveId(p));
+      const newPlats = targetPlatforms.filter(p => !platformHasLiveId(p));
+      const updatingPlats = targetPlatforms.filter(p => platformHasLiveId(p));
       const toastParts = [];
       if (newPlats.length) toastParts.push(`Listing on ${newPlats.map(p => p.toUpperCase()).join(', ')}`);
       if (updatingPlats.length) toastParts.push(`Updating on ${updatingPlats.map(p => p.toUpperCase()).join(', ')}`);
@@ -2251,6 +2265,47 @@ const CreateMasterListing = ({
     }
   };
 
+  // Clicking "List on X" for a platform never published before: if the item is already live on some
+  // other platform, offer to link an existing listing there first instead of assuming a brand new one.
+  const handleListOnClick = (platId) => {
+    if (platformHasLiveId(platId)) {
+      handlePublishPlatforms([platId]);
+      return;
+    }
+    const otherLivePlatforms = PLATFORMS_CONFIG.filter(p => p.id !== platId && platformHasLiveId(p.id));
+    if (otherLivePlatforms.length > 0) {
+      setLinkPromptPlatform(platId);
+      setLinkPromptUrl('');
+    } else {
+      handlePublishPlatforms([platId]);
+    }
+  };
+
+  const handleLinkPromptSubmit = async () => {
+    if (!linkPromptUrl.trim()) {
+      toast.warning('Please paste the listing URL or ID.');
+      return;
+    }
+    const activeId = editId || initialListing?._id || initialListing?.id;
+    if (!activeId) {
+      toast.error('Save this listing before linking an existing one.');
+      return;
+    }
+    setLinkPromptSubmitting(true);
+    try {
+      await listingService.linkExisting(activeId, { platform: linkPromptPlatform, url: linkPromptUrl.trim() });
+      toast.success(`Linked existing ${linkPromptPlatform} listing.`);
+      setLinkPromptPlatform(null);
+      setLinkPromptUrl('');
+      if (onSyncSuccess) onSyncSuccess();
+      if (isModal && onClose) onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to link the existing listing.');
+    } finally {
+      setLinkPromptSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-[1400px] mx-auto py-4 px-4 sm:px-6 space-y-6">
       
@@ -2292,13 +2347,13 @@ const CreateMasterListing = ({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => handlePublishPlatforms([platId])}
+                onClick={() => handleListOnClick(platId)}
                 loading={isSingleLoading}
                 disabled={publishing}
                 className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
                 icon={<PlatformLogo src={pConfig.logo} alt="" className="w-3.5 h-3.5" />}
               >
-                {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+                {platformHasLiveId(platId) ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
               </Button>
             );
           })}
@@ -2313,7 +2368,7 @@ const CreateMasterListing = ({
             disabled={publishing}
             icon={<ShoppingBag size={14} />}
           >
-            {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
+            {selectedPlatforms.every(platformHasLiveId) ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
           </Button>
         </div>
       </div>
@@ -3899,13 +3954,13 @@ const CreateMasterListing = ({
                   type="button"
                   variant="secondary"
                   size="md"
-                  onClick={() => handlePublishPlatforms([platId])}
+                  onClick={() => handleListOnClick(platId)}
                   loading={isSingleLoading}
                   disabled={publishing}
                   className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
                   icon={<PlatformLogo src={pConfig.logo} alt="" className="w-4 h-4" />}
                 >
-                  {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+                  {platformHasLiveId(platId) ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
                 </Button>
               );
             })}
@@ -3920,12 +3975,81 @@ const CreateMasterListing = ({
               disabled={publishing}
               icon={<ShoppingBag size={14} />}
             >
-              {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
+              {selectedPlatforms.every(platformHasLiveId) ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
             </Button>
           </div>
 
         </div>
       </div>
+
+      {/* Link Existing Listing Prompt - shown when "List on X" is clicked for a platform the item
+          has never been published to, but it's already live somewhere else. */}
+      {linkPromptPlatform && (() => {
+        const promptConfig = PLATFORMS_CONFIG.find(p => p.id === linkPromptPlatform);
+        const otherLivePlatformNames = PLATFORMS_CONFIG
+          .filter(p => p.id !== linkPromptPlatform && platformHasLiveId(p.id))
+          .map(p => p.name)
+          .join(', ');
+        return (
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"
+            onClick={() => !linkPromptSubmitting && setLinkPromptPlatform(null)}
+          >
+            <div
+              className="relative bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black text-slate-900">Already on {otherLivePlatformNames}?</h2>
+                <button
+                  type="button"
+                  onClick={() => !linkPromptSubmitting && setLinkPromptPlatform(null)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="text-xs font-semibold text-slate-500">
+                This item is already listed on {otherLivePlatformNames}. If it's also already listed on {promptConfig?.name} somewhere, paste that listing's link to attach it here instead of creating a new one.
+              </p>
+              <input
+                type="text"
+                value={linkPromptUrl}
+                onChange={(e) => setLinkPromptUrl(e.target.value)}
+                placeholder={`Paste the existing ${promptConfig?.name} listing URL or ID...`}
+                className="w-full px-3.5 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-400"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                  disabled={linkPromptSubmitting}
+                  onClick={() => {
+                    const plat = linkPromptPlatform;
+                    setLinkPromptPlatform(null);
+                    setLinkPromptUrl('');
+                    handlePublishPlatforms([plat]);
+                  }}
+                >
+                  No, List as New
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="flex-1"
+                  loading={linkPromptSubmitting}
+                  onClick={handleLinkPromptSubmit}
+                >
+                  Link Existing Listing
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
