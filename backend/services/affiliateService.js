@@ -4,14 +4,19 @@ const User = require('../models/User');
 
 const COMMISSION_RATE = 0.10;
 
-/** Generates a short, unique, URL-safe code from the affiliate's own name. */
+/**
+ * Generates a short, unique, URL-safe code from the affiliate's own name plus a random number -
+ * always, not just on a collision. A bare name (e.g. "RAMAYALI") is easy to guess from the person's
+ * name alone, which anyone could then try typing in at signup to self-attribute a referral that
+ * never actually went through that affiliate's link.
+ */
 async function generateAffiliateCode(user) {
   const base = (user.firstName || user.email.split('@')[0] || 'AFF')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .slice(0, 8) || 'AFF';
   for (let attempt = 0; attempt < 20; attempt++) {
-    const suffix = attempt === 0 ? '' : String(Math.floor(100 + Math.random() * 900));
+    const suffix = String(Math.floor(100 + Math.random() * 900));
     const candidate = `${base}${suffix}`;
     const exists = await AffiliateProfile.findOne({ code: candidate });
     if (!exists) return candidate;

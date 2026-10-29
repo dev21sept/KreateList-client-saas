@@ -1,5 +1,6 @@
 const AffiliateProfile = require('../models/AffiliateProfile');
 const AffiliateCommission = require('../models/AffiliateCommission');
+const User = require('../models/User');
 
 // @desc    List all affiliates with their user info and totals
 // @route   GET /api/admin/affiliates
@@ -12,7 +13,17 @@ exports.listAffiliates = async (req, res) => {
       .populate('user', 'firstName lastName email')
       .sort({ createdAt: -1 })
       .lean();
-    res.json({ success: true, data: affiliates });
+
+    // Signup counts (regardless of payment) alongside each affiliate's already-stored paid total,
+    // so "0 referred" in the list doesn't look broken when people have signed up but not paid yet.
+    const signupCounts = await User.aggregate([
+      { $match: { referredByAffiliateCode: { $in: affiliates.map(a => a.code) } } },
+      { $group: { _id: '$referredByAffiliateCode', count: { $sum: 1 } } }
+    ]);
+    const signupCountByCode = Object.fromEntries(signupCounts.map(s => [s._id, s.count]));
+    const withSignupCounts = affiliates.map(a => ({ ...a, totalSignedUp: signupCountByCode[a.code] || 0 }));
+
+    res.json({ success: true, data: withSignupCounts });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -52,12 +63,37 @@ exports.getAffiliate = async (req, res) => {
       if (c.createdAt > row.lastPaymentAt) row.lastPaymentAt = c.createdAt;
       if (c.createdAt < row.firstPaymentAt) row.firstPaymentAt = c.createdAt;
     }
+    const paidRows = Array.from(byReferredUser.values()).map(r => ({ ...r, paid: true }));
+
+    // Everyone who signed up with this code but hasn't generated a commission yet (no payment, or a
+    // trial/free plan) - shown separately so "0 paid referrals" doesn't look like the link isn't
+    // working when people are in fact signing up through it.
+    const paidUserIds = new Set(paidRows.map(r => String(r.referredUser)));
+    const signedUpUsers = await User.find({ referredByAffiliateCode: affiliate.code })
+      .select('firstName lastName email createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+    const pendingRows = signedUpUsers
+      .filter(u => !paidUserIds.has(String(u._id)))
+      .map(u => ({
+        referredUser: u._id,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+        email: u.email,
+        plan: null,
+        totalCommission: 0,
+        firstPaymentAt: null,
+        lastPaymentAt: null,
+        signedUpAt: u.createdAt,
+        paid: false
+      }));
 
     res.json({
       success: true,
       data: {
         affiliate,
-        referredUsers: Array.from(byReferredUser.values()),
+        referredUsers: [...paidRows, ...pendingRows],
+        totalSignedUp: signedUpUsers.length,
+        totalPaid: paidRows.length,
         commissions
       }
     });

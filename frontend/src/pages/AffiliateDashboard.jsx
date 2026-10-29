@@ -108,11 +108,16 @@ export default function AffiliateDashboard() {
             <p className="text-[10px] font-semibold text-slate-400 mt-2">Your code: <span className="font-black text-slate-600">{profile.code}</span></p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-              <span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2"><Users size={16} /></span>
+              <span className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-2"><Users size={16} /></span>
+              <p className="text-xl font-black text-slate-900">{profile.totalSignedUp || 0}</p>
+              <p className="text-[10px] font-bold text-slate-500">Signed Up</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+              <span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2"><CheckCircle2 size={16} /></span>
               <p className="text-xl font-black text-slate-900">{data.totalReferred || 0}</p>
-              <p className="text-[10px] font-bold text-slate-500">People Referred</p>
+              <p className="text-[10px] font-bold text-slate-500">Paid (Commission Earned)</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
               <span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2"><DollarSign size={16} /></span>
@@ -120,11 +125,14 @@ export default function AffiliateDashboard() {
               <p className="text-[10px] font-bold text-slate-500">Total Commission Earned</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-              <span className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-2"><LinkIcon size={16} /></span>
+              <span className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-2"><LinkIcon size={16} /></span>
               <p className="text-xl font-black text-slate-900">10%</p>
               <p className="text-[10px] font-bold text-slate-500">Commission Rate</p>
             </div>
           </div>
+          <p className="text-[10px] font-semibold text-slate-400 -mt-2">
+            Commission is only credited once a referred signup actually pays for a plan - signups alone don't earn anything yet.
+          </p>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
             <h2 className="text-sm font-bold text-slate-900 mb-3">Commission History</h2>

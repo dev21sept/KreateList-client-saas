@@ -84,7 +84,9 @@ export default function AdminAffiliates() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1"><Users size={11} /> {aff.totalReferred || 0}</span>
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1" title="Signed up / Paid">
+                      <Users size={11} /> {aff.totalSignedUp || 0} signed up ({aff.totalReferred || 0} paid)
+                    </span>
                     <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><DollarSign size={11} /> {(aff.totalCommissionEarned || 0).toFixed(2)}</span>
                     <Badge variant={STATUS_VARIANT[aff.status]}>{aff.status}</Badge>
                   </div>
@@ -128,9 +130,15 @@ export default function AdminAffiliates() {
                               <tr key={u.referredUser} className="border-t border-slate-200">
                                 <td className="px-3 py-2 font-bold text-slate-800">{u.name}</td>
                                 <td className="px-3 py-2 text-slate-500">{u.email}</td>
-                                <td className="px-3 py-2"><Badge variant="info">{u.plan}</Badge></td>
-                                <td className="px-3 py-2 text-slate-500">{new Date(u.firstPaymentAt).toLocaleDateString()}</td>
-                                <td className="px-3 py-2 text-right font-black text-emerald-600">${u.totalCommission.toFixed(2)}</td>
+                                <td className="px-3 py-2">
+                                  {u.paid ? <Badge variant="info">{u.plan}</Badge> : <Badge variant="warning">Pending - no payment yet</Badge>}
+                                </td>
+                                <td className="px-3 py-2 text-slate-500">
+                                  {new Date(u.paid ? u.firstPaymentAt : u.signedUpAt).toLocaleDateString()}
+                                </td>
+                                <td className="px-3 py-2 text-right font-black text-emerald-600">
+                                  {u.paid ? `$${u.totalCommission.toFixed(2)}` : '-'}
+                                </td>
                               </tr>
                             ))}
                           </tbody>

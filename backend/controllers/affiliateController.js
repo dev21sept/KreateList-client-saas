@@ -1,5 +1,6 @@
 const AffiliateProfile = require('../models/AffiliateProfile');
 const AffiliateCommission = require('../models/AffiliateCommission');
+const User = require('../models/User');
 const { generateAffiliateCode } = require('../services/affiliateService');
 
 // @desc    Apply to become an affiliate (any logged-in eLister user)
@@ -26,10 +27,15 @@ exports.getMe = async (req, res) => {
     if (!profile) {
       return res.json({ success: true, data: null });
     }
+    // totalReferred on the profile only counts paid conversions (see affiliateService.recordCommission);
+    // totalSignedUp counts everyone who used the code, paid or not, so "signed up, no payment yet"
+    // referrals are visible instead of looking like the link isn't working.
+    const totalSignedUp = await User.countDocuments({ referredByAffiliateCode: profile.code });
     res.json({
       success: true,
       data: {
         ...profile,
+        totalSignedUp,
         trackingLink: `https://elister.ai/?via=${profile.code}`
       }
     });
