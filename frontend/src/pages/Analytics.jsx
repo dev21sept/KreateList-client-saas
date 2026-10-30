@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PlatformLogo from '../components/PlatformLogo';
-import { BarChart3, ShoppingBag, CheckCircle, Clock, AlertCircle, FileText, DollarSign, AlertTriangle } from 'lucide-react';
-import { listingService, orderService } from '../services/api';
-import StatCard from '../components/ui/StatCard';
-import LineChartCard from '../components/ui/LineChartCard';
+import { BarChart3, DollarSign, AlertTriangle } from 'lucide-react';
+import { orderService } from '../services/api';
 import { LoadingState } from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
 import { useNotification } from '../context/NotificationContext';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const PLATFORM_META = {
   ebay: { label: 'eBay', logo: '/ebay.png' },
@@ -21,30 +18,13 @@ const PLATFORM_META = {
 const money = (v) => `$${(Number(v) || 0).toFixed(2)}`;
 
 const Analytics = () => {
-  const reducedMotion = useReducedMotion();
   const { toast } = useNotification();
-  const [statsData, setStatsData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const [timeframe, setTimeframe] = useState('monthly'); // 'weekly', 'monthly', 'yearly'
-  const [visibleLines, setVisibleLines] = useState({ total: true, published: true, draft: true });
 
   const [profitRows, setProfitRows] = useState([]);
   const [profitLoading, setProfitLoading] = useState(true);
   const [savingRowId, setSavingRowId] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const statsRes = await listingService.getStats();
-        setStatsData(statsRes.data.data);
-      } catch (error) {
-        console.error('Error fetching analytics data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     const fetchProfit = async () => {
       try {
         const res = await orderService.getProfit();
@@ -56,19 +36,8 @@ const Analytics = () => {
       }
     };
 
-    fetchData();
     fetchProfit();
   }, []);
-
-  const stats = [
-    { name: 'Total Listings', value: statsData?.stats?.total || 0, icon: <ShoppingBag size={20} />, color: 'indigo', trend: 'Live DB' },
-    { name: 'Published', value: statsData?.stats?.published || 0, icon: <CheckCircle size={20} />, color: 'emerald', trend: 'Listed' },
-    { name: 'Drafts', value: statsData?.stats?.draft || 0, icon: <FileText size={20} />, color: 'slate', trend: 'In Progress' },
-    { name: 'Scheduled', value: statsData?.stats?.scheduled || 0, icon: <Clock size={20} />, color: 'amber', trend: 'Queue' },
-    { name: 'Failed', value: statsData?.stats?.failed || 0, icon: <AlertCircle size={20} />, color: 'rose', trend: 'Errors' },
-  ];
-
-  const chartData = statsData?.charts?.lineChart?.[timeframe] || [];
 
   const totalProfit = useMemo(
     () => profitRows.reduce((sum, r) => sum + (r.profit || 0), 0),
@@ -94,10 +63,6 @@ const Analytics = () => {
     }
   };
 
-  if (loading && !statsData) {
-    return <LoadingState label="Loading analytics..." />;
-  }
-
   return (
     <div className="space-y-8">
 
@@ -111,25 +76,6 @@ const Analytics = () => {
           <p className="text-slate-400 text-xs font-bold mt-1">Live performance metrics pulled from your listing database.</p>
         </div>
       </div>
-
-      {/* STATS TILES */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-        {stats.map((stat, idx) => (
-          <StatCard key={stat.name} {...stat} delay={reducedMotion ? 0 : idx * 0.05} />
-        ))}
-      </div>
-
-      {/* GRAPH CARD */}
-      <LineChartCard
-        title="Listings Over Time"
-        subtitle="Historical distribution of drafts, live posts, and totals"
-        chartData={chartData}
-        visibleLines={visibleLines}
-        onToggleLine={(key) => setVisibleLines((prev) => ({ ...prev, [key]: !prev[key] }))}
-        timeframe={timeframe}
-        onTimeframeChange={setTimeframe}
-        emptyLabel="No historical data found for this timeframe. Create listings to populate history."
-      />
 
       {/* PROFIT TABLE */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
