@@ -200,6 +200,8 @@ export const orderService = {
   update: (id, data) => API.put(`/orders/${id}`, data),
   delete: (id) => API.delete(`/orders/${id}`),
   relist: (id) => API.post(`/orders/${id}/relist`),
+  getProfit: () => API.get('/orders/profit'),
+  updateProfit: (id, data) => API.patch(`/orders/${id}/profit`, data),
 };
 
 export const pricingService = {

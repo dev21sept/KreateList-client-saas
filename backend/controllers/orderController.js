@@ -586,3 +586,104 @@ exports.relistOrder = async (req, res) => {
   }
 };
 
+
+// @desc    Orders with profit-relevant fields for the Analytics profit table
+// @route   GET /api/orders/profit
+// @access  Private
+exports.getProfitOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user.id })
+      .sort({ createdDate: -1 })
+      .limit(500)
+      .select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl')
+      .lean();
+
+    const rows = orders.map(computeOrderProfit);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching profit orders:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch profit data' });
+  }
+};
+
+// @desc    Update a seller-entered profit field (shipping label cost and/or COGS) on one order
+// @route   PATCH /api/orders/:id/profit
+// @access  Private
+exports.updateOrderProfit = async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.shippingLabelCost !== undefined) {
+      const v = parseFloat(req.body.shippingLabelCost);
+      if (isNaN(v) || v < 0) return res.status(400).json({ success: false, message: 'shippingLabelCost must be a non-negative number.' });
+      update.shippingLabelCost = v;
+    }
+    if (req.body.cogsAmount !== undefined) {
+      const v = parseFloat(req.body.cogsAmount);
+      if (isNaN(v) || v < 0) return res.status(400).json({ success: false, message: 'cogsAmount must be a non-negative number.' });
+      update.cogsAmount = v;
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: 'Nothing to update.' });
+    }
+
+    const order = await Order.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      { $set: update },
+      { new: true }
+    ).select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl').lean();
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    res.json({ success: true, data: computeOrderProfit(order) });
+  } catch (error) {
+    console.error('Error updating order profit fields:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update order' });
+  }
+};
+
+// Per-platform profit formulas, exactly as specified (never genericized to "one formula fits all" -
+// each marketplace takes its cut differently):
+//   eBay:     Order Total  - Transaction Fees - Shipping Label - Item COGS
+//   Poshmark: Order Price  - Platform Fee     - Sales Tax      - Item COGS
+//   Mercari:  Order Price  - Selling Fee      - Shipping Cost  - Item COGS
+// grossAmount/platformFeeAmount/salesTaxAmount are only ever populated from each platform's own real
+// order data (see ebayController.js / poshmarkOrderService.js) - never estimated. When a platform's
+// fee isn't available yet (Mercari's listing API doesn't expose it), that term is simply 0 and the
+// row is marked feeAvailable: false so the UI can show "fee unknown" instead of a confident number.
+function computeOrderProfit(order) {
+  const gross = order.grossAmount != null ? order.grossAmount : (order.totalAmount || 0);
+  const fee = order.platformFeeAmount || 0;
+  const tax = order.salesTaxAmount || 0;
+  const shippingLabel = order.shippingLabelCost || 0;
+  const cogs = order.cogsAmount || 0;
+  const feeAvailable = order.platformFeeAmount != null;
+
+  let profit;
+  if (order.platform === 'poshmark') {
+    profit = gross - fee - tax - cogs;
+  } else {
+    // eBay and Mercari (and any other platform until it gets its own rule) share the same shape:
+    // gross - platform fee - shipping label/cost - COGS.
+    profit = gross - fee - shippingLabel - cogs;
+  }
+
+  return {
+    _id: order._id,
+    orderId: order.orderId,
+    platform: order.platform,
+    status: order.status,
+    createdDate: order.createdDate,
+    paidDate: order.paidDate,
+    lineItems: order.lineItems,
+    orderUrl: order.orderUrl,
+    grossAmount: Math.round(gross * 100) / 100,
+    platformFeeAmount: feeAvailable ? Math.round(fee * 100) / 100 : null,
+    salesTaxAmount: order.salesTaxAmount != null ? Math.round(tax * 100) / 100 : null,
+    shippingLabelCost: Math.round(shippingLabel * 100) / 100,
+    cogsAmount: Math.round(cogs * 100) / 100,
+    feeAvailable,
+    profit: Math.round(profit * 100) / 100
+  };
+}

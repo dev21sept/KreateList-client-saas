@@ -4,7 +4,9 @@ const {
   syncOrders,
   updateOrderStatus,
   deleteOrder,
-  relistOrder
+  relistOrder,
+  getProfitOrders,
+  updateOrderProfit
 } = require('../controllers/orderController');
 const { protect } = require('../middleware/auth');
 
@@ -15,6 +17,9 @@ router.use(protect);
 
 router.route('/')
   .get(getOrders);
+
+router.get('/profit', getProfitOrders);
+router.patch('/:id/profit', updateOrderProfit);
 
 router.post('/sync', syncOrders);
 

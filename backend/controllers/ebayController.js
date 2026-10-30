@@ -386,11 +386,25 @@ exports.syncOrders = async (req, res) => {
         createdDate: o.creationDate,
         paidDate: o.paymentSummary?.payments?.[0]?.paymentDate,
         lineItems,
-        shippingStep: o.fulfillmentStartInstructions?.[0]?.shippingStep
+        shippingStep: o.fulfillmentStartInstructions?.[0]?.shippingStep,
+        // Real figures straight from eBay's own order response, for the Analytics profit table -
+        // pricingSummary.total is what the buyer actually paid (order total); totalMarketplaceFee is
+        // eBay's real final-value/transaction fee for this order (confirmed via a live GetOrder call,
+        // not estimated). Shipping label cost isn't in this response at all (that's a separate
+        // purchase, if bought through eBay) - stays seller-entered.
+        grossAmount: parseFloat(o.pricingSummary?.total?.value) || undefined,
+        platformFeeAmount: parseFloat(o.totalMarketplaceFee?.value) || undefined
       };
 
       const existingOrder = await Order.findOne({ orderId: o.orderId, user: userId });
       const isNewOrder = !existingOrder;
+
+      // findOneAndUpdate below with a plain object (no $set) replaces the whole document on a match -
+      // explicitly carry over the seller's own manually-entered profit fields so a re-sync never wipes them.
+      if (existingOrder) {
+        orderData.shippingLabelCost = existingOrder.shippingLabelCost;
+        orderData.cogsAmount = existingOrder.cogsAmount;
+      }
 
       await Order.findOneAndUpdate(
         { orderId: o.orderId, user: userId },

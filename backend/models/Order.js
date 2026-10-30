@@ -16,6 +16,22 @@ const orderSchema = new mongoose.Schema({
   totalAmount: Number,
   currency: String,
   status: String,
+  // Profit breakdown. grossAmount/platformFeeAmount/salesTaxAmount come from each platform's own
+  // order API where available (real numbers, never estimated) - see each platform's sync code for
+  // exactly which field they're read from. shippingLabelCost and cogsAmount are never exposed by any
+  // platform (a seller's own private cost), so they're always seller-entered on the Analytics profit
+  // table and default to 0 until edited.
+  grossAmount: Number,
+  platformFeeAmount: Number,
+  salesTaxAmount: Number,
+  shippingLabelCost: {
+    type: Number,
+    default: 0
+  },
+  cogsAmount: {
+    type: Number,
+    default: 0
+  },
   createdDate: {
     type: Date,
     default: Date.now
