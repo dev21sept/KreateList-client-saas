@@ -688,8 +688,7 @@ function mapRawDepopProduct(item) {
     }
   }
   
-  const customSku = item.sku || item.skuCode || item.sku_code || item.supplierSku || item.supplier_sku;
-  const generatedSku = customSku || `D-${depopId || Date.now().toString().substring(8)}`;
+  const generatedSku = item.sku || item.skuCode || item.sku_code || item.supplierSku || item.supplier_sku || '';
   
   return {
     title: title.trim(),

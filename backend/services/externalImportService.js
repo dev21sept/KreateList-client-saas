@@ -325,15 +325,14 @@ async function scrapeDepopShop(username, credentials = {}) {
               priceVal = String(item.priceAmount || item.price_amount);
             }
             
-            // Generate basic unique SKU code
-            const timestamp = Date.now().toString().substring(8);
-            const generatedSku = `D-${depopId || timestamp}`;
-
             listings.push({
               title: title.trim(),
               description: description.trim(),
               price: (formatPrice(priceVal) || "0.00"),
-              sku: generatedSku,
+              // Depop's public shop page (this scrape's only data source) never exposes the seller's
+              // own SKU - there is no real value to read here, so this stays blank rather than
+              // inventing one; the item's own live SKU on Depop is never surfaced to us at all.
+              sku: (item.sku && String(item.sku).trim()) ? String(item.sku).trim() : '',
               category: item.categoryName || item.category?.name || 'Tops',
               categoryId: String(item.categoryId || item.category?.id || ''),
               images: imageUrls,
@@ -385,7 +384,7 @@ async function scrapeDepopShop(username, credentials = {}) {
           title: title.replace(/Image for/i, '').trim() || 'Depop Product',
           description: title.replace(/Image for/i, '').trim(),
           price: (formatPrice(priceText) || "0.00"),
-          sku: `D-${slug.substring(0, 15) || timestamp}`,
+          sku: '',
           category: 'Tops',
           images: [imgUrl],
           thumbnail: imgUrl,
