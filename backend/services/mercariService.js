@@ -301,6 +301,12 @@ async function scrapeMercariCloset(username, credentials = {}) {
               const res = await fetch(url, { headers: h, credentials: 'include' });
               if (!res.ok) break;
               const json = await res.json();
+              // Mercari answers an expired/invalid token with HTTP 200 and a GraphQL-level
+              // "Unauthorized" error, not an HTTP 401 - unchecked, this silently looks identical to
+              // "this seller has no items", which is what masked a genuinely expired session before.
+              if (json.errors?.some(e => e.status === 401 || /unauthoriz/i.test(e.message || ''))) {
+                throw new Error('__MERCARI_SESSION_EXPIRED__');
+              }
               const list = json.data?.userItems?.items || [];
               if (list.length === 0) break;
               
@@ -330,6 +336,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
               if (list.length < 20) break;
               pageNum++;
             } catch (e) {
+              if (e.message === '__MERCARI_SESSION_EXPIRED__') throw e;
               break;
             }
           }
@@ -347,6 +354,9 @@ async function scrapeMercariCloset(username, credentials = {}) {
     console.error('[Mercari Scraper] Scrape failed:', err.message);
     if (browser) {
       await browser.close().catch(() => {});
+    }
+    if (err.message?.includes('__MERCARI_SESSION_EXPIRED__')) {
+      throw new Error('Your Mercari session has expired. Please reconnect your Mercari account in Marketplaces.');
     }
     throw err;
   }
