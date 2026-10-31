@@ -13,7 +13,7 @@ const isSyntheticSku = (str) => {
   return parts.every(part =>
     /^(EBAY|POSH|POSHMARK|MERCARI|ETSY|AMAZON|M|P|E)-[a-zA-Z0-9_\-]+$/i.test(part) ||
     /^AUTO-[LP]-[A-F0-9]{12}$/i.test(part) ||
-    /^SKU-[A-Z0-9]+$/i.test(part) ||
+    /^SKU-[A-Z0-9-]+$/i.test(part) ||
     /^[0-9]{11,14}$/.test(part) ||
     /^[a-f0-9]{24}$/i.test(part) ||
     /^m[0-9]{10,12}$/i.test(part)
