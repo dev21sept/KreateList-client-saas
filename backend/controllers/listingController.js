@@ -383,8 +383,7 @@ exports.createListing = async (req, res) => {
       }
     }
 
-    // SKU is optional - a listing saved without one gets a stable AUTO-L-* fallback from the
-    // schema's own pre-save default (models/Listing.js), so there is nothing to block here.
+    // SKU is optional - a listing saved without one simply has a blank SKU, so there is nothing to block here.
 
     const platform = req.body.platform || 'ebay';
     req.body[`${platform}Status`] = req.body.status || 'draft';
@@ -860,8 +859,12 @@ exports.updateListing = async (req, res) => {
     if (listing.ebayListingId || (listing.platform === 'ebay' && listing.status === 'published')) {
       try {
         const token = await getValidToken(req.user.id);
-        if (token && listing.sku) {
-          console.log(`[Listing Controller] Live Syncing ALL data (Item Specifics, Aspects, Title, Price, Images, Condition) to eBay for SKU: ${listing.sku}`);
+        // This listing is already live on eBay, so it was published under SOME sku (the user's real
+        // one, or the deterministic AUTO-L- fallback derived from its own _id) - recompute the same
+        // value here rather than requiring listing.sku to be set, since it's never auto-persisted.
+        const ebaySyncSku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
+        if (token) {
+          console.log(`[Listing Controller] Live Syncing ALL data (Item Specifics, Aspects, Title, Price, Images, Condition) to eBay for SKU: ${ebaySyncSku}`);
           
           // Build aspects dictionary
           const aspects = {};
@@ -922,10 +925,10 @@ exports.updateListing = async (req, res) => {
             inventoryItemData.packageWeightAndSize = packageWeightAndSize;
           }
 
-          await ebayService.createOrReplaceInventoryItem(token, listing.sku, inventoryItemData);
+          await ebayService.createOrReplaceInventoryItem(token, ebaySyncSku, inventoryItemData);
 
           // Update active offer price & description on eBay
-          const existingOffers = await ebayService.getOffers(token, listing.sku);
+          const existingOffers = await ebayService.getOffers(token, ebaySyncSku);
           if (existingOffers && existingOffers.length > 0) {
             for (const offer of existingOffers) {
               try {
@@ -1436,10 +1439,10 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    // SKU is optional in the form; the schema's own pre-validate hook already guarantees listing.sku
-    // is never blank on a saved document (AUTO-L-{id}), so just use whatever is already stored -
-    // never invent a new value here (eBay's Inventory API still needs a non-empty SKU to publish).
-    const sku = listing.sku ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
+    // SKU is optional in the form. eBay's Inventory API still needs a non-empty SKU to publish, so
+    // derive a stable one from the listing's own _id when blank - but this is only an internal
+    // identifier for the API call; it never gets written back into the user-facing SKU field.
+    const sku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     // Fetch valid conditions from Taxonomy API for listing.categoryId
     let validConditionIds = [];
@@ -1740,7 +1743,9 @@ exports.publishListing = async (req, res) => {
     // 11. Save publication details in database
     listing.status = 'published';
     listing.ebayStatus = 'published';
-    listing.sku = sku;
+    // Don't persist the AUTO-L- fallback as the user-facing SKU - it's only eBay's internal
+    // inventory-item identifier for this call. If the listing never had a real SKU, keep it blank.
+    if (listing.sku && listing.sku.trim()) listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
     listing.errorMessage = null;
@@ -3311,8 +3316,7 @@ exports.moveToNewItem = async (req, res) => {
     const baseColor = platformDetails.color || (listing && listing.color) || (prod && prod.color) || '';
 
     // Keep the SKU optional: only derive a suffixed one when the source actually had a real,
-    // user-entered SKU (so the split copy doesn't collide with the original); otherwise leave it
-    // blank for the schema's own AUTO-L-{id} fallback to handle.
+    // user-entered SKU (so the split copy doesn't collide with the original); otherwise leave it blank.
     const origSku = (listing && listing.sku) || (prod && prod.sku) || '';
     const isRealSku = origSku && !/^AUTO-[LP]-/.test(origSku);
     const newSku = isRealSku ? `${origSku}-${platformLower.toUpperCase()}-${Date.now().toString().slice(-4)}` : '';

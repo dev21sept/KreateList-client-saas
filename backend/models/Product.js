@@ -61,12 +61,6 @@ const productSchema = new mongoose.Schema({
   }
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
-productSchema.pre('validate', function() {
-  if (!this.sku || !String(this.sku).trim()) {
-    this.sku = `AUTO-P-${this._id.toString().slice(-12).toUpperCase()}`;
-  }
-});
-
 productSchema.index({ user: 1, sku: 1 });
 productSchema.index({ user: 1, source: 1, status: 1 });
 productSchema.index({ user: 1, ebayListingId: 1 });

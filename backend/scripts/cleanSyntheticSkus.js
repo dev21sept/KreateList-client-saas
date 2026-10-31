@@ -12,6 +12,8 @@ const isSyntheticSku = (str) => {
   if (parts.length === 0) return true;
   return parts.every(part =>
     /^(EBAY|POSH|POSHMARK|MERCARI|ETSY|AMAZON|M|P|E)-[a-zA-Z0-9_\-]+$/i.test(part) ||
+    /^AUTO-[LP]-[A-F0-9]{12}$/i.test(part) ||
+    /^SKU-[A-Z0-9]+$/i.test(part) ||
     /^[0-9]{11,14}$/.test(part) ||
     /^[a-f0-9]{24}$/i.test(part) ||
     /^m[0-9]{10,12}$/i.test(part)
@@ -75,6 +77,21 @@ async function run() {
   }
 
   console.log(`Cleaned up ${updatedCount} listings successfully.`);
+
+  const Product = mongoose.models.Product || mongoose.model('Product', new mongoose.Schema({}, { strict: false }));
+  const products = await Product.find({}).lean();
+  console.log('Total products in DB:', products.length);
+
+  let updatedProductCount = 0;
+  for (const item of products) {
+    const rawSku = item.sku || '';
+    if (isSyntheticSku(rawSku) && rawSku !== '') {
+      await Product.updateOne({ _id: item._id }, { $set: { sku: '' } });
+      updatedProductCount++;
+    }
+  }
+  console.log(`Cleaned up ${updatedProductCount} products successfully.`);
+
   process.exit(0);
 }
 

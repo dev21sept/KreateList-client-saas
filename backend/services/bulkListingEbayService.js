@@ -265,10 +265,10 @@ async function publishSingleEbayListing(listing, token) {
       }
     }
 
-    // SKU is optional in the form; the schema's own pre-validate hook already guarantees listing.sku
-    // is never blank on a saved document (AUTO-L-{id}), so just use whatever is already stored -
-    // never invent a new value here (eBay's Inventory API still needs a non-empty SKU to publish).
-    const sku = listing.sku ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
+    // SKU is optional in the form. eBay's Inventory API still needs a non-empty SKU to publish, so
+    // derive a stable one from the listing's own _id when blank - but this is only an internal
+    // identifier for the API call; it never gets written back into the user-facing SKU field.
+    const sku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     let validConditionIds = [];
     let effectiveCategoryId = String(listing.categoryId || '').trim();
@@ -458,7 +458,9 @@ async function publishSingleEbayListing(listing, token) {
 
     // Save success in database
     listing.status = 'published';
-    listing.sku = sku;
+    // Don't persist the AUTO-L- fallback as the user-facing SKU - it's only eBay's internal
+    // inventory-item identifier for this call. If the listing never had a real SKU, keep it blank.
+    if (listing.sku && listing.sku.trim()) listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
     listing.errorMessage = null;

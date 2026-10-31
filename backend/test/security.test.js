@@ -40,12 +40,12 @@ test('Razorpay signatures use a valid HMAC comparison', () => {
   assert.equal(service.verifyPaymentSignature('order_1', 'payment_2', signature), false);
 });
 
-test('new Listing and Product records receive stable fallback SKUs', async () => {
+test('new Listing and Product records never get an invented SKU - blank stays blank', async () => {
   const user = new mongoose.Types.ObjectId();
   const listing = new Listing({ user, title: 'Test', description: 'Test', price: '1', category: 'Test' });
   const product = new Product({ user, title: 'Test' });
   await listing.validate();
   await product.validate();
-  assert.match(listing.sku, /^AUTO-L-[A-F0-9]{12}$/);
-  assert.match(product.sku, /^AUTO-P-[A-F0-9]{12}$/);
+  assert.ok(!listing.sku);
+  assert.ok(!product.sku);
 });
