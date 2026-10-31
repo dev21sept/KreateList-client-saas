@@ -180,7 +180,11 @@ async function scrapeMercariCloset(username, credentials = {}) {
   let browser = null;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -373,7 +377,11 @@ async function publishToMercari(listing, credentials = {}) {
 
     // 2. Launch Puppeteer Stealth
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -822,7 +830,11 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -966,7 +978,11 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -1109,7 +1125,11 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -1247,7 +1267,11 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
     }
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1455,7 +1479,11 @@ async function getMercariProfile(sessionCookie) {
   let browser;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1639,7 +1667,11 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
   let browser = null;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1785,7 +1817,11 @@ async function syncMercariOrders(credentials = {}, userId = null) {
     }
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
