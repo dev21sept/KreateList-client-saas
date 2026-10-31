@@ -946,6 +946,8 @@ async function getTradingItemDetails(token, itemId) {
         const conditionDescription = $('Item > ConditionDescription').text();
         const categoryId = $('Item > PrimaryCategory > CategoryID').text();
         const categoryName = $('Item > PrimaryCategory > CategoryName').text();
+        const rawItemSku = $('Item > SKU').text();
+        const sku = rawItemSku && rawItemSku.trim() ? rawItemSku.trim() : '';
 
         const pictures = [];
         $('Item > PictureDetails > PictureURL').each((_, p) => {
@@ -1010,6 +1012,7 @@ async function getTradingItemDetails(token, itemId) {
             itemId,
             title,
             description,
+            sku,
             conditionId,
             conditionDisplayName,
             conditionDescription,

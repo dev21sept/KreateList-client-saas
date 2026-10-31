@@ -509,7 +509,8 @@ exports.getListing = async (req, res) => {
       !listing.conditionNote ||
       !listing.fulfillmentPolicyId || !listing.returnPolicyId || !listing.paymentPolicyId ||
       !listing.itemLocationCity ||
-      !listing.packageWeight?.lbs && !listing.packageWeight?.oz
+      !listing.packageWeight?.lbs && !listing.packageWeight?.oz ||
+      !listing.sku
     )) {
       try {
         const token = await getValidToken(req.user.id);
@@ -518,6 +519,10 @@ exports.getListing = async (req, res) => {
           const ebayDetails = await ebayService.getTradingItemDetails(token, listing.ebayListingId);
           if (ebayDetails) {
             let changed = false;
+            if (ebayDetails.sku && !listing.sku) {
+              listing.sku = ebayDetails.sku;
+              changed = true;
+            }
             if (ebayDetails.images && ebayDetails.images.length > (listing.images?.length || 0)) {
               listing.images = ebayDetails.images;
               changed = true;
@@ -621,7 +626,7 @@ exports.getListing = async (req, res) => {
     // (thumbnail/images/price/url), style_tags was never read from Poshmark's own response at all.
     const poshmarkId = listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
     const existingPoshTags = listing.platformData?.poshmark?.styleTags;
-    if (poshmarkId && (!Array.isArray(existingPoshTags) || existingPoshTags.length === 0)) {
+    if (poshmarkId && (!Array.isArray(existingPoshTags) || existingPoshTags.length === 0 || !listing.sku)) {
       try {
         const User = require('../models/User');
         const user = await User.findById(req.user.id).select('poshmarkAccount');
@@ -635,6 +640,10 @@ exports.getListing = async (req, res) => {
             let poshChanged = false;
             if (poshDetails.styleTags?.length > 0) {
               listing.platformData.poshmark.styleTags = poshDetails.styleTags;
+              poshChanged = true;
+            }
+            if (poshDetails.sku && !listing.sku) {
+              listing.sku = poshDetails.sku;
               poshChanged = true;
             }
             if (poshDetails.category && (!listing.platformData.poshmark.category || listing.platformData.poshmark.category === 'Clothing')) {

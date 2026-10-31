@@ -969,6 +969,7 @@ async function fetchSinglePoshmarkPost(poshmarkListingId, credentials = {}) {
       styleTags: Array.isArray(post.style_tags) ? post.style_tags : [],
       category: poshmarkCategoryOf(post).path,
       categoryId: poshmarkCategoryOf(post).id,
+      sku: (post.sku && String(post.sku).trim()) ? String(post.sku).trim() : '',
       brand: post.brand || '',
       size: post.size || '',
       color: (() => {
