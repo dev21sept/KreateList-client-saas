@@ -111,7 +111,8 @@ const Analytics = () => {
                   <th className="px-3 py-3 whitespace-nowrap text-right">Order Total</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Platform Fee</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Sales Tax</th>
-                  <th className="px-3 py-3 whitespace-nowrap text-right">Shipping Cost</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Buyer Paid Shipping</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Seller Shipping Cost</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Item COGS</th>
                   <th className="px-4 py-3 whitespace-nowrap text-right">Profit</th>
                 </tr>
@@ -154,8 +155,11 @@ const Analytics = () => {
                           ? (row.salesTaxAmount != null ? <span className="font-bold text-rose-500">-{money(row.salesTaxAmount)}</span> : <span className="text-slate-300">$0.00</span>)
                           : <span className="text-slate-300">—</span>}
                       </td>
+                      <td className="px-3 py-3 text-right text-slate-500 whitespace-nowrap">
+                        {row.buyerShippingAmount != null ? money(row.buyerShippingAmount) : <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-3 py-3 text-right whitespace-nowrap">
-                        <div className="relative inline-flex items-center" title={row.buyerShippingAmount != null ? `Pre-filled from the real buyer-paid shipping (${money(row.buyerShippingAmount)}) - edit if your actual label cost was different.` : 'Enter what shipping actually cost you.'}>
+                        <div className="relative inline-flex items-center" title="What you actually paid for the shipping label - enter it yourself.">
                           <span className="absolute left-2 text-slate-400 text-[10px]">$</span>
                           <input
                             type="number"

@@ -18,11 +18,11 @@ const orderSchema = new mongoose.Schema({
   status: String,
   // Profit breakdown. grossAmount/platformFeeAmount/salesTaxAmount/itemPriceAmount/buyerShippingAmount
   // come from each platform's own order API where available (real numbers, never estimated) - see
-  // each platform's sync code for exactly which field they're read from. cogsAmount is never exposed
-  // by any platform (a seller's own private cost), so it's always seller-entered and defaults to 0
-  // until edited. shippingLabelCost (what the seller actually paid for postage) also isn't exposed by
-  // any platform, but is pre-filled from buyerShippingAmount on first sync as the closest real number
-  // available, and stays editable/seller-correctable after that.
+  // each platform's sync code for exactly which field they're read from. cogsAmount and
+  // shippingLabelCost (what the SELLER actually paid for postage) are never exposed by any platform (a
+  // seller's own private cost), so they're always seller-entered and default to 0 until edited.
+  // buyerShippingAmount (what the BUYER paid for shipping) is a separate, real, read-only number shown
+  // in its own column - never used to guess shippingLabelCost.
   grossAmount: Number,
   itemPriceAmount: Number,
   buyerShippingAmount: Number,

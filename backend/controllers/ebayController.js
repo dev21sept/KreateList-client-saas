@@ -402,16 +402,13 @@ exports.syncOrders = async (req, res) => {
       const isNewOrder = !existingOrder;
 
       // findOneAndUpdate below with a plain object (no $set) replaces the whole document on a match -
-      // explicitly carry over the seller's own manually-entered profit fields so a re-sync never wipes them.
+      // explicitly carry over the seller's own manually-entered profit fields so a re-sync never wipes
+      // them. shippingLabelCost is always purely seller-entered (what they actually paid for postage)
+      // and is kept separate from buyerShippingAmount (what the buyer paid, a different real number) -
+      // never auto-filled from one into the other, both are shown as their own column.
       if (existingOrder) {
         orderData.shippingLabelCost = existingOrder.shippingLabelCost;
         orderData.cogsAmount = existingOrder.cogsAmount;
-      } else if (orderData.buyerShippingAmount !== undefined) {
-        // First time we see this order: default the editable "shipping cost" field to the real
-        // buyer-paid delivery cost instead of a blank 0 - eBay doesn't expose what the seller's actual
-        // postage/label cost was, but this is the closest real number available, and the seller can
-        // still correct it if their own label actually cost something different.
-        orderData.shippingLabelCost = orderData.buyerShippingAmount;
       }
 
       await Order.findOneAndUpdate(
