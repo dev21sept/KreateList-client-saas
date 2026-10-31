@@ -7,6 +7,19 @@ const os = require('os');
 
 puppeteer.use(StealthPlugin());
 
+// Puppeteer's own bundled Chromium is a known bot signal (missing Widevine, different brand list in
+// navigator.userAgentData) that Mercari's Cloudflare protection fingerprints directly - the real,
+// branded Google Chrome binary already installed on this box (same one mercariLoginService.js uses
+// for login) does not trigger it.
+function getMercariChromeExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  const checkPaths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+  for (const p of checkPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 // Spaces out requests to Mercari from this process by a minimum gap, regardless of which function
 // fires them. Several calls firing back-to-back (bulk publish/reactivate, background sync) is the
 // kind of burst traffic from one server IP that gets Cloudflare/Mercari to flag that IP, making even
@@ -185,6 +198,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -382,6 +396,7 @@ async function publishToMercari(listing, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -835,6 +850,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -983,6 +999,7 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -1130,6 +1147,7 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
@@ -1272,6 +1290,7 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1484,6 +1503,7 @@ async function getMercariProfile(sessionCookie) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1672,6 +1692,7 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1822,6 +1843,7 @@ async function syncMercariOrders(credentials = {}, userId = null) {
       // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
       headless: false,
       env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
