@@ -595,7 +595,7 @@ exports.getProfitOrders = async (req, res) => {
     const orders = await Order.find({ user: req.user.id })
       .sort({ createdDate: -1 })
       .limit(500)
-      .select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl')
+      .select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount itemPriceAmount buyerShippingAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl')
       .lean();
 
     const rows = orders.map(computeOrderProfit);
@@ -630,7 +630,7 @@ exports.updateOrderProfit = async (req, res) => {
       { _id: req.params.id, user: req.user.id },
       { $set: update },
       { new: true }
-    ).select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl').lean();
+    ).select('orderId platform status createdDate paidDate lineItems totalAmount grossAmount itemPriceAmount buyerShippingAmount platformFeeAmount salesTaxAmount shippingLabelCost cogsAmount orderUrl').lean();
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
@@ -679,6 +679,8 @@ function computeOrderProfit(order) {
     lineItems: order.lineItems,
     orderUrl: order.orderUrl,
     grossAmount: Math.round(gross * 100) / 100,
+    itemPriceAmount: order.itemPriceAmount != null ? Math.round(order.itemPriceAmount * 100) / 100 : null,
+    buyerShippingAmount: order.buyerShippingAmount != null ? Math.round(order.buyerShippingAmount * 100) / 100 : null,
     platformFeeAmount: feeAvailable ? Math.round(fee * 100) / 100 : null,
     salesTaxAmount: order.salesTaxAmount != null ? Math.round(tax * 100) / 100 : null,
     shippingLabelCost: Math.round(shippingLabel * 100) / 100,

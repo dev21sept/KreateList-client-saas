@@ -388,11 +388,13 @@ exports.syncOrders = async (req, res) => {
         lineItems,
         shippingStep: o.fulfillmentStartInstructions?.[0]?.shippingStep,
         // Real figures straight from eBay's own order response, for the Analytics profit table -
-        // pricingSummary.total is what the buyer actually paid (order total); totalMarketplaceFee is
-        // eBay's real final-value/transaction fee for this order (confirmed via a live GetOrder call,
-        // not estimated). Shipping label cost isn't in this response at all (that's a separate
-        // purchase, if bought through eBay) - stays seller-entered.
+        // pricingSummary.total is what the buyer actually paid (order total); priceSubtotal is the
+        // item price alone, before shipping; deliveryCost is what the buyer paid for shipping;
+        // totalMarketplaceFee is eBay's real final-value/transaction fee for this order (all confirmed
+        // via a live GetOrder call, not estimated).
         grossAmount: parseFloat(o.pricingSummary?.total?.value) || undefined,
+        itemPriceAmount: parseFloat(o.pricingSummary?.priceSubtotal?.value) || undefined,
+        buyerShippingAmount: parseFloat(o.pricingSummary?.deliveryCost?.value) || undefined,
         platformFeeAmount: parseFloat(o.totalMarketplaceFee?.value) || undefined
       };
 
@@ -404,6 +406,12 @@ exports.syncOrders = async (req, res) => {
       if (existingOrder) {
         orderData.shippingLabelCost = existingOrder.shippingLabelCost;
         orderData.cogsAmount = existingOrder.cogsAmount;
+      } else if (orderData.buyerShippingAmount !== undefined) {
+        // First time we see this order: default the editable "shipping cost" field to the real
+        // buyer-paid delivery cost instead of a blank 0 - eBay doesn't expose what the seller's actual
+        // postage/label cost was, but this is the closest real number available, and the seller can
+        // still correct it if their own label actually cost something different.
+        orderData.shippingLabelCost = orderData.buyerShippingAmount;
       }
 
       await Order.findOneAndUpdate(

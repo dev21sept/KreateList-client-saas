@@ -199,13 +199,24 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
       // Extract Line Items (handles single items, multi-item bundle orders, and nested posts)
       const rawPosts = sale.posts || sale.items || sale.order_items || (sale.post ? [sale.post] : []);
       const lineItems = [];
+      // Sum of each line's own real price (not the || totalAmount display fallback below) - only
+      // trusted as a real "item price" total when every line actually had one, so a single missing
+      // price never silently turns into the whole order's total being double-counted as "item price".
+      let realItemPriceSum = 0;
+      let allItemPricesReal = false;
 
       if (rawPosts && rawPosts.length > 0) {
+        allItemPricesReal = true;
         for (const item of rawPosts) {
           const itemId = item.id || item.post_id || '';
           const title = item.title || item.name || 'Poshmark Listing';
           const price = parseFloat(item.price || item.inventory?.price || item.selling_price || 0);
           const quantity = item.count || item.quantity || 1;
+          if (price > 0) {
+            realItemPriceSum += price * quantity;
+          } else {
+            allItemPricesReal = false;
+          }
           let sku = item.inventory?.sku || item.sku || '';
           let thumbnail = item.cover_shot?.url || item.pictures?.[0]?.url || item.picture_url || item.thumbnail || '';
 
@@ -314,6 +325,7 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
         orderUrl: `https://${domain}/order/sales`,
         updated_at: new Date(),
         grossAmount,
+        itemPriceAmount: allItemPricesReal ? Math.round(realItemPriceSum * 100) / 100 : undefined,
         platformFeeAmount
       };
 

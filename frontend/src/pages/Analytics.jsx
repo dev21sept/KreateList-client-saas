@@ -107,7 +107,8 @@ const Analytics = () => {
                 <tr className="bg-slate-50 text-left text-slate-500 font-bold uppercase text-[10px]">
                   <th className="px-4 py-3 whitespace-nowrap">Item</th>
                   <th className="px-3 py-3 whitespace-nowrap">Date</th>
-                  <th className="px-3 py-3 whitespace-nowrap text-right">Sale Price</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Item Price</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Order Total</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Platform Fee</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Sales Tax</th>
                   <th className="px-3 py-3 whitespace-nowrap text-right">Shipping Cost</th>
@@ -135,6 +136,9 @@ const Analytics = () => {
                       <td className="px-3 py-3 text-slate-500 whitespace-nowrap">
                         {row.createdDate ? new Date(row.createdDate).toLocaleDateString() : '-'}
                       </td>
+                      <td className="px-3 py-3 text-right text-slate-500 whitespace-nowrap">
+                        {row.itemPriceAmount != null ? money(row.itemPriceAmount) : <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-3 py-3 text-right font-bold text-slate-700 whitespace-nowrap">{money(row.grossAmount)}</td>
                       <td className="px-3 py-3 text-right whitespace-nowrap">
                         {row.feeAvailable ? (
@@ -151,7 +155,7 @@ const Analytics = () => {
                           : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-3 py-3 text-right whitespace-nowrap">
-                        <div className="relative inline-flex items-center">
+                        <div className="relative inline-flex items-center" title={row.buyerShippingAmount != null ? `Pre-filled from the real buyer-paid shipping (${money(row.buyerShippingAmount)}) - edit if your actual label cost was different.` : 'Enter what shipping actually cost you.'}>
                           <span className="absolute left-2 text-slate-400 text-[10px]">$</span>
                           <input
                             type="number"
