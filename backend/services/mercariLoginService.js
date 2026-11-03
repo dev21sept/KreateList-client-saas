@@ -57,6 +57,12 @@ async function loginToMercari(username, password, sessionId, userId) {
         '--disable-blink-features=AutomationControlled',
         '--window-size=1280,800'
       ],
+      // Puppeteer otherwise generates a brand-new, empty temp profile dir for every single login
+      // attempt - Socure's own device-fingerprint script stores its persistent device ID in that
+      // profile's localStorage/IndexedDB, so a fresh-every-time profile looks like a first-ever-seen
+      // device on every attempt. Reusing one real profile dir across attempts lets that ID (and any
+      // other client-side trust signal) build up the same way a real recurring user's browser would.
+      userDataDir: path.join(require('os').homedir(), '.mercari-login-profile'),
       env: {
         ...process.env,
         DISPLAY: process.env.VIRTUAL_DISPLAY || ':99'
