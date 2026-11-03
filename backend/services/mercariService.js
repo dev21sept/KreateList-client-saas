@@ -209,7 +209,12 @@ async function scrapeMercariCloset(username, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -417,7 +422,12 @@ async function publishToMercari(listing, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -864,7 +874,12 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1013,7 +1028,12 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1161,7 +1181,12 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1311,7 +1336,10 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL || process.env.PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based and passes both Cloudflare's
+    // bot check and Mercari's login location check - the Bright Data proxy was actively failing
+    // Mercari's login flow (flagged as a new/suspicious location every attempt), so it's skipped here.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? (process.env.HTTP_PROXY_URL || process.env.PROXY_URL) : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1524,7 +1552,10 @@ async function getMercariProfile(sessionCookie) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL || process.env.PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based and passes both Cloudflare's
+    // bot check and Mercari's login location check - the Bright Data proxy was actively failing
+    // Mercari's login flow (flagged as a new/suspicious location every attempt), so it's skipped here.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? (process.env.HTTP_PROXY_URL || process.env.PROXY_URL) : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1713,7 +1744,12 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1864,7 +1900,12 @@ async function syncMercariOrders(credentials = {}, userId = null) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {

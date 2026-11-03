@@ -63,7 +63,11 @@ async function loginToMercari(username, password, sessionId, userId) {
       }
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // Mercari's login location check - the Bright Data proxy was actively failing login (flagged as a
+    // new/suspicious location on every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to
+    // re-enable it if the server ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
