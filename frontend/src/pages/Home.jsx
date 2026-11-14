@@ -441,7 +441,7 @@ const Home = () => {
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-indigo-50 border border-indigo-200/80 text-indigo-700 shadow-sm"
             >
               <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-              <span>All-In-One AI Multi-Channel Cross-Listing & Auto-Delist Suite</span>
+              <span>One Platform. Multiple Marketplaces. Smarter Reselling.</span>
             </motion.div>
 
             <motion.h1
@@ -450,9 +450,9 @@ const Home = () => {
               transition={{ duration: reduceMotion ? 0 : 0.5, delay: 0.1 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.12]"
             >
-              List Across Every Marketplace.<br />
+              Sell Smarter. Grow Faster.<br />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
-                Zero Double-Sales. 100% Automated.
+                Let AI Handle the Busywork.
               </span>
             </motion.h1>
 
@@ -462,7 +462,7 @@ const Home = () => {
               transition={{ duration: reduceMotion ? 0 : 0.5, delay: 0.2 }}
               className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed"
             >
-              The ultimate eCommerce powerhouse for high-volume resellers. Generate listings in seconds with Vision AI, sync inventory across eBay, Poshmark, Mercari, Etsy, Amazon, and Depop, and let our background engine auto-delist sold items 24/7.
+              eLister is your AI-powered reselling assistant, designed to simplify selling across multiple marketplaces. Create professional, SEO-optimized listings in seconds with Vision AI, cross-list products across platforms, manage your inventory from one dashboard, and automatically delist items when they sell. With intelligent tools and automation working together, eLister helps you streamline daily operations, save valuable time, and focus on growing your sales.
             </motion.p>
 
             {/* Hero CTAs */}
