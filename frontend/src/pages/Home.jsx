@@ -60,8 +60,8 @@ const Home = () => {
     {
       name: 'Poshmark',
       logo: '/poshmark.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'High-speed closet share, automated cross-listing, and smart price drop automation.',
       features: ['Closet auto-sync', 'Offer to likers sync', 'Real-time delist guard', 'Brand auto-mapping'],
       accent: 'border-rose-200 bg-rose-50/50 hover:border-rose-400'
@@ -69,8 +69,8 @@ const Home = () => {
     {
       name: 'Mercari',
       logo: '/mercari.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'Instant 1-click import, automatic listing promoter, and zero-delay sold item removal.',
       features: ['Direct store sync', 'Promote & drop engine', 'Double-sale prevention', 'Category mapping'],
       accent: 'border-red-200 bg-red-50/50 hover:border-red-400'
@@ -78,8 +78,8 @@ const Home = () => {
     {
       name: 'Etsy',
       logo: '/etsy.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'Seamless multi-shop integration for vintage, handmade, and unique marketplace listings.',
       features: ['Multi-shop connection', 'Tag & keyword AI', 'Inventory deduplication', 'Stock level matching'],
       accent: 'border-amber-200 bg-amber-50/50 hover:border-amber-400'
