@@ -48,7 +48,7 @@ const Checkout = () => {
   const planPrices = {
     BASIC: { monthly: 79, yearly: 900 },
     PRO: { monthly: 149, yearly: 1692 },
-    ENTERPRISE: { monthly: 299, yearly: 3408 }
+    ENTERPRISE: { monthly: 349, yearly: 3972 }
   };
 
   const planNames = {

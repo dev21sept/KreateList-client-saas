@@ -74,7 +74,7 @@ const RefundPolicy = () => {
                 </div>
                 <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/60">
                   <h3 className="font-bold text-slate-900 text-sm">ENTERPRISE Plan</h3>
-                  <p className="text-indigo-600 font-black text-xl my-1">$299<span className="text-slate-400 text-xs font-normal">/mo</span></p>
+                  <p className="text-indigo-600 font-black text-xl my-1">$349<span className="text-slate-400 text-xs font-normal">/mo</span></p>
                   <ul className="text-xs text-slate-500 space-y-1 mt-2 list-disc pl-4 marker:text-indigo-300">
                     <li>10,000 AI Listings / month</li>
                     <li>Unlimited eBay Accounts</li>

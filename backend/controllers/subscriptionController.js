@@ -157,7 +157,7 @@ exports.createRazorpayOrder = async (req, res) => {
     const planPrices = {
       basic: { monthly: 79, yearly: 900 },
       pro: { monthly: 149, yearly: 1692 },
-      enterprise: { monthly: 299, yearly: 3408 }
+      enterprise: { monthly: 349, yearly: 3972 }
     };
 
     const targetPlan = String(plan || 'pro').toLowerCase();
@@ -258,7 +258,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
     const planPrices = {
       basic: { monthly: 79, yearly: 900 },
       pro: { monthly: 149, yearly: 1692 },
-      enterprise: { monthly: 299, yearly: 3408 }
+      enterprise: { monthly: 349, yearly: 3972 }
     };
     if (!planPrices[targetPlan] || !planPrices[targetPlan][targetCycle]) {
       return res.status(400).json({ success: false, message: 'Payment order contains an invalid plan.' });
