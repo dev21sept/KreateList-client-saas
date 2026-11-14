@@ -881,6 +881,11 @@ async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1
 
             const categoryId = $item.find('PrimaryCategory > CategoryID').text();
             const categoryName = $item.find('PrimaryCategory > CategoryName').text();
+            // The real date/time this item went live on eBay (confirmed live: ListingDetails >
+            // StartTime is already present on this same call, no extra request needed) - lets "newest
+            // first" sort in the app reflect when something was actually listed, not when our own sync
+            // last touched the record.
+            const startTime = $item.find('ListingDetails > StartTime').text();
 
             items.push({
                 itemId,
@@ -891,7 +896,8 @@ async function getTradingListings(token, listType = 'ActiveList', pageNumber = 1
                 viewUrl,
                 images: pictureUrls,
                 categoryId,
-                categoryName
+                categoryName,
+                startTime: startTime ? new Date(startTime) : undefined
             });
         });
 

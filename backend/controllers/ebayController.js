@@ -678,7 +678,8 @@ async function executeEbayInventorySync(userId) {
                   categoryId: item.categoryId || (existingProduct ? existingProduct.categoryId : ''),
                   images: (item.images && item.images.length > 0) ? item.images : (existingProduct?.images || []),
                   source: 'ebay',
-                  updated_at: Date.now()
+                  updated_at: Date.now(),
+                  listedAt: item.startTime || (existingProduct ? existingProduct.listedAt : undefined)
                 },
                 $setOnInsert: {
                   description: item.title || '',
@@ -691,6 +692,7 @@ async function executeEbayInventorySync(userId) {
             ebayListingId: item.itemId,
             title: item.title,
             images: item.images,
+            listedAt: item.startTime,
             sku: item.sku
           });
           totalSynced++;

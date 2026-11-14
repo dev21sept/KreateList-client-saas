@@ -20,6 +20,10 @@ const productSchema = new mongoose.Schema({
   itemSpecifics: mongoose.Schema.Types.Mixed,
   images: [String],
   selling_price: Number,
+  // The real date/time this item went live on the platform (eBay's ListingDetails > StartTime for
+  // now) - distinct from createdAt/updatedAt, which track our own sync activity and get touched on
+  // every resync regardless of whether the listing itself is actually new.
+  listedAt: Date,
   source: {
     type: String,
     default: 'ebay'

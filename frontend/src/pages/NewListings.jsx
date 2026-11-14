@@ -1866,7 +1866,7 @@ const NewListings = () => {
     }
 
     // Extract and format accurate Date
-    const rawDate = product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || product.inventory_booked_at;
+    const rawDate = product.listedAt || product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || product.inventory_booked_at;
     let dateText = 'Recent';
     if (rawDate) {
       let d;
@@ -2206,7 +2206,7 @@ const NewListings = () => {
         if (!matchesSearch) continue;
       }
 
-      const rawDate = product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || 0;
+      const rawDate = product.listedAt || product.updated_at || product.updatedAt || product.createdAt || product.created_at || product.createdDate || product.created || product.updated || product.date_created || 0;
       const time = typeof rawDate === 'number' ? (rawDate < 1e11 ? rawDate * 1000 : rawDate) : new Date(rawDate || 0).getTime();
       const price = details.price || 0;
       const title = (details.title || '').toLowerCase();
