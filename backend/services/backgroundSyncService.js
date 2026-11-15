@@ -346,11 +346,13 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
       return { newItemsCount: 0, mergedItemsCount: 0 };
     }
 
-    // 2. Fetch existing listings to check what is already linked
-    const existingListings = await Listing.find({
-      user: userId,
-      status: { $ne: 'sold' }
-    });
+    // 2. Fetch existing listings to check what is already linked. Deliberately not filtered by
+    // status: a listing that briefly flips to 'sold' (e.g. a false-positive order match) and back
+    // used to become invisible to this check for that one cycle, letting a duplicate Master Listing
+    // get created for the same already-linked platform item - confirmed live from a real duplicate
+    // (two Masters both holding the same poshmarkListingId). A platform ID is still claimed by its
+    // document regardless of what our own status field currently says.
+    const existingListings = await Listing.find({ user: userId });
 
     const isProductLinked = (prod, listings) => {
       const src = prod.source;
