@@ -85,6 +85,12 @@ function sizeFromTitle(title) {
   // since the following "-" already satisfies its trailing \b.
   const genderAnchoredPair = t.match(new RegExp(`\\b${GENDER_WORD}\\s+(\\d{1,2}(?:\\.\\d)?)\\s*([x/-])\\s*(\\d{2})\\b`));
   if (genderAnchoredPair) return `${genderAnchoredPair[1]}${genderAnchoredPair[2] === '-' ? 'x' : genderAnchoredPair[2]}${genderAnchoredPair[3]}`;
+  // A dual letter size ("Mens L/XL", "Womens S/M"): the garment fits either size, not a single one -
+  // checked before the bare single-size match below, which would otherwise stop at "L" and silently
+  // drop the "/XL" half, making it look like a different, narrower size than what's actually stated.
+  const LETTER_SIZE = '(xxs|xs|xxl|xxxl|xl|s|m|l)';
+  const genderAnchoredLetterPair = t.match(new RegExp(`\\b${GENDER_WORD}\\s+${LETTER_SIZE}\\s*/\\s*${LETTER_SIZE}\\b`));
+  if (genderAnchoredLetterPair) return `${genderAnchoredLetterPair[1]}/${genderAnchoredLetterPair[2]}`;
   const genderAnchored = t.match(new RegExp(`\\b${GENDER_WORD}\\s+${SIZE_WORD}\\b`));
   if (genderAnchored) return normalizeSizeWord(genderAnchored[1]);
   // Waist x inseam ("35x32") or a dress shirt's collar/sleeve ("16.5/36" or "15.5-33") - same two-
@@ -233,6 +239,9 @@ function hammingDistance(h1, h2) {
 
 const SIZE_PAIR = /^(\d{1,2}(?:\.\d)?)[x/](\d{2})$/;
 const NUM_WITH_LETTER_SUFFIX = /^(\d{1,3}(?:\.\d)?)[a-z]$/;
+// A dual letter size from a title ("l/xl") fits a platform's single stated size when that size is
+// either half of the pair - the garment genuinely fits both, not a narrower specific size.
+const LETTER_SIZE_PAIR = /^(xxs|xs|xxl|xxxl|xl|s|m|l)\/(xxs|xs|xxl|xxxl|xl|s|m|l)$/;
 
 /** Strips one trailing sizing-convention letter (20W -> 20, 15J -> 15, 8.5B -> 8.5). Unchanged if there is none. */
 function bareNumber(s) {
@@ -280,6 +289,9 @@ function sizesCompatible(sizeA, sizeB) {
   if (pairA && !pairB && pairA[1] === bareB) return true;
   if (pairB && !pairA && pairB[1] === bareA) return true;
   if (!pairA && !pairB && bareA === bareB) return true;
+  const letterPairA = sizeA.match(LETTER_SIZE_PAIR), letterPairB = sizeB.match(LETTER_SIZE_PAIR);
+  if (letterPairA && !letterPairB && (letterPairA[1] === sizeB || letterPairA[2] === sizeB)) return true;
+  if (letterPairB && !letterPairA && (letterPairB[1] === sizeA || letterPairB[2] === sizeA)) return true;
   return false;
 }
 
