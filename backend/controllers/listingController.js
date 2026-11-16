@@ -997,10 +997,7 @@ exports.updateListing = async (req, res) => {
         try {
           const User = require('../models/User');
           const user = await User.findById(req.user.id);
-          // Gated on the session cookie itself, not the separate `connected` boolean - see the same
-          // reasoning in verifyListingLive's Poshmark check, where that flag was confirmed live to go
-          // stale while the stored cookie still genuinely worked.
-          if (user && user.poshmarkAccount && user.poshmarkAccount.sessionCookie && listing.poshmarkListingId) {
+          if (user && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie && listing.poshmarkListingId) {
             console.log(`[Listing Controller] [BG SYNC] Pushing updates to Poshmark for listing: ${listing.title}`);
             const { publishToPoshmark } = require('../services/backendPublishService');
             const syncResult = await publishToPoshmark(listing, user.poshmarkAccount);
@@ -2183,13 +2180,8 @@ exports.verifyListingLive = async (req, res) => {
       const pmUrlToCheck = listing.poshmarkUrl || (pmId ? `https://poshmark.com/listing/${pmId}` : null);
       let checkedViaApi = false;
 
-      // Check 1: Direct Poshmark API (Authoritative source of truth). Gated on the session cookie
-      // actually being present, not the separate `connected` boolean - confirmed live on a real
-      // account where `connected` had gone stale to false while the stored cookie was still genuinely
-      // valid (the API call succeeded fine with it). Trusting the stale flag skipped this authoritative
-      // check entirely and fell through to the much less reliable HTML-substring check below, which
-      // produced a real false "delisted" verdict for a listing confirmed still live and in stock.
-      if (pmId && user.poshmarkAccount && user.poshmarkAccount.sessionCookie) {
+      // Check 1: Direct Poshmark API (Authoritative source of truth)
+      if (pmId && user.poshmarkAccount && user.poshmarkAccount.connected && user.poshmarkAccount.sessionCookie) {
         try {
           const { getPoshmarkHeaders, getAxiosConfig } = require('../services/backendPublishService');
           const domain = user.poshmarkAccount.domain || 'poshmark.com';
