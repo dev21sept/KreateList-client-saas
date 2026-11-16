@@ -119,6 +119,8 @@ app.use('/api/mercari', require('./routes/mercariRoutes'));
 app.use('/api/amazon', require('./routes/amazonRoutes'));
 // Sales Orders Routes
 app.use('/api/orders', require('./routes/orderRoutes'));
+// Adaptive AI Routes
+app.use('/api/adaptive', require('./routes/adaptiveRoutes'));
 // Pricing Engine Routes
 app.use('/api/v1/pricing', require('./routes/pricingRoutes'));
 

@@ -61,6 +61,7 @@ const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../servic
 const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
 const { runMasterStatusCycle } = require('../services/masterStatusCron');
 const { runShareClosetTick } = require('../services/automationWorker');
+const { runAdaptiveProfileCycle } = require('../services/adaptiveProfileCron');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -99,6 +100,16 @@ const initCronJobs = () => {
       runShareClosetTick().catch(e => console.error('[Automation] Share closet tick failed:', e.message));
     });
     console.log('[Cron System] Automation (Share Closet) scheduled every 5 minutes.');
+  }
+
+  // Adaptive AI: recomputes learned seller preferences and refreshes recommendations daily at 3:00 AM
+  if (process.env.ADAPTIVE_AI_DISABLED !== 'true') {
+    cron.schedule('0 3 * * *', () => {
+      runAdaptiveProfileCycle()
+        .then(s => console.log('[AdaptiveAI]', JSON.stringify(s)))
+        .catch(e => console.error('[AdaptiveAI] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Adaptive AI profile cycle scheduled daily at 3:00 AM.');
   }
 };
 

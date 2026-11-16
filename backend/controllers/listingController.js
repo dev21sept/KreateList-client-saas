@@ -10,6 +10,7 @@ const { isListingMatch, cleanAndTokenize, extractUniqueImageKey, checkImageMatch
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
 const { sanitizeEbayDescription } = require('../services/descriptionService');
+const { recordEvent } = require('../services/behaviorEventService');
 
 const isAspectValueInvalid = (val) => {
   if (typeof val !== 'string') return true;
@@ -414,6 +415,7 @@ exports.createListing = async (req, res) => {
     }
 
     const listing = await Listing.create(req.body);
+    recordEvent({ userId: req.user.id, eventType: 'listing.created', entityId: listing._id, metadata: { platform } });
     res.status(201).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -1786,6 +1788,7 @@ exports.publishListing = async (req, res) => {
     }
 
     console.log(`[EBAY PUBLISH] Successfully published listing! eBay ID: ${ebayListingId}`);
+    recordEvent({ userId: req.user.id, eventType: 'listing.published', entityId: listing._id, metadata: { platform: 'ebay' } });
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     console.error('[EBAY PUBLISH] Publish listing failed:', err.response?.data || err.message);
