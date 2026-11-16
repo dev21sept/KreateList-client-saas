@@ -5393,10 +5393,10 @@ const NewListings = () => {
       {/* Filter Inventory Modal */}
       {filterModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-border animate-in zoom-in-95 duration-200 flex flex-col">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl border border-border animate-in zoom-in-95 duration-200 flex flex-col">
 
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-white">
+            <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-white shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
                   <SlidersHorizontal size={16} />
@@ -5624,7 +5624,7 @@ const NewListings = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4.5 border-t border-border flex justify-between items-center bg-slate-50">
+            <div className="px-6 py-4.5 border-t border-border flex justify-between items-center bg-slate-50 shrink-0">
               <Button
                 variant="outline"
                 size="md"
