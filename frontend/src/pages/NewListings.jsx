@@ -3326,7 +3326,7 @@ const NewListings = () => {
     setTempSortOption('crosslisted-desc');
   };
 
-  const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
+  const renderCrosslistingCellInner = (item, platformName, checkId, logoSrc) => {
     const disconnectOnly = activeTab === 'local';
     const platformSpecificItem = item.listingsMap ? item.listingsMap[platformName] : null;
     const isMasterListing = platformSpecificItem && platformSpecificItem._id === item._id;
@@ -3852,6 +3852,25 @@ const NewListings = () => {
         {renderPortalDropdown()}
       </div>
     );
+  };
+
+  // Wraps the real cell: when this platform's account is disconnected, every row's cell for it
+  // blurs and stops accepting clicks everywhere this is used (12 call sites), instead of only the
+  // Marketplaces page showing Disconnected while every list/table kept quietly treating linked items
+  // as if the channel were still connected.
+  const renderCrosslistingCell = (item, platformName, checkId, logoSrc) => {
+    const cell = renderCrosslistingCellInner(item, platformName, checkId, logoSrc);
+    if (!isChannelConnected(platformName)) {
+      return (
+        <div
+          className="relative opacity-40 grayscale blur-[1.5px] pointer-events-none select-none"
+          title={`${getChannelDisplayName(platformName)} is disconnected - reconnect it in Marketplaces to manage this listing.`}
+        >
+          {cell}
+        </div>
+      );
+    }
+    return cell;
   };
 
   // Builds an item shape compatible with renderCrosslistingCell's Listed/Delisted
