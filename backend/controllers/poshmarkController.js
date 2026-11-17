@@ -564,6 +564,39 @@ exports.poshmarkGetLive = async (req, res) => {
       });
     }
 
+    // This scrape-and-write path shares the same Product documents as poshmarkImportCloset and the
+    // background sync worker; without the same lock, a page-load live-fetch racing a manual "Sync Now"
+    // (or the cron) hits the same find-then-create sequence on the same poshmarkListingId and throws an
+    // E11000 duplicate key error. If another sync already holds the lock, just serve whatever's in the
+    // DB already rather than fail - this endpoint is often called passively, not as an explicit action.
+    if (!acquireUserSyncLock(req.user.id)) {
+      return res.status(200).json({
+        success: true,
+        data: dbProducts.map(p => ({
+          _id: p._id,
+          title: p.title,
+          description: p.description,
+          price: p.selling_price || 0,
+          sku: p.sku || '',
+          brand: p.brand || '',
+          size: p.size || '',
+          category: p.category || '',
+          images: p.images || [],
+          thumbnail: p.thumbnail || (p.images && p.images[0]) || '',
+          platform: 'poshmark',
+          poshmarkListingId: p.poshmarkListingId,
+          poshmarkUrl: p.poshmarkUrl,
+          quantity: p.quantity || 1,
+          poshmarkState: p.poshmarkState || null,
+          status: (p.status === 'live' || p.status === 'active') ? 'active' : 'inactive',
+          updated_at: p.updated_at || p.updatedAt,
+          created_at: p.created_at || p.createdAt
+        })),
+        syncInProgress: true
+      });
+    }
+
+    try {
     const poshAccount = user.poshmarkAccount || {};
     const username = await resolveRealPoshmarkUsername(req.user.id, poshAccount) || poshAccount.username;
     console.log(`[Poshmark Controller] Fetching live inventory for Poshmark (${username})`);
@@ -646,6 +679,9 @@ exports.poshmarkGetLive = async (req, res) => {
       success: true,
       data: savedProducts
     });
+    } finally {
+      releaseUserSyncLock(req.user.id);
+    }
   } catch (err) {
     console.error(`[Poshmark Controller] Error getting live inventory:`, err.message);
     res.status(200).json({ success: false, message: err.message, data: [] });
