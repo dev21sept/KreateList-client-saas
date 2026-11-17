@@ -63,6 +63,7 @@ const { runMasterStatusCycle } = require('../services/masterStatusCron');
 const { runShareClosetTick } = require('../services/automationWorker');
 const { runAdaptiveProfileCycle } = require('../services/adaptiveProfileCron');
 const { runWebhookDeliveryCycle } = require('../services/webhookDeliveryService');
+const { runMarketPulseAggregationCycle } = require('../services/marketPulseCron');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -121,6 +122,16 @@ const initCronJobs = () => {
         .catch(e => console.error('[Connect-Webhooks] cycle failed:', e.message));
     });
     console.log('[Cron System] eLister Connect webhook delivery scheduled every 2 minutes.');
+  }
+
+  // Market Pulse: ingests each seller's own sold/active listing data and recomputes trend aggregates daily at 4:00 AM
+  if (process.env.MARKET_PULSE_DISABLED !== 'true') {
+    cron.schedule('0 4 * * *', () => {
+      runMarketPulseAggregationCycle()
+        .then(s => console.log('[MarketPulse]', JSON.stringify(s)))
+        .catch(e => console.error('[MarketPulse] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Market Pulse aggregation cycle scheduled daily at 4:00 AM.');
   }
 };
 

@@ -123,6 +123,8 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/adaptive', require('./routes/adaptiveRoutes'));
 // eLister Connect Routes (developer portal + public v1 API)
 app.use('/api/connect', require('./middleware/rateLimits').connectApiLimiter, require('./routes/connectRoutes'));
+// Market Pulse Routes
+app.use('/api/market', require('./routes/marketPulseRoutes'));
 // Pricing Engine Routes
 app.use('/api/v1/pricing', require('./routes/pricingRoutes'));
 
