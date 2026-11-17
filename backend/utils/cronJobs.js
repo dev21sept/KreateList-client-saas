@@ -62,6 +62,7 @@ const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
 const { runMasterStatusCycle } = require('../services/masterStatusCron');
 const { runShareClosetTick } = require('../services/automationWorker');
 const { runAdaptiveProfileCycle } = require('../services/adaptiveProfileCron');
+const { runWebhookDeliveryCycle } = require('../services/webhookDeliveryService');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -110,6 +111,16 @@ const initCronJobs = () => {
         .catch(e => console.error('[AdaptiveAI] cycle failed:', e.message));
     });
     console.log('[Cron System] Adaptive AI profile cycle scheduled daily at 3:00 AM.');
+  }
+
+  // eLister Connect: delivers queued/retrying webhook events every 2 minutes
+  if (process.env.CONNECT_DISABLED !== 'true') {
+    cron.schedule('*/2 * * * *', () => {
+      runWebhookDeliveryCycle()
+        .then(s => console.log('[Connect-Webhooks]', JSON.stringify(s)))
+        .catch(e => console.error('[Connect-Webhooks] cycle failed:', e.message));
+    });
+    console.log('[Cron System] eLister Connect webhook delivery scheduled every 2 minutes.');
   }
 };
 

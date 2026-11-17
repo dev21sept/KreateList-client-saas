@@ -121,6 +121,8 @@ app.use('/api/amazon', require('./routes/amazonRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 // Adaptive AI Routes
 app.use('/api/adaptive', require('./routes/adaptiveRoutes'));
+// eLister Connect Routes (developer portal + public v1 API)
+app.use('/api/connect', require('./middleware/rateLimits').connectApiLimiter, require('./routes/connectRoutes'));
 // Pricing Engine Routes
 app.use('/api/v1/pricing', require('./routes/pricingRoutes'));
 

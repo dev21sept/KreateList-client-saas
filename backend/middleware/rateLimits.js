@@ -35,4 +35,13 @@ const pricingLimiter = rateLimit({
   handler: jsonHandler
 });
 
-module.exports = { apiLimiter, authLimiter, pricingLimiter };
+const connectApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: 'eLister Connect API rate limit reached. Please try again later.',
+  handler: jsonHandler
+});
+
+module.exports = { apiLimiter, authLimiter, pricingLimiter, connectApiLimiter };
