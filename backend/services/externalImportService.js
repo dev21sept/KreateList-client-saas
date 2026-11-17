@@ -147,7 +147,10 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Same Bright Data account used by every other platform's proxy path this
+    // session - it is suspended, so only use it when a platform explicitly opts
+    // in via its own *_USE_PROXY flag. Default: direct server IP.
+    const proxyUrl = process.env.DEPOP_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -285,7 +288,7 @@ async function scrapeDepopShop(username, credentials = {}) {
       html = response.data;
     } catch (err) {
       console.warn(`[Import Scraper] Public Depop fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
-      html = await fetchHtmlWithPuppeteer(targetUrl, credentials);
+      html = await fetchHtmlWithPuppeteer(targetUrl, credentials, { useProxy: process.env.DEPOP_USE_PROXY === 'true' });
     }
     
     const $ = cheerio.load(html);
@@ -409,10 +412,9 @@ async function scrapeDepopShop(username, credentials = {}) {
  * Helper to fetch HTML content from a URL using Puppeteer Stealth Browser.
  * Used when direct HTTP requests (axios) are blocked by Cloudflare/WAF.
  */
-async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
+async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}, { useProxy = false } = {}) {
   let browser = null;
   try {
-    const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
     const launchOptions = {
       headless: true,
       args: [
@@ -424,7 +426,10 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Same Bright Data account used by every other platform's proxy path this
+    // session - it is suspended, so only use it when the caller explicitly opts
+    // in (and that platform's own *_USE_PROXY flag is set). Default: direct server IP.
+    const proxyUrl = useProxy ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -819,7 +824,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       html = response.data;
     } catch (err) {
       console.warn(`[Import Scraper] Public Poshmark fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
-      html = await fetchHtmlWithPuppeteer(targetUrl);
+      html = await fetchHtmlWithPuppeteer(targetUrl, {}, { useProxy: process.env.POSHMARK_USE_PROXY === 'true' });
     }
     
     const $ = cheerio.load(html);
