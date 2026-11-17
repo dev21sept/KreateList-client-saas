@@ -1,10 +1,32 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { scrapePoshmarkCloset } = require('../services/externalImportService');
+const { scrapePoshmarkCloset, resolvePoshmarkUsernameFromListing } = require('../services/externalImportService');
 const { publishToPoshmark } = require('../services/backendPublishService');
 const { loginToPoshmark, verify2FA } = require('../services/poshmarkLoginService');
 const { acquireUserSyncLock, releaseUserSyncLock } = require('../services/backgroundSyncService');
+
+/**
+ * A seller's stored poshmarkAccount.username can be stale - some connect flows
+ * saved the raw login email/identifier instead of the real closet handle, so
+ * closet-level calls (which need the real handle, unlike single-listing lookups)
+ * silently return nothing. Self-heal it using one of the seller's own already-
+ * known listing IDs, whose detail response reports the real creator_username.
+ */
+async function resolveRealPoshmarkUsername(userId, poshAccount) {
+  if (!poshAccount?.username || !poshAccount.username.includes('@') || !poshAccount.sessionCookie) {
+    return poshAccount?.username || null;
+  }
+  const sampleListing = await Listing.findOne({ user: userId, poshmarkListingId: { $exists: true, $ne: '' } }).select('poshmarkListingId').lean();
+  if (!sampleListing) return poshAccount.username;
+
+  const realUsername = await resolvePoshmarkUsernameFromListing(sampleListing.poshmarkListingId, poshAccount);
+  if (realUsername && realUsername !== poshAccount.username) {
+    console.log(`[Poshmark Controller] Self-healed username from stale "${poshAccount.username}" to real handle "${realUsername}"`);
+    poshAccount.username = realUsername;
+  }
+  return poshAccount.username;
+}
 
 // @desc    Connect Poshmark credentials manually or via extension (cookies / token)
 // @route   POST /api/poshmark/connect
@@ -189,7 +211,8 @@ exports.poshmarkImportCloset = async (req, res) => {
 
     const user = await User.findById(req.user.id);
     const poshAccount = user?.poshmarkAccount || {};
-    const scrapedListings = await scrapePoshmarkCloset(cleanUsername, poshAccount);
+    const resolvedUsername = await resolveRealPoshmarkUsername(req.user.id, poshAccount) || cleanUsername;
+    const scrapedListings = await scrapePoshmarkCloset(resolvedUsername, poshAccount);
 
     if (user && user.poshmarkAccount && poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {
       user.poshmarkAccount.username = poshAccount.username;
@@ -542,9 +565,9 @@ exports.poshmarkGetLive = async (req, res) => {
     }
 
     const poshAccount = user.poshmarkAccount || {};
-    const username = poshAccount.username;
+    const username = await resolveRealPoshmarkUsername(req.user.id, poshAccount) || poshAccount.username;
     console.log(`[Poshmark Controller] Fetching live inventory for Poshmark (${username})`);
-    
+
     const liveListings = await scrapePoshmarkCloset(username, poshAccount);
 
     if (poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {

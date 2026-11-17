@@ -990,10 +990,39 @@ async function fetchSinglePoshmarkPost(poshmarkListingId, credentials = {}) {
   }
 }
 
+/**
+ * Resolves a seller's real Poshmark handle from one of their own known listings,
+ * instead of guessing it from cookies or a rendered page (both unreliable - see
+ * scrapePoshmarkCloset's username-resolution steps). A single-post detail lookup
+ * (the same endpoint already used throughout this app for status checks) reports
+ * the post's own creator_username, which is the account's actual handle.
+ */
+async function resolvePoshmarkUsernameFromListing(poshmarkListingId, credentials = {}) {
+  const { sessionCookie, csrfToken } = credentials;
+  if (!sessionCookie || !poshmarkListingId) return null;
+  try {
+    const res = await axios.get(`https://poshmark.com/vm-rest/posts/${poshmarkListingId}?pm_version=2026.26.01`, {
+      headers: {
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken || '',
+        accept: 'application/json',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 15000
+    });
+    const post = res.data?.data || res.data?.post || res.data;
+    return post?.creator_username || null;
+  } catch (err) {
+    console.warn(`[Import Scraper] resolvePoshmarkUsernameFromListing failed for ${poshmarkListingId}:`, err.response?.status || err.message);
+    return null;
+  }
+}
+
 module.exports = {
   scrapeDepopShop,
   scrapePoshmarkCloset,
   fetchSinglePoshmarkPost,
+  resolvePoshmarkUsernameFromListing,
   poshmarkStateOf,
   poshmarkCategoryOf,
   stripInvisible
