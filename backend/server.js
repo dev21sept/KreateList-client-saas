@@ -125,6 +125,8 @@ app.use('/api/adaptive', require('./routes/adaptiveRoutes'));
 app.use('/api/connect', require('./middleware/rateLimits').connectApiLimiter, require('./routes/connectRoutes'));
 // Market Pulse Routes
 app.use('/api/market', require('./routes/marketPulseRoutes'));
+// AI Agents Routes
+app.use('/api/agents', require('./routes/agentRoutes'));
 // Pricing Engine Routes
 app.use('/api/v1/pricing', require('./routes/pricingRoutes'));
 
