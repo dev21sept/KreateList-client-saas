@@ -5,6 +5,7 @@
  */
 
 const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder, stripGenericCategoryRoot } = require('./itemResolver');
+const { sizeFromTitle, tagSizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible } = require('../mergeMatcher');
 
 // Generic stopwords to discount in title similarity
 const STOPWORDS = new Set([
@@ -51,6 +52,23 @@ function computeTokenSimilarity(tokensA, textB) {
   }
 
   return targetTokens.length > 0 ? (intersection / targetTokens.length) : 0;
+}
+
+/**
+ * sizeFromTitle (from mergeMatcher.js) only catches a bare number after the literal word "size",
+ * a gender-anchored size, a letter size, or a measurement pair - a plus-size/juniors jeans title
+ * commonly states the number with none of those ("Jeans 22 Light Wash", "Juniors 13/14 Long Blue")
+ * and would otherwise fall through with no size at all, silently letting a wrong size pass as a
+ * price comparable. Scoped to BOTTOMS only, where this convention actually shows up, to avoid
+ * misreading an unrelated stray number (a style code, a year) elsewhere as a size.
+ */
+function fallbackBareSizeFromTitle(title, domain) {
+  if (domain !== 'BOTTOMS') return '';
+  const t = String(title || '').toLowerCase();
+  // "-" as well as whitespace before the excluded word: "5-Pocket" (a construction detail, not a
+  // size) separates the number from "pocket" with a hyphen, not a space.
+  const m = t.match(/(?<!\$)\b(\d{1,2})\b(?!\s*-?\s*(?:%|gauge|oz|ml|kg|lbs?|ft|in|v|pockets?|buttons?|pieces?|pcs?|pack|panels?|way|zips?|zippers?))/);
+  return m ? m[1] : '';
 }
 
 /**
@@ -133,6 +151,27 @@ function evaluateHardRejections(targetItem, candidate) {
   // 6. Zero or negative price
   if (!candidate.total_price || candidate.total_price <= 0) {
     reasons.push('invalid_price');
+  }
+
+  // 7. Garment size and gender/age group are physical traits, not a styling detail - a Womens 22
+  // and a Juniors 13/14 are not the same product even if the title text otherwise matches well, and
+  // "size"/"sz" are deliberately excluded from the title-similarity tokens above, so nothing else in
+  // this scorer would ever catch a size mismatch. Same hard-gate logic already proven in
+  // mergeMatcher.js for cross-platform listing matching - only blocks when both sides actually state
+  // one, exactly like there, so an unparseable title never wrongly rejects everything.
+  if (!ageGroupsCompatible(ageGroupFromTitle(targetTitle), ageGroupFromTitle(candidateTitle))) {
+    reasons.push('age_group_mismatch');
+  } else {
+    const targetSize = sizeFromTitle(targetTitle) || fallbackBareSizeFromTitle(targetTitle, targetDomain);
+    const candidateSize = sizeFromTitle(candidateTitle) || fallbackBareSizeFromTitle(candidateTitle, candDomain);
+    if (targetSize && candidateSize && !sizesCompatible(targetSize, candidateSize)) {
+      const targetTag = tagSizeFromTitle(targetTitle);
+      const candidateTag = tagSizeFromTitle(candidateTitle);
+      const altMatch = (targetTag && sizesCompatible(targetTag, candidateSize)) || (candidateTag && sizesCompatible(targetSize, candidateTag));
+      if (!altMatch) {
+        reasons.push('size_mismatch');
+      }
+    }
   }
 
   return reasons;

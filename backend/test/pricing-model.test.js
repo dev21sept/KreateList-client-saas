@@ -22,13 +22,47 @@ const shirtPool = [
 
 test('a bare numeric MPN like 677 does not reject comparables', () => {
   const target = resolveItem({
-    title: 'Rockmount Ranch Wear Unisex Brown Vintage Western Shirt Size 16 M',
+    title: 'Rockmount Ranch Wear Unisex Brown Vintage Western Shirt Size M',
     brand: 'Rockmount Ranch Wear',
     model: '677',
     condition: 'USED'
   }).normalized;
-  const { accepted } = matchAndFilterComparables(target, shirtPool, 35);
-  assert.equal(accepted.length, 3);
+  const { accepted, rejected } = matchAndFilterComparables(target, shirtPool, 35);
+  // The Size L candidate is a real size mismatch against the target's Size M, not an MPN issue -
+  // it is correctly rejected on its own ground. The no-size-stated "677" title (unrelated to MPN
+  // rejection here since model "677" is a bare number and not required in candidate titles) and
+  // the matching Size M candidate are both still accepted.
+  assert.equal(accepted.length, 2);
+  const sizeMismatch = rejected.find(r => r.candidate.title.includes('Size L'));
+  assert.ok(sizeMismatch.reasons.includes('size_mismatch'));
+});
+
+test('a different garment size is rejected as a comparable, even with a near-identical title', () => {
+  const target = resolveItem({
+    title: 'Rue21 Real Sizing Plus Skinny Jeans 22 Light Wash Stretch Distressed',
+    brand: 'Rue21',
+    condition: 'USED'
+  }).normalized;
+  const { accepted, rejected } = matchAndFilterComparables(target, [
+    comp('Rue21 Real Sizing Plus Skinny Jeans 22 Light Wash Stretch Distressed', 14),
+    comp('Rue21 Skinny Jeans Juniors 13/14 Long Blue Dark Wash Low Rise Stretch', 22.99)
+  ], 35);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].total_price, 14);
+  assert.ok(rejected[0].reasons.includes('size_mismatch') || rejected[0].reasons.includes('age_group_mismatch'));
+});
+
+test('a different gender/age group (mens vs womens) is rejected even with a matching size number', () => {
+  const target = resolveItem({
+    title: 'Nike Mens Running Shoes Size 10',
+    brand: 'Nike',
+    condition: 'USED'
+  }).normalized;
+  const { accepted, rejected } = matchAndFilterComparables(target, [
+    comp('Nike Womens Running Shoes Size 10', 40)
+  ], 35);
+  assert.equal(accepted.length, 0);
+  assert.ok(rejected[0].reasons.includes('age_group_mismatch'));
 });
 
 test('a strong model number still requires the model in the candidate title', () => {
