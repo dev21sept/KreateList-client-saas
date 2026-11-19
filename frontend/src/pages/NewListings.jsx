@@ -585,6 +585,12 @@ const NewListings = () => {
     return !Array.isArray(cached) || cached.length === 0;
   });
   const [masterSyncing, setMasterSyncing] = useState(false);
+  // Manual "Full Sync" popup (12-hour cooldown, server-tracked so it survives a refresh/re-login)
+  const [fullSyncPopupOpen, setFullSyncPopupOpen] = useState(false);
+  const [fullSyncStatus, setFullSyncStatus] = useState(null); // { lastRunAt, nextAllowedAt, canRunNow }
+  const [fullSyncStatusLoading, setFullSyncStatusLoading] = useState(false);
+  const [fullSyncTriggering, setFullSyncTriggering] = useState(false);
+  const [fullSyncCountdown, setFullSyncCountdown] = useState('');
   const [stats, setStats] = useState(() => {
     return loadCachedData('elister_cached_listing_stats_v5') || null;
   });
@@ -1047,6 +1053,79 @@ const NewListings = () => {
       setMasterSyncing(false);
     }
   };
+
+  // Server-tracked cooldown for the manual "Full Sync" popup - always re-read on open so a refresh
+  // or a fresh login still shows the real remaining time, not stale state the browser remembered.
+  const fetchFullSyncStatus = async () => {
+    setFullSyncStatusLoading(true);
+    try {
+      const res = await listingService.getFullSyncStatus();
+      if (res.data?.success) {
+        setFullSyncStatus(res.data);
+      }
+    } catch (err) {
+      console.error('Error loading full sync status:', err);
+    } finally {
+      setFullSyncStatusLoading(false);
+    }
+  };
+
+  const openFullSyncPopup = () => {
+    setFullSyncPopupOpen(true);
+    fetchFullSyncStatus();
+  };
+
+  const triggerFullSync = async () => {
+    setFullSyncTriggering(true);
+    try {
+      const res = await listingService.runFullSync();
+      if (res.data?.success) {
+        toast.success('Sync started - it is running in the background. Your listings will update automatically.');
+        setLastLocalSyncTime(new Date());
+        setFullSyncPopupOpen(false);
+        setTimeout(() => { fetchListings(true); }, 30000);
+      } else {
+        toast.error(res.data?.message || 'Failed to start sync.');
+        if (res.data?.nextAllowedAt) {
+          setFullSyncStatus(prev => ({ ...prev, nextAllowedAt: res.data.nextAllowedAt, canRunNow: false }));
+        }
+      }
+    } catch (err) {
+      const data = err.response?.data;
+      if (err.response?.status === 429 && data?.nextAllowedAt) {
+        toast.error(data.message || 'Sync can only be run once every 12 hours.');
+        setFullSyncStatus(prev => ({ ...prev, nextAllowedAt: data.nextAllowedAt, canRunNow: false }));
+      } else {
+        toast.error(data?.message || 'Failed to start sync.');
+      }
+    } finally {
+      setFullSyncTriggering(false);
+    }
+  };
+
+  // Live countdown text while the popup is open, recomputed every second from the server's
+  // nextAllowedAt - purely a display refresh, never re-derives the deadline itself from the client clock.
+  useEffect(() => {
+    if (!fullSyncPopupOpen || !fullSyncStatus?.nextAllowedAt) {
+      setFullSyncCountdown('');
+      return;
+    }
+    const computeCountdown = () => {
+      const remainingMs = new Date(fullSyncStatus.nextAllowedAt).getTime() - Date.now();
+      if (remainingMs <= 0) {
+        setFullSyncCountdown('');
+        setFullSyncStatus(prev => (prev ? { ...prev, canRunNow: true } : prev));
+        return;
+      }
+      const totalMinutes = Math.floor(remainingMs / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      setFullSyncCountdown(hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`);
+    };
+    computeCountdown();
+    const interval = setInterval(computeCountdown, 30000);
+    return () => clearInterval(interval);
+  }, [fullSyncPopupOpen, fullSyncStatus?.nextAllowedAt]);
 
   const handleSyncInventory = async () => {
     setSyncing(true);
@@ -4258,13 +4337,12 @@ const NewListings = () => {
             </div>
             <button
               type="button"
-              onClick={handleSyncAllMaster}
-              disabled={masterSyncing}
+              onClick={openFullSyncPopup}
               title="Sync all connected marketplaces & reconcile Master Listings"
               className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-black transition-all cursor-pointer disabled:opacity-50 active:scale-95 shadow-2xs"
             >
-              <RefreshCw size={12} className={masterSyncing ? "animate-spin text-indigo-600" : "text-indigo-600"} />
-              <span>{masterSyncing ? 'Syncing...' : 'Sync Now'}</span>
+              <RefreshCw size={12} className="text-indigo-600" />
+              <span>Sync Now</span>
             </button>
           </div>
 
@@ -6624,6 +6702,61 @@ const NewListings = () => {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Full Sync Popup (manual, 12-hour cooldown, server-tracked) */}
+      {fullSyncPopupOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative bg-white rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-200 space-y-4">
+            <button
+              type="button"
+              onClick={() => setFullSyncPopupOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto border border-indigo-100/80 shadow-xs">
+              <RefreshCw size={28} className={fullSyncTriggering ? "animate-spin" : ""} />
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Full Sync</h2>
+              <p className="text-xs font-semibold text-slate-500 leading-relaxed max-w-[280px] mx-auto">
+                Checks every connected marketplace, updates listing status, and reconciles Master Listings - the same full sync the automatic 12-hour cycle runs.
+              </p>
+            </div>
+
+            {fullSyncStatusLoading ? (
+              <div className="py-2 text-xs font-semibold text-slate-400">Checking status...</div>
+            ) : fullSyncStatus && !fullSyncStatus.canRunNow ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs font-bold text-amber-700">
+                Already run recently. Can run again in <span className="font-mono">{fullSyncCountdown || 'a moment'}</span>.
+              </div>
+            ) : (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-[11px] font-semibold text-slate-500">
+                Can be run once every 12 hours.
+                {fullSyncStatus?.lastRunAt && (
+                  <> Last run: <span className="font-mono text-slate-600">{new Date(fullSyncStatus.lastRunAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></>
+                )}
+              </div>
+            )}
+
+            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-2.5 text-[10.5px] font-semibold text-amber-700 text-left leading-snug">
+              Do not refresh this page while sync is running, otherwise it may stop. It runs in the background on the server - once started, you'll get a notification and can safely close this popup.
+            </div>
+
+            <button
+              type="button"
+              onClick={triggerFullSync}
+              disabled={fullSyncTriggering || fullSyncStatusLoading || (fullSyncStatus && !fullSyncStatus.canRunNow)}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-sm"
+            >
+              <RefreshCw size={15} className={fullSyncTriggering ? "animate-spin" : ""} />
+              <span>{fullSyncTriggering ? 'Starting...' : 'Run Full Sync'}</span>
+            </button>
           </div>
         </div>
       )}

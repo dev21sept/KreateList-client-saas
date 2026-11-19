@@ -79,6 +79,8 @@ export const listingService = {
   syncAll: () => API.post('/listings/sync-all'),
   getSyncSummary: () => API.get('/listings/sync-summary'),
   dismissSyncSummary: () => API.post('/listings/sync-summary/dismiss'),
+  getFullSyncStatus: () => API.get('/listings/full-sync-status'),
+  runFullSync: () => API.post('/listings/full-sync'),
 };
 
 export const ruleService = {
