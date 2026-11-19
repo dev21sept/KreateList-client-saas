@@ -170,6 +170,26 @@ function brandsCompatible(brandA, brandB) {
   return new RegExp(`\\b${escape(shorter)}\\b`).test(longer);
 }
 
+/**
+ * Whether two color strings can be the same color. Same pattern as brandsCompatible: exact match,
+ * punctuation/spacing-only differences, or one is a whole-word match inside the other ("Blue" inside
+ * "Navy Blue", "Blue/White" containing "Blue" as its own word) - a platform's color field is often a
+ * shorter or more specific restatement of the other's, not a real disagreement.
+ */
+function colorsCompatible(colorA, colorB) {
+  const a = String(colorA || '').trim().toLowerCase();
+  const b = String(colorB || '').trim().toLowerCase();
+  if (!a || !b) return true;
+  if (a === b) return true;
+  const alnumOnly = (s) => s.replace(/[^a-z0-9]/g, '');
+  if (alnumOnly(a) === alnumOnly(b)) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return new RegExp(`\\b${escape(shorter)}\\b`).test(longer);
+}
+
 /** Lowercased word set of a title, without sizes, punctuation and filler words. */
 function titleTokens(title) {
   return new Set(
@@ -323,6 +343,7 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   const platformsB = (b.platforms || [b.platform]).filter(Boolean);
   if (platformsB.some(p => platformsA.has(p))) return null;
   if (a.brand && b.brand && !brandsCompatible(a.brand, b.brand)) return null;
+  if (a.color && b.color && !colorsCompatible(a.color, b.color)) return null;
   // Kids sizing and adult sizing (and mens vs womens) reuse the same letters/numbers for very
   // different physical sizes ("Kids XL" is nothing like "Mens XL"), so this is checked before size.
   if (!ageGroupsCompatible(ageGroupFromTitle(a.title), ageGroupFromTitle(b.title))) return null;
@@ -357,14 +378,16 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   if (overlap >= 0.6) { score += 40; reasons.push(`title ${Math.round(overlap * 100)}%`); }
   const brandConfirmed = Boolean(a.brand && b.brand); // both present and (per the check above) matching
   const sizeConfirmed = Boolean(sizeA && sizeB); // both present and (per the check above) compatible
+  const colorConfirmed = Boolean(a.color && b.color); // both present and (per the check above) compatible
   if (brandConfirmed) { score += 15; reasons.push('brand'); }
   if (sizeConfirmed) { score += 15; reasons.push('size'); }
+  if (colorConfirmed) { score += 10; reasons.push('color'); }
 
   // A partial title match (60-89%) shares a lot of generic, descriptive words - "straight jeans
   // mens blue medium wash denim" reads almost the same for two different brands of jeans. Without
-  // brand or size actually confirmed, title + photo alone is not enough to tell those apart; an
-  // (near-)exact title is specific enough on its own to skip this.
-  if (overlap < EXACT_TITLE_OVERLAP && !brandConfirmed && !sizeConfirmed) return null;
+  // brand, size or color actually confirmed, title + photo alone is not enough to tell those apart;
+  // an (near-)exact title is specific enough on its own to skip this.
+  if (overlap < EXACT_TITLE_OVERLAP && !brandConfirmed && !sizeConfirmed && !colorConfirmed) return null;
 
   const threshold = (overlap >= EXACT_TITLE_OVERLAP && sizeConfirmed)
     ? PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE
@@ -379,9 +402,14 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   // This only waives a far-but-computed distance, never a missing one: Infinity means a hash failed
   // to compute on at least one side (a transient fetch error, usually), which is zero photo evidence
   // rather than a noisy-but-real comparison, and title + size alone should not paper over that.
-  const photoWaived = titleUniquePair && sizeConfirmed && Number.isFinite(dist);
+  // Priority order requested: (1) title + photo both matching is enough on its own; (2) title matches
+  // but the photo does not - fall back to whichever of brand/size/color is actually confirmed instead
+  // of blocking on a bad photo; (3) title does not match at all - photo is not waived, brand/size/color
+  // have to clear the score bar together with it, same as before. Any one of the three (not all three)
+  // is enough for step 2, since sellers do not always fill in every field.
+  const photoWaived = titleUniquePair && (sizeConfirmed || brandConfirmed || colorConfirmed) && Number.isFinite(dist);
   if (dist <= threshold) { score += 30; reasons.push(`photo distance ${dist}`); }
-  else if (photoWaived) { reasons.push(`photo distance ${dist} (not required: title-unique + size match)`); }
+  else if (photoWaived) { reasons.push(`photo distance ${dist} (not required: title-unique + brand/size/color match)`); }
 
   // A close photo is required unless waived above. A confirmed size clash was already rejected
   // above; a size missing on one side is not held against the pair, since the other evidence
@@ -418,4 +446,4 @@ function suggestPairs(records) {
   return out.sort((x, y) => y.score - x.score);
 }
 
-module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, tagSizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, brandsCompatible, normalizeSize, looksLikeSize };
+module.exports = { titleTokens, titleOverlap, priceClose, dHashFromPixels, hammingDistance, scorePair, suggestPairs, sizeFromTitle, tagSizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible, brandsCompatible, colorsCompatible, normalizeSize, looksLikeSize };

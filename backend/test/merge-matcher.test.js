@@ -525,6 +525,40 @@ test('the size override still requires a strong photo match, not just a unique t
   assert.equal(m.scorePair(a, b, { titleUniquePair: true }), null);
 });
 
+test('a title-unique pair with a far photo still matches on brand + color alone (no size anywhere)', () => {
+  const far = '1'.repeat(60) + '0'.repeat(84); // distance 60, past every photo threshold
+  const title = 'Patagonia Better Sweater Fleece Jacket Full Zip Outdoor';
+  const a = { id: 'a', platform: 'ebay', title, brand: 'Patagonia', color: 'Black', price: 55, imageHash: '0'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title, brand: 'Patagonia', color: 'Black', price: 48, imageHash: far };
+  assert.equal(m.scorePair(a, b), null); // without the flag, the far photo still blocks
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(s && s.score >= 50 && s.reasons.includes('brand') && s.reasons.includes('color'));
+});
+
+test('a title-unique pair with a far photo and only color confirmed (no brand, no size) still matches', () => {
+  const far = '1'.repeat(60) + '0'.repeat(84);
+  const title = 'Vintage Band Tee Shirt Short Sleeve Graphic Print';
+  const a = { id: 'a', platform: 'ebay', title, color: 'Red', price: 20, imageHash: '0'.repeat(144) };
+  const b = { id: 'b', platform: 'poshmark', title, color: 'Red', price: 18, imageHash: far };
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(s && s.score >= 50 && s.reasons.includes('color'));
+});
+
+test('two explicitly conflicting colors still block the pair even with a unique title', () => {
+  const same = '1'.repeat(144);
+  const title = 'Nike Hoodie Mens Pullover Fleece Drawstring';
+  const a = { id: 'a', platform: 'ebay', title, brand: 'Nike', color: 'Black', price: 20, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, brand: 'Nike', color: 'Red', price: 20, imageHash: same };
+  assert.equal(m.scorePair(a, b, { titleUniquePair: true }), null);
+});
+
+test('colorsCompatible: equal, contained-as-a-word, and genuinely different colors', () => {
+  assert.ok(m.colorsCompatible('Blue', 'Blue'));
+  assert.ok(m.colorsCompatible('Blue', 'Navy Blue'));
+  assert.ok(m.colorsCompatible('', 'Blue')); // one side blank never blocks
+  assert.ok(!m.colorsCompatible('Blue', 'Red'));
+});
+
 test('a "(Tag-X)" caveat does not rescue a pair whose sizes are genuinely unrelated', () => {
   const title = 'Some Jeans Mens 38x30 Blue Denim (Tag-40x32)';
   const same = '1'.repeat(144);

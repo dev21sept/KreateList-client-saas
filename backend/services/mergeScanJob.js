@@ -63,7 +63,7 @@ async function runScan(userId) {
     // Records already folded into another one (mergedInto) are skipped: they are hidden and may
     // still hold stale platform fields until the next cleanup pass.
     const listings = await Listing.find({ user: userId, mergedInto: null })
-      .select('title brand size price platform ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus mercariListingId mercariStatus images thumbnail imageHash')
+      .select('title brand size color price platform ebayListingId ebayStatus poshmarkListingId poshmarkStatus etsyListingId etsyStatus mercariListingId mercariStatus images thumbnail imageHash')
       .lean();
 
     // Active only: at least one platform has this item live right now, and a photo to compare.
@@ -85,7 +85,7 @@ async function runScan(userId) {
           imageHash = null; // a failed photo only weakens that record's score
         }
       }
-      records.push({ id: String(l._id), platform: livePlatforms(l)[0], platforms: livePlatforms(l), title: l.title, brand: l.brand, size: l.size, price: l.price, imageHash });
+      records.push({ id: String(l._id), platform: livePlatforms(l)[0], platforms: livePlatforms(l), title: l.title, brand: l.brand, size: l.size, color: l.color, price: l.price, imageHash });
       job.processed++;
     });
 
