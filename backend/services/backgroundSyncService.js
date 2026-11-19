@@ -387,16 +387,31 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
       if (claimedIds.has(`${src}:${String(realId)}`)) continue;
       claimedIds.add(`${src}:${String(realId)}`);
 
-      // eBay active items come without a category: fetch the item's PrimaryCategory once (GetItem).
-      if (src === 'ebay' && !prod.categoryId) {
+      // eBay active items come without a category, brand, size or color from the bulk listing call -
+      // those only come back from a per-item GetItem fetch. Fetch it once, here, the first time this
+      // item is imported, whenever any of those four is still missing, and save all four together
+      // (not just category, as before - brand/size/color were being fetched and silently discarded,
+      // which is exactly why the cross-platform merge matcher had nothing to fall back on for these
+      // eBay items when a photo didn't match closely enough).
+      if (src === 'ebay' && (!prod.categoryId || !prod.brand || !prod.size || !prod.color)) {
         try {
           if (!ebayTokenForCategory) ebayTokenForCategory = await require('./ebayService').getValidEbayToken(String(userId));
           const det = await require('./ebayService').getTradingItemDetails(ebayTokenForCategory, String(realId));
-          if (det && det.categoryId) {
-            prod.categoryId = String(det.categoryId);
-            // eBay returns the path with ':' separators; the app uses ' > ' (see categoryResolver).
-            prod.category = det.categoryName ? String(det.categoryName).split(':').map(x => x.trim()).join(' > ') : (prod.category || '');
-            await Product.updateOne({ _id: prod._id }, { $set: { categoryId: prod.categoryId, category: prod.category } });
+          if (det) {
+            const update = {};
+            if (det.categoryId) {
+              prod.categoryId = String(det.categoryId);
+              // eBay returns the path with ':' separators; the app uses ' > ' (see categoryResolver).
+              prod.category = det.categoryName ? String(det.categoryName).split(':').map(x => x.trim()).join(' > ') : (prod.category || '');
+              update.categoryId = prod.categoryId;
+              update.category = prod.category;
+            }
+            if (det.brand && !prod.brand) { prod.brand = det.brand; update.brand = det.brand; }
+            if (det.size && !prod.size) { prod.size = det.size; update.size = det.size; }
+            if (det.color && !prod.color) { prod.color = det.color; update.color = det.color; }
+            if (Object.keys(update).length) {
+              await Product.updateOne({ _id: prod._id }, { $set: update });
+            }
           }
         } catch (catErr) {
           // Left blank: the next sync retries this item.
