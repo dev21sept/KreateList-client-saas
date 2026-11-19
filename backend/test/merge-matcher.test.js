@@ -503,6 +503,28 @@ test('a "(Tag-X)" caveat is a second candidate size, checked when the stated siz
   assert.ok(s && s.reasons.includes('size'));
 });
 
+test('a title-unique pair with a strongly-matching photo overrides a disagreeing size field', () => {
+  const same = '1'.repeat(144);
+  const title = 'Wrangler 13MWZ Jeans Mens 39x29 Blue Denim Cowboy Cut Classic High Rise Western';
+  const a = { id: 'a', platform: 'ebay', title, price: 24.43, imageHash: same };
+  // The platform's own structured size field (42) disagrees with what this same title states
+  // (39x29) - real production case: the field is the one more likely to be wrong, and a unique
+  // title plus a near-identical photo is stronger, more direct evidence than that single field.
+  const b = { id: 'b', platform: 'poshmark', title, brand: 'Wrangler', size: '42', price: 20, imageHash: same };
+  assert.equal(m.scorePair(a, b), null); // without the flag, the size conflict still blocks
+  const s = m.scorePair(a, b, { titleUniquePair: true });
+  assert.ok(s && s.score >= 50);
+});
+
+test('the size override still requires a strong photo match, not just a unique title', () => {
+  const same = '0'.repeat(144);
+  const far = '1'.repeat(60) + '0'.repeat(84); // distance 60, past the normal threshold
+  const title = 'Wrangler 13MWZ Jeans Mens 39x29 Blue Denim Cowboy Cut Classic High Rise Western';
+  const a = { id: 'a', platform: 'ebay', title, price: 24.43, imageHash: same };
+  const b = { id: 'b', platform: 'poshmark', title, brand: 'Wrangler', size: '42', price: 20, imageHash: far };
+  assert.equal(m.scorePair(a, b, { titleUniquePair: true }), null);
+});
+
 test('a "(Tag-X)" caveat does not rescue a pair whose sizes are genuinely unrelated', () => {
   const title = 'Some Jeans Mens 38x30 Blue Denim (Tag-40x32)';
   const same = '1'.repeat(144);

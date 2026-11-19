@@ -331,6 +331,7 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
   // the one that actually matches the other side, so a clash only blocks when every combination does.
   const sizeA = normalizeSize(a.size) || sizeFromTitle(a.title);
   const sizeB = normalizeSize(b.size) || sizeFromTitle(b.title);
+  const dist = hammingDistance(a.imageHash, b.imageHash);
   if (sizeA && sizeB && !sizesCompatible(sizeA, sizeB)) {
     const tagA = tagSizeFromTitle(a.title);
     const tagB = tagSizeFromTitle(b.title);
@@ -338,7 +339,15 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
     // read identically from the other - that would trivially "match" regardless of what the actual
     // size fields say, so only a tag actually crossed against the other side's real size counts.
     const altMatch = (tagA && sizesCompatible(tagA, sizeB)) || (tagB && sizesCompatible(sizeA, tagB));
-    if (!altMatch) return null;
+    // A platform's own size field is a single, error-prone data point (a seller mistyping a dropdown,
+    // or an unrelated value landing in it). When the title is this pair's only exact-title candidate
+    // on each platform AND the photos independently confirm the same item (a tight hash distance, not
+    // just "no worse than usual"), that is stronger, more direct evidence of a single real listing
+    // than one disagreeing size field - the size conflict is treated as that field being wrong, not
+    // as two different items. A non-unique title or a missing/weak photo still falls back to the
+    // hard block: this only overrides on title + photo both independently agreeing.
+    const strongPhotoMatch = titleUniquePair && Number.isFinite(dist) && dist <= PHOTO_DIST_THRESHOLD;
+    if (!altMatch && !strongPhotoMatch) return null;
   }
   if (!titleUniquePair && !priceClose(a.price, b.price)) return null;
 
@@ -361,7 +370,7 @@ function scorePair(a, b, { titleUniquePair = false } = {}) {
     ? PHOTO_DIST_THRESHOLD_HIGH_CONFIDENCE
     : PHOTO_DIST_THRESHOLD;
 
-  const dist = hammingDistance(a.imageHash, b.imageHash);
+  // dist was already computed above, before the size check.
   // Same reasoning as the price bypass above: with no other candidate on either side and the size
   // actually confirmed, there is no ambiguity left for the photo to resolve either. A verified real
   // example (same garment, confirmed by eye) landed at distance 60 purely from one platform's photo
