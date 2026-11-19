@@ -6143,6 +6143,71 @@ exports.syncAllInventory = async (req, res) => {
   }
 };
 
+const MANUAL_FULL_SYNC_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+
+// @desc    Status for the manual "Sync Now" popup: can the user run it right now, and if not, when.
+// @route   GET /api/listings/full-sync-status
+// @access  Private
+exports.getFullSyncStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('lastManualFullSyncAt').lean();
+    const lastRunAt = user?.lastManualFullSyncAt || null;
+    const nextAllowedAt = lastRunAt ? new Date(new Date(lastRunAt).getTime() + MANUAL_FULL_SYNC_COOLDOWN_MS) : null;
+    const canRunNow = !nextAllowedAt || nextAllowedAt <= new Date();
+    res.json({ success: true, lastRunAt, nextAllowedAt, canRunNow });
+  } catch (err) {
+    console.error('[ListingController] Error reading full sync status:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to read sync status' });
+  }
+};
+
+// @desc    Manual "Sync Now" from the Master page popup - runs the exact same full sync the
+// 12-hour automatic cycle runs (per-platform refresh, live-ID check, auto-import, cross-platform
+// merge), for this one user only. Rate-limited to once per 12 hours, tracked server-side so the
+// real remaining cooldown survives a refresh or a fresh login.
+// @route   POST /api/listings/full-sync
+// @access  Private
+exports.runManualFullSync = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).select('lastManualFullSyncAt');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const lastRunAt = user.lastManualFullSyncAt;
+    if (lastRunAt) {
+      const nextAllowedAt = new Date(new Date(lastRunAt).getTime() + MANUAL_FULL_SYNC_COOLDOWN_MS);
+      if (nextAllowedAt > new Date()) {
+        return res.status(429).json({ success: false, message: 'Sync can only be run once every 12 hours.', nextAllowedAt });
+      }
+    }
+
+    user.lastManualFullSyncAt = new Date();
+    await user.save();
+
+    res.status(202).json({
+      success: true,
+      message: 'Sync started. It is running in the background and your listings will update automatically.',
+      nextAllowedAt: new Date(Date.now() + MANUAL_FULL_SYNC_COOLDOWN_MS)
+    });
+
+    setImmediate(async () => {
+      try {
+        const { runBackgroundInventorySyncCycle } = require('../services/backgroundSyncService');
+        console.log(`[Manual Full Sync] Starting for user: ${userId}`);
+        await runBackgroundInventorySyncCycle([userId]);
+        console.log(`[Manual Full Sync] Completed for user: ${userId}`);
+      } catch (bgErr) {
+        console.error('[Manual Full Sync] Error:', bgErr.message);
+      }
+    });
+  } catch (err) {
+    console.error('[ListingController] Error starting manual full sync:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to start sync' });
+  }
+};
+
 // @desc    Get user's latest inventory sync summary
 // @route   GET /api/listings/sync-summary
 // @access  Private

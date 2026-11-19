@@ -558,15 +558,24 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
 /**
  * Executes an automated 30-minute All-Platform Inventory Sync & Status Recheck.
  */
-async function runBackgroundInventorySyncCycle() {
-  if (isInventorySyncRunning) {
-    return;
+/**
+ * `targetUserIds`: when given, runs this exact same cycle for only those users (used by the manual
+ * "Sync Now" button so it reuses the real 12-hour cycle's logic verbatim, never a separate copy that
+ * could drift from it) and does not take the global isInventorySyncRunning lock - that lock exists to
+ * stop two full, all-users cycles from overlapping, which is not the concern for a single targeted
+ * user; the per-user acquireUserSyncLock inside the loop below still protects that user same as always.
+ */
+async function runBackgroundInventorySyncCycle(targetUserIds = null) {
+  const isFullCycle = !targetUserIds;
+  if (isFullCycle) {
+    if (isInventorySyncRunning) {
+      return { skipped: 'full cycle already running' };
+    }
+    isInventorySyncRunning = true;
   }
 
-  isInventorySyncRunning = true;
-
   try {
-    const users = await User.find({
+    const query = {
       $or: [
         { 'ebayAccount.connected': true },
         { 'ebay.connected': true },
@@ -576,7 +585,11 @@ async function runBackgroundInventorySyncCycle() {
         { 'amazonAccount.connected': true },
         { 'depopAccount.connected': true }
       ]
-    });
+    };
+    if (targetUserIds) {
+      query._id = { $in: targetUserIds };
+    }
+    const users = await User.find(query);
 
     for (const user of users) {
       const userId = user._id.toString();
@@ -833,11 +846,13 @@ async function runBackgroundInventorySyncCycle() {
       }
     }
 
-    console.log('[Background Inventory Worker] 12-hour All-Platform Inventory Import & Sync cycle completed.');
+    console.log(isFullCycle
+      ? '[Background Inventory Worker] 12-hour All-Platform Inventory Import & Sync cycle completed.'
+      : `[Background Inventory Worker] Manual sync completed for ${users.length} user(s).`);
   } catch (err) {
     console.error('[Background Inventory Worker] Fatal error during inventory sync cycle:', err.message);
   } finally {
-    isInventorySyncRunning = false;
+    if (isFullCycle) isInventorySyncRunning = false;
   }
 }
 

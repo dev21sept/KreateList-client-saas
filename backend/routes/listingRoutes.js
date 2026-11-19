@@ -26,7 +26,9 @@ const {
   cleanGhostChannels,
   syncAllInventory,
   getSyncSummary,
-  dismissSyncSummary
+  dismissSyncSummary,
+  getFullSyncStatus,
+  runManualFullSync
 } = require('../controllers/listingController');
 const { protect, authorize } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
@@ -46,6 +48,8 @@ router.get('/admin/clean-ghost-channels', authorize('admin'), cleanGhostChannels
 router.get('/sync-summary', getSyncSummary);
 router.post('/sync-summary/dismiss', dismissSyncSummary);
 router.post('/sync-all', requireActiveSubscription, syncAllInventory);
+router.get('/full-sync-status', getFullSyncStatus);
+router.post('/full-sync', requireActiveSubscription, runManualFullSync);
 router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 router.post('/merge-channel', requireActiveSubscription, mergeChannel);
