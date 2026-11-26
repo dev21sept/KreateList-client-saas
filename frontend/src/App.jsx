@@ -102,7 +102,11 @@ const DomainRedirect = ({ children }) => {
       '/admin',
       '/help',
       '/automation',
-      '/affiliate'
+      '/affiliate',
+      '/ai-insights',
+      '/market-pulse',
+      '/ai-agents',
+      '/developer'
     ];
 
     const isAppPath = appPaths.some(path => 
