@@ -45,6 +45,10 @@ const AdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminAffiliates = lazy(() => import('./pages/admin/AdminAffiliates'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AiInsights = lazy(() => import('./pages/AiInsights'));
+const MarketPulse = lazy(() => import('./pages/MarketPulse'));
+const AiAgents = lazy(() => import('./pages/AiAgents'));
+const Connect = lazy(() => import('./pages/Connect'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -199,6 +203,10 @@ const App = () => {
               {/* Alias for ebay callback to handle it on the same page */}
               <Route path="/ebay-callback" element={<EbayAccounts />} />
               <Route path="/subscription" element={<Subscription />} />
+              <Route path="/ai-insights" element={<AiInsights />} />
+              <Route path="/market-pulse" element={<MarketPulse />} />
+              <Route path="/ai-agents" element={<AiAgents />} />
+              <Route path="/developer" element={<Connect />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/help" element={<HelpSupport />} />

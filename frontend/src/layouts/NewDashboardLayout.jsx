@@ -19,7 +19,11 @@ import {
   CreditCard,
   Database,
   Zap,
-  Gift
+  Gift,
+  Sparkles,
+  LineChart,
+  Bot,
+  Code2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
@@ -43,6 +47,10 @@ const sidebarItems = [
   { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
   { name: 'Automation', icon: <Zap size={20} />, path: '/automation' },
   { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
+  { name: 'AI Insights', icon: <Sparkles size={20} />, path: '/ai-insights' },
+  { name: 'Market Pulse', icon: <LineChart size={20} />, path: '/market-pulse' },
+  { name: 'AI Agents', icon: <Bot size={20} />, path: '/ai-agents' },
+  { name: 'Developer API', icon: <Code2 size={20} />, path: '/developer' },
   { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
   { name: 'Affiliate Program', icon: <Gift size={20} />, path: '/affiliate' },
   { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
@@ -283,6 +291,10 @@ const NewDashboardLayout = () => {
     if (path.includes('/help')) return 'Help & Support';
     if (path.includes('/affiliate')) return 'Affiliate Program';
     if (path.includes('/automation')) return 'Automation';
+    if (path.includes('/ai-insights')) return 'AI Insights';
+    if (path.includes('/market-pulse')) return 'Market Pulse';
+    if (path.includes('/ai-agents')) return 'AI Agents';
+    if (path.includes('/developer')) return 'Developer API';
     return 'Listings';
   };
 

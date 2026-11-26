@@ -239,4 +239,34 @@ export const adminAffiliateService = {
   reactivate: (id) => API.post(`/admin/affiliates/${id}/reactivate`),
 };
 
+export const adaptiveAiService = {
+  getLearningProfile: () => API.get('/adaptive/learning-profile'),
+  updatePreference: (key, value) => API.patch('/adaptive/preferences', { key, value }),
+  getRecommendations: (status) => API.get('/adaptive/recommendations', { params: status ? { status } : {} }),
+  submitFeedback: (id, action, editedPayload) => API.post(`/adaptive/recommendations/${id}/feedback`, { action, editedPayload }),
+  refresh: () => API.post('/adaptive/recommendations/refresh'),
+};
+
+export const marketPulseService = {
+  getTrends: (params = {}) => API.get('/market/trends', { params }),
+  getComparables: (params = {}) => API.get('/market/prices/comparables', { params }),
+  getBrands: () => API.get('/market/brands'),
+  refresh: () => API.post('/market/refresh'),
+};
+
+export const agentService = {
+  createTask: (goal) => API.post('/agents/tasks', { goal }),
+  listTasks: () => API.get('/agents/tasks'),
+  getTask: (id) => API.get(`/agents/tasks/${id}`),
+  approveTask: (id) => API.post(`/agents/tasks/${id}/approve`),
+  runTask: (id) => API.post(`/agents/tasks/${id}/run`),
+  cancelTask: (id) => API.post(`/agents/tasks/${id}/cancel`),
+};
+
+export const connectService = {
+  listCredentials: () => API.get('/connect/credentials'),
+  createCredential: (name, scopes) => API.post('/connect/credentials', { name, scopes }),
+  revokeCredential: (id) => API.post(`/connect/credentials/${id}/revoke`),
+};
+
 export default API;
