@@ -61,7 +61,7 @@ const sidebarItems = [
 const SidebarNav = ({ collapsed, onNavigate }) => {
   const location = useLocation();
   return (
-    <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+    <nav className="flex-1 min-h-0 px-4 py-6 space-y-1.5 overflow-y-auto">
       {sidebarItems.map((item) => {
         const isActive = location.pathname === item.path || (item.path === '/listings' && location.pathname.startsWith('/create-'));
         return (
@@ -353,9 +353,9 @@ const NewDashboardLayout = () => {
           isSidebarOpen ? 'w-64 shadow-xl' : 'w-20 overflow-hidden'
         }`}
       >
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-h-0">
           {/* Logo Section */}
-          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-border">
+          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-border shrink-0">
             {isSidebarOpen ? (
               <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain transition-all duration-300" />
             ) : (
@@ -367,7 +367,7 @@ const NewDashboardLayout = () => {
         </div>
 
         {/* Logout Section */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border shrink-0">
           <button
             onClick={handleLogout}
             className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
