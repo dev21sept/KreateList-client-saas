@@ -106,7 +106,11 @@ async function generateListingQualityRecommendations(userId, { maxItems = 25 } =
 async function listRecommendations(userId, { status } = {}) {
   const query = { user: userId };
   if (status) query.status = status;
-  return AiRecommendation.find(query).sort({ createdAt: -1 }).limit(100).lean();
+  return AiRecommendation.find(query)
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .populate('entityId', 'title images photos')
+    .lean();
 }
 
 async function recordFeedback(userId, recommendationId, { action, editedPayload }) {

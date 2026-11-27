@@ -91,7 +91,8 @@ export default function AiAgents() {
     setActingOn(id);
     try {
       const res = await agentService.runTask(id);
-      toast.success(res.data?.task?.resultSummary || 'Task run completed.');
+      const outputCount = res.data?.task?.resultSummary?.outputs?.length;
+      toast.success(outputCount != null ? `Task completed - ${outputCount} step(s) ran.` : 'Task run completed.');
       setTaskDetails(prev => { const next = { ...prev }; delete next[id]; return next; });
       await loadTasks();
     } catch (err) {
@@ -180,6 +181,17 @@ export default function AiAgents() {
                                 <div key={step._id || i} className="text-[11px] font-semibold text-slate-600 flex items-start gap-2">
                                   <span className="text-slate-400">{i + 1}.</span>
                                   <span>{step.toolName}: {JSON.stringify(step.inputJson || {})}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {Array.isArray(details.task?.resultSummary?.outputs) && details.task.resultSummary.outputs.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Results</p>
+                              {details.task.resultSummary.outputs.map((o, i) => (
+                                <div key={i} className="text-[11px] font-semibold text-slate-600">
+                                  <span className="text-slate-400">{o.tool}:</span>{' '}
+                                  {typeof o.output === 'string' ? o.output : JSON.stringify(o.output)}
                                 </div>
                               ))}
                             </div>

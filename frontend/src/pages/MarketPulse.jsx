@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNotification } from '../context/NotificationContext';
-import { LineChart, RefreshCw, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
+import { LineChart, RefreshCw, TrendingUp, TrendingDown, Minus, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { marketPulseService } from '../services/api';
 import Button from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -20,6 +20,16 @@ export default function MarketPulse() {
   const [refreshing, setRefreshing] = useState(false);
   const [trends, setTrends] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [showPending, setShowPending] = useState(false);
+
+  const confirmedTrends = useMemo(() => trends.filter(t => t.trendClassification !== 'insufficient_data'), [trends]);
+  const pendingTrends = useMemo(() => trends.filter(t => t.trendClassification === 'insufficient_data'), [trends]);
+
+  const leafCategory = (category) => {
+    if (!category) return 'Uncategorized';
+    const parts = category.split('>').map(p => p.trim());
+    return parts[parts.length - 1];
+  };
 
   const loadAll = useCallback(async () => {
     try {
@@ -66,12 +76,18 @@ export default function MarketPulse() {
       </div>
 
       <div className="bg-white rounded-2xl border border-border p-5">
-        <h3 className="text-xs font-black text-slate-700 uppercase tracking-wide mb-3">Price Trends by Category &amp; Brand</h3>
+        <h3 className="text-xs font-black text-slate-700 uppercase tracking-wide mb-3">Confirmed Price Trends</h3>
         {trends.length === 0 ? (
           <EmptyState
             icon={<LineChart size={20} />}
             title="No trend data yet"
             description="Click Refresh Market Data to pull in your sold and active listing prices."
+          />
+        ) : confirmedTrends.length === 0 ? (
+          <EmptyState
+            icon={<AlertCircle size={20} />}
+            title="Not enough sales yet for a confirmed trend"
+            description={`You have ${pendingTrends.length} category/brand combination(s) being tracked, but each needs at least 5 sales in the same month before a trend is shown - this avoids guessing from too little data.`}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -88,13 +104,13 @@ export default function MarketPulse() {
                 </tr>
               </thead>
               <tbody>
-                {trends.map(t => {
+                {confirmedTrends.map(t => {
                   const meta = TREND_META[t.trendClassification] || TREND_META.insufficient_data;
                   const Icon = meta.icon;
                   return (
                     <tr key={t._id} className="border-b border-border/60">
                       <td className="py-2.5 pr-4 font-semibold text-slate-500">{t.period}</td>
-                      <td className="py-2.5 pr-4 font-bold text-slate-800">{t.category || 'Uncategorized'}</td>
+                      <td className="py-2.5 pr-4 font-bold text-slate-800" title={t.category}>{leafCategory(t.category)}</td>
                       <td className="py-2.5 pr-4 font-semibold text-slate-600">{t.brand || '—'}</td>
                       <td className="py-2.5 pr-4 font-semibold text-slate-500 capitalize">{String(t.metric).replace(/_/g, ' ')}</td>
                       <td className="py-2.5 pr-4 font-bold text-slate-800">{t.median != null ? `$${t.median.toFixed(2)}` : '—'}</td>
@@ -107,6 +123,36 @@ export default function MarketPulse() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {pendingTrends.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setShowPending(v => !v)}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-800"
+            >
+              {showPending ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              {pendingTrends.length} more still gathering data (fewer than 5 sales so far)
+            </button>
+            {showPending && (
+              <div className="overflow-x-auto mt-3">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {pendingTrends.map(t => (
+                      <tr key={t._id} className="border-b border-border/60">
+                        <td className="py-2 pr-4 font-semibold text-slate-400">{t.period}</td>
+                        <td className="py-2 pr-4 font-semibold text-slate-500" title={t.category}>{leafCategory(t.category)}</td>
+                        <td className="py-2 pr-4 font-semibold text-slate-400">{t.brand || '—'}</td>
+                        <td className="py-2 pr-4 font-semibold text-slate-400 capitalize">{String(t.metric).replace(/_/g, ' ')}</td>
+                        <td className="py-2 pr-4 font-semibold text-slate-400">{t.sampleCount} sample(s)</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -126,7 +172,7 @@ export default function MarketPulse() {
                     <span className="text-[11px] font-black text-slate-700">{b.brand || 'Unbranded'}</span>
                     <Badge variant={meta.variant}><Icon size={11} />{meta.label}</Badge>
                   </div>
-                  <p className="text-[10px] font-semibold text-slate-400 mt-1">{b.category || 'Uncategorized'}</p>
+                  <p className="text-[10px] font-semibold text-slate-400 mt-1" title={b.category}>{leafCategory(b.category)}</p>
                   <p className="text-sm font-bold text-slate-900 mt-1.5">{b.median != null ? `$${b.median.toFixed(2)}` : '—'} median</p>
                   <p className="text-[10px] font-semibold text-slate-400">{b.sampleCount} sample(s)</p>
                 </div>

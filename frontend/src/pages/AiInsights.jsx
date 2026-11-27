@@ -146,7 +146,10 @@ export default function AiInsights() {
                           <span className="text-[10px] font-semibold text-slate-400">{Math.round(rec.confidence * 100)}% confidence</span>
                         )}
                       </div>
-                      <p className="text-[11px] font-semibold text-slate-500 mt-1 max-w-xl">{rec.rationale}</p>
+                      {rec.entityId?.title && (
+                        <p className="text-[11px] font-bold text-slate-700 mt-1">{rec.entityId.title}</p>
+                      )}
+                      <p className="text-[11px] font-semibold text-slate-500 mt-0.5 max-w-xl">{rec.rationale}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
