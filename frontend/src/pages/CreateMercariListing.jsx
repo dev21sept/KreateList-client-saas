@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,6 +37,7 @@ import { Badge } from '../components/ui/Badge';
 import CategorySearchDropdown from '../components/CategorySearchDropdown';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import { resolveMercariCategory, cleanHtmlDescription } from '../utils/categoryResolver';
 
 const POPULAR_BRANDS = [
@@ -250,6 +252,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
     price: '',
     description: '',
     conditionNote: '',
+    gender: 'Not Required',
     sku: '',
     selectedModel: 'gpt-4o-mini'
   });
@@ -379,6 +382,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
           title: mData.title || initialListing.title || '',
           brand: mData.brand || initialListing.brand || '',
           brandId: mData.brandId || '',
+          gender: mData.gender || initialListing.gender || prev.gender,
           originalPrice: mData.originalPrice || initialListing.originalPrice || '',
           shippingPayer: mData.shippingPayer || 'buyer',
           shippingMethod: mData.shippingMethod || 'prepaid',
@@ -394,10 +398,16 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
           quantity: mData.quantity || 1,
           size: mData.size || initialListing.size || '',
           sizeId: mData.sizeId || '',
-          category: mData.category || (initialListing.platform === 'mercari' ? initialListing.category : '') || '',
-          categoryId: mData.categoryId || '',
+          // The master Listing's own fields (title/description/category) are kept fresher by the
+          // merge/enrichment pipeline than the platformData.mercari snapshot, which can be stuck with
+          // a placeholder saved at initial import (e.g. description === title, category "Clothing").
+          // Prefer the master value whenever it looks like real data, not a leftover placeholder.
+          category: (initialListing.category && initialListing.category !== 'Clothing') ? initialListing.category : (mData.category || initialListing.category || ''),
+          categoryId: initialListing.categoryId || mData.categoryId || '',
           price: mData.price !== undefined ? mData.price : (initialListing.price || ''),
-          description: cleanMercariText(mData.description || initialListing.description || ''),
+          description: cleanMercariText(
+            (initialListing.description && initialListing.description !== initialListing.title) ? initialListing.description : (mData.description || initialListing.description || '')
+          ),
           selectedCondition: mapMercariCondition(mData.selectedCondition || mData.condition || initialListing.condition),
           sku: mData.sku || initialListing.sku || ''
         }));
@@ -438,17 +448,19 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
               size: mData.size || rawListing.size || prev.size,
               sizeId: mData.sizeId || prev.sizeId,
               category: resolveMercariCategory(
-                mData.category || (rawListing.platform === 'mercari' ? rawListing.category : '') || prev.category,
+                (rawListing.category && rawListing.category !== 'Clothing') ? rawListing.category : (mData.category || rawListing.category || prev.category),
                 rawListing.title || prev.title,
                 mData.brand || rawListing.brand || prev.brand
               ).category,
-              categoryId: mData.categoryId || (rawListing.platform === 'mercari' ? rawListing.categoryId : '') || resolveMercariCategory(
-                mData.category || (rawListing.platform === 'mercari' ? rawListing.category : '') || prev.category,
+              categoryId: rawListing.categoryId || mData.categoryId || resolveMercariCategory(
+                (rawListing.category && rawListing.category !== 'Clothing') ? rawListing.category : (mData.category || rawListing.category || prev.category),
                 rawListing.title || prev.title,
                 mData.brand || rawListing.brand || prev.brand
               ).categoryId,
               price: mData.price !== undefined ? mData.price : (rawListing.price || prev.price),
-              description: cleanMercariText(mData.description || rawListing.description || prev.description),
+              description: cleanMercariText(
+                (rawListing.description && rawListing.description !== rawListing.title) ? rawListing.description : (mData.description || rawListing.description || prev.description)
+              ),
               conditionNote: mData.conditionNote || rawListing.conditionNote || prev.conditionNote,
               sku: mData.sku || rawListing.sku || prev.sku
             }));
@@ -534,6 +546,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -623,6 +636,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
         price: formData.price,
         description: formData.description,
         conditionNote: formData.conditionNote,
+        gender: formData.gender,
         sku: formData.sku,
         platformData: {
           mercari: {
@@ -703,7 +717,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <img src="/mercari.png" className="w-6 h-6 object-contain" alt="Mercari" />
+            <PlatformLogo src="/mercari.png" alt="Mercari" className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -868,11 +882,34 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                     options={modelOptions}
                     placeholder="Select model..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
                   />
                 </div>
               </div>
@@ -935,7 +972,7 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
             </div>
 
             {/* Brand, Condition, Size */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* Brand Autocomplete */}
               <div className="relative" ref={brandDropdownRef}>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand</label>
@@ -997,10 +1034,11 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
                   />
                 )}
               </div>
+
             </div>
 
-            {/* Price, Original Price & SKU */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Price & Original Price */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Listing Price ($) *</label>
                 <div className="relative">
@@ -1031,16 +1069,6 @@ const CreateMercariListing = ({ isModal = false, editId: propEditId = null, init
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">SKU / Custom Tag</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-slate-800"
-                  value={formData.sku}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                  placeholder="Optional SKU"
-                />
-              </div>
             </div>
 
             {/* Fee Payout Calculator Bar */}

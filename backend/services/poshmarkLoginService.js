@@ -39,7 +39,12 @@ async function loginToPoshmark(username, password, domain = 'poshmark.com', user
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Routed through the server's own direct connection by default, same fix already confirmed live
+    // for Mercari: this server's own IP is US-based and passes platform login checks on its own, and
+    // the Bright Data proxy account is currently suspended anyway (confirmed live: every proxy
+    // request returns 407 "Account is suspended"), which was breaking Poshmark login outright. Set
+    // POSHMARK_USE_PROXY=true to bring the proxy back once that account is reactivated, if needed.
+    const proxyUrl = process.env.POSHMARK_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       console.log(`[Poshmark Login] Setting browser proxy: ${proxyUrl}`);

@@ -70,8 +70,6 @@ async function getShopInfo(accessToken) {
     });
 
     console.log('[Etsy Service] API Response status:', response.status);
-    console.log('[Etsy Service] API Response data:', JSON.stringify(response.data));
-
     const data = response.data;
     let shopId = '';
     let shopName = '';
@@ -88,11 +86,7 @@ async function getShopInfo(accessToken) {
     }
 
     if (!shopId) {
-      console.warn('[Etsy Service] No seller shop found for this Etsy user. Defaulting to User ID.');
-      return {
-        shopId: userIdPrefix,
-        shopName: `Etsy User (${userIdPrefix})`
-      };
+      throw new Error('No Etsy seller shop is associated with this account. Create a shop before connecting it.');
     }
 
     return {
@@ -101,11 +95,7 @@ async function getShopInfo(accessToken) {
     };
   } catch (err) {
     console.error('[Etsy Service] Fetch shop info failed:', err.response?.data || err.message);
-    // Graceful fallback so OAuth connection completes even if account has no active seller shop
-    return {
-      shopId: userIdPrefix,
-      shopName: `Etsy User (${userIdPrefix})`
-    };
+    throw new Error(err.response?.data?.error || err.message || 'Unable to verify Etsy shop ownership.');
   }
 }
 

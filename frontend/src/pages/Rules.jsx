@@ -8,8 +8,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  ChevronRight,
-  GripVertical,
   CheckCircle2,
   X,
   List as ListIcon,
@@ -306,6 +304,7 @@ const SearchableDropdown = ({ value, onSelect, options = [], placeholder = 'Sele
 
 const Rules = () => {
   const { toast, confirm } = useNotification();
+  const sequenceScrollRef = useRef(null);
   const [rules, setRules] = useState([]);
   const [showRuleList, setShowRuleList] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -402,6 +401,23 @@ const Rules = () => {
 
   const removeFieldFromSequence = (field) => {
     setTitleSequence(titleSequence.filter(f => f !== field));
+  };
+
+  // Auto-scrolls the Active Sequence row while dragging a chip near its left/right edge, so a chip
+  // can still be dragged all the way to the other end even when the row is wider than the screen
+  // and has its own scrollbar - otherwise the drag gesture has no way to reach past what's visible.
+  const handleSequenceDragScroll = (event, info) => {
+    const container = sequenceScrollRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const edge = 60;
+    const maxSpeed = 16;
+    const x = info.point.x;
+    if (x < rect.left + edge) {
+      container.scrollLeft -= maxSpeed * ((rect.left + edge - x) / edge);
+    } else if (x > rect.right - edge) {
+      container.scrollLeft += maxSpeed * ((x - (rect.right - edge)) / edge);
+    }
   };
 
   const applyPreset = (preset) => {
@@ -662,27 +678,27 @@ const Rules = () => {
                   <Zap size={18} className="text-amber-500" /> Title Construction & Live Preview
                 </label>
                 <p className="text-slate-400 text-xs font-medium mt-0.5">
-                  Drag and drop tokens to order your listing titles. See how your titles format with real product samples.
+                  Click attributes below to add them, then drag to put them in order. See how your titles format with real product samples.
                 </p>
               </div>
               <Badge variant="indigo" className="self-start sm:self-auto">Drag & Drop Enabled</Badge>
             </div>
 
             {/* LIVE DYNAMIC EXAMPLE PREVIEW WIDGET */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 rounded-3xl p-6 sm:p-7 text-white shadow-xl shadow-slate-900/10 border border-slate-800 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-2.5 w-2.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <Eye size={14} className="text-indigo-400" /> Live Simulated Title Output
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <Eye size={14} className="text-indigo-500" /> Live Simulated Title Output
                   </span>
                 </div>
 
                 {/* Sample Product Switcher */}
-                <div className="flex items-center flex-wrap gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center flex-wrap gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 px-2 uppercase">Sample:</span>
                   {SAMPLE_PRODUCTS.map((prod, idx) => (
                     <button
@@ -692,7 +708,7 @@ const Rules = () => {
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                         selectedSampleIndex === idx
                           ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                          : 'text-slate-500 hover:text-slate-800 hover:bg-white'
                       }`}
                     >
                       {prod.badge}
@@ -702,26 +718,26 @@ const Rules = () => {
               </div>
 
               {/* Main Simulated Title Output */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 relative group">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 relative group">
                 {titleSequence.length === 0 ? (
-                  <div className="py-4 text-center text-slate-500 text-sm font-medium italic">
+                  <div className="py-4 text-center text-slate-400 text-sm font-medium italic">
                     Select attributes below to generate the live example title...
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="text-base sm:text-lg font-bold text-slate-100 tracking-tight leading-relaxed select-all">
+                    <div className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-relaxed select-all">
                       {simulatedTitle}
                     </div>
-                    
+
                     {/* Token Breakdown Pills */}
-                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-800/60">
+                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200">
                       {previewTokens.map((t, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700/60 text-[11px] font-semibold text-slate-300"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-semibold text-slate-600"
                         >
                           <span className="text-slate-400 text-[10px] uppercase font-bold">{t.field}:</span>
-                          <span className="text-indigo-300 font-bold">{t.value}</span>
+                          <span className="text-indigo-600 font-bold">{t.value}</span>
                         </span>
                       ))}
                     </div>
@@ -732,10 +748,10 @@ const Rules = () => {
                   <button
                     type="button"
                     onClick={handleCopyTitle}
-                    className="absolute top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all opacity-80 group-hover:opacity-100"
+                    className="absolute top-4 right-4 p-2 bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 transition-all opacity-80 group-hover:opacity-100 shadow-sm"
                     title="Copy simulated title"
                   >
-                    {copiedTitle ? <CheckCheck size={15} className="text-emerald-400" /> : <Copy size={15} />}
+                    {copiedTitle ? <CheckCheck size={15} className="text-emerald-500" /> : <Copy size={15} />}
                   </button>
                 )}
               </div>
@@ -746,22 +762,22 @@ const Rules = () => {
                   <span className="text-slate-400 font-medium">Character Length:</span>
                   <span className={`font-black px-2 py-0.5 rounded-md ${
                     isOverLimit
-                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200'
                       : isNearLimit
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                      : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                   }`}>
                     {charLength} / 80 Chars
                   </span>
                   {isOverLimit && (
-                    <span className="text-rose-400 text-[11px] font-bold flex items-center gap-1">
+                    <span className="text-rose-500 text-[11px] font-bold flex items-center gap-1">
                       <AlertTriangle size={13} /> Exceeds 80 char eBay / Poshmark limit
                     </span>
                   )}
                 </div>
 
                 <div className="text-[11px] text-slate-400 font-medium">
-                  Testing with: <strong className="text-slate-200">{currentSample.name}</strong> ({currentSample.data.Brand})
+                  Testing with: <strong className="text-slate-600">{currentSample.name}</strong> ({currentSample.data.Brand})
                 </div>
               </div>
             </div>
@@ -777,45 +793,52 @@ const Rules = () => {
                 </span>
               </div>
 
-              <div className="min-h-[90px] p-5 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
-                <Reorder.Group 
-                  axis="x" 
-                  values={titleSequence} 
-                  onReorder={setTitleSequence}
-                  className="flex flex-wrap gap-2.5"
-                >
-                  {titleSequence.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs font-semibold italic">
-                      Click any attribute button below to start assembling your title sequence...
-                    </div>
-                  )}
-                  <AnimatePresence>
-                    {titleSequence.map((field, idx) => (
-                      <Reorder.Item
-                        key={field}
-                        value={field}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-2 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black flex items-center justify-center">
-                          {idx + 1}
-                        </span>
-                        <GripVertical size={14} className="text-slate-300 group-hover:text-slate-500" />
-                        <span className="text-xs font-black text-slate-700">{field}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeFieldFromSequence(field)}
-                          className="ml-1 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                          title="Remove from sequence"
+              <div className="min-h-[70px] p-3 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 relative">
+                {titleSequence.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold italic py-5">
+                    Click any attribute button below to start assembling your title sequence...
+                  </div>
+                ) : (
+                  /* A single row that scrolls sideways instead of wrapping onto a second line - drag
+                     position stays correct no matter how many attributes are picked (wrapping onto
+                     multiple rows is what broke drag positions before), and it stays compact instead
+                     of growing a full row of height per attribute. Drag any chip straight to either
+                     end to move it there in one motion. */
+                  <Reorder.Group
+                    ref={sequenceScrollRef}
+                    axis="x"
+                    values={titleSequence}
+                    onReorder={setTitleSequence}
+                    className="flex flex-nowrap gap-2 overflow-x-auto pb-1"
+                  >
+                    <AnimatePresence>
+                      {titleSequence.map((field, idx) => (
+                        <Reorder.Item
+                          key={field}
+                          value={field}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          onDrag={handleSequenceDragScroll}
+                          className="pl-2.5 pr-1.5 py-1.5 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md transition-colors shrink-0"
                         >
-                          <X size={13} />
-                        </button>
-                      </Reorder.Item>
-                    ))}
-                  </AnimatePresence>
-                </Reorder.Group>
+                          <span className="w-4.5 h-4.5 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs font-black text-slate-700 whitespace-nowrap">{field}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFieldFromSequence(field)}
+                            className="p-0.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all cursor-pointer shrink-0"
+                            title="Remove from sequence"
+                          >
+                            <X size={13} />
+                          </button>
+                        </Reorder.Item>
+                      ))}
+                    </AnimatePresence>
+                  </Reorder.Group>
+                )}
               </div>
             </div>
 
@@ -853,13 +876,13 @@ const Rules = () => {
                 Add Attributes to Sequence
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ATTRIBUTE_CATEGORIES.map((cat) => (
-                  <div key={cat.category} className="bg-slate-50/60 rounded-2xl p-4 border border-slate-100 space-y-2.5">
-                    <div className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                  <div key={cat.category} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
                       {cat.category}
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       {cat.fields.map((f) => {
                         const isSelected = titleSequence.includes(f.name);
                         return (
@@ -868,18 +891,18 @@ const Rules = () => {
                             type="button"
                             onClick={() => addFieldToSequence(f.name)}
                             disabled={isSelected}
-                            className={`w-full text-left p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-between gap-2 ${
+                            className={`w-full text-left p-3 rounded-xl border text-sm font-bold transition-all flex items-center justify-between gap-2 ${
                               isSelected
-                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 opacity-60 cursor-not-allowed'
-                                : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:text-indigo-600 hover:shadow-sm'
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 opacity-70 cursor-not-allowed'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-white hover:text-indigo-600 hover:shadow-sm'
                             }`}
                           >
                             <div className="min-w-0">
                               <div className="truncate">{f.name}</div>
-                              <div className="text-[9px] font-normal text-slate-400 truncate">{f.example}</div>
+                              <div className="text-[10px] font-normal text-slate-400 truncate mt-0.5">{f.example}</div>
                             </div>
                             <span className="shrink-0">
-                              {isSelected ? <Check size={14} className="text-indigo-600" /> : <Plus size={14} />}
+                              {isSelected ? <Check size={16} className="text-indigo-600" /> : <Plus size={16} />}
                             </span>
                           </button>
                         );
@@ -909,10 +932,10 @@ const Rules = () => {
                   }}
                   className="flex-1 h-11 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                 />
-                <button 
+                <button
                   type="button"
                   onClick={handleAddCustomField}
-                  className="h-11 px-6 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-md shrink-0"
+                  className="h-11 px-6 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-1.5 shadow-sm shrink-0"
                 >
                   <Plus size={14} /> Add Tag
                 </button>

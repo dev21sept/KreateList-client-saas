@@ -108,23 +108,7 @@ exports.bulkSaveDrafts = async (userId, listingsData, baseUrl) => {
         }
       }
 
-      // Generate dynamic SKU if not present
-      if (!item.sku) {
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1 + savedListings.length;
-        let isUnique = false;
-        let skuCode = '';
-        while (!isUnique) {
-          skuCode = `KL${currentNum}A`;
-          const existingListing = await Listing.findOne({ sku: skuCode });
-          if (!existingListing) {
-            isUnique = true;
-          } else {
-            currentNum++;
-          }
-        }
-        item.sku = skuCode;
-      }
+      item.sku = item.sku || '';
 
       let listing;
       if (item._id || item.id) {
@@ -281,9 +265,10 @@ async function publishSingleEbayListing(listing, token) {
       }
     }
 
-    // 5. Structure inventory item with unique SKU code
-    const timestamp = Date.now().toString().substring(8);
-    const sku = (listing.sku || `SKU-${listing._id.toString().substring(18)}`) + "-" + timestamp;
+    // SKU is optional in the form. eBay's Inventory API still needs a non-empty SKU to publish, so
+    // derive a stable one from the listing's own _id when blank - but this is only an internal
+    // identifier for the API call; it never gets written back into the user-facing SKU field.
+    const sku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     let validConditionIds = [];
     let effectiveCategoryId = String(listing.categoryId || '').trim();
@@ -473,7 +458,9 @@ async function publishSingleEbayListing(listing, token) {
 
     // Save success in database
     listing.status = 'published';
-    listing.sku = sku;
+    // Don't persist the AUTO-L- fallback as the user-facing SKU - it's only eBay's internal
+    // inventory-item identifier for this call. If the listing never had a real SKU, keep it blank.
+    if (listing.sku && listing.sku.trim()) listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
     listing.errorMessage = null;
@@ -551,23 +538,7 @@ exports.bulkPublishListings = async (userId, listingsData, baseUrl) => {
           }
         }
 
-        // SKU code
-        if (!itemData.sku) {
-          const productCount = await Listing.countDocuments();
-          let currentNum = productCount + 1 + results.length;
-          let isUnique = false;
-          let skuCode = '';
-          while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-              isUnique = true;
-            } else {
-              currentNum++;
-            }
-          }
-          itemData.sku = skuCode;
-        }
+        itemData.sku = itemData.sku || '';
 
         listing = await Listing.create(itemData);
       }

@@ -199,13 +199,24 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
       // Extract Line Items (handles single items, multi-item bundle orders, and nested posts)
       const rawPosts = sale.posts || sale.items || sale.order_items || (sale.post ? [sale.post] : []);
       const lineItems = [];
+      // Sum of each line's own real price (not the || totalAmount display fallback below) - only
+      // trusted as a real "item price" total when every line actually had one, so a single missing
+      // price never silently turns into the whole order's total being double-counted as "item price".
+      let realItemPriceSum = 0;
+      let allItemPricesReal = false;
 
       if (rawPosts && rawPosts.length > 0) {
+        allItemPricesReal = true;
         for (const item of rawPosts) {
           const itemId = item.id || item.post_id || '';
           const title = item.title || item.name || 'Poshmark Listing';
           const price = parseFloat(item.price || item.inventory?.price || item.selling_price || 0);
           const quantity = item.count || item.quantity || 1;
+          if (price > 0) {
+            realItemPriceSum += price * quantity;
+          } else {
+            allItemPricesReal = false;
+          }
           let sku = item.inventory?.sku || item.sku || '';
           let thumbnail = item.cover_shot?.url || item.pictures?.[0]?.url || item.picture_url || item.thumbnail || '';
 
@@ -287,6 +298,17 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
         });
       }
 
+      // Real figures straight from Poshmark's own sales response, for the Analytics profit table -
+      // seller_earning_amount is what Poshmark actually pays out after its commission, so the
+      // platform fee is simply the difference from the order total (confirmed via a live sales call:
+      // $30.00 price - $24.00 earning = $6.00, exactly Poshmark's published 20% rate). Never computed
+      // from a guessed commission percentage - only from these two real API values.
+      const sellerEarning = parseFloat(sale.seller_earning_amount?.val);
+      const grossAmount = parseFloat(sale.total_price_amount?.val) || totalAmount || undefined;
+      const platformFeeAmount = (!isNaN(sellerEarning) && grossAmount !== undefined)
+        ? Math.round((grossAmount - sellerEarning) * 100) / 100
+        : undefined;
+
       const orderPayload = {
         user: userId,
         orderId: String(orderId),
@@ -301,11 +323,21 @@ async function syncPoshmarkOrders(credentials = {}, userId = null) {
         lineItems,
         platform: 'poshmark',
         orderUrl: `https://${domain}/order/sales`,
-        updated_at: new Date()
+        updated_at: new Date(),
+        grossAmount,
+        itemPriceAmount: allItemPricesReal ? Math.round(realItemPriceSum * 100) / 100 : undefined,
+        platformFeeAmount
       };
 
       const existingOrder = await Order.findOne({ user: userId, orderId: String(orderId) });
       const isNewOrder = !existingOrder;
+
+      // findOneAndUpdate below with a plain object (no $set) replaces the whole document on a match -
+      // explicitly carry over the seller's own manually-entered profit fields so a re-sync never wipes them.
+      if (existingOrder) {
+        orderPayload.shippingLabelCost = existingOrder.shippingLabelCost;
+        orderPayload.cogsAmount = existingOrder.cogsAmount;
+      }
 
       await Order.findOneAndUpdate(
         { user: userId, orderId: String(orderId) },

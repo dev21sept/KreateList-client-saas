@@ -31,7 +31,6 @@ function getUsernameFromToken(token) {
       const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
       const decodedPayload = Buffer.from(payloadBase64, 'base64').toString('utf-8');
       const payloadObj = JSON.parse(decodedPayload);
-      console.log('[Depop Login Service] Decoded JWT Token payload:', payloadObj);
       if (payloadObj.username) return payloadObj.username;
       if (payloadObj.username_canonical) return payloadObj.username_canonical;
       if (payloadObj.sub) return payloadObj.sub;

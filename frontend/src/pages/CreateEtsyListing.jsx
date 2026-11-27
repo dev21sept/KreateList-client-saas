@@ -1,3 +1,5 @@
+import PlatformLogo from '../components/PlatformLogo';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -170,6 +172,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
     quantity: '1',
     sku: '',
     description: '',
+    gender: 'Not Required',
     who_made: 'i_did',
     when_made: '2020_2026',
     is_supply: 'false',
@@ -236,6 +239,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
           category: etData.category || (initialListing.platform === 'etsy' ? initialListing.category : '') || '',
           categoryId: etData.categoryId || (initialListing.platform === 'etsy' ? initialListing.categoryId : '') || '',
           who_made: etData.who_made || 'i_did',
+          gender: etData.gender || initialListing.gender || 'Not Required',
           when_made: etData.when_made || '2020_2026',
           is_supply: etData.is_supply || 'false',
           renewal: etData.renewal || 'manual',
@@ -264,6 +268,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
               category: etData.category || (raw.platform === 'etsy' ? raw.category : '') || prev.category,
               categoryId: etData.categoryId || (raw.platform === 'etsy' ? raw.categoryId : '') || prev.categoryId,
               who_made: etData.who_made || prev.who_made,
+              gender: etData.gender || raw.gender || prev.gender,
               when_made: etData.when_made || prev.when_made,
               is_supply: etData.is_supply || prev.is_supply,
               renewal: etData.renewal || prev.renewal,
@@ -321,6 +326,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
         description_prompt: selectedRuleObj?.description_prompt || '',
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -422,6 +428,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
         quantity: formData.quantity,
         sku: formData.sku,
         description: formData.description,
+        gender: formData.gender,
         who_made: formData.who_made,
         when_made: formData.when_made,
         is_supply: formData.is_supply,
@@ -495,7 +502,7 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <img src="/etsy.png" className="w-6 h-6 object-contain" alt="Etsy" />
+            <PlatformLogo src="/etsy.png" alt="Etsy" className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -646,12 +653,35 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                <SearchableDropdown 
+                <SearchableDropdown
                   value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                   onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                   options={modelOptions}
                   placeholder="Select model..."
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
 
               <Button
@@ -707,8 +737,8 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
               />
             </div>
 
-            {/* Who Made / When Made / Supply */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Who Made / When Made / Supply / Gender */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Who made it? *</label>
                 <SearchableDropdown 
@@ -738,10 +768,11 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
                   ]}
                 />
               </div>
+
             </div>
 
-            {/* Price, Quantity, SKU */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+            {/* Price, Quantity */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Price ($) *</label>
                 <div className="relative">
@@ -768,16 +799,6 @@ const CreateEtsyListing = ({ isModal = false, editId: propEditId = null, initial
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">SKU</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-slate-800"
-                  value={formData.sku}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                  placeholder="Optional SKU"
-                />
-              </div>
             </div>
           </div>
 

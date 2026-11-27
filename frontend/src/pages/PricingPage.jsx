@@ -28,13 +28,16 @@ const PricingPage = () => {
       icon: <Zap className="w-5 h-5 text-blue-500" />,
       perfectFor: ['Small resellers', 'Beginners', 'Side hustlers'],
       features: [
-        '500 AI Listings',
-        '1 eBay Account',
-        'AI Title Generator',
-        'AI Description Generator',
-        'Standard Templates',
-        'Basic Analytics',
-        'Email Support'
+        '500 AI listing credits/month',
+        'AI-powered listing creation',
+        'Image-based product recognition',
+        'SEO-optimized titles and descriptions',
+        'Smart category and item specifics',
+        'Cross-listing and delisting',
+        'Listing dashboard and management',
+        'Basic inventory tracking',
+        'eBay integration',
+        'Standard support'
       ]
     },
     {
@@ -44,30 +47,35 @@ const PricingPage = () => {
       icon: <Rocket className="w-5 h-5 text-indigo-600" />,
       perfectFor: ['Growing stores', 'Full-time resellers', 'Multi-account sellers'],
       features: [
-        '3,000 AI Listings',
-        'Advanced AI Optimization',
-        'Bulk Listing Tools',
-        'Inventory Sync',
-        'AI Pricing Suggestions',
-        'Priority Support',
-        'Team Access'
+        '3,000 AI listing credits/month',
+        'Everything in Basic',
+        'Advanced AI listing optimization',
+        'Bulk listing creation',
+        'Multi-marketplace management',
+        'Cross-listing and delisting',
+        'Inventory synchronization',
+        'Smart pricing recommendations',
+        'Automated listing workflows',
+        'Advanced inventory management',
+        'Priority support'
       ]
     },
     {
       name: 'ENTERPRISE',
-      monthlyPrice: 299,
+      monthlyPrice: 349,
       icon: <Users className="w-5 h-5 text-purple-600" />,
       perfectFor: ['Agencies', 'Large teams', 'High-volume businesses'],
       features: [
-        '10,000 AI Listings',
-        'Unlimited Accounts',
-        'API Access',
-        'Dedicated Manager',
-        'Team Roles',
-        'White Label',
-        'Custom Automation',
-        'Premium AI Processing',
-        '24/7 Support'
+        '10,000 AI listing credits/month',
+        'Everything in Pro',
+        'Advanced multi-store management',
+        'Bulk cross-listing and delisting',
+        'Advanced inventory synchronization',
+        'Custom automation workflows',
+        'Advanced pricing intelligence',
+        'Business performance insights',
+        'AI-powered business assistance',
+        'Dedicated account support'
       ]
     }
   ];

@@ -1,3 +1,4 @@
+const { stripFields } = require('../utils/sanitizeBody');
 const Rule = require('../models/Rule');
 
 // @desc    Get all rules for a user
@@ -17,6 +18,7 @@ exports.getRules = async (req, res) => {
 // @access  Private
 exports.createRule = async (req, res) => {
   try {
+    req.body = stripFields(req.body, ['user']);
     req.body.user = req.user.id;
     const rule = await Rule.create(req.body);
     res.status(201).json({ success: true, data: rule });
@@ -30,6 +32,7 @@ exports.createRule = async (req, res) => {
 // @access  Private
 exports.updateRule = async (req, res) => {
   try {
+    req.body = stripFields(req.body, ['user']);
     let rule = await Rule.findById(req.params.id);
     if (!rule) {
       return res.status(404).json({ success: false, message: 'Rule not found' });

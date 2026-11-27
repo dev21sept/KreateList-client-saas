@@ -3,6 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
 const User = require('../models/User');
+const { paceMercariRequest, gotoWithRetry } = require('./mercariService');
 
 // Global map to hold active Mercari login sessions in memory
 const activeSessions = new Map();
@@ -26,6 +27,7 @@ async function captureScreenshot(page) {
  * Performs server-side login to Mercari using Puppeteer Stealth Browser automation.
  */
 async function loginToMercari(username, password, sessionId, userId) {
+  await paceMercariRequest();
   console.log(`[Mercari Login] Launching Stealth Browser for: ${username} (Session: ${sessionId})`);
 
   const sessionState = {
@@ -55,13 +57,23 @@ async function loginToMercari(username, password, sessionId, userId) {
         '--disable-blink-features=AutomationControlled',
         '--window-size=1280,800'
       ],
+      // Puppeteer otherwise generates a brand-new, empty temp profile dir for every single login
+      // attempt - Socure's own device-fingerprint script stores its persistent device ID in that
+      // profile's localStorage/IndexedDB, so a fresh-every-time profile looks like a first-ever-seen
+      // device on every attempt. Reusing one real profile dir across attempts lets that ID (and any
+      // other client-side trust signal) build up the same way a real recurring user's browser would.
+      userDataDir: path.join(require('os').homedir(), '.mercari-login-profile'),
       env: {
         ...process.env,
         DISPLAY: process.env.VIRTUAL_DISPLAY || ':99'
       }
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // Mercari's login location check - the Bright Data proxy was actively failing login (flagged as a
+    // new/suspicious location on every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to
+    // re-enable it if the server ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -117,14 +129,14 @@ async function loginToMercari(username, password, sessionId, userId) {
     sessionState.message = 'Loading Mercari login page...';
 
     // Navigate directly to login page
-    const response = await page.goto('https://www.mercari.com/login/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/login/', {
       waitUntil: 'domcontentloaded',
       timeout: 45000
+    }, {
+      label: 'Mercari Login',
+      verifySelector: 'input[type="email"], input[name="email"]',
+      onRetry: (attempt, maxAttempts) => { sessionState.message = `Verifying... (attempt ${attempt}/${maxAttempts})`; }
     });
-
-    if (!response || response.status() >= 400) {
-      throw new Error(`Failed to load Mercari login page. HTTP status: ${response ? response.status() : 'No Response'}`);
-    }
 
     // Dismiss cookie consent if present to prevent it from overlaying elements
     try {
@@ -145,6 +157,26 @@ async function loginToMercari(username, password, sessionId, userId) {
     
     await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 15000 });
     await page.type('input[type="email"], input[name="email"]', username, { delay: 50 });
+    sessionState.latestScreenshot = await captureScreenshot(page);
+
+    // Mercari's current login is two steps: email first, then a "Continue" button reveals the
+    // password field on the next screen - it is not present alongside the email field at all.
+    // The button stays disabled until React re-renders after the typed value, so this waits for
+    // it to actually become clickable instead of racing it right after the last keystroke.
+    await page.waitForFunction(() => {
+      const btn = document.querySelector('button[type="submit"]');
+      return btn && !btn.disabled;
+    }, { timeout: 5000 }).catch(() => {
+      console.warn('[Mercari Login] Continue button never enabled within 5s, proceeding anyway...');
+    });
+
+    const continueBtn = await page.$('button[type="submit"]');
+    if (continueBtn) {
+      await continueBtn.click();
+    } else {
+      await page.keyboard.press('Enter');
+    }
+    await new Promise(r => setTimeout(r, 1500));
     sessionState.latestScreenshot = await captureScreenshot(page);
 
     await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 15000 });

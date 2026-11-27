@@ -4,6 +4,7 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
+const { formatPrice } = require('../utils/priceParser');
 
 try {
   puppeteer.use(StealthPlugin());
@@ -146,7 +147,10 @@ async function resolveDepopUsernameViaPuppeteer(accessToken) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Same Bright Data account used by every other platform's proxy path this
+    // session - it is suspended, so only use it when a platform explicitly opts
+    // in via its own *_USE_PROXY flag. Default: direct server IP.
+    const proxyUrl = process.env.DEPOP_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -284,7 +288,7 @@ async function scrapeDepopShop(username, credentials = {}) {
       html = response.data;
     } catch (err) {
       console.warn(`[Import Scraper] Public Depop fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
-      html = await fetchHtmlWithPuppeteer(targetUrl, credentials);
+      html = await fetchHtmlWithPuppeteer(targetUrl, credentials, { useProxy: process.env.DEPOP_USE_PROXY === 'true' });
     }
     
     const $ = cheerio.load(html);
@@ -324,15 +328,14 @@ async function scrapeDepopShop(username, credentials = {}) {
               priceVal = String(item.priceAmount || item.price_amount);
             }
             
-            // Generate basic unique SKU code
-            const timestamp = Date.now().toString().substring(8);
-            const generatedSku = `D-${depopId || timestamp}`;
-
             listings.push({
               title: title.trim(),
               description: description.trim(),
-              price: parseFloat(priceVal).toFixed(2),
-              sku: generatedSku,
+              price: (formatPrice(priceVal) || "0.00"),
+              // Depop's public shop page (this scrape's only data source) never exposes the seller's
+              // own SKU - there is no real value to read here, so this stays blank rather than
+              // inventing one; the item's own live SKU on Depop is never surfaced to us at all.
+              sku: (item.sku && String(item.sku).trim()) ? String(item.sku).trim() : '',
               category: item.categoryName || item.category?.name || 'Tops',
               categoryId: String(item.categoryId || item.category?.id || ''),
               images: imageUrls,
@@ -369,7 +372,7 @@ async function scrapeDepopShop(username, credentials = {}) {
       // Parse price (look for text containing currency symbol inside the link card)
       let priceText = '0.00';
       const textVal = $(el).text();
-      const priceMatch = textVal.match(/[\$\£\€\¥]\s?(\d+(\.\d{2})?)/);
+      const priceMatch = textVal.match(/[\$\£\€\¥]\s?(\d[\d.,]*)/);
       if (priceMatch) {
         priceText = priceMatch[1];
       }
@@ -383,8 +386,8 @@ async function scrapeDepopShop(username, credentials = {}) {
         listings.push({
           title: title.replace(/Image for/i, '').trim() || 'Depop Product',
           description: title.replace(/Image for/i, '').trim(),
-          price: parseFloat(priceText).toFixed(2),
-          sku: `D-${slug.substring(0, 15) || timestamp}`,
+          price: (formatPrice(priceText) || "0.00"),
+          sku: '',
           category: 'Tops',
           images: [imgUrl],
           thumbnail: imgUrl,
@@ -409,10 +412,9 @@ async function scrapeDepopShop(username, credentials = {}) {
  * Helper to fetch HTML content from a URL using Puppeteer Stealth Browser.
  * Used when direct HTTP requests (axios) are blocked by Cloudflare/WAF.
  */
-async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
+async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}, { useProxy = false } = {}) {
   let browser = null;
   try {
-    const isProd = process.env.NODE_ENV === 'production' || process.env.HTTP_PROXY_URL;
     const launchOptions = {
       headless: true,
       args: [
@@ -424,7 +426,10 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Same Bright Data account used by every other platform's proxy path this
+    // session - it is suspended, so only use it when the caller explicitly opts
+    // in (and that platform's own *_USE_PROXY flag is set). Default: direct server IP.
+    const proxyUrl = useProxy ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -522,6 +527,37 @@ async function fetchHtmlWithPuppeteer(targetUrl, credentials = {}) {
  * @param {Object} [credentials] Poshmark connection credentials (sessionCookie, csrfToken)
  * @returns {Promise<Array>} List of parsed listing objects
  */
+// Invisible Unicode marks (LRM/RLM, zero-width spaces, BOM, bidi controls) that Poshmark titles sometimes contain.
+const INVISIBLE_CHARS = /[​-‏‪-‮⁠-⁤﻿]/g;
+function stripInvisible(text) {
+  return String(text || '').replace(INVISIBLE_CHARS, '');
+}
+
+/**
+ * Poshmark category of a closet post: readable path ("Men > Jeans") and the category id.
+ * Read from post.catalog (department_obj / category_obj), not from a top-level field.
+ */
+function poshmarkCategoryOf(post = {}) {
+  const cat = post.catalog || {};
+  const dept = cat.department_obj?.display || '';
+  const name = cat.category_obj?.display || post.category_v2?.display || (typeof post.category === 'string' ? post.category : '');
+  const id = cat.category || post.category_v2?.id || '';
+  return { path: [dept, name].filter(Boolean).join(' > '), id: String(id || '') };
+}
+
+/**
+ * Maps Poshmark's raw post fields to one state:
+ * active | sold | not_for_sale | hidden | removed
+ */
+function poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post }) {
+  if (rawPostStatus === 'deleted') return 'removed';
+  if (rawInvStatus === 'sold_out' || rawPostStatus === 'sold' || rawPostStatus === 'sold_out' || isZeroQty) return 'sold';
+  if (rawInvStatus === 'not_for_sale' || rawInvStatus === 'nfs' || rawPostStatus === 'not_for_sale' || post.not_for_sale === true) return 'not_for_sale';
+  // active_item=false is NOT treated as hidden: listings with that flag still appear in Poshmark search.
+  if (rawInvStatus === 'reserved' || rawPostStatus === 'archived') return 'hidden';
+  return 'active';
+}
+
 async function scrapePoshmarkCloset(username, credentials = {}) {
   let cleanUsername = username.trim().toLowerCase();
   
@@ -625,20 +661,41 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       let page = 1;
 
       while (hasMore) {
-        let apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=48`;
+        // 50 is Poshmark's confirmed real ceiling for this endpoint - anything above it silently
+        // falls back to 20 per page instead of erroring, so there's no bulk/"fetch everything in one
+        // request" option; this is the largest page size that still returns the full count.
+        let apiUrl = `https://poshmark.com/vm-rest/users/${cleanUsername}/posts?request_context=closet&count=50`;
         if (maxId) {
           apiUrl += `&max_id=${maxId}`;
         }
 
-        const apiResponse = await axios.get(apiUrl, {
-          headers: {
-            'cookie': sessionCookie,
-            'x-csrf-token': csrfToken || '',
-            'accept': 'application/json',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          },
-          timeout: 15000
-        });
+        // A large closet can be 30-40+ sequential pages; a single transient network hiccup on any
+        // one of them (seen in production as a bare "aborted" connection reset) used to throw away
+        // every page already fetched and fall back to the much worse public-page scraper. Retry the
+        // individual page a few times before giving up on the whole closet.
+        let apiResponse = null;
+        let lastPageErr = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            apiResponse = await axios.get(apiUrl, {
+              headers: {
+                'cookie': sessionCookie,
+                'x-csrf-token': csrfToken || '',
+                'accept': 'application/json',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              },
+              timeout: 15000
+            });
+            break;
+          } catch (pageErr) {
+            lastPageErr = pageErr;
+            if (attempt < 3) {
+              console.warn(`[Import Scraper] Poshmark closet page ${page} for ${cleanUsername} failed (attempt ${attempt}/3): ${pageErr.message}. Retrying...`);
+              await new Promise(r => setTimeout(r, attempt * 1500));
+            }
+          }
+        }
+        if (!apiResponse) throw lastPageErr;
 
         const posts = apiResponse.data?.data || [];
         if (posts.length > 0) {
@@ -704,19 +761,19 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             rawPostStatus === 'sold_out' || 
             rawPostStatus === 'archived' || 
             rawPostStatus === 'deleted' ||
-            post.active_item === false ||
             post.not_for_sale === true ||
             isZeroQty;
 
           const isActive = !isNFSOrSold && (rawPostStatus === 'published' || rawPostStatus === 'active' || !rawPostStatus);
 
           listings.push({
-            title: title.trim(),
+            // Poshmark titles can carry invisible marks (e.g. U+200E) that break search matching.
+            title: stripInvisible(title).trim(),
             description: description.trim(),
-            price: parseFloat(priceVal).toFixed(2),
+            price: (formatPrice(priceVal) || "0.00"),
             sku: generatedSku,
-            category: post.category || 'Tops',
-            categoryId: post.category_features ? Object.keys(post.category_features)[0] : '',
+            category: poshmarkCategoryOf(post).path,
+            categoryId: poshmarkCategoryOf(post).id,
             images: imgUrls,
             thumbnail: imgUrl || '',
             platform: 'poshmark',
@@ -724,8 +781,24 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
             poshmarkUrl: fullUrl,
             brand: post.brand || '',
             size: post.size || '',
+            // Poshmark returns color as a `colors` array (same shape backendPublishService sends back
+            // when publishing) or as a single `color`/`color_name` field - and either one can itself be
+            // a catalog object ({name, rgb, message_id}), not a plain string. Product.color is a String
+            // field, so passing the raw object through made Mongoose's schema cast silently drop the
+            // ENTIRE bulkWrite update for that item (not just the color field) - this is why most of a
+            // closet's items never actually got their sync applied, regardless of how complete/correct
+            // the rest of the scrape was. Always resolve to a plain string here.
+            color: (() => {
+              const raw = Array.isArray(post.colors) ? post.colors[0] : (post.color || post.color_name);
+              if (!raw) return '';
+              if (typeof raw === 'string') return raw;
+              return raw.name || raw.message_id || '';
+            })(),
             quantity: 1,
-            status: isActive ? 'active' : 'inactive'
+            status: isActive ? 'active' : 'inactive',
+            // Real Poshmark state, so sold, hidden and active are not merged into one "inactive" bucket.
+            poshmarkState: poshmarkStateOf({ rawPostStatus, rawInvStatus, isZeroQty, post }),
+            styleTags: Array.isArray(post.style_tags) ? post.style_tags : []
           });
         }
         return listings;
@@ -751,7 +824,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       html = response.data;
     } catch (err) {
       console.warn(`[Import Scraper] Public Poshmark fetch via Axios failed: ${err.message}. Trying Puppeteer fallback...`);
-      html = await fetchHtmlWithPuppeteer(targetUrl);
+      html = await fetchHtmlWithPuppeteer(targetUrl, {}, { useProxy: process.env.POSHMARK_USE_PROXY === 'true' });
     }
     
     const $ = cheerio.load(html);
@@ -794,7 +867,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
               listings.push({
                 title: title.trim(),
                 description: description.trim(),
-                price: parseFloat(priceVal).toFixed(2),
+                price: (formatPrice(priceVal) || "0.00"),
                 sku: generatedSku,
                 category: 'Tops',
                 images: imgUrl ? [imgUrl] : [],
@@ -804,6 +877,11 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
                 poshmarkUrl: fullUrl,
                 brand: item.brand?.name || item.brand || '',
                 size: item.size || '',
+                color: (() => {
+                  const raw = Array.isArray(item.colors) ? item.colors[0] : item.color;
+                  if (!raw) return '';
+                  return typeof raw === 'string' ? raw : (raw.name || raw.message_id || '');
+                })(),
                 quantity: 1,
                 status: isSchemaActive ? 'active' : 'inactive'
               });
@@ -833,7 +911,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
       const imgUrl = imgEl.attr('src') || imgEl.attr('data-src') || imgEl.attr('data-original') || '';
       
       const priceText = $(el).find('.price, .tile__price').text().trim();
-      const cleanPrice = priceText.replace(/[^\d.]/g, '') || '0.00';
+      const cleanPrice = priceText;
 
       const listingIdMatch = fullUrl.match(/-([a-f0-9]{24})$/);
       const poshmarkId = listingIdMatch ? listingIdMatch[1] : '';
@@ -848,7 +926,7 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
         listings.push({
           title: title,
           description: title,
-          price: parseFloat(cleanPrice).toFixed(2),
+          price: (formatPrice(cleanPrice) || "0.00"),
           sku: generatedSku,
           category: 'Tops',
           images: imgUrl ? [imgUrl] : [],
@@ -870,7 +948,82 @@ async function scrapePoshmarkCloset(username, credentials = {}) {
   }
 }
 
+/**
+ * Fetches one Poshmark listing's full detail (vm-rest/posts/{id}) for the auto-enrich-on-open flow -
+ * the same real request shape already confirmed working for the closet scrape, just for a single
+ * post instead of paging through the whole closet. Used when an existing listing opened for editing
+ * is still missing fields (style tags, category, brand/size/color) that the closet scrape itself
+ * never backfilled onto it.
+ */
+async function fetchSinglePoshmarkPost(poshmarkListingId, credentials = {}) {
+  const { sessionCookie, csrfToken } = credentials;
+  if (!sessionCookie || !poshmarkListingId) return null;
+  try {
+    const res = await axios.get(`https://poshmark.com/vm-rest/posts/${poshmarkListingId}?pm_version=2026.26.01`, {
+      headers: {
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken || '',
+        accept: 'application/json',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 15000
+    });
+    const post = res.data?.post || res.data;
+    if (!post || !post.id) return null;
+    return {
+      styleTags: Array.isArray(post.style_tags) ? post.style_tags : [],
+      category: poshmarkCategoryOf(post).path,
+      categoryId: poshmarkCategoryOf(post).id,
+      sku: (post.sku && String(post.sku).trim()) ? String(post.sku).trim() : '',
+      brand: post.brand || '',
+      size: post.size || '',
+      color: (() => {
+        const raw = Array.isArray(post.colors) ? post.colors[0] : (post.color || post.color_name);
+        if (!raw) return '';
+        if (typeof raw === 'string') return raw;
+        return raw.name || raw.message_id || '';
+      })()
+    };
+  } catch (err) {
+    console.warn(`[Import Scraper] fetchSinglePoshmarkPost failed for ${poshmarkListingId}:`, err.response?.status || err.message);
+    return null;
+  }
+}
+
+/**
+ * Resolves a seller's real Poshmark handle from one of their own known listings,
+ * instead of guessing it from cookies or a rendered page (both unreliable - see
+ * scrapePoshmarkCloset's username-resolution steps). A single-post detail lookup
+ * (the same endpoint already used throughout this app for status checks) reports
+ * the post's own creator_username, which is the account's actual handle.
+ */
+async function resolvePoshmarkUsernameFromListing(poshmarkListingId, credentials = {}) {
+  const { sessionCookie, csrfToken } = credentials;
+  if (!sessionCookie || !poshmarkListingId) return null;
+  try {
+    const res = await axios.get(`https://poshmark.com/vm-rest/posts/${poshmarkListingId}?pm_version=2026.26.01`, {
+      headers: {
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken || '',
+        accept: 'application/json',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 15000
+    });
+    const post = res.data?.data || res.data?.post || res.data;
+    return post?.creator_username || null;
+  } catch (err) {
+    console.warn(`[Import Scraper] resolvePoshmarkUsernameFromListing failed for ${poshmarkListingId}:`, err.response?.status || err.message);
+    return null;
+  }
+}
+
 module.exports = {
   scrapeDepopShop,
-  scrapePoshmarkCloset
+  scrapePoshmarkCloset,
+  fetchSinglePoshmarkPost,
+  resolvePoshmarkUsernameFromListing,
+  poshmarkStateOf,
+  poshmarkCategoryOf,
+  stripInvisible
 };

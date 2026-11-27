@@ -264,7 +264,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       getStorageData('cachedCsrfTokens', {}).then((tokens) => {
         tokens[site] = token;
         setStorageData('cachedCsrfTokens', tokens).then(() => {
-          console.log(`Cached CSRF Token for ${site}:`, token);
+          console.log(`Cached CSRF token for ${site}.`);
           sendResponse({ success: true });
         });
       });

@@ -687,7 +687,7 @@ async function executeDepopUpload(productData) {
       price_currency: currency,
       product_type: mapProductType(productData.categoryId || productData.category),
       shipping_methods: shippingMethods,
-      sku: productData.sku || `KL${Date.now()}`,
+      sku: productData.sku || '',
       source: productData.source ? [productData.source.toLowerCase()] : ["preloved"],
       style: productData.styleTag ? productData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
       variant_set: variantSet,
@@ -807,7 +807,7 @@ function getUsernameFromToken(token) {
       const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
       const decodedPayload = atob(payloadBase64);
       const payloadObj = JSON.parse(decodedPayload);
-      console.log('[Elister Depop] Decoded JWT Token payload:', payloadObj);
+      console.log('[Elister Depop] Decoded JWT token metadata.');
       if (payloadObj.username) return payloadObj.username;
       if (payloadObj.username_canonical) return payloadObj.username_canonical;
       if (payloadObj.sub) return payloadObj.sub;
@@ -921,7 +921,7 @@ function getDepopUsername() {
       const val = parts.slice(1).join('=');
       if (name && (name.toLowerCase().includes('username') || name.toLowerCase() === 'user')) {
         if (val && /^[a-z0-9_-]{3,20}$/i.test(val) && isNaN(val)) {
-          console.log('[Elister Depop] Found username in cookie:', name, 'value:', val);
+          console.log('[Elister Depop] Found username in cookie:', name);
           return val;
         }
       }
@@ -1365,7 +1365,7 @@ if (currentSite === 'depop') {
           price_currency: currency,
           product_type: mapProductType(listing.categoryId || listing.category),
           shipping_methods: shippingMethods,
-          sku: listing.sku || `KL${Date.now()}`,
+          sku: listing.sku || '',
           source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
           style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {

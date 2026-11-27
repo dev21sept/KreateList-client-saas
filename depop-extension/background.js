@@ -219,7 +219,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       getStorageData('cachedCsrfTokens', {}).then((tokens) => {
         tokens[site] = token;
         setStorageData('cachedCsrfTokens', tokens).then(() => {
-          console.log(`Cached CSRF Token for ${site}:`, token);
+          console.log(`Cached CSRF token for ${site}.`);
           sendResponse({ success: true });
         });
       });
@@ -821,7 +821,7 @@ async function publishDepopBackground(listing, token) {
       price_currency: currency,
       product_type: mapProductType(listing.categoryId || listing.category),
       shipping_methods: shippingMethods,
-      sku: listing.sku || `KL${Date.now()}`,
+      sku: listing.sku || '',
       source: listing.source ? [listing.source.toLowerCase()] : ["preloved"],
       style: listing.styleTag ? listing.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
       variant_set: (() => {

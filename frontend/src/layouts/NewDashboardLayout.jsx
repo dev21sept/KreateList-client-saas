@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import PlatformLogo from '../components/PlatformLogo';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,7 +17,13 @@ import {
   Menu,
   X,
   CreditCard,
-  Database
+  Database,
+  Zap,
+  Gift,
+  Sparkles,
+  LineChart,
+  Bot,
+  Code2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLandingUrl } from '../utils/urls';
@@ -24,15 +31,13 @@ import { listingService } from '../services/api';
 import IconButton from '../components/ui/IconButton';
 import Drawer from '../components/ui/Drawer';
 
-// Import creation page components directly to mount them in modal popup
-import CreateEbayListing from '../pages/CreateEbayListing';
-import BulkListingEbay from '../pages/BulkListingEbay';
-import CreatePoshmarkListing from '../pages/CreatePoshmarkListing';
-// import CreateDepopListing from '../pages/CreateDepopListing';
-import CreateMasterListing from '../pages/CreateMasterListing';
-import CreateEtsyListing from '../pages/CreateEtsyListing';
-import CreateMercariListing from '../pages/CreateMercariListing';
-import CreateAmazonListing from '../pages/CreateAmazonListing';
+// Creation forms are large; load only the platform selected in the modal.
+const CreateEbayListing = lazy(() => import('../pages/CreateEbayListing'));
+const BulkListingEbay = lazy(() => import('../pages/BulkListingEbay'));
+const CreatePoshmarkListing = lazy(() => import('../pages/CreatePoshmarkListing'));
+const CreateEtsyListing = lazy(() => import('../pages/CreateEtsyListing'));
+const CreateMercariListing = lazy(() => import('../pages/CreateMercariListing'));
+const CreateAmazonListing = lazy(() => import('../pages/CreateAmazonListing'));
 
 // Sidebar Menu Items based on screenshot:
 // Dashboard, Listings, Crosslisting, Orders, Analytics, Settings, Integrations, Help & Support
@@ -40,8 +45,14 @@ const sidebarItems = [
   { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
   { name: 'Listings', icon: <List size={20} />, path: '/listings' },
   { name: 'Orders', icon: <ShoppingBag size={20} />, path: '/orders' },
+  { name: 'Automation', icon: <Zap size={20} />, path: '/automation' },
   { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
+  { name: 'AI Insights', icon: <Sparkles size={20} />, path: '/ai-insights' },
+  { name: 'Market Pulse', icon: <LineChart size={20} />, path: '/market-pulse' },
+  { name: 'AI Agents', icon: <Bot size={20} />, path: '/ai-agents' },
+  { name: 'Developer API', icon: <Code2 size={20} />, path: '/developer' },
   { name: 'Subscription', icon: <CreditCard size={20} />, path: '/subscription' },
+  { name: 'Affiliate Program', icon: <Gift size={20} />, path: '/affiliate' },
   { name: 'Settings', icon: <Settings size={20} />, path: '/settings' },
   { name: 'Integrations', icon: <Plug size={20} />, path: '/integrations' },
   { name: 'Help & Support', icon: <HelpCircle size={20} />, path: '/help' },
@@ -50,7 +61,7 @@ const sidebarItems = [
 const SidebarNav = ({ collapsed, onNavigate }) => {
   const location = useLocation();
   return (
-    <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+    <nav className="flex-1 min-h-0 px-4 py-6 space-y-1.5 overflow-y-auto">
       {sidebarItems.map((item) => {
         const isActive = location.pathname === item.path || (item.path === '/listings' && location.pathname.startsWith('/create-'));
         return (
@@ -124,6 +135,7 @@ const NewDashboardLayout = () => {
     { title: 'Listings', subtitle: 'Manage your local database', path: '/listings', type: 'page', badge: 'Inventory' },
     { title: 'New Listing', subtitle: 'Create a new AI-generated listing', path: 'new_listing_action', type: 'page', badge: 'AI Tool' },
     { title: 'Orders', subtitle: 'View customer sales & invoices', path: '/orders', type: 'page', badge: 'Orders' },
+    { title: 'Automation', subtitle: 'Daily Share, Follow, Relist and Offers workflows across platforms', path: '/automation', type: 'page', badge: 'Automation' },
     { title: 'Analytics', subtitle: 'View platform charts and metrics', path: '/analytics', type: 'page', badge: 'Reports' },
     { title: 'Rules Engine', subtitle: 'Manage listing templates and AI rules', path: '/rules', type: 'page', badge: 'AI Rules' },
     { title: 'Subscription', subtitle: 'Manage active plans and billing', path: '/subscription', type: 'page', badge: 'Billing' },
@@ -277,6 +289,12 @@ const NewDashboardLayout = () => {
     if (path.includes('/settings')) return 'Settings';
     if (path.includes('/integrations')) return 'Integrations';
     if (path.includes('/help')) return 'Help & Support';
+    if (path.includes('/affiliate')) return 'Affiliate Program';
+    if (path.includes('/automation')) return 'Automation';
+    if (path.includes('/ai-insights')) return 'AI Insights';
+    if (path.includes('/market-pulse')) return 'Market Pulse';
+    if (path.includes('/ai-agents')) return 'AI Agents';
+    if (path.includes('/developer')) return 'Developer API';
     return 'Listings';
   };
 
@@ -335,9 +353,9 @@ const NewDashboardLayout = () => {
           isSidebarOpen ? 'w-64 shadow-xl' : 'w-20 overflow-hidden'
         }`}
       >
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-h-0">
           {/* Logo Section */}
-          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-border">
+          <div className="h-20 px-6 flex items-center justify-center select-none border-b border-border shrink-0">
             {isSidebarOpen ? (
               <img src="/logo.png" alt="Elister.ai" className="h-8 w-auto object-contain transition-all duration-300" />
             ) : (
@@ -349,7 +367,7 @@ const NewDashboardLayout = () => {
         </div>
 
         {/* Logout Section */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border shrink-0">
           <button
             onClick={handleLogout}
             className="flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl transition-all group font-bold text-sm text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 cursor-pointer border-0 bg-transparent"
@@ -730,7 +748,7 @@ const NewDashboardLayout = () => {
                     onClick={() => setSelectedPlatform(opt.id)}
                     className="flex flex-col items-center justify-center p-6 bg-slate-50 hover:bg-indigo-50/30 border border-slate-100 hover:border-indigo-100 rounded-3xl transition-all cursor-pointer group"
                   >
-                    <img src={opt.icon} className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" alt="" />
+                    <PlatformLogo src={opt.icon} alt="" className="w-10 h-10" />
                     <span className="text-xs font-black text-slate-800 mt-3 block">{opt.label}</span>
                   </button>
                 ))}
@@ -758,6 +776,7 @@ const NewDashboardLayout = () => {
               </IconButton>
 
               <div className="w-full">
+                <Suspense fallback={<div className="min-h-[240px]" aria-busy="true" />}>
                 {selectedPlatform === 'ebay' && <CreateEbayListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'ebay-bulk' && <BulkListingEbay />}
                 {selectedPlatform === 'poshmark' && <CreatePoshmarkListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
@@ -765,6 +784,7 @@ const NewDashboardLayout = () => {
                 {selectedPlatform === 'etsy' && <CreateEtsyListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'mercari' && <CreateMercariListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
                 {selectedPlatform === 'amazon' && <CreateAmazonListing isModal={true} onClose={() => setIsCreateModalOpen(false)} />}
+                </Suspense>
               </div>
             </div>
           )}

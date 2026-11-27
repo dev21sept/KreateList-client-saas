@@ -4,7 +4,8 @@
  * then ranks surviving candidates with a calibrated 0-100 match score.
  */
 
-const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder } = require('./itemResolver');
+const { detectConfiguration, normalizeCondition, detectProductDomain, isPlaceholder, stripGenericCategoryRoot } = require('./itemResolver');
+const { sizeFromTitle, tagSizeFromTitle, sizesCompatible, ageGroupFromTitle, ageGroupsCompatible } = require('../mergeMatcher');
 
 // Generic stopwords to discount in title similarity
 const STOPWORDS = new Set([
@@ -12,6 +13,20 @@ const STOPWORDS = new Set([
   'shipping', 'new', 'oem', 'original', 'sale', 'hot', 'authentic', 'genuine',
   'sz', 'size', 'vintage', 'rare', 'vtg', 'unknown', 'na', 'nwt', 'nwob'
 ]);
+
+/**
+ * A model is strong enough to require in listing titles only if it looks like a real
+ * product number: letters and digits together (BTFP2350K, 501A), or a long number (50123).
+ * Short bare numbers such as an MPN or style code "677" are not reliable and are ignored.
+ */
+function isStrongModel(model) {
+  if (!model || isPlaceholder(model)) return false;
+  const clean = String(model).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.length < 3) return false;
+  const hasLetter = /[a-z]/.test(clean);
+  const hasDigit = /\d/.test(clean);
+  return (hasLetter && hasDigit) || clean.length >= 5;
+}
 
 /**
  * Computes token similarity between two titles (Jaccard on non-stopwords)
@@ -27,14 +42,33 @@ function computeTokenSimilarity(tokensA, textB) {
 
   if (tokensB.length === 0) return 0;
 
+  // Recall: how much of the target's wording the candidate title contains.
+  // Jaccard was used before, but it punished long eBay titles (score 37-44 for exact kit matches).
   const setB = new Set(tokensB);
+  const targetTokens = [...new Set(tokensA)];
   let intersection = 0;
-  for (const t of tokensA) {
+  for (const t of targetTokens) {
     if (setB.has(t)) intersection++;
   }
 
-  const union = new Set([...tokensA, ...tokensB]).size;
-  return union > 0 ? (intersection / union) : 0;
+  return targetTokens.length > 0 ? (intersection / targetTokens.length) : 0;
+}
+
+/**
+ * sizeFromTitle (from mergeMatcher.js) only catches a bare number after the literal word "size",
+ * a gender-anchored size, a letter size, or a measurement pair - a plus-size/juniors jeans title
+ * commonly states the number with none of those ("Jeans 22 Light Wash", "Juniors 13/14 Long Blue")
+ * and would otherwise fall through with no size at all, silently letting a wrong size pass as a
+ * price comparable. Scoped to BOTTOMS only, where this convention actually shows up, to avoid
+ * misreading an unrelated stray number (a style code, a year) elsewhere as a size.
+ */
+function fallbackBareSizeFromTitle(title, domain) {
+  if (domain !== 'BOTTOMS') return '';
+  const t = String(title || '').toLowerCase();
+  // "-" as well as whitespace before the excluded word: "5-Pocket" (a construction detail, not a
+  // size) separates the number from "pocket" with a hyphen, not a space.
+  const m = t.match(/(?<!\$)\b(\d{1,2})\b(?!\s*-?\s*(?:%|gauge|oz|ml|kg|lbs?|ft|in|v|pockets?|buttons?|pieces?|pcs?|pack|panels?|way|zips?|zippers?))/);
+  return m ? m[1] : '';
 }
 
 /**
@@ -50,7 +84,7 @@ function evaluateHardRejections(targetItem, candidate) {
 
   // 1. Cross-Domain Hard Rejection (e.g. Shoes vs Jacket / Tracksuit)
   const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
-  const candCategories = (candidate.categories || []).join(' ');
+  const candCategories = stripGenericCategoryRoot((candidate.categories || []).join(' '));
   const candDomain = detectProductDomain(candidate.title, candCategories);
 
   if (targetDomain !== 'OTHER' && candDomain !== 'OTHER' && targetDomain !== candDomain) {
@@ -96,8 +130,8 @@ function evaluateHardRejections(targetItem, candidate) {
     reasons.push('new_vs_used_mismatch');
   }
 
-  // 5. Incompatible Model Check (Only check if target model is a REAL, non-placeholder model)
-  if (targetItem.model && !isPlaceholder(targetItem.model) && targetItem.model.length >= 3) {
+  // 5. Incompatible Model Check (only for a strong model number, see isStrongModel)
+  if (isStrongModel(targetItem.model)) {
     const targetModelClean = targetItem.model.toLowerCase().replace(/[^a-z0-9]/g, '');
     const candTitleClean = candidateTitle.replace(/[^a-z0-9]/g, '');
     
@@ -106,9 +140,38 @@ function evaluateHardRejections(targetItem, candidate) {
     }
   }
 
+  // 5b. Accessories, parts and consumables are not the item itself
+  const targetTitle = (targetItem.title || '').toLowerCase();
+  // Plural "pins"/"nails" are consumables; singular "pin nailer" is the tool itself.
+  const ACCESSORY_PATTERN = /\b(parts?|replacement|nose|pins|nails|fasteners?|covers?|manuals?|batter(y|ies)|chargers?|filters?|hoses?|adapters?|tips?)\b/i;
+  if (!ACCESSORY_PATTERN.test(targetTitle) && !candidateConfig.isKit && ACCESSORY_PATTERN.test(candidateTitle)) {
+    reasons.push('accessory_listing_for_full_item');
+  }
+
   // 6. Zero or negative price
   if (!candidate.total_price || candidate.total_price <= 0) {
     reasons.push('invalid_price');
+  }
+
+  // 7. Garment size and gender/age group are physical traits, not a styling detail - a Womens 22
+  // and a Juniors 13/14 are not the same product even if the title text otherwise matches well, and
+  // "size"/"sz" are deliberately excluded from the title-similarity tokens above, so nothing else in
+  // this scorer would ever catch a size mismatch. Same hard-gate logic already proven in
+  // mergeMatcher.js for cross-platform listing matching - only blocks when both sides actually state
+  // one, exactly like there, so an unparseable title never wrongly rejects everything.
+  if (!ageGroupsCompatible(ageGroupFromTitle(targetTitle), ageGroupFromTitle(candidateTitle))) {
+    reasons.push('age_group_mismatch');
+  } else {
+    const targetSize = sizeFromTitle(targetTitle) || fallbackBareSizeFromTitle(targetTitle, targetDomain);
+    const candidateSize = sizeFromTitle(candidateTitle) || fallbackBareSizeFromTitle(candidateTitle, candDomain);
+    if (targetSize && candidateSize && !sizesCompatible(targetSize, candidateSize)) {
+      const targetTag = tagSizeFromTitle(targetTitle);
+      const candidateTag = tagSizeFromTitle(candidateTitle);
+      const altMatch = (targetTag && sizesCompatible(targetTag, candidateSize)) || (candidateTag && sizesCompatible(targetSize, candidateTag));
+      if (!altMatch) {
+        reasons.push('size_mismatch');
+      }
+    }
   }
 
   return reasons;
@@ -143,8 +206,8 @@ function calculateMatchScore(targetItem, candidate) {
     }
   }
 
-  // Strictly check model ONLY if target item has a genuine model number (NOT "Unknown", "N/A", etc.)
-  if (targetItem.model && !isPlaceholder(targetItem.model)) {
+  // Check model only when it is a strong model number (see isStrongModel)
+  if (isStrongModel(targetItem.model)) {
     const modelClean = targetItem.model.toLowerCase();
     if (candidateTitle.includes(modelClean)) {
       modelMatched = true;
@@ -193,7 +256,7 @@ function calculateMatchScore(targetItem, candidate) {
 
   // Feature 6: Category / Domain Consistency - Weight: 10
   const targetDomain = targetItem.productDomain || detectProductDomain(targetItem.title, targetItem.categoryHint);
-  const candCategories = (candidate.categories || []).join(' ');
+  const candCategories = stripGenericCategoryRoot((candidate.categories || []).join(' '));
   const candDomain = detectProductDomain(candidate.title, candCategories);
 
   if (targetDomain !== 'OTHER' && candDomain === targetDomain) {
@@ -262,6 +325,7 @@ function matchAndFilterComparables(targetItem, candidateList = [], minAcceptance
 }
 
 module.exports = {
+  isStrongModel,
   matchAndFilterComparables,
   evaluateHardRejections,
   calculateMatchScore

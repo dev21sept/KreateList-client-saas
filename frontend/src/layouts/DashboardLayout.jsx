@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -16,7 +17,8 @@ import {
   Users,
   ChevronDown,
   User,
-  Lock
+  Lock,
+  Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -98,6 +100,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
   const adminMenuItems = [
     { name: 'Admin Overview', icon: <LayoutDashboard size={20} />, path: '/admin' },
     { name: 'Manage Users', icon: <Users size={20} />, path: '/admin/users' },
+    { name: 'Affiliates', icon: <Gift size={20} />, path: '/admin/affiliates' },
     { name: 'System Settings', icon: <Settings size={20} />, path: '/admin/settings' },
   ];
 
@@ -207,11 +210,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                                 >
                                   <div className="flex items-center gap-3">
                                     {sub.logo && (
-                                      <img
-                                        src={sub.logo}
-                                        alt={sub.name}
-                                        className="w-4 h-4 object-contain rounded"
-                                      />
+                                      <PlatformLogo src={sub.logo} alt={sub.name} className="w-4 h-4" />
                                     )}
                                     <span>{sub.name}</span>
                                   </div>
@@ -256,11 +255,7 @@ const DashboardLayout = ({ isAdmin = false }) => {
                               }`}
                             >
                               {sub.logo && (
-                                <img
-                                  src={sub.logo}
-                                  alt={sub.name}
-                                  className="w-4 h-4 object-contain rounded"
-                                />
+                                <PlatformLogo src={sub.logo} alt={sub.name} className="w-4 h-4" />
                               )}
                               <span>{sub.name}</span>
                             </Link>

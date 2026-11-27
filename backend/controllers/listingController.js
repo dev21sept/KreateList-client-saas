@@ -1,3 +1,6 @@
+const { stripFields } = require('../utils/sanitizeBody');
+const { normalizeSizeAspect } = require('../utils/ebayAspects');
+const { pickEbayCategory } = require('../utils/ebayCategoryPick');
 const mongoose = require('mongoose');
 const Listing = require('../models/Listing');
 const User = require('../models/User');
@@ -7,6 +10,7 @@ const { isListingMatch, cleanAndTokenize, extractUniqueImageKey, checkImageMatch
 const ebayService = require('../services/ebayService');
 const { getValidToken } = require('./ebayController');
 const { sanitizeEbayDescription } = require('../services/descriptionService');
+const { recordEvent } = require('../services/behaviorEventService');
 
 const isAspectValueInvalid = (val) => {
   if (typeof val !== 'string') return true;
@@ -26,7 +30,21 @@ exports.getListings = async (req, res) => {
   try {
     const userId = req.user.id;
     const [listings, products] = await Promise.all([
-      Listing.find({ user: userId })
+      // A verified merge folds a duplicate into another record (mergedInto) instead of deleting it; hide those here.
+      // A listing with no ID on any platform has nothing to "List on X" or manage - it is just
+      // clutter, regardless of what its own `status` field happens to say. Kept in the DB, left out
+      // of the active inventory view.
+      Listing.find({
+        user: userId,
+        mergedInto: null,
+        $or: [
+          { ebayListingId: { $nin: [null, '', 'undefined', 'null'] } },
+          { poshmarkListingId: { $nin: [null, '', 'undefined', 'null'] } },
+          { mercariListingId: { $nin: [null, '', 'undefined', 'null'] } },
+          { etsyListingId: { $nin: [null, '', 'undefined', 'null'] } },
+          { amazonListingId: { $nin: [null, '', 'undefined', 'null'] } }
+        ]
+      })
         .select('-description -itemSpecifics')
         .sort({ createdAt: -1 })
         .lean(),
@@ -347,6 +365,7 @@ exports.getDashboardStats = async (req, res) => {
 // @access  Private
 exports.createListing = async (req, res) => {
   try {
+    req.body = stripFields(req.body, ['user']);
     req.body.user = req.user.id;
 
     // Convert base64 images to static files and get absolute URLs
@@ -365,17 +384,18 @@ exports.createListing = async (req, res) => {
       }
     }
 
-    if (!req.body.sku) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'SKU is required.' 
-      });
-    }
+    // SKU is optional - a listing saved without one simply has a blank SKU, so there is nothing to block here.
 
     const platform = req.body.platform || 'ebay';
     req.body[`${platform}Status`] = req.body.status || 'draft';
 
-    const existing = await Listing.findOne({ user: req.user.id, sku: req.body.sku });
+    // Identity is the marketplace listing ID, never the SKU: several items can share one SKU.
+    const idFilters = ['ebayListingId', 'poshmarkListingId', 'depopListingId', 'etsyListingId', 'mercariListingId']
+      .filter(f => req.body[f])
+      .map(f => ({ [f]: req.body[f] }));
+    const existing = idFilters.length
+      ? await Listing.findOne({ user: req.user.id, $or: idFilters })
+      : null;
     if (existing) {
       const platforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari'];
       platforms.forEach(p => {
@@ -395,6 +415,7 @@ exports.createListing = async (req, res) => {
     }
 
     const listing = await Listing.create(req.body);
+    recordEvent({ userId: req.user.id, eventType: 'listing.created', entityId: listing._id, metadata: { platform } });
     res.status(201).json({ success: true, data: listing });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -431,7 +452,7 @@ exports.getListing = async (req, res) => {
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : `SKU-${prod._id.toString().substring(18)}`,
+            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : '',
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
@@ -478,8 +499,21 @@ exports.getListing = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
 
-    // Auto-enrich eBay listings with full details (all photos, aspects, condition, category, description) if missing/minimal
-    if (listing.ebayListingId && (!listing.itemSpecifics || Object.keys(listing.itemSpecifics).length === 0 || !listing.images || listing.images.length <= 1 || !listing.categoryId || listing.category === 'Clothing')) {
+    // Auto-enrich eBay listings with full details (all photos, aspects, condition, category,
+    // description, business policies, package weight/dimensions, item location) if missing/minimal.
+    // A listing synced in from eBay (rather than created in-app) only ever gets the handful of
+    // fields the sync list call returns - everything else here comes from a full GetItem call,
+    // triggered once, on-demand, the first time the listing is actually opened.
+    if (listing.ebayListingId && (
+      !listing.itemSpecifics || Object.keys(listing.itemSpecifics).length === 0 ||
+      !listing.images || listing.images.length <= 1 ||
+      !listing.categoryId || listing.category === 'Clothing' ||
+      !listing.conditionNote ||
+      !listing.fulfillmentPolicyId || !listing.returnPolicyId || !listing.paymentPolicyId ||
+      !listing.itemLocationCity ||
+      !listing.packageWeight?.lbs && !listing.packageWeight?.oz ||
+      !listing.sku
+    )) {
       try {
         const token = await getValidToken(req.user.id);
         if (token) {
@@ -487,6 +521,10 @@ exports.getListing = async (req, res) => {
           const ebayDetails = await ebayService.getTradingItemDetails(token, listing.ebayListingId);
           if (ebayDetails) {
             let changed = false;
+            if (ebayDetails.sku && !listing.sku) {
+              listing.sku = ebayDetails.sku;
+              changed = true;
+            }
             if (ebayDetails.images && ebayDetails.images.length > (listing.images?.length || 0)) {
               listing.images = ebayDetails.images;
               changed = true;
@@ -528,6 +566,34 @@ exports.getListing = async (req, res) => {
               listing.color = ebayDetails.color;
               changed = true;
             }
+            if (ebayDetails.fulfillmentPolicyId && !listing.fulfillmentPolicyId) {
+              listing.fulfillmentPolicyId = ebayDetails.fulfillmentPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.returnPolicyId && !listing.returnPolicyId) {
+              listing.returnPolicyId = ebayDetails.returnPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.paymentPolicyId && !listing.paymentPolicyId) {
+              listing.paymentPolicyId = ebayDetails.paymentPolicyId;
+              changed = true;
+            }
+            if (ebayDetails.itemLocationCity && !listing.itemLocationCity) {
+              listing.itemLocationCity = ebayDetails.itemLocationCity;
+              changed = true;
+            }
+            if (ebayDetails.itemLocationZip && !listing.itemLocationZip) {
+              listing.itemLocationZip = ebayDetails.itemLocationZip;
+              changed = true;
+            }
+            if (ebayDetails.packageWeight && !listing.packageWeight?.lbs && !listing.packageWeight?.oz) {
+              listing.packageWeight = ebayDetails.packageWeight;
+              changed = true;
+            }
+            if (ebayDetails.packageDimensions && !listing.packageDimensions?.length) {
+              listing.packageDimensions = ebayDetails.packageDimensions;
+              changed = true;
+            }
 
             if (changed) {
               if (!isFromProduct && typeof listing.save === 'function') {
@@ -554,6 +620,61 @@ exports.getListing = async (req, res) => {
         }
       } catch (enrichErr) {
         console.warn(`[GET LISTING] Failed to auto-enrich eBay item ${listing.ebayListingId}:`, enrichErr.message);
+      }
+    }
+
+    // Auto-enrich Poshmark listings with style tags (and category/brand/size/color as a backstop) if
+    // missing - the closet scrape itself only ever wrote a handful of fields into platformData.poshmark
+    // (thumbnail/images/price/url), style_tags was never read from Poshmark's own response at all.
+    const poshmarkId = listing.platformData?.poshmark?.liveId || listing.platformData?.poshmark?.listingId;
+    const existingPoshTags = listing.platformData?.poshmark?.styleTags;
+    if (poshmarkId && (!Array.isArray(existingPoshTags) || existingPoshTags.length === 0 || !listing.sku)) {
+      try {
+        const User = require('../models/User');
+        const user = await User.findById(req.user.id).select('poshmarkAccount');
+        if (user?.poshmarkAccount?.connected && user.poshmarkAccount.sessionCookie) {
+          const { fetchSinglePoshmarkPost } = require('../services/externalImportService');
+          console.log(`[GET LISTING] Auto-enriching Poshmark details for PostID: ${poshmarkId}`);
+          const poshDetails = await fetchSinglePoshmarkPost(poshmarkId, user.poshmarkAccount);
+          if (poshDetails) {
+            listing.platformData = listing.platformData || {};
+            listing.platformData.poshmark = listing.platformData.poshmark || {};
+            let poshChanged = false;
+            if (poshDetails.styleTags?.length > 0) {
+              listing.platformData.poshmark.styleTags = poshDetails.styleTags;
+              poshChanged = true;
+            }
+            if (poshDetails.sku && !listing.sku) {
+              listing.sku = poshDetails.sku;
+              poshChanged = true;
+            }
+            if (poshDetails.category && (!listing.platformData.poshmark.category || listing.platformData.poshmark.category === 'Clothing')) {
+              listing.platformData.poshmark.category = poshDetails.category;
+              poshChanged = true;
+            }
+            if (poshDetails.brand && !listing.platformData.poshmark.brand) {
+              listing.platformData.poshmark.brand = poshDetails.brand;
+              poshChanged = true;
+            }
+            if (poshDetails.size && !listing.platformData.poshmark.size) {
+              listing.platformData.poshmark.size = poshDetails.size;
+              poshChanged = true;
+            }
+            if (poshDetails.color && !listing.platformData.poshmark.color) {
+              listing.platformData.poshmark.color = poshDetails.color;
+              poshChanged = true;
+            }
+            if (poshChanged) {
+              listing.markModified('platformData');
+              if (!isFromProduct && typeof listing.save === 'function') {
+                await listing.save();
+              }
+              console.log(`[GET LISTING] Successfully enriched Poshmark post ${poshmarkId} with ${poshDetails.styleTags?.length || 0} style tags`);
+            }
+          }
+        }
+      } catch (enrichErr) {
+        console.warn(`[GET LISTING] Failed to auto-enrich Poshmark post ${poshmarkId}:`, enrichErr.message);
       }
     }
 
@@ -636,6 +757,9 @@ exports.getListing = async (req, res) => {
 // @access  Private
 exports.updateListing = async (req, res) => {
   try {
+    // Ownership and database identity are immutable, regardless of what a
+    // client includes in the update payload.
+    req.body = stripFields(req.body, ['user']);
     let listing = await Listing.findById(req.params.id);
     if (!listing) {
       const Product = require('../models/Product');
@@ -648,7 +772,7 @@ exports.updateListing = async (req, res) => {
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : `SKU-${prod._id.toString().substring(18)}`,
+            sku: prod.sku && prod.sku.trim() ? prod.sku.trim() : '',
             brand: prod.brand,
             size: prod.size,
             color: prod.color,
@@ -746,8 +870,12 @@ exports.updateListing = async (req, res) => {
     if (listing.ebayListingId || (listing.platform === 'ebay' && listing.status === 'published')) {
       try {
         const token = await getValidToken(req.user.id);
-        if (token && listing.sku) {
-          console.log(`[Listing Controller] Live Syncing ALL data (Item Specifics, Aspects, Title, Price, Images, Condition) to eBay for SKU: ${listing.sku}`);
+        // This listing is already live on eBay, so it was published under SOME sku (the user's real
+        // one, or the deterministic AUTO-L- fallback derived from its own _id) - recompute the same
+        // value here rather than requiring listing.sku to be set, since it's never auto-persisted.
+        const ebaySyncSku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
+        if (token) {
+          console.log(`[Listing Controller] Live Syncing ALL data (Item Specifics, Aspects, Title, Price, Images, Condition) to eBay for SKU: ${ebaySyncSku}`);
           
           // Build aspects dictionary
           const aspects = {};
@@ -808,10 +936,10 @@ exports.updateListing = async (req, res) => {
             inventoryItemData.packageWeightAndSize = packageWeightAndSize;
           }
 
-          await ebayService.createOrReplaceInventoryItem(token, listing.sku, inventoryItemData);
+          await ebayService.createOrReplaceInventoryItem(token, ebaySyncSku, inventoryItemData);
 
           // Update active offer price & description on eBay
-          const existingOffers = await ebayService.getOffers(token, listing.sku);
+          const existingOffers = await ebayService.getOffers(token, ebaySyncSku);
           if (existingOffers && existingOffers.length > 0) {
             for (const offer of existingOffers) {
               try {
@@ -866,7 +994,7 @@ exports.updateListing = async (req, res) => {
     }
 
     // Background Poshmark Sync: If listed on Poshmark, sync changes in background
-    if (listing.poshmarkListingId || (listing.platform === 'poshmark' && listing.status === 'published')) {
+    if (listing.poshmarkAutoSync === true && (listing.poshmarkListingId || (listing.platform === 'poshmark' && listing.status === 'published'))) {
       (async () => {
         try {
           const User = require('../models/User');
@@ -876,17 +1004,24 @@ exports.updateListing = async (req, res) => {
             const { publishToPoshmark } = require('../services/backendPublishService');
             const syncResult = await publishToPoshmark(listing, user.poshmarkAccount);
             if (syncResult && syncResult.id) {
-              listing.poshmarkListingId = syncResult.id;
-              listing.poshmarkUrl = syncResult.url;
-              await listing.save();
-              console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully! Saved new listing ID: ${syncResult.id}`);
+              const previousId = String(listing.poshmarkListingId);
+              // One ID, one record: never attach a Poshmark ID that another record already owns.
+              const owner = await Listing.findOne({ user: listing.user, poshmarkListingId: String(syncResult.id), _id: { $ne: listing._id } }).select('_id').lean();
+              if (owner) {
+                console.warn(`[Listing Controller] [BG SYNC] Poshmark ID ${syncResult.id} already belongs to listing ${owner._id}; not attaching it to ${listing._id}.`);
+              } else {
+                listing.poshmarkListingId = syncResult.id;
+                listing.poshmarkUrl = syncResult.url;
+                await listing.save();
+                console.log(`[Listing Controller] [BG SYNC] Poshmark updates synced successfully! Saved new listing ID: ${syncResult.id}`);
 
-              // Keep local Product model cache synced
-              const Product = require('../models/Product');
-              await Product.findOneAndUpdate(
-                { user: listing.user, sku: listing.sku, source: 'poshmark' },
-                { poshmarkListingId: syncResult.id, poshmarkUrl: syncResult.url, updated_at: Date.now() }
-              );
+                // Keep local Product cache synced, matched by the ID it already had (SKU is not unique).
+                const Product = require('../models/Product');
+                await Product.findOneAndUpdate(
+                  { user: listing.user, source: 'poshmark', poshmarkListingId: previousId },
+                  { poshmarkListingId: syncResult.id, poshmarkUrl: syncResult.url, updated_at: Date.now() }
+                );
+              }
             }
           }
         } catch (poshErr) {
@@ -896,7 +1031,7 @@ exports.updateListing = async (req, res) => {
     }
 
     // Background Depop Sync: If listed on Depop and has Partner API integration, sync changes in background
-    if (listing.depopListingId || (listing.platform === 'depop' && listing.status === 'published')) {
+    if (listing.depopAutoSync === true && (listing.depopListingId || (listing.platform === 'depop' && listing.status === 'published'))) {
       (async () => {
         try {
           const User = require('../models/User');
@@ -1134,7 +1269,7 @@ exports.publishListing = async (req, res) => {
             user: req.user.id,
             title: prod.title,
             description: prod.description || prod.title,
-            sku: prod.sku || `KL${Date.now()}`,
+            sku: prod.sku || '',
             brand: prod.brand || '',
             size: prod.size || '',
             color: prod.color || '',
@@ -1158,6 +1293,11 @@ exports.publishListing = async (req, res) => {
 
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    // Never publish a listing whose category was not identified: the user must choose it.
+    if (listing.category === 'Needs category review') {
+      return res.status(400).json({ success: false, message: 'Category not selected. Please choose the category before publishing.' });
     }
 
     // 1. Resolve a valid user token
@@ -1310,8 +1450,10 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    // Use exact listing.sku if present; fallback to auto-generated SKU
-    const sku = listing.sku ? listing.sku.trim() : `SKU-${listing._id.toString().substring(18)}`;
+    // SKU is optional in the form. eBay's Inventory API still needs a non-empty SKU to publish, so
+    // derive a stable one from the listing's own _id when blank - but this is only an internal
+    // identifier for the API call; it never gets written back into the user-facing SKU field.
+    const sku = (listing.sku && listing.sku.trim()) ? listing.sku.trim() : `AUTO-L-${listing._id.toString().slice(-12).toUpperCase()}`;
 
     // Fetch valid conditions from Taxonomy API for listing.categoryId
     let validConditionIds = [];
@@ -1328,9 +1470,14 @@ exports.publishListing = async (req, res) => {
       }
     }
 
-    const resolvedConditionId = resolveConditionForCategory(listing.conditionId, validConditionIds);
+    // The condition the seller picked on the eBay form is saved under platformData.ebay; prefer it.
+    const selectedConditionId = listing.platformData?.ebay?.conditionId || listing.conditionId;
+    const resolvedConditionId = resolveConditionForCategory(selectedConditionId, validConditionIds);
     const ebayConditionEnum = mapConditionIdToEnum(resolvedConditionId);
-    console.log(`[EBAY PUBLISH] Selected ConditionID: ${listing.conditionId}, Resolved ConditionID: ${resolvedConditionId}, Mapped Enum: ${ebayConditionEnum}`);
+    console.log(`[EBAY PUBLISH] Selected ConditionID: ${selectedConditionId}, Resolved ConditionID: ${resolvedConditionId}, Mapped Enum: ${ebayConditionEnum}`);
+
+    // Standard Size values only (see utils/ebayAspects.js)
+    Object.assign(aspects, normalizeSizeAspect(aspects));
 
     const inventoryItemData = {
       availability: {
@@ -1489,10 +1636,11 @@ exports.publishListing = async (req, res) => {
       if (!effectiveCategoryId || !/^\d+$/.test(effectiveCategoryId)) {
         try {
           const suggestions = await ebayService.getCategorySuggestions(token, listing.title || 'clothing');
-          if (suggestions && suggestions.length > 0 && suggestions[0].category?.categoryId) {
-            effectiveCategoryId = String(suggestions[0].category.categoryId);
+          const best = pickEbayCategory(suggestions, listing.title || '');
+          if (best) {
+            effectiveCategoryId = best.categoryId;
             listing.categoryId = effectiveCategoryId;
-            console.log(`[EBAY PUBLISH] Auto-resolved non-numeric category ID to: ${effectiveCategoryId} (${suggestions[0].category.categoryName})`);
+            console.log(`[EBAY PUBLISH] Auto-resolved non-numeric category ID to: ${effectiveCategoryId} (${best.categoryName})`);
           } else {
             effectiveCategoryId = '26315';
           }
@@ -1606,7 +1754,9 @@ exports.publishListing = async (req, res) => {
     // 11. Save publication details in database
     listing.status = 'published';
     listing.ebayStatus = 'published';
-    listing.sku = sku;
+    // Don't persist the AUTO-L- fallback as the user-facing SKU - it's only eBay's internal
+    // inventory-item identifier for this call. If the listing never had a real SKU, keep it blank.
+    if (listing.sku && listing.sku.trim()) listing.sku = sku;
     listing.ebayListingId = ebayListingId;
     listing.ebayUrl = `https://www.ebay.com/itm/${ebayListingId}`;
     listing.errorMessage = null;
@@ -1638,6 +1788,7 @@ exports.publishListing = async (req, res) => {
     }
 
     console.log(`[EBAY PUBLISH] Successfully published listing! eBay ID: ${ebayListingId}`);
+    recordEvent({ userId: req.user.id, eventType: 'listing.published', entityId: listing._id, metadata: { platform: 'ebay' } });
     res.status(200).json({ success: true, data: listing });
   } catch (err) {
     console.error('[EBAY PUBLISH] Publish listing failed:', err.response?.data || err.message);
@@ -1813,7 +1964,10 @@ exports.verifyListingLive = async (req, res) => {
       if (!listing) {
         product = await Product.findById(itemId);
         if (product && product.user.toString() === req.user.id) {
-          listing = await Listing.findOne({ user: req.user.id, $or: [{ sku: product.sku }, { mercariListingId: product.mercariListingId }] });
+          // Match by marketplace ID only: SKUs are not unique (one SKU can cover several items).
+          listing = product.mercariListingId
+            ? await Listing.findOne({ user: req.user.id, mercariListingId: product.mercariListingId })
+            : null;
         }
       }
     } else {
@@ -2581,6 +2735,11 @@ exports.delistListing = async (req, res) => {
       listing.status = 'delisted';
     }
 
+    // The model requires a category; older records may only have it under platformData.
+    if (!listing.category) {
+      listing.category = listing.platformData?.ebay?.category || listing.platformData?.poshmark?.category || 'Clothing';
+    }
+
     await listing.save();
 
     // Reconcile across all matching Listing and Product records in DB
@@ -3168,10 +3327,11 @@ exports.moveToNewItem = async (req, res) => {
     const baseSize = platformDetails.size || (listing && listing.size) || (prod && prod.size) || '';
     const baseColor = platformDetails.color || (listing && listing.color) || (prod && prod.color) || '';
 
-    // Generate a unique SKU for the new item
-    const timestamp = Date.now().toString().slice(-4);
-    const origSku = (listing && listing.sku) || (prod && prod.sku) || 'ITEM';
-    const newSku = `${origSku}-${platformLower.toUpperCase()}-${timestamp}`;
+    // Keep the SKU optional: only derive a suffixed one when the source actually had a real,
+    // user-entered SKU (so the split copy doesn't collide with the original); otherwise leave it blank.
+    const origSku = (listing && listing.sku) || (prod && prod.sku) || '';
+    const isRealSku = origSku && !/^AUTO-[LP]-/.test(origSku);
+    const newSku = isRealSku ? `${origSku}-${platformLower.toUpperCase()}-${Date.now().toString().slice(-4)}` : '';
 
     // Create the new independent Listing document
     const newListing = new Listing({
@@ -3409,6 +3569,156 @@ exports.mergeChannel = async (req, res) => {
     });
   } catch (err) {
     console.error(`[Merge Channel] Error:`, err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/** Pulls the platform's own listing ID out of a pasted URL; falls back to treating the input as a
+ * raw ID if it isn't a recognizable URL for that platform. */
+function parsePlatformIdFromUrl(platformLower, input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+
+  const patterns = {
+    ebay: /\/itm\/(?:[^/]+\/)?(\d+)/i,
+    poshmark: /\/listing\/[^/]*?-([a-f0-9]{24})(?:[/?]|$)/i,
+    mercari: /\/item\/(m\d+)/i,
+    etsy: /\/listing\/(\d+)/i,
+    amazon: /\/dp\/([A-Z0-9]{10})/i
+  };
+
+  if (/^https?:\/\//i.test(raw)) {
+    const match = raw.match(patterns[platformLower]);
+    if (match) return match[1];
+    // URL didn't match the expected shape for this platform - try the last path segment as a
+    // best-effort fallback rather than failing outright.
+    const segments = raw.split('?')[0].split('/').filter(Boolean);
+    return segments[segments.length - 1] || null;
+  }
+
+  // Not a URL: treat the whole input as the raw ID (e.g. user pasted just the item number).
+  return raw;
+}
+
+/** Mirrors getListingUrl() on the frontend, server-side, for when the user pastes a bare ID. */
+function buildPlatformUrl(platformLower, id) {
+  switch (platformLower) {
+    case 'ebay': return `https://www.ebay.com/itm/${id}`;
+    case 'poshmark': return `https://poshmark.com/listing/${id}`;
+    case 'mercari': return `https://www.mercari.com/us/item/${id}/`;
+    case 'etsy': return `https://www.etsy.com/listing/${id}`;
+    case 'amazon': return `https://www.amazon.com/dp/${id}`;
+    default: return '';
+  }
+}
+
+// @desc    Manually link an existing marketplace listing (by URL or ID) onto this Master item, for
+//          when the auto-merge scan never matched them (e.g. a title/SKU mismatch across platforms).
+// @route   POST /api/listings/:id/link-existing
+// @access  Private
+exports.linkExistingListing = async (req, res) => {
+  try {
+    const { platform, url } = req.body;
+    const targetListingId = req.params.id;
+    if (!platform || !url) {
+      return res.status(400).json({ success: false, message: 'Platform and a listing URL (or ID) are required.' });
+    }
+
+    const platformLower = platform.toLowerCase();
+    const validPlatforms = ['ebay', 'poshmark', 'depop', 'etsy', 'mercari', 'amazon'];
+    if (!validPlatforms.includes(platformLower)) {
+      return res.status(400).json({ success: false, message: 'Unknown platform.' });
+    }
+
+    const externalId = parsePlatformIdFromUrl(platformLower, url);
+    if (!externalId) {
+      return res.status(400).json({ success: false, message: 'Could not read a listing ID from that link.' });
+    }
+
+    const targetListing = await Listing.findById(targetListingId);
+    if (!targetListing || targetListing.user.toString() !== req.user.id) {
+      return res.status(404).json({ success: false, message: 'Listing not found.' });
+    }
+
+    if (targetListing[`${platformLower}ListingId`]) {
+      return res.status(409).json({ success: false, message: `This item is already linked on ${platform}. Unlink it first if you want to replace it.` });
+    }
+
+    // Does a separate (not-yet-merged) Listing already track this exact platform ID - created by
+    // the normal sync/import pass, but never auto-matched to this item? If so, fold it in using the
+    // same copy-then-retire logic as mergeChannel above, instead of just attaching the bare ID.
+    const sourceListing = await Listing.findOne({
+      user: req.user.id,
+      _id: { $ne: targetListingId },
+      [`${platformLower}ListingId`]: externalId,
+      mergedInto: null
+    });
+
+    let mergedFromExisting = false;
+    let sourceDeleted = false;
+
+    if (sourceListing) {
+      mergedFromExisting = true;
+      const platformDetails = (sourceListing.platforms?.[platformLower]) || (sourceListing.crosslistingDetails?.[platformLower]) || (sourceListing.platformData?.[platformLower]) || {};
+      const platformStatus = sourceListing[`${platformLower}Status`] || (sourceListing.platform === platformLower ? sourceListing.status : 'published');
+      const platformUrl = sourceListing[`${platformLower}Url`] || buildPlatformUrl(platformLower, externalId);
+      const platformImages = platformDetails.images?.length > 0 ? platformDetails.images : (sourceListing.images || []);
+      const platformThumb = platformDetails.thumbnail || platformImages[0] || '';
+      const platformPrice = platformDetails.price || sourceListing[`${platformLower}Price`] || sourceListing.price;
+
+      targetListing[`${platformLower}Status`] = platformStatus;
+      targetListing[`${platformLower}ListingId`] = externalId;
+      targetListing[`${platformLower}Url`] = platformUrl;
+      if (platformPrice) targetListing[`${platformLower}Price`] = platformPrice;
+
+      if (!targetListing.platformData) targetListing.platformData = {};
+      targetListing.platformData[platformLower] = { ...platformDetails, thumbnail: platformThumb, images: platformImages, price: platformPrice, status: platformStatus, liveId: externalId, listingId: externalId, url: platformUrl };
+      targetListing.markModified('platformData');
+
+      if ((!targetListing.images || targetListing.images.length === 0) && platformImages.length > 0) {
+        targetListing.images = platformImages;
+        targetListing.thumbnail = platformThumb;
+      }
+      if (targetListing.status === 'draft' && platformStatus === 'published') {
+        targetListing.status = 'published';
+      }
+      await targetListing.save();
+
+      sourceListing[`${platformLower}ListingId`] = undefined;
+      sourceListing[`${platformLower}Url`] = undefined;
+      sourceListing[`${platformLower}Status`] = 'none';
+      if (sourceListing.platforms?.[platformLower]) { delete sourceListing.platforms[platformLower]; sourceListing.markModified('platforms'); }
+      if (sourceListing.crosslistingDetails?.[platformLower]) { delete sourceListing.crosslistingDetails[platformLower]; sourceListing.markModified('crosslistingDetails'); }
+
+      const remainingPlatforms = validPlatforms.filter(p => {
+        const st = sourceListing[`${p}Status`];
+        return st && st !== 'none' && st !== 'unlisted';
+      });
+      if (remainingPlatforms.length === 0) {
+        await Listing.findByIdAndDelete(sourceListing._id);
+        sourceDeleted = true;
+      } else {
+        if (sourceListing.platform === platformLower) sourceListing.platform = remainingPlatforms[0];
+        await sourceListing.save();
+      }
+    } else {
+      // Nothing in our own database tracks this ID yet - just attach it directly.
+      targetListing[`${platformLower}ListingId`] = externalId;
+      targetListing[`${platformLower}Url`] = /^https?:\/\//i.test(url) ? url : buildPlatformUrl(platformLower, externalId);
+      targetListing[`${platformLower}Status`] = 'published';
+      if (targetListing.status === 'draft') targetListing.status = 'published';
+      await targetListing.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Linked your ${platform} listing to this item.`,
+      targetListing,
+      mergedFromExisting,
+      sourceDeleted
+    });
+  } catch (err) {
+    console.error(`[Link Existing Listing] Error:`, err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -4055,9 +4365,7 @@ exports.importActiveChannelsToLocal = async (req, res) => {
         // Create new master Listing in local database
         const primaryPlatform = activeSelectedPlatforms[0] || 'ebay';
         const primaryChannel = channels[primaryPlatform] || item;
-        const finalSku = item.sku && item.sku.trim() 
-          ? item.sku.trim() 
-          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+        const finalSku = item.sku && item.sku.trim() ? item.sku.trim() : '';
 
         const newListing = new Listing({
           user: userId,
@@ -4136,9 +4444,70 @@ exports.importActiveChannelsToLocal = async (req, res) => {
   }
 };
 
-// @desc    Get preview of local listings that can be merged (duplicates across channels)
+// @desc    Verified merge preview: same title + size + a near-identical photo, across platforms.
+//          Replaces the old title/SKU grouping, which joined different items that only shared a title.
 // @route   GET /api/listings/local-merge-preview
 // @access  Private
+exports.getVerifiedMergePreview = async (req, res) => {
+  try {
+    const { scanAndWait } = require('../services/mergeScanJob');
+    const { clusterPairs } = require('../services/mergeApply');
+    const userId = req.user.id;
+
+    const job = await scanAndWait(userId, 45000);
+    if (job.status === 'failed') {
+      return res.status(500).json({ success: false, message: job.error || 'Scan failed.' });
+    }
+    if (job.status === 'running') {
+      // Cold start (many un-hashed photos): tell the UI to poll again rather than block the request.
+      return res.status(202).json({ success: true, scanning: true, processed: job.processed, total: job.total,
+        message: `Still comparing photos (${job.processed}/${job.total}). Try again in a moment.` });
+    }
+
+    const pairs = job.suggestions || [];
+    const clusters = clusterPairs(pairs);
+    if (clusters.length === 0) {
+      return res.json({ success: true, groups: [], scanned: job.total });
+    }
+
+    const PLATFORM_FIELDS = ['ebay', 'poshmark', 'mercari', 'etsy'];
+    const allIds = [...new Set(clusters.flat())];
+    const docs = await Listing.find({ _id: { $in: allIds }, user: userId })
+      .select('title thumbnail images price sku ebayListingId poshmarkListingId mercariListingId etsyListingId')
+      .lean();
+    const byId = new Map(docs.map(d => [String(d._id), d]));
+
+    const thumbOf = (d) => d.thumbnail || (d.images && d.images[0]) || '';
+    const groups = clusters.map((ids) => {
+      const members = ids.map(id => byId.get(id)).filter(Boolean);
+      if (members.length < 2) return null;
+      members.sort((a, b) => PLATFORM_FIELDS.filter(p => a[`${p}ListingId`]).length - PLATFORM_FIELDS.filter(p => b[`${p}ListingId`]).length).reverse();
+      const [primary, ...absorbed] = members;
+
+      const channels = {};
+      members.forEach(m => PLATFORM_FIELDS.forEach(p => {
+        if (m[`${p}ListingId`]) channels[p] = { liveId: m[`${p}ListingId`] };
+      }));
+
+      return {
+        groupId: ids.slice().sort().join('_'),
+        memberIds: ids,
+        masterListing: { _id: primary._id, title: primary.title, thumbnail: thumbOf(primary), price: primary.price, sku: primary.sku },
+        duplicateListings: absorbed.map(a => ({ _id: a._id, title: a.title, thumbnail: thumbOf(a), platform: PLATFORM_FIELDS.find(p => a[`${p}ListingId`]) || '' })),
+        channels,
+        duplicateCount: absorbed.length,
+        totalListingsInGroup: members.length,
+        channelCount: Object.keys(channels).length
+      };
+    }).filter(Boolean);
+
+    res.json({ success: true, groups, scanned: job.total });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Kept only so old code referring to it by name does not throw; no route points here any more.
 exports.getLocalMergePreview = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -4345,9 +4714,37 @@ exports.getLocalMergePreview = async (req, res) => {
   }
 };
 
-// @desc    Execute bulk merge of local listings
+// @desc    Applies the groups from getVerifiedMergePreview. Nothing is deleted: an absorbed record
+//          is marked mergedInto and hidden from the Master list (see models/Listing.js).
 // @route   POST /api/listings/bulk-merge
 // @access  Private
+exports.applyVerifiedMerge = async (req, res) => {
+  try {
+    const { applyMerges } = require('../services/mergeApply');
+    const userId = req.user.id;
+    const groups = Array.isArray(req.body.groups) ? req.body.groups : [];
+
+    const pairs = [];
+    for (const g of groups) {
+      const ids = Array.isArray(g.memberIds) ? g.memberIds : [];
+      for (let i = 1; i < ids.length; i++) pairs.push({ a: ids[0], b: ids[i] });
+    }
+    if (pairs.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one cluster to merge.' });
+    }
+
+    const report = await applyMerges(userId, pairs, { apply: true });
+    const skipped = report.skipped_conflict.length;
+    const message = skipped > 0
+      ? `Merged ${report.merged_records} duplicate listing(s). ${skipped} group(s) were skipped: a record in them already had a conflicting platform id.`
+      : `Merged ${report.merged_records} duplicate listing(s).`;
+    res.json({ success: true, message, report });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Kept only so old code referring to it by name does not throw; no route points here any more.
 exports.bulkMergeListings = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -5489,7 +5886,7 @@ exports.cleanGhostChannels = async (req, res) => {
         user: userId,
         title: eTitle,
         description: e.description || eTitle,
-        category: e.category || 'Clothing & Accessories',
+        category: e.category || 'Needs category review',
         sku: eSku,
         brand: e.brand || '',
         size: e.size || '',
@@ -5550,7 +5947,7 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: pTitle || 'Poshmark Listing',
           description: p.description || pTitle,
-          category: p.category || 'Clothing & Accessories',
+          category: p.category || 'Needs category review',
           sku: pSku,
           brand: p.brand || '',
           size: p.size || '',
@@ -5611,7 +6008,7 @@ exports.cleanGhostChannels = async (req, res) => {
           user: userId,
           title: mTitle || 'Mercari Listing',
           description: m.description || mTitle,
-          category: m.category || 'Clothing & Accessories',
+          category: m.category || 'Needs category review',
           sku: mSku,
           brand: m.brand || '',
           size: m.size || '',
@@ -5743,6 +6140,71 @@ exports.syncAllInventory = async (req, res) => {
       message: 'Failed to initiate inventory sync',
       error: err.message
     });
+  }
+};
+
+const MANUAL_FULL_SYNC_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+
+// @desc    Status for the manual "Sync Now" popup: can the user run it right now, and if not, when.
+// @route   GET /api/listings/full-sync-status
+// @access  Private
+exports.getFullSyncStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('lastManualFullSyncAt').lean();
+    const lastRunAt = user?.lastManualFullSyncAt || null;
+    const nextAllowedAt = lastRunAt ? new Date(new Date(lastRunAt).getTime() + MANUAL_FULL_SYNC_COOLDOWN_MS) : null;
+    const canRunNow = !nextAllowedAt || nextAllowedAt <= new Date();
+    res.json({ success: true, lastRunAt, nextAllowedAt, canRunNow });
+  } catch (err) {
+    console.error('[ListingController] Error reading full sync status:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to read sync status' });
+  }
+};
+
+// @desc    Manual "Sync Now" from the Master page popup - runs the exact same full sync the
+// 12-hour automatic cycle runs (per-platform refresh, live-ID check, auto-import, cross-platform
+// merge), for this one user only. Rate-limited to once per 12 hours, tracked server-side so the
+// real remaining cooldown survives a refresh or a fresh login.
+// @route   POST /api/listings/full-sync
+// @access  Private
+exports.runManualFullSync = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).select('lastManualFullSyncAt');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const lastRunAt = user.lastManualFullSyncAt;
+    if (lastRunAt) {
+      const nextAllowedAt = new Date(new Date(lastRunAt).getTime() + MANUAL_FULL_SYNC_COOLDOWN_MS);
+      if (nextAllowedAt > new Date()) {
+        return res.status(429).json({ success: false, message: 'Sync can only be run once every 12 hours.', nextAllowedAt });
+      }
+    }
+
+    user.lastManualFullSyncAt = new Date();
+    await user.save();
+
+    res.status(202).json({
+      success: true,
+      message: 'Sync started. It is running in the background and your listings will update automatically.',
+      nextAllowedAt: new Date(Date.now() + MANUAL_FULL_SYNC_COOLDOWN_MS)
+    });
+
+    setImmediate(async () => {
+      try {
+        const { runBackgroundInventorySyncCycle } = require('../services/backgroundSyncService');
+        console.log(`[Manual Full Sync] Starting for user: ${userId}`);
+        await runBackgroundInventorySyncCycle([userId]);
+        console.log(`[Manual Full Sync] Completed for user: ${userId}`);
+      } catch (bgErr) {
+        console.error('[Manual Full Sync] Error:', bgErr.message);
+      }
+    });
+  } catch (err) {
+    console.error('[ListingController] Error starting manual full sync:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to start sync' });
   }
 };
 

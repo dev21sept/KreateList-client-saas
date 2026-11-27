@@ -4,6 +4,7 @@ const ebayService = require('../services/ebayService');
 const Listing = require('../models/Listing');
 const { wrapInTemplate } = require('../services/descriptionService');
 const { normalizeProductImages } = require('../utils/imageProcessor');
+const { pickEbayCategory } = require('../utils/ebayCategoryPick');
 const { logActivity } = require('../utils/activityUtils');
 const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
 const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
@@ -245,14 +246,8 @@ function resolvePoshmarkCategoryHelper(rawCat = '', title = '', brand = '', gend
         };
     }
 
-    const defaultPath = isMen ? "Men > Shirts > Tees - Short Sleeve" : "Women > Tops > T-Shirts";
-    const def = POSHMARK_TAXONOMY.find(c => c.path === defaultPath) || POSHMARK_TAXONOMY[0];
-    return {
-        path: def.path,
-        categoryId: def.categoryId,
-        id: def.id,
-        department: def.path.split(' > ')[0]
-    };
+    // Not sure: return no category so the user picks one, instead of a guessed T-shirt or blouse.
+    return { path: '', categoryId: '', id: '', department: '' };
 }
 
 function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gender = 'Unisex') {
@@ -303,13 +298,8 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
         };
     }
 
-    const defaultPath = isMen ? "Men > Athletic apparel > Athletic T-Shirts" : "Women > Tops & blouses > Blouse";
-    const def = (MERCARI_TAXONOMY || []).find(c => c.path === defaultPath) || MERCARI_TAXONOMY[0];
-    return {
-        path: def.path,
-        id: String(def.id),
-        name: def.name
-    };
+    // Not sure: return no category so the user picks one, instead of a guessed T-shirt or blouse.
+    return { path: '', id: '', name: '' };
 }
 
         // --- PHASE 1: CATEGORY IDENTIFICATION ---
@@ -332,7 +322,7 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
 3. Use this deep visual and textual evidence to determine the exact product identity.
 4. If the product is clothing, footwear/shoes, or a fashion accessory, you MUST explicitly identify the target department/gender (e.g., Men's, Women's, Unisex, Kids', Boys', Girls') from the tags, styling, or labels, and you MUST prefix or include this department/gender explicitly in your 'category_query' (e.g. 'Mens Puffer Jacket' or 'Womens Athletic Shoes' instead of a generic 'Puffer Jacket' or 'Athletic Shoes').
 5. STRICT RULE: NEVER return generic single-word category queries like 'Clothing', 'Apparel', 'Item', 'Shirt', 'Jacket', 'Pants', 'Shoes'.
-6. Provide a HIGHLY SPECIFIC search query (3-6 words) targeting the ABSOLUTE LEAF CATEGORY (the deepest possible level) on eBay/marketplaces (e.g., 'Mens Graphic T-Shirts' or 'Mens APFU Military Physical Fitness T-Shirt' or 'Womens Casual Button Down Blouses').
+6. Provide a HIGHLY SPECIFIC search query (3-6 words) targeting the ABSOLUTE LEAF CATEGORY (the deepest possible level) on eBay/marketplaces (e.g., 'Mens Chino Pants' or 'Womens Casual Button Down Blouses' or 'Mens Western Shirts'). Name the product type the item actually is; never default to T-shirts.
 7. Return your response ONLY as a JSON object with 'category_query'.`
                         },
                         ...imageContent
@@ -347,13 +337,14 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
         let categoryId = '';
         let categoryPath = '';
 
-        const query = categoryResult?.category_query || 'Mens Graphic T-Shirts';
+        const query = categoryResult?.category_query || '';
         if (platform === 'etsy') {
             try {
                 console.log(`--- [AI] Resolving Etsy category for query: "${query}" ---`);
                 const { getEtsyTaxonomy } = require('./etsyAiController');
                 const taxonomy = await getEtsyTaxonomy();
                 
+                if (!query.trim()) throw new Error('No category query from AI');
                 // 1. Exact match
                 let matchedCat = taxonomy.find(cat => cat.fullName.toLowerCase() === query.toLowerCase().trim());
                 
@@ -379,60 +370,39 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
                     categoryPath = matchedCat.fullName;
                     console.log(`[AI] Etsy Resolved Category: ${categoryPath} (ID: ${categoryId})`);
                 } else {
-                    categoryPath = "Clothing > Men's Clothing > Shirts & Tops > T-shirts";
+                    categoryPath = '';
                 }
             } catch (err) {
                 console.error("Failed to resolve Etsy category:", err.message);
-                categoryPath = "Clothing > Men's Clothing > Shirts & Tops > T-shirts";
+                categoryPath = '';
             }
         } else {
             try {
                 const appToken = await ebayService.getAppToken();
-                let suggestions = await ebayService.getCategorySuggestions(appToken, query);
-                
-                // Filter out broad parent categories like Category 206 "Clothing" or nodes without ancestors
-                let validSuggestions = (suggestions || []).filter(s => 
-                    String(s.category?.categoryId) !== '206' && 
-                    s.category?.categoryName?.toLowerCase() !== 'clothing' &&
-                    (s.categoryTreeNodeAncestors || []).length > 0
-                );
-
-                // If nothing valid, retry with title/gender fallback
-                if (validSuggestions.length === 0) {
-                    const fallbackQuery = `${gender && gender !== 'Unisex' ? gender : "Men's"} T-Shirts`;
-                    console.log(`[AI] Retrying eBay category suggestions with: "${fallbackQuery}"`);
-                    const retrySuggestions = await ebayService.getCategorySuggestions(appToken, fallbackQuery);
-                    if (retrySuggestions && retrySuggestions.length > 0) {
-                        validSuggestions = retrySuggestions.filter(s => 
-                            String(s.category?.categoryId) !== '206' && 
-                            s.category?.categoryName?.toLowerCase() !== 'clothing' &&
-                            (s.categoryTreeNodeAncestors || []).length > 0
-                        );
-                    }
+                // Use the product title when we have it, otherwise the AI's query.
+                const ebayQuery = (existing_title || '').trim() || query;
+                // Relevance-ordered apparel leaf (see utils/ebayCategoryPick). Never re-sort by depth.
+                let picked = null;
+                for (const q of [...new Set([ebayQuery, query].filter(x => x && x.trim()))]) {
+                    const suggestions = await ebayService.getCategorySuggestions(appToken, q);
+                    picked = pickEbayCategory(suggestions, ebayQuery);
+                    if (picked) break;
                 }
 
-                if (validSuggestions.length > 0) {
-                    validSuggestions.sort((a, b) => {
-                        const depthA = (a.categoryTreeNodeAncestors || []).length;
-                        const depthB = (b.categoryTreeNodeAncestors || []).length;
-                        return depthB - depthA;
-                    });
-                    const bestSuggest = validSuggestions[0];
-                    categoryId = String(bestSuggest.category.categoryId);
-
-                    let ancestors = bestSuggest.categoryTreeNodeAncestors || [];
-                    ancestors.sort((a, b) => a.categoryTreeNodeLevel - b.categoryTreeNodeLevel);
-                    categoryPath = ancestors.map(a => a.categoryName).concat(bestSuggest.category.categoryName).join(' > ');
-                    
-                    console.log(`[AI] Deepest eBay Suggestion: ${categoryPath} (Leaf ID: ${categoryId})`);
+                if (picked) {
+                    categoryId = picked.categoryId;
+                    categoryPath = picked.path;
+                    console.log(`[AI] eBay category: ${categoryPath} (Leaf ID: ${categoryId})`);
                 } else {
-                    categoryId = '57990';
-                    categoryPath = "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts";
+                    // No guess: leave it empty so the user picks the category.
+                    categoryId = '';
+                    categoryPath = '';
+                    console.warn(`[AI] No eBay category suggestion for "${ebayQuery}"; user must pick one.`);
                 }
             } catch (err) {
                 console.error("Failed to fetch official category suggestions:", err.message);
-                categoryId = '57990';
-                categoryPath = "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts";
+                categoryId = '';
+                categoryPath = '';
             }
         }
 
@@ -452,7 +422,12 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
                         localizedAspectName: aspect.localizedAspectName,
                         aspectConstraint: {
                             aspectRequired: aspect.aspectConstraint?.aspectRequired || false,
-                            aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL'
+                            aspectUsage: aspect.aspectConstraint?.aspectUsage || 'OPTIONAL',
+                            // SELECTION_ONLY = eBay rejects anything outside the list (must constrain).
+                            // FREE_TEXT = the list is just eBay's suggested/common values - real text
+                            // outside it is still valid, so a huge list (Brand can have 9000+ values)
+                            // isn't something to truncate-and-force; it's one to leave unconstrained.
+                            aspectMode: aspect.aspectConstraint?.aspectMode || 'FREE_TEXT'
                         },
                         aspectValues: aspect.aspectValues ? aspect.aspectValues.map(v => ({ localizedValue: v.localizedValue })) : []
                     }));
@@ -484,6 +459,40 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
             console.log(`ℹ️ Phase 2: Using fallback default aspects list (length: 8).`);
             aspectNamesList = ['Brand', 'Type', 'Size', 'Color', 'Material', 'Condition', 'Style', 'Department'];
         }
+
+        // eBay rejects/flags an aspect value that isn't one of its own recommended values for that
+        // category (shown to the seller as "Value is not from the Dropdown"). But a category's aspect
+        // value lists range from tiny (Color: ~17) to Brand's own list of 9000+ values - sending that
+        // whole list, or even a truncated slice of it, to the model is both wasteful and useless (the
+        // real brand in the photo is rarely in whichever 9000-item slice gets sent). eBay's own
+        // `aspectMode` tells us which aspects actually require list-matching:
+        //   SELECTION_ONLY - eBay hard-rejects anything else, so the full list must be sent regardless
+        //                    of size (in practice these lists stay small/bounded, e.g. Country of
+        //                    Origin's ~244 countries).
+        //   FREE_TEXT      - the list is just eBay's common/suggested values; real, accurate text
+        //                    outside it is still accepted. Only worth constraining when the list is
+        //                    small enough to plausibly contain the real answer and cheap to send.
+        const MAX_SELECTION_ONLY_VALUES = 300;
+        const MAX_FREE_TEXT_SUGGESTION_VALUES = 80;
+        const mustMatchAspects = officialAspects.filter(a =>
+            a.aspectValues?.length > 0 && a.aspectConstraint.aspectMode === 'SELECTION_ONLY'
+        );
+        const suggestedAspects = officialAspects.filter(a =>
+            a.aspectValues?.length > 0 && a.aspectConstraint.aspectMode !== 'SELECTION_ONLY' &&
+            a.aspectValues.length <= MAX_FREE_TEXT_SUGGESTION_VALUES
+        );
+        const aspectValueConstraintsText = [
+            ...mustMatchAspects.map(a => {
+                const values = a.aspectValues.map(v => v.localizedValue).slice(0, MAX_SELECTION_ONLY_VALUES);
+                return `   - "${a.localizedAspectName}": MUST be exactly one of [${values.map(v => `"${v}"`).join(', ')}] (eBay rejects any other value for this field)`;
+            }),
+            ...suggestedAspects.map(a => {
+                const values = a.aspectValues.map(v => v.localizedValue);
+                return `   - "${a.localizedAspectName}": prefer one of [${values.map(v => `"${v}"`).join(', ')}] if it accurately describes the item; otherwise use accurate text of your own`;
+            })
+        ].join('\n');
+        // Only SELECTION_ONLY aspects are hard constraints the response gets snapped back to.
+        const constrainedAspects = mustMatchAspects;
 
         // --- PHASE 3: FULL ANALYSIS & DATA FILLING ---
         console.log(`--- Phase 3: Detailed AI Analysis ---`);
@@ -548,6 +557,7 @@ function resolveMercariCategoryHelper(rawCat = '', title = '', brand = '', gende
 ${descriptionInstruction}
    
 3. Item Specifics - FILL EVERY FIELD: ${aspectNamesList.join(', ')}.
+${aspectValueConstraintsText ? `   Field-specific rules (read carefully - "MUST" fields are hard-rejected by eBay if you use anything else; "prefer" fields accept your own accurate text when nothing in the list fits):\n${aspectValueConstraintsText}` : ''}
     
 4. Pricing: Estimate a realistic 'selling_price' in USD.
 
@@ -596,21 +606,34 @@ Response ONLY as JSON: {
             throw new Error("OpenAI returned an empty or invalid JSON response.");
         }
 
-        // --- DYNAMIC SKU GENERATION ---
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
+        // Safety net: the prompt asks the model to only use eBay's own aspect values, but it doesn't
+        // always comply exactly (wrong casing, a close paraphrase, etc). Snap each constrained aspect
+        // to its real eBay value when there's a confident match, instead of shipping free text that
+        // eBay's UI would flag as "Value is not from the Dropdown".
+        if (finalData.item_specifics && constrainedAspects.length > 0) {
+            for (const aspect of constrainedAspects) {
+                const aspectKey = Object.keys(finalData.item_specifics).find(k => k.toLowerCase() === aspect.localizedAspectName.toLowerCase());
+                if (!aspectKey) continue;
+                const aiValue = String(finalData.item_specifics[aspectKey] || '').trim();
+                if (!aiValue) continue;
+                const allowedValues = aspect.aspectValues.map(v => v.localizedValue);
+                const exactMatch = allowedValues.find(v => v.toLowerCase() === aiValue.toLowerCase());
+                if (exactMatch) {
+                    finalData.item_specifics[aspectKey] = exactMatch;
+                    continue;
+                }
+                const partialMatch = allowedValues.find(v => aiValue.toLowerCase().includes(v.toLowerCase()) || v.toLowerCase().includes(aiValue.toLowerCase()));
+                if (partialMatch) {
+                    finalData.item_specifics[aspectKey] = partialMatch;
+                } else {
+                    console.warn(`[AI] Item specific "${aspect.localizedAspectName}" = "${aiValue}" has no close match in eBay's allowed values; leaving as-is.`);
+                }
             }
         }
-        finalData.sku = skuCode;
+
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};
@@ -650,7 +673,7 @@ Response ONLY as JSON: {
                     action: 'ai_fetch',
                     feature: 'AI Product Analysis & Title Generation',
                     itemTitle: finalTitle,
-                    sku: finalData.sku || skuCode || '',
+                    sku: finalData.sku || '',
                     platform: platform || 'universal',
                     count: 1
                 });
@@ -688,7 +711,7 @@ Response ONLY as JSON: {
                 poshmark_department: resolvedPoshCategory.department,
                 mercari_category_name: resolvedMercariCategory.path,
                 mercari_category_id: resolvedMercariCategory.id,
-                etsy_category_name: platform === 'etsy' ? categoryPath : "Clothing > Men's Clothing > Shirts & Tops > T-shirts",
+                etsy_category_name: platform === 'etsy' ? categoryPath : '',
                 etsy_category_id: platform === 'etsy' ? categoryId : '',
                 aspects: officialAspects,
                 price: finalData.selling_price || finalData.price

@@ -16,6 +16,23 @@ let lastOrdersSyncTime = null;
 let ordersCronTask = null;
 let inventoryCronTask = null;
 
+// Shared per-user sync lock: the 12-hour background cron, the manual "Sync Now" button and each
+// platform's own "Sync X" button (e.g. poshmarkImportCloset) all scrape and write the same
+// Product/Listing records for a user. Without one shared lock across all three entry points, two
+// of them running at once race on the same documents - interleaved writes from two concurrent
+// closet scrapes can leave a record with a title from one pass and a status from another, and
+// doubles the real work (and Poshmark/eBay request volume) for no benefit.
+const userSyncInFlight = new Set();
+function acquireUserSyncLock(userId) {
+  const key = String(userId);
+  if (userSyncInFlight.has(key)) return false;
+  userSyncInFlight.add(key);
+  return true;
+}
+function releaseUserSyncLock(userId) {
+  userSyncInFlight.delete(String(userId));
+}
+
 /**
  * Reconciles all Orders for a user with Master Listings with SMART MULTI-TIER MATCHING.
  * - Ensures genuine sold orders accurately reflect as `status: 'sold'` in Master Crosslisting.
@@ -165,57 +182,12 @@ async function reconcileOrdersAndMasterListings(userId) {
         l.soldPlatform = null;
         l.errorMessage = null;
 
-        // Restore platform statuses for all connected platforms (both 'sold' and 'delisted' false positives)
-        if (l.ebayListingId && (l.ebayStatus === 'sold' || l.ebayStatus === 'delisted')) {
-          l.ebayStatus = 'published';
-          if (l.platformData?.ebay) l.platformData.ebay.status = 'published';
-          if (l.listingsMap?.ebay) l.listingsMap.ebay.status = 'published';
-        }
-        if (l.poshmarkListingId && (l.poshmarkStatus === 'sold' || l.poshmarkStatus === 'delisted')) {
-          l.poshmarkStatus = 'published';
-          if (l.platformData?.poshmark) l.platformData.poshmark.status = 'published';
-          if (l.listingsMap?.poshmark) l.listingsMap.poshmark.status = 'published';
-        }
-        if (l.mercariListingId && (l.mercariStatus === 'sold' || l.mercariStatus === 'delisted')) {
-          l.mercariStatus = 'published';
-          if (l.platformData?.mercari) l.platformData.mercari.status = 'published';
-          if (l.listingsMap?.mercari) l.listingsMap.mercari.status = 'published';
-        }
-        if (l.etsyListingId && (l.etsyStatus === 'sold' || l.etsyStatus === 'delisted')) {
-          l.etsyStatus = 'published';
-          if (l.platformData?.etsy) l.platformData.etsy.status = 'published';
-          if (l.listingsMap?.etsy) l.listingsMap.etsy.status = 'published';
-        }
-        if (l.depopListingId && (l.depopStatus === 'sold' || l.depopStatus === 'delisted')) {
-          l.depopStatus = 'published';
-          if (l.platformData?.depop) l.platformData.depop.status = 'published';
-          if (l.listingsMap?.depop) l.listingsMap.depop.status = 'published';
-        }
+        // Platform statuses are not changed here: the live ID check (masterStatusSync) owns them.
 
         l.markModified('platformData');
         l.markModified('listingsMap');
         await l.save();
         restoredCount++;
-      } else if (l.status === 'published' && !matchedListingIds.has(l._id.toString())) {
-        // Also self-heal any published/active master listing whose channel status was falsely left as 'sold' or 'delisted'
-        let platChanged = false;
-        const platforms = ['ebay', 'poshmark', 'mercari', 'etsy', 'depop'];
-        for (const p of platforms) {
-          const idField = `${p}ListingId`;
-          const statusField = `${p}Status`;
-          if (l[idField] && (l[statusField] === 'sold' || l[statusField] === 'delisted')) {
-            l[statusField] = 'published';
-            if (l.platformData?.[p]) l.platformData[p].status = 'published';
-            if (l.listingsMap?.[p]) l.listingsMap[p].status = 'published';
-            platChanged = true;
-          }
-        }
-        if (platChanged) {
-          l.markModified('platformData');
-          l.markModified('listingsMap');
-          await l.save();
-          restoredCount++;
-        }
       }
     }
 
@@ -231,120 +203,28 @@ async function reconcileOrdersAndMasterListings(userId) {
  * Rechecks and synchronizes platform statuses across Master Listings.
  */
 async function recheckMasterListingStatuses(userId) {
+  // Only "sold" comes from here (order and product data). It never sets a platform back to "published":
+  // live status comes only from the live ID check (masterStatusSync), so a stale local flag cannot make
+  // an ended item look active again.
   try {
     const listings = await Listing.find({ user: userId });
+    const PLATFORMS = [
+      { source: 'ebay', idField: 'ebayListingId', statusField: 'ebayStatus' },
+      { source: 'poshmark', idField: 'poshmarkListingId', statusField: 'poshmarkStatus' },
+      { source: 'mercari', idField: 'mercariListingId', statusField: 'mercariStatus' },
+      { source: 'etsy', idField: 'etsyListingId', statusField: 'etsyStatus' },
+    ];
 
     let updatedCount = 0;
     for (const listing of listings) {
       let changed = false;
-
-      // 1. Check eBay status
-      if (listing.ebayListingId) {
-        const ebayProd = await Product.findOne({ user: userId, ebayListingId: listing.ebayListingId, source: 'ebay' });
-        if (ebayProd) {
-          if (ebayProd.status === 'sold') {
-            if (listing.ebayStatus !== 'sold') {
-              listing.ebayStatus = 'sold';
-              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'sold';
-              changed = true;
-            }
-          } else if ((ebayProd.status === 'active' || ebayProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.ebayStatus !== 'published') {
-              listing.ebayStatus = 'published';
-              if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
-              changed = true;
-            }
-          } else if (listing.status !== 'sold' && listing.ebayStatus === 'delisted' && ebayProd.status !== 'sold') {
-            // Restore false-positive delisted item
-            listing.ebayStatus = 'published';
-            if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
-            changed = true;
-          }
-        } else if (listing.status !== 'sold' && listing.ebayStatus !== 'published') {
-          listing.ebayStatus = 'published';
-          if (listing.platformData?.ebay) listing.platformData.ebay.status = 'published';
+      for (const p of PLATFORMS) {
+        if (!listing[p.idField]) continue;
+        const prod = await Product.findOne({ user: userId, [p.idField]: listing[p.idField], source: p.source });
+        if (prod && prod.status === 'sold' && listing[p.statusField] !== 'sold') {
+          listing[p.statusField] = 'sold';
+          if (listing.platformData?.[p.source]) listing.platformData[p.source].status = 'sold';
           changed = true;
-        }
-      }
-
-      // 2. Check Poshmark status
-      if (listing.poshmarkListingId) {
-        const poshProd = await Product.findOne({ user: userId, poshmarkListingId: listing.poshmarkListingId, source: 'poshmark' });
-        if (poshProd) {
-          if (poshProd.status === 'sold') {
-            if (listing.poshmarkStatus !== 'sold') {
-              listing.poshmarkStatus = 'sold';
-              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'sold';
-              changed = true;
-            }
-          } else if ((poshProd.status === 'active' || poshProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.poshmarkStatus !== 'published') {
-              listing.poshmarkStatus = 'published';
-              if (listing.platformData?.poshmark) listing.platformData.poshmark.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 3. Check Mercari status
-      if (listing.mercariListingId) {
-        const mercProd = await Product.findOne({ user: userId, mercariListingId: listing.mercariListingId, source: 'mercari' });
-        if (mercProd) {
-          if (mercProd.status === 'sold') {
-            if (listing.mercariStatus !== 'sold') {
-              listing.mercariStatus = 'sold';
-              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'sold';
-              changed = true;
-            }
-          } else if ((mercProd.status === 'active' || mercProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.mercariStatus !== 'published') {
-              listing.mercariStatus = 'published';
-              if (listing.platformData?.mercari) listing.platformData.mercari.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 4. Check Etsy status
-      if (listing.etsyListingId) {
-        const etsyProd = await Product.findOne({ user: userId, etsyListingId: listing.etsyListingId, source: 'etsy' });
-        if (etsyProd) {
-          if (etsyProd.status === 'sold') {
-            if (listing.etsyStatus !== 'sold') {
-              listing.etsyStatus = 'sold';
-              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'sold';
-              changed = true;
-            }
-          } else if ((etsyProd.status === 'active' || etsyProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.etsyStatus !== 'published') {
-              listing.etsyStatus = 'published';
-              if (listing.platformData?.etsy) listing.platformData.etsy.status = 'published';
-              changed = true;
-            }
-          }
-        }
-      }
-
-      // 5. Check Depop status
-      if (listing.depopListingId) {
-        const depopProd = await Product.findOne({ user: userId, depopListingId: listing.depopListingId, source: 'depop' });
-        if (depopProd) {
-          if (depopProd.status === 'inactive' || depopProd.status === 'sold') {
-            const targetStat = depopProd.status === 'sold' ? 'sold' : 'delisted';
-            if (listing.depopStatus !== targetStat) {
-              listing.depopStatus = targetStat;
-              if (listing.platformData?.depop) listing.platformData.depop.status = targetStat;
-              changed = true;
-            }
-          } else if ((depopProd.status === 'active' || depopProd.status === 'live') && listing.status !== 'sold') {
-            if (listing.depopStatus !== 'published') {
-              listing.depopStatus = 'published';
-              if (listing.platformData?.depop) listing.platformData.depop.status = 'published';
-              changed = true;
-            }
-          }
         }
       }
 
@@ -360,7 +240,7 @@ async function recheckMasterListingStatuses(userId) {
     await reconcileOrdersAndMasterListings(userId);
 
     if (updatedCount > 0) {
-      console.log(`[Status Recheck] Updated ${updatedCount} master listing(s) after channel status verification.`);
+      console.log(`[Status Recheck] Updated ${updatedCount} master listing(s) after sold verification.`);
     }
   } catch (err) {
     console.error('[Status Recheck] Error rechecking listing statuses:', err.message);
@@ -466,11 +346,13 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
       return { newItemsCount: 0, mergedItemsCount: 0 };
     }
 
-    // 2. Fetch existing listings to check what is already linked
-    const existingListings = await Listing.find({
-      user: userId,
-      status: { $ne: 'sold' }
-    });
+    // 2. Fetch existing listings to check what is already linked. Deliberately not filtered by
+    // status: a listing that briefly flips to 'sold' (e.g. a false-positive order match) and back
+    // used to become invisible to this check for that one cycle, letting a duplicate Master Listing
+    // get created for the same already-linked platform item - confirmed live from a real duplicate
+    // (two Masters both holding the same poshmarkListingId). A platform ID is still claimed by its
+    // document regardless of what our own status field currently says.
+    const existingListings = await Listing.find({ user: userId });
 
     const isProductLinked = (prod, listings) => {
       const src = prod.source;
@@ -495,8 +377,46 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
     let newItemsCount = 0;
     let mergedItemsCount = 0;
 
+    // One live ID becomes one Master record: the same ID is never imported twice in one run.
+    const claimedIds = new Set();
+    let ebayTokenForCategory = null;
     for (const prod of unlinked) {
       const src = prod.source;
+      const realId = prod[`${src}ListingId`] || prod.itemId || prod.listingId;
+      if (!realId) continue; // no platform ID: not a live listing, do not create a Master record
+      if (claimedIds.has(`${src}:${String(realId)}`)) continue;
+      claimedIds.add(`${src}:${String(realId)}`);
+
+      // eBay active items come without a category, brand, size or color from the bulk listing call -
+      // those only come back from a per-item GetItem fetch. Fetch it once, here, the first time this
+      // item is imported, whenever any of those four is still missing, and save all four together
+      // (not just category, as before - brand/size/color were being fetched and silently discarded,
+      // which is exactly why the cross-platform merge matcher had nothing to fall back on for these
+      // eBay items when a photo didn't match closely enough).
+      if (src === 'ebay' && (!prod.categoryId || !prod.brand || !prod.size || !prod.color)) {
+        try {
+          if (!ebayTokenForCategory) ebayTokenForCategory = await require('./ebayService').getValidEbayToken(String(userId));
+          const det = await require('./ebayService').getTradingItemDetails(ebayTokenForCategory, String(realId));
+          if (det) {
+            const update = {};
+            if (det.categoryId) {
+              prod.categoryId = String(det.categoryId);
+              // eBay returns the path with ':' separators; the app uses ' > ' (see categoryResolver).
+              prod.category = det.categoryName ? String(det.categoryName).split(':').map(x => x.trim()).join(' > ') : (prod.category || '');
+              update.categoryId = prod.categoryId;
+              update.category = prod.category;
+            }
+            if (det.brand && !prod.brand) { prod.brand = det.brand; update.brand = det.brand; }
+            if (det.size && !prod.size) { prod.size = det.size; update.size = det.size; }
+            if (det.color && !prod.color) { prod.color = det.color; update.color = det.color; }
+            if (Object.keys(update).length) {
+              await Product.updateOne({ _id: prod._id }, { $set: update });
+            }
+          }
+        } catch (catErr) {
+          // Left blank: the next sync retries this item.
+        }
+      }
       const liveId = String(prod[`${src}ListingId`] || prod.itemId || prod.listingId || prod.sku || prod._id);
       let url = prod[`${src}Url`] || prod.url || '';
       if (!url) {
@@ -511,12 +431,9 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
         : (prod.thumbnail ? [prod.thumbnail] : []);
 
       // Check if product matches an existing listing
-      let matchedListing = findBestMatchingListing(existingListings, {
-        title: prod.title,
-        sku: prod.sku,
-        listingId: liveId,
-        platform: src
-      });
+      // Title and SKU matching is not used here: it joined different items (SKUs repeat, titles are similar).
+      // Only records linked by live ID are merged, and merges are confirmed by the user.
+      let matchedListing = null;
 
       // Guard: If matchedListing already has a DIFFERENT item ID for this platform, do not overwrite it
       if (matchedListing && matchedListing[`${src}ListingId`] && String(matchedListing[`${src}ListingId`]) !== liveId) {
@@ -568,9 +485,7 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
         console.log(`[Auto-Import/Merge] Merged ${src} item "${prod.title}" into listing ${matchedListing._id}`);
       } else {
         // Auto-create new Master Listing
-        const finalSku = prod.sku && prod.sku.trim()
-          ? prod.sku.trim()
-          : `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+        const finalSku = prod.sku && prod.sku.trim() ? prod.sku.trim() : '';
 
         const newListing = new Listing({
           user: userId,
@@ -623,7 +538,7 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
 
         newListing.markModified('platformData');
         await newListing.save();
-        existingListings.push(newListing);
+        existingListings.push(newListing); // later products in this run see it
         newItemsCount++;
         console.log(`[Auto-Import/Merge] Created new Master Listing ${newListing._id} for ${src} item "${prod.title}"`);
       }
@@ -643,15 +558,24 @@ async function autoImportAndMergeUnlinkedChannels(userId) {
 /**
  * Executes an automated 30-minute All-Platform Inventory Sync & Status Recheck.
  */
-async function runBackgroundInventorySyncCycle() {
-  if (isInventorySyncRunning) {
-    return;
+/**
+ * `targetUserIds`: when given, runs this exact same cycle for only those users (used by the manual
+ * "Sync Now" button so it reuses the real 12-hour cycle's logic verbatim, never a separate copy that
+ * could drift from it) and does not take the global isInventorySyncRunning lock - that lock exists to
+ * stop two full, all-users cycles from overlapping, which is not the concern for a single targeted
+ * user; the per-user acquireUserSyncLock inside the loop below still protects that user same as always.
+ */
+async function runBackgroundInventorySyncCycle(targetUserIds = null) {
+  const isFullCycle = !targetUserIds;
+  if (isFullCycle) {
+    if (isInventorySyncRunning) {
+      return { skipped: 'full cycle already running' };
+    }
+    isInventorySyncRunning = true;
   }
 
-  isInventorySyncRunning = true;
-
   try {
-    const users = await User.find({
+    const query = {
       $or: [
         { 'ebayAccount.connected': true },
         { 'ebay.connected': true },
@@ -661,12 +585,19 @@ async function runBackgroundInventorySyncCycle() {
         { 'amazonAccount.connected': true },
         { 'depopAccount.connected': true }
       ]
-    });
+    };
+    if (targetUserIds) {
+      query._id = { $in: targetUserIds };
+    }
+    const users = await User.find(query);
 
     for (const user of users) {
+      const userId = user._id.toString();
+      if (!acquireUserSyncLock(userId)) {
+        console.log(`[Background Inventory Worker] A sync is already running for ${user.email} (manual trigger or another entry point); skipping this user for this cycle.`);
+        continue;
+      }
       try {
-        const userId = user._id.toString();
-
         // 1. eBay Inventory Sync
         const isEbayConnected = (user.ebayAccount?.connected && (user.ebayAccount?.accessToken || user.ebayAccount?.refreshToken)) || (user.ebay?.connected);
         if (isEbayConnected) {
@@ -705,7 +636,15 @@ async function runBackgroundInventorySyncCycle() {
                       sku: item.sku || '',
                       images: item.images || [],
                       status: item.status === 'active' ? 'active' : 'inactive',
+                      poshmarkState: item.poshmarkState,
                       poshmarkUrl: item.poshmarkUrl,
+                      // The scraper has read these from Poshmark for a while; this update just never
+                      // saved them, so every edit on a Poshmark-sourced item showed them blank.
+                      brand: item.brand || '',
+                      size: item.size || '',
+                      color: item.color || '',
+                      category: item.category || 'Clothing',
+                      categoryId: item.categoryId || '',
                       updated_at: Date.now()
                     }
                   },
@@ -714,31 +653,65 @@ async function runBackgroundInventorySyncCycle() {
               }));
 
               if (poshOps.length > 0) {
-                await Product.bulkWrite(poshOps, { ordered: false });
+                // See the matching comment in syncUserInventoryUnlocked's Poshmark block: a schema-cast
+                // failure on one $set field silently drops that op under ordered:false, with no thrown
+                // error - this warning is the only signal a recurrence would otherwise leave behind.
+                try {
+                  const bwResult = await Product.bulkWrite(poshOps, { ordered: false });
+                  if (bwResult.matchedCount + bwResult.upsertedCount < poshOps.length * 0.9) {
+                    console.warn(`[Background Inventory Worker] Poshmark bulkWrite only touched ${bwResult.matchedCount + bwResult.upsertedCount}/${poshOps.length} ops (matched=${bwResult.matchedCount}, upserted=${bwResult.upsertedCount}) - check for a schema-cast mismatch on one of the $set fields.`);
+                  }
+                } catch (bwErr) {
+                  console.error(`[Background Inventory Worker] Poshmark bulkWrite failed:`, bwErr.message);
+                }
               }
 
-              if (activePoshIds.size > 0) {
-                await Product.updateMany(
-                  {
-                    user: userId,
-                    source: 'poshmark',
-                    status: 'active',
-                    poshmarkListingId: { $nin: Array.from(activePoshIds) }
-                  },
-                  { $set: { status: 'inactive', updated_at: Date.now() } }
-                );
+              // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
+              const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
 
-                await Listing.updateMany(
-                  {
-                    user: userId,
-                    poshmarkListingId: { $nin: Array.from(activePoshIds) },
-                    poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
-                  },
-                  {
-                    $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
-                    $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
-                  }
+              // Safety: a scrape that comes back with far fewer active items than were already known
+              // live is more likely an incomplete/partial read (pagination hiccup, rate limit, a
+              // transient Poshmark error) than a sudden mass-delist. Clearing poshmarkListingId on a
+              // false read makes that record look "unlinked" to the next import pass, which then
+              // creates a brand new duplicate Listing for the exact same item - repeating every cycle
+              // and never actually fixing itself. Skipping the clearing step on a suspicious read costs
+              // one cycle of staleness; running it anyway costs an accumulating pile of ghost listings.
+              const previousActiveCount = await Listing.countDocuments({ user: userId, poshmarkStatus: { $in: ['published', 'active'] } });
+              const scrapeLooksIncomplete = previousActiveCount >= 10 && activePoshIds.size < previousActiveCount * 0.5;
+              if (scrapeLooksIncomplete) {
+                console.warn(`[Background Inventory Worker] Poshmark scrape for @${user.poshmarkAccount.username} looks incomplete (${activePoshIds.size} active vs ${previousActiveCount} previously known) - skipping removal/ID-clearing this cycle.`);
+              } else {
+                await Product.updateMany(
+                  { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+                  // status also flips here, not only when it was literally 'active' (see below) - a
+                  // product's status can read 'live' or other values, and leaving status untouched
+                  // keeps it eligible for the unlinked-import pass even once it's confirmed gone from
+                  // the closet entirely, recreating a fresh Listing for it every cycle forever.
+                  { $set: { poshmarkState: 'removed', status: 'inactive', updated_at: Date.now() } }
                 );
+                if (activePoshIds.size > 0) {
+                  await Product.updateMany(
+                    {
+                      user: userId,
+                      source: 'poshmark',
+                      status: 'active',
+                      poshmarkListingId: { $nin: Array.from(activePoshIds) }
+                    },
+                    { $set: { status: 'inactive', updated_at: Date.now() } }
+                  );
+
+                  await Listing.updateMany(
+                    {
+                      user: userId,
+                      poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                      poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
+                    },
+                    {
+                      $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+                      $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+                    }
+                  );
+                }
               }
             }
           } catch (poshErr) {
@@ -807,15 +780,37 @@ async function runBackgroundInventorySyncCycle() {
         // 5. Recheck Master Listing Platform Statuses & Reconcile Orders
         await recheckMasterListingStatuses(userId);
 
-        // 5.5 Auto-Import and Auto-Merge newly discovered channel items
+        // 5.4 Live check by listing ID, same as Sync Now, so this 12-hour cycle does not skip it
+        let liveResult = null;
+        try {
+          const { syncMasterStatuses } = require('./masterStatusSync');
+          liveResult = await syncMasterStatuses(userId, { apply: true });
+        } catch (liveErr) {
+          console.warn(`[Background Inventory Worker] Live ID check notice for ${user.email}:`, liveErr.message);
+        }
+
+        // 5.5 Auto-Import newly discovered channel items (title/SKU auto-merge is off; see Smart Merge)
         let newItemsCount = 0;
-        let mergedItemsCount = 0;
         try {
           const autoRes = await autoImportAndMergeUnlinkedChannels(userId);
           newItemsCount = autoRes.newItemsCount || 0;
-          mergedItemsCount = autoRes.mergedItemsCount || 0;
         } catch (autoErr) {
           console.warn(`[Background Inventory Worker] Auto-import notice for ${user.email}:`, autoErr.message);
+        }
+
+        // 5.6 Verified cross-platform merge: scan (photo + size + brand, same bar as Smart Merge) and
+        // apply automatically. A record is only ever folded (mergedInto), never deleted, so this is reversible.
+        let mergedItemsCount = 0;
+        try {
+          const { scanAndWait } = require('./mergeScanJob');
+          const { applyMerges } = require('./mergeApply');
+          const scan = await scanAndWait(userId, 45000);
+          if (scan.status === 'done' && scan.suggestions && scan.suggestions.length) {
+            const mergeReport = await applyMerges(userId, scan.suggestions, { apply: true });
+            mergedItemsCount = mergeReport.merged_records || 0;
+          }
+        } catch (mergeErr) {
+          console.warn(`[Background Inventory Worker] Auto-merge notice for ${user.email}:`, mergeErr.message);
         }
 
         // 6. Record lastSyncSummary for User so popup triggers on frontend (on app open & live)
@@ -834,6 +829,7 @@ async function runBackgroundInventorySyncCycle() {
             newItemsCount: newItemsCount,
             mergedItemsCount: mergedItemsCount,
             platforms: connectedPlatforms,
+            live: liveResult ? { active: liveResult.live.active, delisted: liveResult.live.delisted, sold: liveResult.live.sold, changed: liveResult.changed } : undefined,
             shownToUser: false
           };
           user.markModified('lastSyncSummary');
@@ -845,14 +841,18 @@ async function runBackgroundInventorySyncCycle() {
 
       } catch (userErr) {
         console.error(`[Background Inventory Worker] Error processing user ${user.email}:`, userErr.message);
+      } finally {
+        releaseUserSyncLock(userId);
       }
     }
 
-    console.log('[Background Inventory Worker] 12-hour All-Platform Inventory Import & Sync cycle completed.');
+    console.log(isFullCycle
+      ? '[Background Inventory Worker] 12-hour All-Platform Inventory Import & Sync cycle completed.'
+      : `[Background Inventory Worker] Manual sync completed for ${users.length} user(s).`);
   } catch (err) {
     console.error('[Background Inventory Worker] Fatal error during inventory sync cycle:', err.message);
   } finally {
-    isInventorySyncRunning = false;
+    if (isFullCycle) isInventorySyncRunning = false;
   }
 }
 
@@ -908,7 +908,23 @@ function stopBackgroundSyncWorker() {
 /**
  * Synchronizes live marketplace inventory for a specific user across all connected channels.
  */
+// One sync per user at a time, shared with the background cron and each platform's own "Sync X"
+// button via acquireUserSyncLock/releaseUserSyncLock above - a second request (double click, cron
+// overlap, a dedicated-platform sync) would otherwise race the same records.
 async function syncUserInventory(userId) {
+  const key = String(userId);
+  if (!acquireUserSyncLock(key)) {
+    console.log(`[Sync User Inventory] A sync is already running for ${key}; skipping this request.`);
+    return { skipped: 'already running' };
+  }
+  try {
+    return await syncUserInventoryUnlocked(userId);
+  } finally {
+    releaseUserSyncLock(key);
+  }
+}
+
+async function syncUserInventoryUnlocked(userId) {
   const user = await User.findById(userId);
   if (!user) throw new Error('User not found');
 
@@ -961,7 +977,13 @@ async function syncUserInventory(userId) {
                 sku: item.sku || '',
                 images: item.images || [],
                 status: item.status === 'active' ? 'active' : 'inactive',
+                poshmarkState: item.poshmarkState,
                 poshmarkUrl: item.poshmarkUrl,
+                brand: item.brand || '',
+                size: item.size || '',
+                color: item.color || '',
+                category: item.category || 'Clothing',
+                categoryId: item.categoryId || '',
                 updated_at: Date.now()
               }
             },
@@ -970,31 +992,59 @@ async function syncUserInventory(userId) {
         }));
 
         if (poshOps.length > 0) {
-          await Product.bulkWrite(poshOps, { ordered: false });
+          // A schema-cast failure on any single $set field (e.g. a non-string value reaching a
+          // String field) silently drops that whole op from the batch under ordered:false, with
+          // matchedCount/modifiedCount just coming back lower - no thrown error, no write-error entry.
+          // That's exactly how a bad `color` value once left most of a closet's items unsynced while
+          // looking like a normal "success" result. Logging the counts makes a recurrence visible.
+          try {
+            const bwResult = await Product.bulkWrite(poshOps, { ordered: false });
+            if (bwResult.matchedCount + bwResult.upsertedCount < poshOps.length * 0.9) {
+              console.warn(`[Sync User Inventory] Poshmark bulkWrite only touched ${bwResult.matchedCount + bwResult.upsertedCount}/${poshOps.length} ops (matched=${bwResult.matchedCount}, upserted=${bwResult.upsertedCount}) - check for a schema-cast mismatch on one of the $set fields.`);
+            }
+          } catch (bwErr) {
+            console.error(`[Sync User Inventory] Poshmark bulkWrite failed:`, bwErr.message);
+          }
         }
 
-        if (activePoshIds.size > 0) {
-          await Product.updateMany(
-            {
-              user: userId,
-              source: 'poshmark',
-              status: 'active',
-              poshmarkListingId: { $nin: Array.from(activePoshIds) }
-            },
-            { $set: { status: 'inactive', updated_at: Date.now() } }
-          );
+        // Listings missing from the closet are gone from Poshmark: mark them removed, not just inactive.
+        const allPoshIds = new Set(scraped.map(x => x.poshmarkListingId).filter(Boolean));
 
-          await Listing.updateMany(
-            {
-              user: userId,
-              poshmarkListingId: { $nin: Array.from(activePoshIds) },
-              poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
-            },
-            {
-              $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
-              $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
-            }
+        // Safety: see the matching guard in runBackgroundInventorySyncCycle - a scrape with far fewer
+        // active items than already known live is more likely incomplete than a mass-delist, and
+        // clearing poshmarkListingId on a false read spawns a duplicate "unlinked" Listing every cycle.
+        const previousActiveCount = await Listing.countDocuments({ user: userId, poshmarkStatus: { $in: ['published', 'active'] } });
+        const scrapeLooksIncomplete = previousActiveCount >= 10 && activePoshIds.size < previousActiveCount * 0.5;
+        if (scrapeLooksIncomplete) {
+          console.warn(`[Sync User Inventory] Poshmark scrape for @${user.poshmarkAccount.username} looks incomplete (${activePoshIds.size} active vs ${previousActiveCount} previously known) - skipping removal/ID-clearing this run.`);
+        } else {
+          await Product.updateMany(
+            { user: userId, source: 'poshmark', poshmarkListingId: { $nin: Array.from(allPoshIds) } },
+            { $set: { poshmarkState: 'removed', status: 'inactive', updated_at: Date.now() } }
           );
+          if (activePoshIds.size > 0) {
+            await Product.updateMany(
+              {
+                user: userId,
+                source: 'poshmark',
+                status: 'active',
+                poshmarkListingId: { $nin: Array.from(activePoshIds) }
+              },
+              { $set: { status: 'inactive', updated_at: Date.now() } }
+            );
+
+            await Listing.updateMany(
+              {
+                user: userId,
+                poshmarkListingId: { $nin: Array.from(activePoshIds) },
+                poshmarkStatus: { $in: ['published', 'active', 'delisted'] }
+              },
+              {
+                $set: { poshmarkStatus: 'none', poshmarkListingId: null, poshmarkUrl: null },
+                $unset: { 'listingsMap.poshmark': "", 'platformData.poshmark': "" }
+              }
+            );
+          }
         }
         results.poshmark = { status: 'success', count: scraped.length };
       }
@@ -1068,6 +1118,15 @@ async function syncUserInventory(userId) {
   await recheckMasterListingStatuses(userId);
   await reconcileOrdersAndMasterListings(userId);
 
+  // 5.4 Live check by listing ID first, so the import below works on the real status
+  let liveResult = null;
+  try {
+    const { syncMasterStatuses } = require('./masterStatusSync');
+    liveResult = await syncMasterStatuses(userId, { apply: true });
+  } catch (liveErr) {
+    console.warn('[Sync User Inventory] Live ID check notice:', liveErr.message);
+  }
+
   // 5.5 Auto-Import and Auto-Merge newly discovered channel items
   let newItemsCount = 0;
   let mergedItemsCount = 0;
@@ -1079,32 +1138,12 @@ async function syncUserInventory(userId) {
     console.warn(`[Sync User Inventory] Auto-import notice:`, autoErr.message);
   }
 
-  // 6. Record and calculate Sync Summary (New items vs Merged items)
-  try {
-    const connectedPlatforms = [];
-    if (isEbayConnected) connectedPlatforms.push('eBay');
-    if (user.poshmarkAccount?.connected) connectedPlatforms.push('Poshmark');
-    if (user.mercariAccount?.connected) connectedPlatforms.push('Mercari');
-    if (user.etsyAccount?.connected) connectedPlatforms.push('Etsy');
-
-    const totalProcessed = (results.ebay?.count || 0) + (results.poshmark?.count || 0) + (results.mercari?.count || 0) + (results.etsy?.count || 0);
-    
-    const allUserListings = await Listing.find({ user: userId, status: { $ne: 'sold' } }).lean();
-
-    user.lastSyncSummary = {
-      syncedAt: new Date(),
-      totalProcessed: totalProcessed || allUserListings.length,
-      newItemsCount: newItemsCount,
-      mergedItemsCount: mergedItemsCount,
-      platforms: connectedPlatforms,
-      shownToUser: false
-    };
-    user.markModified('lastSyncSummary');
-    await user.save();
-    console.log(`[Sync Summary] Recorded for User ${userId}: Processed=${totalProcessed || allUserListings.length}, New=${newItemsCount}, Merged=${mergedItemsCount}`);
-  } catch (sumErr) {
-    console.warn(`[Sync Summary] Failed to record sync summary:`, sumErr.message);
-  }
+  // Manual "Sync Now" runs do not touch lastSyncSummary / the "Sync Complete" popup. That popup is
+  // meant to always reflect the 12-hour background cron's result and to surface once per login - a
+  // manual click overwriting it with its own (often much smaller, same-minute) numbers made the popup
+  // show stale-looking "+0 / 0" results instead of the real 12-hour reconciliation. Only
+  // runBackgroundInventorySyncCycle below writes lastSyncSummary now.
+  console.log(`[Sync Summary] Manual sync finished for User ${userId}: New=${newItemsCount}, Merged=${mergedItemsCount} (not recorded to lastSyncSummary - that reflects the 12-hour cron only)`);
 
   return results;
 }
@@ -1117,6 +1156,8 @@ module.exports = {
   syncUserInventory,
   recheckMasterListingStatuses,
   reconcileOrdersAndMasterListings,
-  autoImportAndMergeUnlinkedChannels
+  autoImportAndMergeUnlinkedChannels,
+  acquireUserSyncLock,
+  releaseUserSyncLock
 };
 

@@ -15,7 +15,7 @@ const {
 
 const router = express.Router();
 
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
 router.post('/register', register);
 router.post('/login', login);
@@ -25,7 +25,9 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password-otp', resetPasswordWithOtp);
 router.post('/reset-password/:token', resetPassword);
 router.get('/me', protect, getMe);
-router.put('/subscription', protect, updateSubscription);
+// Subscription state may only be changed by an administrator. Customer
+// upgrades are handled by the verified payment endpoints/webhooks.
+router.put('/subscription', protect, authorize('admin'), updateSubscription);
 router.put('/profile', protect, updateProfile);
 router.put('/password', protect, changePassword);
 

@@ -81,70 +81,191 @@ export const resolveMercariCategory = (rawCategory = '', title = '', brand = '',
  * Resolves a full 3-level Poshmark category path.
  * NEVER returns a single word like 'Clothing'.
  */
+const POSHMARK_GENERIC_SEGMENTS = new Set(['clothing', 'shoes', 'accessories', 'clothing shoes and accessories', 'other']);
+const POSHMARK_GENDER_WORDS = new Set(['women', 'womens', 'men', 'mens', 'kids', 'girls', 'boys', 'unisex', 'female', 'male']);
+const POSHMARK_STOP_WORDS = new Set(['and', 'the', 'for', 'of', 'with']);
+// Common eBay leaf names whose Poshmark leaf is spelled differently (keys are singularKey() forms).
+const POSHMARK_LEAF_SYNONYMS = {
+  't shirt': 'tee short sleeve',
+  'tshirt': 'tee short sleeve',
+  'tee': 'tee short sleeve',
+  'long sleeve t shirt': 'tee long sleeve',
+  'sweatshirt': 'sweatshirt and hoodie',
+  'hoodie': 'sweatshirt and hoodie'
+};
+
+const normalizePoshmarkText = (text = '') => String(text)
+  .toLowerCase()
+  .replace(/&/g, ' and ')
+  .replace(/['’]/g, ' ')
+  .replace(/[^a-z0-9 ]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+// Plural-tolerant key: "Shoes" and "Shoe" compare equal.
+const poshmarkSingularKey = (text = '') => normalizePoshmarkText(text)
+  .split(' ')
+  .map(w => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w))
+  .join(' ');
+
+const poshmarkGenderFromText = (text = '') => {
+  const clean = normalizePoshmarkText(text);
+  if (/\b(women|womens|women s|female|girls?)\b/.test(clean)) return 'Women';
+  if (/\b(men|mens|men s|male|boys?)\b/.test(clean)) return 'Men';
+  if (/\b(kids?|child|children|baby|toddler)\b/.test(clean)) return 'Kids';
+  return null;
+};
+
+// Maps an eBay category path (or leaf name) to a Poshmark taxonomy entry.
+// Mirrors backend/services/poshmarkCategoryMapper.js. Returns null when unsure,
+// so the seller picks the category instead of getting an unrelated one.
+export const mapEbayToPoshmark = ({ ebayPath = '', title = '', gender = null } = {}) => {
+  const segments = String(ebayPath)
+    .split('>')
+    .map(s => s.trim())
+    .filter(s => s && !POSHMARK_GENERIC_SEGMENTS.has(normalizePoshmarkText(s)));
+
+  const leafText = segments.length ? segments[segments.length - 1] : '';
+  const parentText = segments.length > 1 ? segments[segments.length - 2] : '';
+  const targetGender = gender || poshmarkGenderFromText(ebayPath) || poshmarkGenderFromText(title);
+  const rawLeafKey = poshmarkSingularKey(leafText);
+  const leafKey = POSHMARK_LEAF_SYNONYMS[rawLeafKey] || rawLeafKey;
+  if (!leafKey) return null;
+
+  const inGender = entry => !targetGender || entry.path.split(' > ')[0] === targetGender;
+
+  let candidates = POSHMARK_TAXONOMY.filter(entry =>
+    poshmarkSingularKey(entry.path.split(' > ').pop()) === leafKey && inGender(entry)
+  );
+
+  if (candidates.length > 1 && parentText) {
+    const parentKey = poshmarkSingularKey(parentText);
+    const withParent = candidates.filter(entry =>
+      entry.path.split(' > ').slice(1, -1).map(poshmarkSingularKey).some(part => part && parentKey.includes(part))
+    );
+    if (withParent.length) candidates = withParent;
+  }
+
+  if (candidates.length) return candidates[0];
+
+  // Same words in a different order or with a leading gender word.
+  const wordSet = key => [...new Set(key.split(' ').filter(w => w.length > 1 && !POSHMARK_STOP_WORDS.has(w) && !POSHMARK_GENDER_WORDS.has(w)))].sort().join(' ');
+  const targetWords = wordSet(leafKey);
+  if (targetWords) {
+    const matches = POSHMARK_TAXONOMY.filter(entry =>
+      inGender(entry) && wordSet(poshmarkSingularKey(entry.path.split(' > ').pop())) === targetWords
+    );
+    if (matches.length) return matches[0];
+  }
+
+  // eBay's leaf IS one of Poshmark's own generic groups ("Jeans", "Dresses", "Jackets & Coats", etc)
+  // rather than a specific subtype ("Straight Leg", "Maxi") - Poshmark's taxonomy only has those as
+  // 3-level paths with the group as the middle segment, never as a leaf by itself, so tiers above
+  // always miss them. Every subtype under one group shares the same categoryId/departmentId (that's
+  // all Poshmark's publish API actually needs), so any entry in the group is as valid a starting
+  // point as guessing the "right" subtype would be - mirrors backend/services/poshmarkCategoryMapper.js.
+  const groupMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const parts = entry.path.split(' > ');
+    return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]) === leafKey;
+  });
+  if (groupMatches.length) return groupMatches[0];
+
+  // Compound group names ("Shirts & Tops", "Jackets & Coats") don't equal a single-word eBay leaf
+  // ("Shirts") exactly - a group whose name contains the eBay leaf word is still a confident match.
+  const groupContainsMatches = POSHMARK_TAXONOMY.filter(entry => {
+    const parts = entry.path.split(' > ');
+    return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(leafKey);
+  });
+  if (groupContainsMatches.length) return groupContainsMatches[0];
+
+  // eBay's own leaf is itself a compound ("Activewear Tops", "Golf ... Shirts & Tops", "Coats,
+  // Jackets & Vests") - leafKey never matches as one unit since it's multiple words. The LAST word
+  // of an English compound is usually the actual garment type ("Activewear Tops" -> "Tops"; a
+  // qualifier like "Activewear"/"Golf" is a prefix, not the category). Try each word from the end
+  // through the same three tiers above until one hits.
+  const leafWords = leafKey.split(' ').filter(w => w.length > 1 && !POSHMARK_STOP_WORDS.has(w));
+  for (let i = leafWords.length - 1; i >= 0; i--) {
+    const word = leafWords[i];
+    if (leafWords.length < 2) break; // already tried as the whole leafKey above
+    const exact = POSHMARK_TAXONOMY.filter(entry => poshmarkSingularKey(entry.path.split(' > ').pop()) === word && inGender(entry));
+    if (exact.length) return exact[0];
+    const group = POSHMARK_TAXONOMY.filter(entry => {
+      const parts = entry.path.split(' > ');
+      return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]) === word;
+    });
+    if (group.length) return group[0];
+    const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+      const parts = entry.path.split(' > ');
+      return parts.length === 3 && inGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(word);
+    });
+    if (groupContains.length) return groupContains[0];
+  }
+
+  return null;
+};
+
+/**
+ * Picks the most specific (most " > " levels) non-generic category string out of several possible
+ * sources on a listing (its own Poshmark field, the eBay field, the top-level category, ...).
+ * A listing's platformData.poshmark.category is frequently just the bare word "Clothing" - a
+ * placeholder stored at publish time rather than an actual resolved category - while another field
+ * on the very same document (platformData.ebay.category, or the top-level category) often already
+ * has the real full path. Blindly taking whichever field happens to be truthy first picks "Clothing"
+ * over a perfectly good "Men > Shirts > Dress Shirts" and the category ends up blank in the form.
+ */
+export const pickRichestCategorySource = (...candidates) => {
+  const valid = candidates
+    .map(c => String(c || '').trim())
+    .filter(c => c && c.toLowerCase() !== 'clothing');
+  if (valid.length === 0) return '';
+  return valid.reduce((best, cur) => (cur.split('>').length > best.split('>').length ? cur : best));
+};
+
 export const resolvePoshmarkCategory = (rawCategory = '', title = '', brand = '', gender = 'Unisex') => {
   const cleanCat = String(rawCategory || '').trim();
+  const ebayPath = cleanCat && cleanCat.toLowerCase() !== 'clothing' ? cleanCat : '';
+  const knownGender = gender && gender !== 'Unisex' ? gender : null;
+  let match = mapEbayToPoshmark({ ebayPath, title, gender: knownGender });
 
-  if (cleanCat && cleanCat.includes(' > ') && cleanCat.toLowerCase() !== 'clothing') {
-    const direct = POSHMARK_TAXONOMY.find(c => c.path.toLowerCase() === cleanCat.toLowerCase());
-    if (direct) {
-      return {
-        path: direct.path,
-        category: direct.path,
-        categoryId: direct.categoryId,
-        id: direct.id,
-        department: direct.path.split(' > ')[0]
-      };
+  // Neither eBay nor anywhere else stored any category hierarchy at all for this item (both fields
+  // are just the bare "Clothing" placeholder) - the title itself is the only signal left. Scan its
+  // words from the end: in these resale-listing titles the actual garment type word almost always
+  // sits right before the gender/size block ("... Sweater Jacket Womens 3X Red Black Houndstooth").
+  // Only match a garment-FAMILY word (a group name - "Jacket", "Shorts", "Dress"), not a specific-
+  // style leaf ("V-Neck", "Crew") - a style descriptor coincidentally in the title ("Mock Neck" on a
+  // fleece jacket) could otherwise match an unrelated leaf by accident ("Neck" -> Sweaters > V-Neck)
+  // and produce a confidently wrong category instead of none.
+  if (!match && title) {
+    const titleTargetGender = knownGender || poshmarkGenderFromText(title);
+    const titleInGender = entry => !titleTargetGender || entry.path.split(' > ')[0] === titleTargetGender;
+    const words = normalizePoshmarkText(title).split(' ').filter(w => w.length > 2 && !/^\d+$/.test(w)).map(w => poshmarkSingularKey(w));
+    for (let i = words.length - 1; i >= 0; i--) {
+      const word = words[i];
+      if (POSHMARK_STOP_WORDS.has(word) || POSHMARK_GENDER_WORDS.has(word)) continue;
+      const group = POSHMARK_TAXONOMY.filter(entry => {
+        const parts = entry.path.split(' > ');
+        return parts.length === 3 && titleInGender(entry) && poshmarkSingularKey(parts[1]) === word;
+      });
+      if (group.length) { match = group[0]; break; }
+      const groupContains = POSHMARK_TAXONOMY.filter(entry => {
+        const parts = entry.path.split(' > ');
+        return parts.length === 3 && titleInGender(entry) && poshmarkSingularKey(parts[1]).split(' ').includes(word);
+      });
+      if (groupContains.length) { match = groupContains[0]; break; }
     }
   }
 
-  const combinedText = `${cleanCat} ${title} ${brand}`.toLowerCase();
-  const isMen = /\bmen\b|\bmens\b|\bmale\b|\barmy\b|\bmilitary\b|\btactical\b/.test(combinedText) || gender.toLowerCase() === 'men';
-  const isWomen = (/\bwomen\b|\bwomens\b|\bfemale\b|\blady\b|\bladies\b/.test(combinedText) || gender.toLowerCase() === 'women') && !isMen;
-  const isKids = /\bkids\b|\bboy\b|\bgirl\b|\btoddler\b|\bbaby\b/.test(combinedText);
-
-  const tokens = combinedText.split(/[\s,>]+/).filter(t => t.length > 2 && t !== 'and' && t !== 'the' && t !== 'clothing' && t !== 'apparel');
-
-  let bestMatch = null;
-  let highestScore = 0;
-
-  for (const item of POSHMARK_TAXONOMY) {
-    const itemPathLower = item.path.toLowerCase();
-    let score = 0;
-
-    if (isMen && item.path.startsWith('Men')) score += 20;
-    else if (isWomen && item.path.startsWith('Women')) score += 20;
-    else if (isKids && item.path.startsWith('Kids')) score += 20;
-
-    for (const token of tokens) {
-      if (itemPathLower.includes(token)) {
-        score += token.length * 2;
-      }
-    }
-
-    if (score > highestScore) {
-      highestScore = score;
-      bestMatch = item;
-    }
+  if (!match) {
+    // No confident match: empty path, so the form does not get a wrong default.
+    return { path: '', category: '', categoryId: '', id: '', department: '' };
   }
 
-  if (bestMatch && highestScore >= 10) {
-    return {
-      path: bestMatch.path,
-      category: bestMatch.path,
-      categoryId: bestMatch.categoryId,
-      id: bestMatch.id,
-      department: bestMatch.path.split(' > ')[0]
-    };
-  }
-
-  const defaultPath = isMen ? 'Men > Shirts > Tees - Short Sleeve' : 'Women > Tops > T-Shirts';
-  const def = POSHMARK_TAXONOMY.find(c => c.path === defaultPath) || POSHMARK_TAXONOMY[0];
   return {
-    path: def.path,
-    category: def.path,
-    categoryId: def.categoryId,
-    id: def.id,
-    department: def.path.split(' > ')[0]
+    path: match.path,
+    category: match.path,
+    categoryId: match.categoryId,
+    id: match.id,
+    department: match.path.split(' > ')[0]
   };
 };
 
@@ -197,19 +318,9 @@ export const resolveEbayCategoryFallback = (rawCategory = '', title = '', brand 
     };
   }
 
-  if (isWomen) {
-    return {
-      path: "Clothing, Shoes & Accessories > Women > Women's Clothing > Tops & Blouses",
-      category: "Clothing, Shoes & Accessories > Women > Women's Clothing > Tops & Blouses",
-      categoryId: '53159'
-    };
-  }
-
-  return {
-    path: "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts",
-    category: "Clothing, Shoes & Accessories > Men > Men's Clothing > Shirts > T-Shirts",
-    categoryId: '57990'
-  };
+  // Not sure from the title: return no category so the user picks one.
+  // Defaulting to Men's T-Shirts filed pants and other items as T-shirts.
+  return { path: '', category: '', categoryId: '' };
 };
 
 /**

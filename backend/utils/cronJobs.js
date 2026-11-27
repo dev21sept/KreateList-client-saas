@@ -58,6 +58,12 @@ const runRenewalChecks = async () => {
 };
 
 const { startBackgroundSyncWorker, runBackgroundSyncCycle } = require('../services/backgroundSyncService');
+const { runStatusTrackerCycle } = require('../services/listingStatusTracker');
+const { runMasterStatusCycle } = require('../services/masterStatusCron');
+const { runShareClosetTick } = require('../services/automationWorker');
+const { runAdaptiveProfileCycle } = require('../services/adaptiveProfileCron');
+const { runWebhookDeliveryCycle } = require('../services/webhookDeliveryService');
+const { runMarketPulseAggregationCycle } = require('../services/marketPulseCron');
 
 const initCronJobs = () => {
   // Run subscription renewals every day at 8:00 AM
@@ -68,6 +74,65 @@ const initCronJobs = () => {
 
   // Run automated multi-channel background sales & auto-delist sync
   startBackgroundSyncWorker();
+
+  // Light status tracker: small batch every 20 minutes, dry run unless TRACKER_APPLY=true
+  if (process.env.TRACKER_DISABLED !== 'true') {
+    cron.schedule('*/20 * * * *', () => {
+      runStatusTrackerCycle()
+        .then(s => console.log('[StatusTracker]', JSON.stringify(s)))
+        .catch(e => console.error('[StatusTracker] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Listing status tracker scheduled every 20 minutes.');
+  }
+
+  // Master live check by listing ID: every 2 hours at :37 (off the top of the hour), one cycle at a time
+  if (process.env.MASTER_STATUS_SYNC_DISABLED !== 'true') {
+    cron.schedule('37 */2 * * *', () => {
+      runMasterStatusCycle()
+        .then(s => console.log('[MasterStatus]', JSON.stringify(s)))
+        .catch(e => console.error('[MasterStatus] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Master live status check scheduled every 2 hours.');
+  }
+
+  // Automation: checks every 5 minutes for users on any platform whose Share Closet schedule is due
+  // now (in their own timezone), then runs the job with human-like pacing (utils/humanPacing.js).
+  if (process.env.AUTOMATION_DISABLED !== 'true') {
+    cron.schedule('*/5 * * * *', () => {
+      runShareClosetTick().catch(e => console.error('[Automation] Share closet tick failed:', e.message));
+    });
+    console.log('[Cron System] Automation (Share Closet) scheduled every 5 minutes.');
+  }
+
+  // Adaptive AI: recomputes learned seller preferences and refreshes recommendations daily at 3:00 AM
+  if (process.env.ADAPTIVE_AI_DISABLED !== 'true') {
+    cron.schedule('0 3 * * *', () => {
+      runAdaptiveProfileCycle()
+        .then(s => console.log('[AdaptiveAI]', JSON.stringify(s)))
+        .catch(e => console.error('[AdaptiveAI] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Adaptive AI profile cycle scheduled daily at 3:00 AM.');
+  }
+
+  // eLister Connect: delivers queued/retrying webhook events every 2 minutes
+  if (process.env.CONNECT_DISABLED !== 'true') {
+    cron.schedule('*/2 * * * *', () => {
+      runWebhookDeliveryCycle()
+        .then(s => console.log('[Connect-Webhooks]', JSON.stringify(s)))
+        .catch(e => console.error('[Connect-Webhooks] cycle failed:', e.message));
+    });
+    console.log('[Cron System] eLister Connect webhook delivery scheduled every 2 minutes.');
+  }
+
+  // Market Pulse: ingests each seller's own sold/active listing data and recomputes trend aggregates daily at 4:00 AM
+  if (process.env.MARKET_PULSE_DISABLED !== 'true') {
+    cron.schedule('0 4 * * *', () => {
+      runMarketPulseAggregationCycle()
+        .then(s => console.log('[MarketPulse]', JSON.stringify(s)))
+        .catch(e => console.error('[MarketPulse] cycle failed:', e.message));
+    });
+    console.log('[Cron System] Market Pulse aggregation cycle scheduled daily at 4:00 AM.');
+  }
 };
 
 module.exports = { initCronJobs, runRenewalChecks, runBackgroundSyncCycle };

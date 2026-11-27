@@ -158,22 +158,42 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Affiliate code captured at signup (?via=CODE), set once and never overwritten - first-click
+  // attribution. Used to find the referring AffiliateProfile when this user's first payment lands.
+  referredByAffiliateCode: String,
   otpCode: String,
   otpExpires: Date,
+  otpAttempts: {
+    type: Number,
+    default: 0
+  },
   trustedDevices: {
     type: [String],
     default: []
   },
   resetPasswordOtp: String,
   resetPasswordOtpExpire: Date,
+  resetPasswordOtpAttempts: {
+    type: Number,
+    default: 0
+  },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  // The manual "Sync Now" button on the Master Cross-Listing page, rate-limited to once per 12
+  // hours per user - tracked server-side (not just in the frontend) so the real remaining cooldown
+  // is still correct after a page refresh or a fresh login, not just whatever the browser remembers.
+  lastManualFullSyncAt: {
+    type: Date,
+    default: null
+  },
   lastSyncSummary: {
     syncedAt: Date,
     totalProcessed: Number,
     newItemsCount: Number,
     mergedItemsCount: Number,
     platforms: [String],
+    // Live check by listing ID, run at Sync Now: records live on a platform / ended / sold
+    live: { active: Number, delisted: Number, sold: Number, changed: Number },
     shownToUser: {
       type: Boolean,
       default: false

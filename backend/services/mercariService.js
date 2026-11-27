@@ -7,6 +7,79 @@ const os = require('os');
 
 puppeteer.use(StealthPlugin());
 
+// Puppeteer's own bundled Chromium is a known bot signal (missing Widevine, different brand list in
+// navigator.userAgentData) that Mercari's Cloudflare protection fingerprints directly - the real,
+// branded Google Chrome binary already installed on this box (same one mercariLoginService.js uses
+// for login) does not trigger it.
+function getMercariChromeExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  const checkPaths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+  for (const p of checkPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
+// Spaces out requests to Mercari from this process by a minimum gap, regardless of which function
+// fires them. Several calls firing back-to-back (bulk publish/reactivate, background sync) is the
+// kind of burst traffic from one server IP that gets Cloudflare/Mercari to flag that IP, making even
+// a single later login attempt start failing. This does not fix an IP already flagged, but keeps
+// normal day-to-day use from building up a fresh one.
+let lastMercariRequestAt = 0;
+const MIN_MERCARI_GAP_MS = 4000;
+async function paceMercariRequest() {
+  const waitMs = lastMercariRequestAt + MIN_MERCARI_GAP_MS - Date.now();
+  if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+  lastMercariRequestAt = Date.now();
+}
+
+/**
+ * Cloudflare's bot-check on Mercari is probabilistic, not a hard block: the same request from the
+ * same IP sometimes passes straight through and sometimes shows the "Performing security
+ * verification" interstitial or a flat 403 - verified by hand, repeatedly, on both the login page
+ * and an authenticated account page. A single blocked navigation is therefore not treated as final;
+ * this retries with a growing delay before giving up for real. Used everywhere this process
+ * navigates a Mercari page: login, publish, reactivate, closet scrape.
+ *
+ * A third failure mode showed up alongside that: status 200, a normal (non-challenge) title, but
+ * the page is actually just the generic homepage shell - the real content (e.g. the login form)
+ * never mounted. `verifySelector` catches this: after a navigation that looks clean, it also
+ * confirms that selector actually appears within a short window; if not, the whole navigation is
+ * retried rather than letting the caller's own waitForSelector time out downstream with no context.
+ */
+async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, label = 'Mercari', onRetry = null, verifySelector = null, verifyTimeout = 8000 } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let attemptError = null;
+    try {
+      const response = await page.goto(url, gotoOptions);
+      const status = response ? response.status() : 0;
+      const title = await page.title().catch(() => '');
+      let blocked = !response || status >= 400 || /just a moment/i.test(title);
+      if (blocked) {
+        attemptError = new Error(`Blocked by security check (status ${status}, title "${title}")`);
+      } else if (verifySelector) {
+        const found = await page.waitForSelector(verifySelector, { timeout: verifyTimeout }).catch(() => null);
+        if (!found) {
+          blocked = true;
+          attemptError = new Error(`Page loaded (status ${status}) but expected content "${verifySelector}" never appeared`);
+        }
+      }
+      if (!blocked) return response;
+    } catch (e) {
+      attemptError = e;
+    }
+    lastError = attemptError;
+    if (attempt < maxAttempts) {
+      const waitMs = 5000 + attempt * 4000; // 9s, 13s, 17s
+      console.log(`[${label}] Navigation attempt ${attempt}/${maxAttempts} blocked (${lastError.message}), retrying in ${waitMs}ms...`);
+      if (onRetry) onRetry(attempt, maxAttempts);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+  throw lastError;
+}
+
 /**
  * Helper to download an image from a URL and save it to a temporary file.
  */
@@ -115,11 +188,17 @@ async function applyMercariCookies(page, sessionCookie) {
  * @returns {Promise<Array>} Scraped products
  */
 async function scrapeMercariCloset(username, credentials = {}) {
+  await paceMercariRequest();
   console.log(`[Mercari Scraper] Fetching all listings (Active, Inactive, Sold) for ${username}...`);
   let browser = null;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -130,7 +209,12 @@ async function scrapeMercariCloset(username, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -164,10 +248,10 @@ async function scrapeMercariCloset(username, credentials = {}) {
     const { token, sellerId } = extractMercariAuth(credentials);
 
     console.log(`[Mercari Scraper] Navigating to Mercari home (sellerId: ${sellerId})...`);
-    await page.goto('https://www.mercari.com/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/', {
       waitUntil: 'domcontentloaded',
       timeout: 30000
-    });
+    }, { label: 'Mercari Scraper' });
     await new Promise(r => setTimeout(r, 2000));
 
     console.log(`[Mercari Scraper] Querying Mercari GraphQL API for closet inventory...`);
@@ -222,6 +306,12 @@ async function scrapeMercariCloset(username, credentials = {}) {
               const res = await fetch(url, { headers: h, credentials: 'include' });
               if (!res.ok) break;
               const json = await res.json();
+              // Mercari answers an expired/invalid token with HTTP 200 and a GraphQL-level
+              // "Unauthorized" error, not an HTTP 401 - unchecked, this silently looks identical to
+              // "this seller has no items", which is what masked a genuinely expired session before.
+              if (json.errors?.some(e => e.status === 401 || /unauthoriz/i.test(e.message || ''))) {
+                throw new Error('__MERCARI_SESSION_EXPIRED__');
+              }
               const list = json.data?.userItems?.items || [];
               if (list.length === 0) break;
               
@@ -251,6 +341,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
               if (list.length < 20) break;
               pageNum++;
             } catch (e) {
+              if (e.message === '__MERCARI_SESSION_EXPIRED__') throw e;
               break;
             }
           }
@@ -269,6 +360,9 @@ async function scrapeMercariCloset(username, credentials = {}) {
     if (browser) {
       await browser.close().catch(() => {});
     }
+    if (err.message?.includes('__MERCARI_SESSION_EXPIRED__')) {
+      throw new Error('Your Mercari session has expired. Please reconnect your Mercari account in Marketplaces.');
+    }
     throw err;
   }
 }
@@ -281,6 +375,7 @@ async function scrapeMercariCloset(username, credentials = {}) {
  * @returns {Promise<Object>} Published listing metadata
  */
 async function publishToMercari(listing, credentials = {}) {
+  await paceMercariRequest();
   const isEditing = !!(listing.mercariListingId && (listing.mercariStatus === 'published' || listing.mercariStatus === 'active' || listing.status === 'published' || listing.status === 'active'));
   console.log(`[Mercari Publisher] ${isEditing ? 'Updating' : 'Creating'} listing: ${listing.title} on Mercari (ID: ${listing.mercariListingId || 'NEW'})`);
   let browser = null;
@@ -311,7 +406,12 @@ async function publishToMercari(listing, credentials = {}) {
 
     // 2. Launch Puppeteer Stealth
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -322,7 +422,12 @@ async function publishToMercari(listing, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -383,7 +488,7 @@ async function publishToMercari(listing, credentials = {}) {
       // --- EDIT FLOW ---
       const editUrl = `https://www.mercari.com/sell/edit/${listing.mercariListingId}/`;
       console.log(`[Mercari Publisher] Navigating to Edit page: ${editUrl} ...`);
-      await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 35000 }, { label: 'Mercari Publisher' });
       
       const buttonSelectors = 'button[data-testid="ListButton"], button[data-testid="UpdateButton"], button[data-testid="SaveButton"], button[data-testid="ActivateDeactivateButton"], button[data-testid="SubmitButton"], button[type="submit"]';
       try {
@@ -478,10 +583,10 @@ async function publishToMercari(listing, credentials = {}) {
     } else {
       // --- CREATE NEW FLOW VIA DIRECT GRAPHQL NETWORK API ---
       console.log('[Mercari Publisher] Navigating to Sell page...');
-      await page.goto('https://www.mercari.com/sell/', {
+      await gotoWithRetry(page, 'https://www.mercari.com/sell/', {
         waitUntil: 'domcontentloaded',
         timeout: 35000
-      });
+      }, { label: 'Mercari Publisher' });
       await new Promise(r => setTimeout(r, 2500));
 
       if (page.url().includes('/signin/') || page.url().includes('/login/')) {
@@ -760,11 +865,37 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -781,7 +912,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
 
     // Fast GraphQL status update path
     console.log(`[Mercari Deactivator] Navigating to active listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deactivator' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Deactivator] Executing UpdateItemStatusMutation (status: "stop") for ${mercariListingId}...`);
@@ -834,7 +965,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Deactivate button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Deactivator] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deactivator' });
     await page.waitForSelector('button[data-testid="ActivateDeactivateButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -875,6 +1006,7 @@ async function deactivateMercariListing(mercariListingId, credentials = {}) {
  * @returns {Promise<Object>}
  */
 async function reactivateMercariListing(mercariListingId, credentials = {}) {
+  await paceMercariRequest();
   console.log(`[Mercari Activator] Reactivating listing ${mercariListingId} (status: "on_sale")...`);
   let browser = null;
   try {
@@ -887,11 +1019,37 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -908,7 +1066,7 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
 
     // Fast GraphQL status update path
     console.log(`[Mercari Activator] Navigating to active listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Activator' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Activator] Executing UpdateItemStatusMutation (status: "on_sale") for ${mercariListingId}...`);
@@ -961,7 +1119,7 @@ async function reactivateMercariListing(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Activate button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Activator] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Activator' });
     await page.waitForSelector('button[data-testid="ActivateDeactivateButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -1014,11 +1172,37 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
     let interceptedCsrf = null;
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
+
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
+    let proxyAuth = null;
+    if (proxyUrl) {
+      try {
+        const parsedUrl = new URL(proxyUrl);
+        launchOptions.args.push(`--proxy-server=${parsedUrl.protocol}//${parsedUrl.host}`);
+        if (parsedUrl.username && parsedUrl.password) {
+          proxyAuth = { username: decodeURIComponent(parsedUrl.username), password: decodeURIComponent(parsedUrl.password) };
+        }
+      } catch (e) {
+        launchOptions.args.push(`--proxy-server=${proxyUrl}`);
+      }
+    }
+
     browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
+    if (proxyAuth) await page.authenticate(proxyAuth);
     await page.setViewport({ width: 1280, height: 1000 });
 
     await page.setRequestInterception(true);
@@ -1035,7 +1219,7 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
 
     // Fast GraphQL cancel mutation path
     console.log(`[Mercari Deletor] Navigating to listings to capture session auth...`);
-    await page.goto('https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/listings/active/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deletor' });
     await new Promise(r => setTimeout(r, 1500));
 
     console.log(`[Mercari Deletor] Executing UpdateItemStatusMutation (status: "cancel") for ${mercariListingId}...`);
@@ -1088,7 +1272,7 @@ async function deleteFromMercari(mercariListingId, credentials = {}) {
     // Fallback: Navigate to edit page and click Delete button
     const editUrl = `https://www.mercari.com/sell/edit/${mercariListingId}/`;
     console.log(`[Mercari Deletor] Navigating to ${editUrl}...`);
-    await page.goto(editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, editUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Deletor' });
     await page.waitForSelector('button[data-testid="DeleteButton"]', { timeout: 15000 });
     await dismissMercariModals(page);
 
@@ -1136,7 +1320,12 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
     }
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1147,7 +1336,10 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL || process.env.PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based and passes both Cloudflare's
+    // bot check and Mercari's login location check - the Bright Data proxy was actively failing
+    // Mercari's login flow (flagged as a new/suspicious location every attempt), so it's skipped here.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? (process.env.HTTP_PROXY_URL || process.env.PROXY_URL) : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1179,7 +1371,7 @@ async function verifyMercariListingStatus(mercariListingId, credentials = {}) {
     const { token, sellerId } = extractMercariAuth(credentials);
 
     await applyMercariCookies(page, credentials.sessionCookie);
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Status Check' });
     await new Promise(r => setTimeout(r, 1500));
 
     const checkResult = await page.evaluate(async (targetId, token, passedSellerId) => {
@@ -1344,7 +1536,12 @@ async function getMercariProfile(sessionCookie) {
   let browser;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1355,7 +1552,10 @@ async function getMercariProfile(sessionCookie) {
       ]
     };
 
-    const proxyUrl = process.env.PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based and passes both Cloudflare's
+    // bot check and Mercari's login location check - the Bright Data proxy was actively failing
+    // Mercari's login flow (flagged as a new/suspicious location every attempt), so it's skipped here.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? (process.env.HTTP_PROXY_URL || process.env.PROXY_URL) : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1400,10 +1600,10 @@ async function getMercariProfile(sessionCookie) {
     }
 
     console.log('[Mercari Profile Checker] Navigating to Profile Settings...');
-    await page.goto('https://www.mercari.com/mypage/profile/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/mypage/profile/', {
       waitUntil: 'domcontentloaded',
       timeout: 20000
-    });
+    }, { label: 'Mercari Profile Checker' });
 
     const currentUrl = page.url();
     if (currentUrl.includes('/login/') || currentUrl.includes('/signin/')) {
@@ -1528,7 +1728,12 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
   let browser = null;
   try {
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1539,7 +1744,12 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1572,7 +1782,7 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
 
     const { token } = extractMercariAuth(credentials);
 
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Item Details' });
     await new Promise(r => setTimeout(r, 1500));
 
     const result = await page.evaluate(async (token, itemId) => {
@@ -1664,6 +1874,7 @@ async function fetchMercariItemDetails(mercariListingId, credentials = {}) {
  * @returns {Promise<Object>} Sync outcome metrics
  */
 async function syncMercariOrders(credentials = {}, userId = null) {
+  await paceMercariRequest();
   let browser = null;
   const Order = require('../models/Order');
 
@@ -1673,7 +1884,12 @@ async function syncMercariOrders(credentials = {}, userId = null) {
     }
 
     const launchOptions = {
-      headless: true,
+      // Mercari's Cloudflare protection fingerprints headless Chrome and blocks it outright - running
+      // headful against the dedicated Xvfb display (same approach already used for login in
+      // mercariLoginService.js) passes without a challenge, confirmed live via manual testing.
+      headless: false,
+      env: { ...process.env, DISPLAY: process.env.VIRTUAL_DISPLAY || ':99' },
+      executablePath: getMercariChromeExecutablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1684,7 +1900,12 @@ async function syncMercariOrders(credentials = {}, userId = null) {
       ]
     };
 
-    const proxyUrl = process.env.HTTP_PROXY_URL;
+    // Confirmed live: this server's own direct IP is already US-based (Iowa/us-central1) and passes
+    // both Cloudflare's bot check and Mercari's login location check - the Bright Data proxy was
+    // actively failing Mercari's login flow specifically (flagged as a new/suspicious location on
+    // every attempt), so it's skipped here. Set MERCARI_USE_PROXY=true to re-enable it if the server
+    // ever moves somewhere that isn't US-based.
+    const proxyUrl = process.env.MERCARI_USE_PROXY === 'true' ? process.env.HTTP_PROXY_URL : null;
     let proxyAuth = null;
     if (proxyUrl) {
       try {
@@ -1717,7 +1938,7 @@ async function syncMercariOrders(credentials = {}, userId = null) {
 
     const { token, sellerId } = extractMercariAuth(credentials);
 
-    await page.goto('https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoWithRetry(page, 'https://www.mercari.com/', { waitUntil: 'domcontentloaded', timeout: 30000 }, { label: 'Mercari Order Sync' });
     await new Promise(r => setTimeout(r, 1500));
 
     const scrapedOrders = await page.evaluate(async (token, passedSellerId) => {
@@ -1910,7 +2131,9 @@ module.exports = {
   verifyMercariListingStatus,
   getMercariProfile,
   fetchMercariItemDetails,
-  syncMercariOrders
+  syncMercariOrders,
+  paceMercariRequest,
+  gotoWithRetry
 };
 
 

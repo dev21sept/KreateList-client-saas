@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { POSHMARK_TAXONOMY } = require('../constants/poshmarkTaxonomy');
+const { mapToPoshmarkCategory } = require('./poshmarkCategoryMapper');
 
 // Helper to construct axios config with HTTP Proxy support if configured
 function getAxiosConfig(options) {
@@ -18,8 +19,13 @@ function getAxiosConfig(options) {
     config.responseType = options.responseType;
   }
 
+  // Poshmark does not block this server's IP (confirmed via the app's own reliably-working
+  // closet-scrape and automation-share code, which both connect directly) - routing Poshmark
+  // calls through the proxy only adds an extra point of failure for no benefit, and takes every
+  // Poshmark publish/delist/reactivate call down whenever the proxy vendor itself has an outage.
+  const isPoshmark = /poshmark\.com/i.test(options.url || '');
   const proxyUrl = process.env.HTTP_PROXY_URL;
-  if (proxyUrl) {
+  if (proxyUrl && !isPoshmark) {
     console.log(`[Backend Publisher] Routing request to ${options.url} via proxy agent...`);
     config.httpsAgent = new HttpsProxyAgent(proxyUrl);
   }
@@ -464,7 +470,7 @@ async function publishToDepop(listing, depopAccount) {
           price_currency: "USD",
           product_type: listingData.categoryId || "shirts",
           shipping_methods: shippingMethods,
-          sku: listingData.sku || `KL${Date.now()}`,
+          sku: listingData.sku || '',
           source: listingData.source ? [listingData.source.toLowerCase()] : ["preloved"],
           style: listingData.styleTag ? listingData.styleTag.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : ["casual"],
           variant_set: (() => {
@@ -832,6 +838,21 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   let sessionCookie = poshmarkAccount.sessionCookie;
   const csrfToken = poshmarkAccount.csrfToken;
 
+  // Validate everything before a draft is created on Poshmark, so a failed check leaves nothing behind.
+  const isHexId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+  const hasSize = !!(listing.size || listing.platformData?.ebay?.size);
+  if (!hasSize) {
+    throw new Error('Size is missing. Please enter the size before publishing to Poshmark.');
+  }
+  const hasPoshIds = isHexId(listing.categoryId || listing.platformData?.poshmark?.categoryId) &&
+    isHexId(listing.departmentId || listing.platformData?.poshmark?.departmentId);
+  const preRaw = listing.category || listing.platformData?.poshmark?.category || '';
+  const preEbayPath = preRaw && preRaw !== 'Clothing' && preRaw !== 'Needs category review' ? preRaw : '';
+  const preMapped = mapToPoshmarkCategory({ ebayPath: preEbayPath, title: listing.title });
+  if (!hasPoshIds && (!preMapped || !isHexId(preMapped.categoryId))) {
+    throw new Error('Poshmark category could not be identified. Please choose the category before publishing.');
+  }
+
   if (!csrfToken || !sessionCookie) {
     throw new Error('Poshmark cookies are missing. Please connect your Poshmark account.');
   }
@@ -1031,8 +1052,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
 
   // Step 3: Populate and Save Listing Attributes
   console.log('[Poshmark Publisher] Step 3: Synchronizing draft attributes and categories...');
-  const size = listing.size || 'OS';
-  const brand = listing.brand || 'Original';
+  // No guessed size: "OS" for a shirt is wrong. The size must come from the listing.
+  const size = listing.size || listing.platformData?.ebay?.size || '';
+  if (!size) {
+    throw new Error('Size is missing. Please enter the size before publishing to Poshmark.');
+  }
+  // Never invent a brand: use the listing's brand (or the eBay brand) and only fall back to a
+  // "does not apply" placeholder when nothing is known. "Original" was being saved as the brand.
+  const brand = listing.brand || listing.platformData?.ebay?.brand || 'Does Not Apply';
   // Poshmark strictly requires whole integer dollar amounts (e.g. 25, not 24.99)
   let rawPrice = parseFloat(listing.price || '0');
   let price = Math.round(rawPrice);
@@ -1055,8 +1082,14 @@ async function publishToPoshmark(listing, poshmarkAccount) {
   const isPoshmarkHexId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
 
   if (!isPoshmarkHexId(effectiveDeptId) || !isPoshmarkHexId(effectiveCatId)) {
+    // Map from the stored category only. No heuristic guess: if the mapper is unsure, stop and ask.
     const rawCat = listing.category || listing.platformData?.poshmark?.category || '';
-    const resolved = resolvePoshmarkCategory(rawCat, listing.title);
+    const ebayPath = rawCat && rawCat !== 'Clothing' && rawCat !== 'Needs category review' ? rawCat : '';
+    const mapped = mapToPoshmarkCategory({ ebayPath, title: listing.title });
+    if (!mapped || !isPoshmarkHexId(mapped.categoryId)) {
+      throw new Error('Poshmark category could not be identified. Please choose the category before publishing.');
+    }
+    const resolved = { department: mapped.departmentId, category: mapped.categoryId, subcategories: [] };
     if (!isPoshmarkHexId(effectiveDeptId)) {
       effectiveDeptId = resolved.department;
     }
@@ -1332,6 +1365,10 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         existingPost = getRes.data.post || getRes.data;
       }
     } catch (gErr) {
+      if (gErr.response?.status === 404) {
+        console.log(`[Poshmark Delister] Listing ${listingId} no longer exists on Poshmark. Nothing to delist.`);
+        return { success: true, alreadyDelisted: true };
+      }
       console.warn(`[Poshmark Delister] Could not fetch existing post:`, gErr.response?.data || gErr.message);
     }
 
@@ -1343,6 +1380,8 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       data: {}
     });
     const draftRes = await axios(draftConfig);
+    // A 404 from the draft endpoint does not mean the listing is gone: the GET above
+    // returned the listing. Only a 404 from GET proves it is gone (handled above).
     if (draftRes.data?.error) {
       throw new Error(`Draft Creation Error: ${draftRes.data.error.errorMessage || JSON.stringify(draftRes.data.error)}`);
     }
@@ -1399,7 +1438,7 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
         post: {
           title: postObj.title || 'Listing',
           description: postObj.description || '',
-          brand: postObj.brand || 'Original',
+          brand: postObj.brand || 'Does Not Apply',
           price_amount: { val: priceVal, currency_code: 'USD', currency_symbol: '$' },
           original_price_amount: { val: origPriceVal, currency_code: 'USD', currency_symbol: '$' },
           catalog: {
@@ -1457,6 +1496,10 @@ async function delistPoshmarkListing(listingId, poshmarkAccount) {
       return pubRes.data || { success: true };
     }
   } catch (draftErr) {
+    if (draftErr.response?.status === 404) {
+      console.log(`[Poshmark Delister] Listing ${listingId} not found on Poshmark (HTTP 404). Treating as already delisted.`);
+      return { success: true, alreadyDelisted: true };
+    }
     console.warn(`[Poshmark Delister] Draft NFS mutation notice: ${draftErr.message}. Trying direct DELETE API...`);
     lastError = draftErr;
   }

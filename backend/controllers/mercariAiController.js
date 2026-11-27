@@ -1,6 +1,5 @@
 const OpenAI = require('openai');
 const sharp = require('sharp');
-const Listing = require('../models/Listing');
 const { logActivity } = require('../utils/activityUtils');
 const { MERCARI_FLAT_CATEGORIES: MERCARI_TAXONOMY } = require('../constants/mercariCategoryTaxonomy.json');
 const mercariBrands = require('../constants/mercariBrands.json');
@@ -385,6 +384,7 @@ Given the following product details analyzed from images:
 - Brand: ${visionData.brand}
 - Color: ${visionData.color}
 - Size (from tag/image): ${visionData.size}
+- Gender: ${gender}
 - Visual Details/Features: substituteFeatures
 - Title attributes extracted: substituteTitleParts
 
@@ -393,6 +393,7 @@ Perform the following tasks:
 1. Category Classification:
    - You MUST select the single most relevant category path for this item from this list:
 ${finalCategoryOptions.join('\n')}
+   ${(gender && gender !== 'Unisex' && gender !== 'Unsure' && gender !== 'Not Required') ? `- The seller has specified the Gender/Department as "${gender}" - prefer a category path matching that department when the list offers one.` : ''}
    - Output your selection in the "category" field.
 
 2. Size Mapping:
@@ -446,21 +447,9 @@ Response ONLY as JSON:
             description: textData.description
         };
 
-        // DYNAMIC SKU GENERATION
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
-            }
-        }
-        finalData.sku = skuCode;
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};

@@ -237,7 +237,7 @@
         if (response.headers) {
           const respCsrf = response.headers.get('x-xsrf-token') || response.headers.get('x-csrf-token');
           if (respCsrf) {
-            console.log('[Elister Interceptor] Captured CSRF token from fetch response headers:', respCsrf);
+            console.log('[Elister Interceptor] Captured CSRF token from fetch response headers.');
             document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
             window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
               detail: { csrfToken: respCsrf }
@@ -248,7 +248,7 @@
         const responseClone = response.clone();
         const responseText = await responseClone.text();
         
-        if (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts')) {
+        if (method === 'POST' || method === 'PUT' || url.includes('size') || url.includes('posts') || url.includes('share') || url.includes('follow')) {
           window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
             detail: {
               url,
@@ -278,7 +278,7 @@
           };
           const extractedCsrf = findCsrf(resData);
           if (extractedCsrf) {
-            console.log('[Elister Interceptor] Extracted CSRF token from fetch response body:', extractedCsrf);
+            console.log('[Elister Interceptor] Extracted CSRF token from fetch response body.');
             document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
             window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
               detail: { csrfToken: extractedCsrf }
@@ -357,7 +357,7 @@
           try {
             const respCsrf = this.getResponseHeader('x-xsrf-token') || this.getResponseHeader('x-csrf-token');
             if (respCsrf) {
-              console.log('[Elister Interceptor] Captured CSRF token from XHR response headers:', respCsrf);
+              console.log('[Elister Interceptor] Captured CSRF token from XHR response headers.');
               document.documentElement.setAttribute('data-elister-csrf-token', respCsrf);
               window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
                 detail: { csrfToken: respCsrf }
@@ -383,7 +383,7 @@
             };
             const extractedCsrf = findCsrf(resData);
             if (extractedCsrf) {
-              console.log('[Elister Interceptor] Extracted CSRF token from XHR response body:', extractedCsrf);
+              console.log('[Elister Interceptor] Extracted CSRF token from XHR response body.');
               document.documentElement.setAttribute('data-elister-csrf-token', extractedCsrf);
               window.dispatchEvent(new CustomEvent('ELISTER_TOKEN_CAPTURED', {
                 detail: { csrfToken: extractedCsrf }
@@ -391,7 +391,7 @@
             }
           } catch (e) {}
 
-          if (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts')) {
+          if (this._method === 'POST' || this._method === 'PUT' || this._url.includes('size') || this._url.includes('posts') || this._url.includes('share') || this._url.includes('follow')) {
             window.dispatchEvent(new CustomEvent('ELISTER_API_CAPTURED', {
               detail: {
                 url: this._url,

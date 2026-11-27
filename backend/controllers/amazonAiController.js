@@ -51,7 +51,8 @@ exports.amazonAnalyzeListing = async (req, res) => {
       condition: inputCondition = '',
       color: inputColor = '',
       size: inputSize = '',
-      sku: inputSku = ''
+      sku: inputSku = '',
+      gender: inputGender = ''
     } = req.body;
 
     // Build user description or image payload
@@ -81,6 +82,7 @@ Existing/Provided Details:
 - Condition: ${inputCondition || 'None'}
 - Color: ${inputColor || 'None'}
 - Size: ${inputSize || 'None'}
+- Gender/Department: ${inputGender && inputGender !== 'Not Required' && inputGender !== 'Unsure' ? inputGender : 'None specified - infer from images'}
 - Description: ${existingDescription || 'None'}
 `;
 
@@ -131,8 +133,7 @@ Return a valid JSON object with EXACTLY these keys:
   "color": string,
   "size": string,
   "condition": string,
-  "price": string,
-  "sku": string
+  "price": string
 }
 `;
 
@@ -182,9 +183,10 @@ Return a valid JSON object with EXACTLY these keys:
       brand: parsed.brand || inputBrand || 'Generic',
       color: parsed.color || inputColor || '',
       size: parsed.size || inputSize || '',
+      gender: inputGender || '',
       condition: parsed.condition || inputCondition || 'New',
       price: parsed.price ? String(parsed.price).replace(/[^0-9.]/g, '') : (inputPrice || '29.99'),
-      sku: parsed.sku || inputSku || `AMZ-${Date.now().toString().slice(-6)}`
+      sku: inputSku || ''
     };
 
     res.status(200).json({

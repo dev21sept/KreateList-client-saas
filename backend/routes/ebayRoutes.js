@@ -12,7 +12,8 @@ const {
   getCategoryConditions,
   suggestCategories,
   getCategoryAspects,
-  getSyncedInventory
+  getSyncedInventory,
+  refreshEbayToken
 } = require('../controllers/ebayController');
 const { protect } = require('../middleware/auth');
 const { requireWithinFetchLimit } = require('../middleware/subscriptionCheck');
@@ -28,6 +29,7 @@ router.get('/auth', protect, getEbayAuthUrl);
 router.get('/callback', ebayCallback); // Public GET for direct eBay redirects
 router.post('/callback', protect, ebayCallback); // Protected POST for React callbacks
 router.get('/status', protect, getEbayStatus);
+router.post('/refresh', protect, refreshEbayToken);
 router.get('/policies', protect, getEbayPolicies);
 router.delete('/disconnect', protect, disconnectEbay);
 

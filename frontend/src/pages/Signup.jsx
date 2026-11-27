@@ -26,8 +26,16 @@ const Signup = () => {
     phone: '',
     password: '',
     confirmPassword: '',
+    referralCode: '',
     terms: false
   });
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('elister_affiliate_code');
+      if (saved) setFormData(prev => ({ ...prev, referralCode: saved }));
+    } catch (e) {}
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -54,7 +62,8 @@ const Signup = () => {
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        password: formData.password
+        password: formData.password,
+        affiliateCode: formData.referralCode.trim()
       });
 
       if (data.verificationRequired) {
@@ -288,6 +297,20 @@ const Signup = () => {
                   className="input-field pl-12"
                 />
               </div>
+            </div>
+
+            {/* Referral Code */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 ml-1">Referral Code (Optional)</label>
+              <input
+                type="text"
+                name="referralCode"
+                value={formData.referralCode}
+                onChange={handleChange}
+                placeholder="e.g. RAMAYALI"
+                className="input-field"
+                style={{ textTransform: 'uppercase' }}
+              />
             </div>
 
             {/* Password */}

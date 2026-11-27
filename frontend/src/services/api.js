@@ -72,14 +72,15 @@ export const listingService = {
   deletePlatform: (id, platform, disconnectOnly = false) => API.post(`/listings/${id}/delete-platform`, { platform, disconnectOnly }),
   moveToNewItem: (id, platform) => API.post(`/listings/${id}/move-to-new-item`, { platform }),
   mergeChannel: (data) => API.post('/listings/merge-channel', data),
+  linkExisting: (id, data) => API.post(`/listings/${id}/link-existing`, data),
   getCrossListPrep: (id, platform) => API.get(`/listings/${id}/cross-list-prep?platform=${platform}`),
-  getActiveChannelPreview: () => API.get('/listings/active-channel-preview'),
-  importActiveChannels: (data) => API.post('/listings/import-active-channels', data),
   getLocalMergePreview: () => API.get('/listings/local-merge-preview'),
   bulkMergeListings: (data) => API.post('/listings/bulk-merge', data),
   syncAll: () => API.post('/listings/sync-all'),
   getSyncSummary: () => API.get('/listings/sync-summary'),
   dismissSyncSummary: () => API.post('/listings/sync-summary/dismiss'),
+  getFullSyncStatus: () => API.get('/listings/full-sync-status'),
+  runFullSync: () => API.post('/listings/full-sync'),
 };
 
 export const ruleService = {
@@ -177,7 +178,21 @@ export const externalImportService = {
   triggerVerificationMethod: (data) => mercariService.triggerVerificationMethod(data),
   connectInteractiveDepop: () => depopService.connectInteractive(),
   verifyPoshmark2fa: (data) => data.platform === 'mercari' ? mercariService.verify2fa(data) : poshmarkService.verify2fa(data),
-  publish: (id, data) => data.platform === 'depop' ? depopService.publish(id, data) : data.platform === 'mercari' ? mercariService.publish(id, data) : poshmarkService.publish(id, data),
+  // Publishes to exactly one platform, chosen by data.platform. Each platform calls its own endpoint,
+  // so publishing on one marketplace never touches another. Unknown platforms are rejected.
+  publish: (id, data = {}) => {
+    const publishers = {
+      ebay: () => listingService.publish(id),
+      poshmark: () => poshmarkService.publish(id, data),
+      depop: () => depopService.publish(id, data),
+      mercari: () => mercariService.publish(id, data),
+      etsy: () => etsyService.publish(id, data),
+      amazon: () => amazonService.publish(id, data)
+    };
+    const run = publishers[data.platform];
+    if (!run) return Promise.reject(new Error(`Unknown publish platform: ${data.platform}`));
+    return run();
+  },
   getLive: (platform) => platform === 'depop' ? depopService.getLive() : platform === 'mercari' ? mercariService.getLive() : poshmarkService.getLive()
 };
 
@@ -187,6 +202,8 @@ export const orderService = {
   update: (id, data) => API.put(`/orders/${id}`, data),
   delete: (id) => API.delete(`/orders/${id}`),
   relist: (id) => API.post(`/orders/${id}/relist`),
+  getProfit: () => API.get('/orders/profit'),
+  updateProfit: (id, data) => API.patch(`/orders/${id}/profit`, data),
 };
 
 export const pricingService = {
@@ -195,6 +212,61 @@ export const pricingService = {
   getBatchStatus: (jobId) => API.get(`/v1/pricing/batch/${jobId}`),
   submitFeedback: (data) => API.post('/v1/pricing/feedback', data),
   getSourcesStatus: () => API.get('/v1/pricing/sources/status'),
+};
+
+export const automationService = {
+  getSettings: () => API.get('/automation/settings'),
+  updateSettings: (platform, feature, data) => API.put(`/automation/settings/${platform}/${feature}`, data),
+  createJob: (data) => API.post('/automation/jobs', data),
+  getJobs: (params = {}) => API.get('/automation/jobs', { params }),
+  getJob: (id) => API.get(`/automation/jobs/${id}`),
+  cancelJob: (id) => API.post(`/automation/jobs/${id}/cancel`),
+  getActivity: () => API.get('/automation/activity'),
+};
+
+export const affiliateService = {
+  apply: () => API.post('/affiliate/apply'),
+  getMe: () => API.get('/affiliate/me'),
+  getCommissions: (page) => API.get('/affiliate/commissions', { params: page ? { page } : {} }),
+};
+
+export const adminAffiliateService = {
+  list: (status) => API.get('/admin/affiliates', { params: status ? { status } : {} }),
+  get: (id) => API.get(`/admin/affiliates/${id}`),
+  approve: (id) => API.post(`/admin/affiliates/${id}/approve`),
+  reject: (id, reason) => API.post(`/admin/affiliates/${id}/reject`, { reason }),
+  terminate: (id, reason) => API.post(`/admin/affiliates/${id}/terminate`, { reason }),
+  reactivate: (id) => API.post(`/admin/affiliates/${id}/reactivate`),
+};
+
+export const adaptiveAiService = {
+  getLearningProfile: () => API.get('/adaptive/learning-profile'),
+  updatePreference: (key, value) => API.patch('/adaptive/preferences', { key, value }),
+  getRecommendations: (status) => API.get('/adaptive/recommendations', { params: status ? { status } : {} }),
+  submitFeedback: (id, action, editedPayload) => API.post(`/adaptive/recommendations/${id}/feedback`, { action, editedPayload }),
+  refresh: () => API.post('/adaptive/recommendations/refresh'),
+};
+
+export const marketPulseService = {
+  getTrends: (params = {}) => API.get('/market/trends', { params }),
+  getComparables: (params = {}) => API.get('/market/prices/comparables', { params }),
+  getBrands: () => API.get('/market/brands'),
+  refresh: () => API.post('/market/refresh'),
+};
+
+export const agentService = {
+  createTask: (goal) => API.post('/agents/tasks', { goal }),
+  listTasks: () => API.get('/agents/tasks'),
+  getTask: (id) => API.get(`/agents/tasks/${id}`),
+  approveTask: (id) => API.post(`/agents/tasks/${id}/approve`),
+  runTask: (id) => API.post(`/agents/tasks/${id}/run`),
+  cancelTask: (id) => API.post(`/agents/tasks/${id}/cancel`),
+};
+
+export const connectService = {
+  listCredentials: () => API.get('/connect/credentials'),
+  createCredential: (name, scopes) => API.post('/connect/credentials', { name, scopes }),
+  revokeCredential: (id) => API.post(`/connect/credentials/${id}/revoke`),
 };
 
 export default API;

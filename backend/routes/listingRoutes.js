@@ -14,10 +14,11 @@ const {
   deletePlatformListing,
   moveToNewItem,
   mergeChannel,
+  linkExistingListing,
   getActiveChannelImportPreview,
   importActiveChannelsToLocal,
-  getLocalMergePreview,
-  bulkMergeListings,
+  getVerifiedMergePreview,
+  applyVerifiedMerge,
   forceDelistPoshmark,
   forceRelistPoshmark,
   cleanDuplicatePoshmarkListings,
@@ -25,31 +26,47 @@ const {
   cleanGhostChannels,
   syncAllInventory,
   getSyncSummary,
-  dismissSyncSummary
+  dismissSyncSummary,
+  getFullSyncStatus,
+  runManualFullSync
 } = require('../controllers/listingController');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const { requireActiveSubscription } = require('../middleware/subscriptionCheck');
 
 const router = express.Router();
 
-router.get('/admin/force-delist-poshmark', forceDelistPoshmark);
-router.get('/admin/force-relist-poshmark', forceRelistPoshmark);
-router.get('/admin/clean-duplicates', cleanDuplicatePoshmarkListings);
-router.get('/admin/reconcile-all', reconcileChannelInventory);
-router.get('/admin/clean-ghost-channels', cleanGhostChannels);
-
 router.use(protect);
+
+// Operational maintenance endpoints are intentionally kept on their existing
+// paths for compatibility, but they must never be callable by normal users.
+router.get('/admin/force-delist-poshmark', authorize('admin'), forceDelistPoshmark);
+router.get('/admin/force-relist-poshmark', authorize('admin'), forceRelistPoshmark);
+router.get('/admin/clean-duplicates', authorize('admin'), cleanDuplicatePoshmarkListings);
+router.get('/admin/reconcile-all', authorize('admin'), reconcileChannelInventory);
+router.get('/admin/clean-ghost-channels', authorize('admin'), cleanGhostChannels);
 
 router.get('/sync-summary', getSyncSummary);
 router.post('/sync-summary/dismiss', dismissSyncSummary);
 router.post('/sync-all', requireActiveSubscription, syncAllInventory);
+router.get('/full-sync-status', getFullSyncStatus);
+router.post('/full-sync', requireActiveSubscription, runManualFullSync);
 router.post('/check-duplicate', checkDuplicateListing);
 router.get('/stats', getDashboardStats);
 router.post('/merge-channel', requireActiveSubscription, mergeChannel);
+router.post('/:id/link-existing', requireActiveSubscription, linkExistingListing);
 router.get('/active-channel-preview', getActiveChannelImportPreview);
-router.post('/import-active-channels', requireActiveSubscription, importActiveChannelsToLocal);
-router.get('/local-merge-preview', getLocalMergePreview);
-router.post('/bulk-merge', requireActiveSubscription, bulkMergeListings);
+// Disabled: this import grouped channel items by title/SKU/image and merged them into existing Master records,
+// joining different items and copying platform IDs onto the wrong records. Items are linked by live ID only.
+router.post('/import-active-channels', requireActiveSubscription, (req, res) => {
+  res.status(410).json({ success: false, message: 'This import is disabled. Use Sync Now; items are linked by live listing ID.' });
+});
+router.get('/local-merge-preview', getVerifiedMergePreview);
+router.post('/bulk-merge', requireActiveSubscription, applyVerifiedMerge);
+
+// Background merge scan: start returns at once; poll the GET for suggestions (suggestions only, nothing is merged).
+const { startMergeScan, getMergeScan } = require('../services/mergeScanJob');
+router.post('/merge-scan', (req, res) => res.status(202).json({ success: true, data: startMergeScan(req.user.id) }));
+router.get('/merge-scan', (req, res) => res.json({ success: true, data: getMergeScan(req.user.id) }));
 
 router.route('/')
   .get(getListings)

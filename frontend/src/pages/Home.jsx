@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -59,8 +60,8 @@ const Home = () => {
     {
       name: 'Poshmark',
       logo: '/poshmark.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'High-speed closet share, automated cross-listing, and smart price drop automation.',
       features: ['Closet auto-sync', 'Offer to likers sync', 'Real-time delist guard', 'Brand auto-mapping'],
       accent: 'border-rose-200 bg-rose-50/50 hover:border-rose-400'
@@ -68,8 +69,8 @@ const Home = () => {
     {
       name: 'Mercari',
       logo: '/mercari.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'Instant 1-click import, automatic listing promoter, and zero-delay sold item removal.',
       features: ['Direct store sync', 'Promote & drop engine', 'Double-sale prevention', 'Category mapping'],
       accent: 'border-red-200 bg-red-50/50 hover:border-red-400'
@@ -77,8 +78,8 @@ const Home = () => {
     {
       name: 'Etsy',
       logo: '/etsy.png',
-      status: 'Coming Soon',
-      isLive: false,
+      status: 'Live & Active',
+      isLive: true,
       desc: 'Seamless multi-shop integration for vintage, handmade, and unique marketplace listings.',
       features: ['Multi-shop connection', 'Tag & keyword AI', 'Inventory deduplication', 'Stock level matching'],
       accent: 'border-amber-200 bg-amber-50/50 hover:border-amber-400'
@@ -144,7 +145,7 @@ const Home = () => {
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/ebay.png" alt="eBay" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">eBay</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">LIVE</span>
@@ -152,7 +153,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Poshmark</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -160,7 +161,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Mercari</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -168,7 +169,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/etsy.png" alt="Etsy" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Etsy</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -176,7 +177,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/amazon.png" alt="Amazon" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/amazon.png" alt="Amazon" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Amazon</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -184,7 +185,7 @@ const Home = () => {
 
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/40 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <img src="/depop.png" alt="Depop" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/depop.png" alt="Depop" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Depop</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">READY</span>
@@ -229,7 +230,7 @@ const Home = () => {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span>Poshmark Listing #PM-4819</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -239,7 +240,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span>Mercari Listing #MC-9021</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -249,7 +250,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/50">
               <div className="flex items-center space-x-2">
-                <img src="/etsy.png" alt="Etsy" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/etsy.png" alt="Etsy" className="w-5 h-5" />
                 <span>Etsy Listing #ET-3301</span>
               </div>
               <span className="text-rose-400 font-medium flex items-center gap-1">
@@ -373,7 +374,7 @@ const Home = () => {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <img src="/ebay.png" alt="eBay" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/ebay.png" alt="eBay" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">eBay Rule (Standard)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$100.00 (0% Markup)</span>
@@ -381,7 +382,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <img src="/poshmark.png" alt="Poshmark" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Poshmark Rule (20% Fee Offset)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$120.00 (+20%)</span>
@@ -389,7 +390,7 @@ const Home = () => {
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60">
               <div className="flex items-center space-x-2">
-                <img src="/mercari.png" alt="Mercari" className="w-5 h-5 object-contain" />
+                <PlatformLogo src="/mercari.png" alt="Mercari" className="w-5 h-5" />
                 <span className="font-medium text-slate-200">Mercari Rule (10% Fee Offset)</span>
               </div>
               <span className="font-mono text-emerald-400 font-semibold">$110.00 (+10%)</span>
@@ -440,7 +441,7 @@ const Home = () => {
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-indigo-50 border border-indigo-200/80 text-indigo-700 shadow-sm"
             >
               <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-              <span>All-In-One AI Multi-Channel Cross-Listing & Auto-Delist Suite</span>
+              <span>One Platform. Multiple Marketplaces. Smarter Reselling.</span>
             </motion.div>
 
             <motion.h1
@@ -449,9 +450,9 @@ const Home = () => {
               transition={{ duration: reduceMotion ? 0 : 0.5, delay: 0.1 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.12]"
             >
-              List Across Every Marketplace.<br />
+              Sell Smarter. Grow Faster.<br />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
-                Zero Double-Sales. 100% Automated.
+                Let AI Handle the Busywork.
               </span>
             </motion.h1>
 
@@ -461,7 +462,7 @@ const Home = () => {
               transition={{ duration: reduceMotion ? 0 : 0.5, delay: 0.2 }}
               className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed"
             >
-              The ultimate eCommerce powerhouse for high-volume resellers. Generate listings in seconds with Vision AI, sync inventory across eBay, Poshmark, Mercari, Etsy, Amazon, and Depop, and let our background engine auto-delist sold items 24/7.
+              eLister is your AI-powered reselling assistant, designed to simplify selling across multiple marketplaces. Create professional, SEO-optimized listings in seconds with Vision AI, cross-list products across platforms, manage your inventory from one dashboard, and automatically delist items when they sell. With intelligent tools and automation working together, eLister helps you streamline daily operations, save valuable time, and focus on growing your sales.
             </motion.p>
 
             {/* Hero CTAs */}
@@ -629,7 +630,7 @@ const Home = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 rounded-xl bg-slate-100 p-2 flex items-center justify-center border border-slate-200/60">
-                        <img src={p.logo} alt={p.name} className="w-full h-full object-contain" />
+                        <PlatformLogo src={p.logo} alt={p.name} className="w-full h-full" />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-slate-900">{p.name}</h3>

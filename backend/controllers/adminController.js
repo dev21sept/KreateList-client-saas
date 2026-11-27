@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { stripFields, ADMIN_PROTECTED } = require('../utils/sanitizeBody');
 const Listing = require('../models/Listing');
 
 // @desc    Get system stats
@@ -74,6 +75,7 @@ exports.getUsers = async (req, res) => {
 // @access  Private/Admin
 exports.updateUser = async (req, res) => {
   try {
+    req.body = stripFields(req.body, ADMIN_PROTECTED);
     if (req.body.subscription) {
       req.body.subscription.paymentMethod = 'admin';
       if (!req.body.subscription.paymentDate && req.body.subscription.status === 'active') {

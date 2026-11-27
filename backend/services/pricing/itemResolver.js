@@ -36,6 +36,13 @@ const PLACEHOLDER_STRINGS = new Set([
   'does not apply.', 'n / a', 'not applied', 'no brand'
 ]);
 
+// eBay category paths start with "Clothing, Shoes & Accessories" for every apparel item.
+// That root is not a product type, so it must not make a shirt look like footwear.
+function stripGenericCategoryRoot(text) {
+  if (!text) return text;
+  return String(text).replace(/(clothing,?\s*)?shoes\s*(?:&|and)\s*accessories/gi, " ");
+}
+
 function isPlaceholder(val) {
   if (!val) return true;
   const clean = String(val).trim().toLowerCase();
@@ -45,7 +52,7 @@ function isPlaceholder(val) {
 // Product domain taxonomy mapping to prevent cross-category contamination
 const DOMAIN_PATTERNS = {
   FOOTWEAR: /\b(shoes|shoe|sneakers|sneaker|boots|boot|sandals|sandal|slides|slide|loafers|cleats|heels|slippers|trainers|dunks|footwear|pumps|oxfords|clogs|mules)\b/i,
-  OUTERWEAR: /\b(jacket|jackets|coat|coats|windbreaker|windbreakers|tracksuit|tracksuits|parka|parkas|puffer|vest|vests|bomber|fleece|anorak|outerwear|blazer|blazers|overcoat)\b/i,
+  OUTERWEAR: /\b(jacket|jackets|coat|coats|windbreaker|windbreakers|tracksuit|tracksuits|parka|parkas|puffer|vest|vests|bomber|anorak|outerwear|blazer|blazers|overcoat)\b/i,
   TOPS: /\b(shirt|shirts|t-shirt|t-shirts|tee|tees|jersey|jerseys|polo|polos|tank|tanks|blouse|blouses|sweater|sweaters|sweatshirt|sweatshirts|hoodie|hoodies)\b/i,
   BOTTOMS: /\b(pants|pant|jeans|jean|shorts|short|leggings|sweatpants|joggers|trousers|skirt|skirts|slacks|chinos)\b/i,
   DRESSES_SUITS: /\b(dress|dresses|gown|gowns|suit|suits|tuxedo|romper|jumpsuit)\b/i,
@@ -125,7 +132,7 @@ function resolveItem(rawItem = {}) {
   let rawModel = (rawItem.model || rawItem.mpn || '').trim();
   const rawUpc = (rawItem.upc || rawItem.ean || rawItem.gtin || '').trim();
   const categoryId = rawItem.category_id || rawItem.categoryId || null;
-  const categoryHint = rawItem.category_hint || rawItem.category || rawItem.category_name || null;
+  const categoryHint = stripGenericCategoryRoot(rawItem.category_hint || rawItem.category || rawItem.category_name || null);
 
   // Sanitize placeholder values (e.g. "Unknown", "N/A", "Does Not Apply")
   if (isPlaceholder(rawBrand)) rawBrand = '';
@@ -201,6 +208,7 @@ function resolveItem(rawItem = {}) {
 }
 
 module.exports = {
+  stripGenericCategoryRoot,
   resolveItem,
   normalizeCondition,
   detectConfiguration,

@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -739,8 +740,8 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
-                  <img src="/ebay.png" className="w-12 h-12 object-contain" alt="eBay" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/ebay.png" alt="eBay" className="w-12 h-12" />
                 </div>
                 
                 <h3 className="text-lg font-black text-slate-800 mb-1">eBay</h3>
@@ -784,8 +785,8 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
-                  <img src="/poshmark.png" className="w-12 h-12 object-contain" alt="Poshmark" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/poshmark.png" alt="Poshmark" className="w-12 h-12" />
                 </div>
 
                 <h3 className="text-lg font-black text-slate-800 mb-1">Poshmark</h3>
@@ -852,8 +853,8 @@ const EbayAccounts = () => {
             {/* {/* 3. Depop Integration Card */}
             {/* <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
-                  <img src="/depop.png" className="w-12 h-12 object-contain" alt="Depop" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/depop.png" alt="Depop" className="w-12 h-12" />
                 </div>
 
                 <h3 className="text-lg font-black text-slate-800 mb-1">Depop</h3>
@@ -920,8 +921,8 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
-                  <img src="/etsy.png" className="w-12 h-12 object-contain" alt="Etsy" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/etsy.png" alt="Etsy" className="w-12 h-12" />
                 </div>
 
                 <h3 className="text-lg font-black text-slate-800 mb-1">Etsy</h3>
@@ -967,8 +968,8 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300">
-                  <img src="/mercari.png" className="w-12 h-12 object-contain" alt="Mercari" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/mercari.png" alt="Mercari" className="w-12 h-12" />
                 </div>
 
                 <h3 className="text-lg font-black text-slate-800 mb-1">Mercari</h3>
@@ -1036,8 +1037,8 @@ const EbayAccounts = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full min-h-[380px] text-center relative group">
               <div className="flex flex-col items-center flex-1">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 shadow-sm mb-4 transition-transform group-hover:scale-105 duration-300 p-3.5">
-                  <img src="/amazon.png" className="w-12 h-12 object-contain" alt="Amazon" />
+                <div className="flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-300">
+                  <PlatformLogo src="/amazon.png" alt="Amazon" className="w-12 h-12" />
                 </div>
 
                 <h3 className="text-lg font-black text-slate-800 mb-1">Amazon</h3>
@@ -1182,7 +1183,7 @@ const EbayAccounts = () => {
             {/* Header */}
             <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
               <div className="flex items-center gap-3">
-                <img src="/poshmark.png" className="w-8 h-8 object-contain" alt="" />
+                <PlatformLogo src="/poshmark.png" alt="" className="w-8 h-8" />
                 <div>
                   <h3 className="text-lg font-black text-slate-800">Connect Poshmark</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
@@ -1369,7 +1370,7 @@ const EbayAccounts = () => {
             {/* Header */}
             <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
               <div className="flex items-center gap-3">
-                <img src="/depop.png" className="w-8 h-8 object-contain" alt="" />
+                <PlatformLogo src="/depop.png" alt="" className="w-8 h-8" />
                 <div>
                   <h3 className="text-lg font-black text-slate-800">Connect Depop</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>
@@ -1495,7 +1496,7 @@ const EbayAccounts = () => {
             {/* Header */}
             <div className="p-6 pb-4 flex items-center justify-between border-b border-slate-50">
               <div className="flex items-center gap-3">
-                <img src="/mercari.png" className="w-8 h-8 object-contain" alt="" />
+                <PlatformLogo src="/mercari.png" alt="" className="w-8 h-8" />
                 <div>
                   <h3 className="text-lg font-black text-slate-800">Connect Mercari</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure Channel</p>

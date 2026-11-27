@@ -268,7 +268,6 @@ Response format: Return ONLY a JSON object matching this structure:
 
     const resolvedProducts = [];
     const appToken = await ebayService.getAppToken();
-    const productCount = await Listing.countDocuments();
 
     // Map global condition name to conditionId
     const EBAY_CONDITIONS = [
@@ -471,21 +470,7 @@ Response ONLY as JSON: {
         });
       }
 
-      // Generate SKU code sequentially
-      let skuCode = '';
-      let isUnique = false;
-      let currentNum = productCount + 1 + resolvedProducts.length;
-      while (!isUnique) {
-        skuCode = `KL${currentNum}A`;
-        const existingListing = await Listing.findOne({ sku: skuCode });
-        const isAssignedInMemory = resolvedProducts.some(p => p.sku === skuCode);
-        const isAlreadyInTable = (existing_skus || []).includes(skuCode);
-        if (!existingListing && !isAssignedInMemory && !isAlreadyInTable) {
-          isUnique = true;
-        } else {
-          currentNum++;
-        }
-      }
+      const skuCode = prodData.sku || '';
 
       // Evaluate evidence-based listing price
       let calculatedPrice = prodData.selling_price || prodData.price || '';

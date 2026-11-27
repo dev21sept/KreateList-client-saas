@@ -516,21 +516,9 @@ Response ONLY as JSON: {
             throw new Error("AI returned empty or invalid JSON response.");
         }
 
-        // Generate Unique SKU
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
-            }
-        }
-        finalData.sku = skuCode;
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         // Standardize Title Parts
         const aiResponseParts = finalData.title_parts || {};
@@ -902,21 +890,9 @@ Response ONLY as JSON: {
             throw new Error("AI returned empty or invalid JSON response.");
         }
 
-        // Generate Unique SKU
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}A`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
-            }
-        }
-        finalData.sku = skuCode;
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         // Standardize Title Parts
         const aiResponseParts = finalData.title_parts || {};

@@ -74,6 +74,20 @@ async function fetchActiveListings(normalizedItem, marketplace = 'EBAY_US', maxR
       queries.push({ q: `${normalizedItem.brand} ${normalizedItem.model}`, type: 'BRAND_MODEL' });
     }
     
+    // Product type from the category leaf, e.g. "Casual Button-Down Shirts" -> "Button Down Shirt".
+    // Searching by product type keeps results in the right kind of item; title words such as
+    // "Western" pull in unrelated boots.
+    const leaf = String(normalizedItem.categoryHint || '').split('>').pop().trim();
+    const leafWords = leaf
+      .replace(/[^A-Za-z0-9 ]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !['and', 'the', 'for', 'men', 'mens', 'women', 'womens', 'unisex', 'kids'].includes(w.toLowerCase()))
+      .map(w => (w.length > 4 && /s$/i.test(w) ? w.slice(0, -1) : w));
+    if (normalizedItem.brand && leafWords.length > 0) {
+      const typeWords = leafWords.slice(-3).join(' ');
+      queries.push({ q: `${normalizedItem.brand} ${typeWords}`, type: 'BRAND_CATEGORY_LEAF' });
+    }
+
     // Brand + descriptive product tokens (e.g. "Nike tracksuit jacket")
     if (normalizedItem.brand && normalizedItem.searchTokens && normalizedItem.searchTokens.length > 0) {
       const nonBrandTokens = normalizedItem.searchTokens.filter(t => 

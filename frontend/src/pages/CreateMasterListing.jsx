@@ -1,3 +1,5 @@
+import PlatformLogo from '../components/PlatformLogo';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
@@ -53,11 +55,12 @@ import { Badge } from '../components/ui/Badge';
 import { POSHMARK_CONDITIONS } from '../constants/poshmarkConditions';
 import { MERCARI_SIZES_BY_GROUP } from '../constants/mercariSizesTaxonomy';
 import { MERCARI_CATEGORY_TREE } from '../constants/mercariTaxonomy';
-import { 
-  resolveMercariCategory, 
-  resolvePoshmarkCategory, 
-  resolveEbayCategoryFallback, 
+import {
+  resolveMercariCategory,
+  resolvePoshmarkCategory,
+  resolveEbayCategoryFallback,
   resolveEtsyCategoryFallback,
+  pickRichestCategorySource,
   cleanHtmlDescription
 } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
@@ -1119,6 +1122,9 @@ const detectActivePlatforms = (listing) => {
   return [listing.platform || 'ebay'];
 };
 
+// Fallback values for aspects that have no eBay suggestions. Empty: the form then shows a free-text input.
+const DEFAULT_ASPECT_OPTIONS = {};
+
 const CreateMasterListing = ({
   initialListing = null,
   isModal = false,
@@ -1139,12 +1145,27 @@ const CreateMasterListing = ({
   const [selectedPlatforms, setSelectedPlatforms] = useState(() => {
     if (initialPlatform) return [initialPlatform];
     if (queryPlatform) return [queryPlatform];
-    if (initialListing) {
-      const detected = detectActivePlatforms(initialListing);
-      if (detected.length > 0) return detected;
-    }
+    // Only the listing's own platform is pre-selected. Platforms inferred from saved marketplace IDs
+    // are not, so a publish never reaches a marketplace the user did not choose.
     return [initialListing?.platform || 'ebay'];
   });
+
+  // A platform the item has no live ID on yet is being listed for the first time, not updated -
+  // isEditMode only reflects whether the Master record itself already exists in the DB, which is
+  // true for every item opened from Cross-Listing even when a given platform was never published.
+  const platformHasLiveId = (plat) => {
+    const idField = `${plat}ListingId`;
+    const id = initialListing?.[idField] || initialListing?.platformData?.[plat]?.[idField];
+    return Boolean(id && id !== '-' && id !== 'undefined' && id !== 'null');
+  };
+
+  // "List on X" for a platform the item has never been listed on prompts to link an existing
+  // listing first (if the item is already live on some OTHER platform), instead of always creating
+  // a brand new one - mirrors the manual "Link Existing Listing" 3-dot menu action, triggered here
+  // automatically at the moment it's most useful.
+  const [linkPromptPlatform, setLinkPromptPlatform] = useState(null);
+  const [linkPromptUrl, setLinkPromptUrl] = useState('');
+  const [linkPromptSubmitting, setLinkPromptSubmitting] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -1192,6 +1213,7 @@ const CreateMasterListing = ({
     brand: '',
     size: '',
     color: '',
+    gender: 'Not Required',
     quantity: '1',
     description: '',
     selectedModel: 'gpt-4o-mini',
@@ -1455,8 +1477,10 @@ const CreateMasterListing = ({
         });
       }
 
-      // Auto-detect platforms if in edit mode or multi-platform
-      if (!isSinglePlatformOnly) {
+      // Auto-detect platforms if in edit mode or multi-platform. Skipped when a specific platform
+      // was explicitly requested (e.g. clicking an empty platform slot in Cross-Listing) - that
+      // choice must win, not get silently overwritten back to whatever listing.platform happens to be.
+      if (!isSinglePlatformOnly && !initialPlatform) {
         const detected = detectActivePlatforms(listing);
         if (detected.length > 0) {
           setSelectedPlatforms(detected);
@@ -1466,6 +1490,7 @@ const CreateMasterListing = ({
       const extractedBrand = listing.brand || ebData.brand || mcData.brand || pmData.brand || rawAspects['Brand']?.[0] || '';
       const extractedSize = listing.size || ebData.size || mcData.size || pmData.size || rawAspects['Size']?.[0] || '';
       const extractedColor = listing.color || ebData.color || mcData.color || (Array.isArray(pmData.colors) ? pmData.colors[0] : pmData.color) || rawAspects['Color']?.[0] || '';
+      const extractedGender = listing.gender || ebData.gender || mcData.gender || pmData.gender || etData.gender || amData.gender || '';
       const extractedDescription = listing.description || ebData.description || pmData.description || mcData.description || etData.description || amData.description || '';
 
       if (extractedBrand && !rawAspects['Brand']) rawAspects['Brand'] = [extractedBrand];
@@ -1483,6 +1508,7 @@ const CreateMasterListing = ({
         brand: extractedBrand || prev.brand,
         size: extractedSize || prev.size,
         color: extractedColor || prev.color,
+        gender: extractedGender || prev.gender,
         description: cleanHtmlDescription(extractedDescription) || prev.description,
 
         // eBay
@@ -1500,11 +1526,14 @@ const CreateMasterListing = ({
         ebayFormat: ebData.format || prev.ebayFormat,
         ebayYourCost: ebData.yourCost || prev.ebayYourCost,
         ebayCondition: ebData.selectedCondition || ebData.condition || (listing.platform === 'ebay' ? listing.selectedCondition : '') || prev.ebayCondition,
+        ebayConditionNote: ebData.conditionNote || listing.conditionNote || prev.ebayConditionNote,
         ebayAspects: { ...prev.ebayAspects, ...rawAspects },
         fulfillmentPolicyId: ebData.fulfillmentPolicyId || listing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
         paymentPolicyId: ebData.paymentPolicyId || listing.paymentPolicyId || prev.paymentPolicyId,
         returnPolicyId: ebData.returnPolicyId || listing.returnPolicyId || prev.returnPolicyId,
         locationKey: ebData.locationKey || listing.locationKey || prev.locationKey,
+        packageWeight: (listing.packageWeight?.lbs || listing.packageWeight?.oz) ? listing.packageWeight : prev.packageWeight,
+        packageDimensions: listing.packageDimensions?.length ? listing.packageDimensions : prev.packageDimensions,
         ebayAllowOffers: ebData.allowOffers !== undefined ? ebData.allowOffers : prev.ebayAllowOffers,
         ebayMinOfferPrice: ebData.minOfferPrice || prev.ebayMinOfferPrice,
         ebayAutoAcceptPrice: ebData.autoAcceptPrice || prev.autoAcceptPrice,
@@ -1533,14 +1562,14 @@ const CreateMasterListing = ({
 
         // Poshmark
         poshmarkCategory: resolvePoshmarkCategory(
-          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          pickRichestCategorySource(pmData.category, ebData.category, listing.category, prev.poshmarkCategory),
           listing.title || pmData.title || prev.title,
           extractedBrand || prev.brand
         ).category,
         poshmarkPrice: pmData.price !== undefined ? String(pmData.price) : (listing.price !== undefined ? String(listing.price) : prev.poshmarkPrice),
         poshmarkOriginalPrice: pmData.originalPrice !== undefined ? String(pmData.originalPrice) : (listing.originalPrice !== undefined ? String(listing.originalPrice) : prev.poshmarkOriginalPrice),
         poshmarkDepartment: pmData.departmentId || pmData.department || resolvePoshmarkCategory(
-          pmData.category || (listing.platform === 'poshmark' ? listing.category : '') || prev.poshmarkCategory,
+          pickRichestCategorySource(pmData.category, ebData.category, listing.category, prev.poshmarkCategory),
           listing.title || pmData.title || prev.title,
           extractedBrand || prev.brand
         ).department || prev.poshmarkDepartment || 'Women',
@@ -1682,6 +1711,7 @@ const CreateMasterListing = ({
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: formData.selectedCondition,
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -1945,10 +1975,11 @@ const CreateMasterListing = ({
       description: formData.description || '',
       price: formData.price || '0.00',
       originalPrice: formData.originalPrice || '',
-      sku: formData.sku || `KL${Date.now().toString().slice(-6)}`,
+      sku: formData.sku || '',
       brand: formData.brand || '',
       size: formData.size || '',
       color: formData.color || '',
+      gender: formData.gender || '',
       quantity: parseInt(formData.quantity) || 1,
       category: formData.ebayCategory || formData.mercariCategory || formData.etsyCategory || formData.poshmarkCategory || 'General',
       categoryId: formData.ebayCategoryId || formData.mercariCategoryId || formData.etsyCategoryId || '',
@@ -2141,6 +2172,34 @@ const CreateMasterListing = ({
         toast.error(`Please fill in required eBay Item Specifics: ${missingNames}`);
         return;
       }
+
+      // Check for required/recommended aspects with values that do not match the official dropdown
+      const invalidDropdownAspects = ebayAspects.filter(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        if (!isRequired && !isRecommended) return false;
+
+        const taxonomyVals = aspect.aspectValues || aspect.values || [];
+        const name = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+        const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+        const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+        if (vals.length === 0) return false;
+
+        const val = formData.ebayAspects[name]?.[0] || formData.ebayAspects[name];
+        if (!val || !String(val).trim()) return false;
+
+        const matches = vals.some(v => {
+          const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+          return valText.trim().toLowerCase() === String(val).trim().toLowerCase();
+        });
+        return !matches;
+      });
+
+      if (invalidDropdownAspects.length > 0) {
+        const invalidNames = invalidDropdownAspects.map(a => a.localizedAspectName || a.aspectConstraint?.aspectName || a.name).join(', ');
+        toast.error(`Value is not from the Dropdown for: ${invalidNames}`);
+        return;
+      }
     }
 
     const platKey = targetPlatforms.length === 1 ? targetPlatforms[0] : 'all';
@@ -2157,7 +2216,14 @@ const CreateMasterListing = ({
       const savedListing = res.data?.data;
       const targetListingId = activeId || savedListing?._id || savedListing?.id;
 
-      toast.info(`Updating on ${targetPlatforms.map(p => p.toUpperCase()).join(', ')}...`);
+      // A platform the item has no live ID on yet is being listed for the first time, not updated -
+      // the "List on Poshmark" button text already reflects that; the toast after clicking it should too.
+      const newPlats = targetPlatforms.filter(p => !platformHasLiveId(p));
+      const updatingPlats = targetPlatforms.filter(p => platformHasLiveId(p));
+      const toastParts = [];
+      if (newPlats.length) toastParts.push(`Listing on ${newPlats.map(p => p.toUpperCase()).join(', ')}`);
+      if (updatingPlats.length) toastParts.push(`Updating on ${updatingPlats.map(p => p.toUpperCase()).join(', ')}`);
+      toast.info(`${toastParts.join(' / ')}...`);
 
       const syncResults = await Promise.allSettled(
         targetPlatforms.map(async (plat) => {
@@ -2203,6 +2269,47 @@ const CreateMasterListing = ({
     }
   };
 
+  // Clicking "List on X" for a platform never published before: if the item is already live on some
+  // other platform, offer to link an existing listing there first instead of assuming a brand new one.
+  const handleListOnClick = (platId) => {
+    if (platformHasLiveId(platId)) {
+      handlePublishPlatforms([platId]);
+      return;
+    }
+    const otherLivePlatforms = PLATFORMS_CONFIG.filter(p => p.id !== platId && platformHasLiveId(p.id));
+    if (otherLivePlatforms.length > 0) {
+      setLinkPromptPlatform(platId);
+      setLinkPromptUrl('');
+    } else {
+      handlePublishPlatforms([platId]);
+    }
+  };
+
+  const handleLinkPromptSubmit = async () => {
+    if (!linkPromptUrl.trim()) {
+      toast.warning('Please paste the listing URL or ID.');
+      return;
+    }
+    const activeId = editId || initialListing?._id || initialListing?.id;
+    if (!activeId) {
+      toast.error('Save this listing before linking an existing one.');
+      return;
+    }
+    setLinkPromptSubmitting(true);
+    try {
+      await listingService.linkExisting(activeId, { platform: linkPromptPlatform, url: linkPromptUrl.trim() });
+      toast.success(`Linked existing ${linkPromptPlatform} listing.`);
+      setLinkPromptPlatform(null);
+      setLinkPromptUrl('');
+      if (onSyncSuccess) onSyncSuccess();
+      if (isModal && onClose) onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to link the existing listing.');
+    } finally {
+      setLinkPromptSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-[1400px] mx-auto py-4 px-4 sm:px-6 space-y-6">
       
@@ -2244,13 +2351,13 @@ const CreateMasterListing = ({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => handlePublishPlatforms([platId])}
+                onClick={() => handleListOnClick(platId)}
                 loading={isSingleLoading}
                 disabled={publishing}
                 className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
-                icon={<img src={pConfig.logo} className="w-3.5 h-3.5 object-contain" alt="" />}
+                icon={<PlatformLogo src={pConfig.logo} alt="" className="w-3.5 h-3.5" />}
               >
-                {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+                {platformHasLiveId(platId) ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
               </Button>
             );
           })}
@@ -2265,7 +2372,7 @@ const CreateMasterListing = ({
             disabled={publishing}
             icon={<ShoppingBag size={14} />}
           >
-            {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
+            {selectedPlatforms.every(platformHasLiveId) ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
           </Button>
         </div>
       </div>
@@ -2291,7 +2398,7 @@ const CreateMasterListing = ({
                       : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <img src={p.logo} className="w-4 h-4 object-contain" alt="" />
+                  <PlatformLogo src={p.logo} alt="" className="w-4 h-4" />
                   <span>{p.name}</span>
                   {isSelected && <Check size={12} className="text-white" />}
                 </button>
@@ -2432,11 +2539,34 @@ const CreateMasterListing = ({
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                     options={modelOptions}
                     placeholder="Select model..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
                   />
                 </div>
               </div>
@@ -2484,7 +2614,7 @@ const CreateMasterListing = ({
             </div>
 
             {/* Brand, Size, Color, Price */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Brand</label>
                 <input 
@@ -2521,36 +2651,6 @@ const CreateMasterListing = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[11px] font-bold text-slate-700">Master Price ($) *</label>
-                  <PriceRecommendationCard
-                    compact={true}
-                    initialData={masterPricingRecommendation}
-                    autoFetch={true}
-                    onRecommendationLoaded={(rec) => {
-                      setMasterPricingRecommendation(rec);
-                      if (rec.recommendation?.suggested_price) {
-                        setFormData(p => ({
-                          ...p,
-                          price: p.price || rec.recommendation.suggested_price,
-                          ebayPrice: p.ebayPrice ? p.ebayPrice : rec.recommendation.suggested_price
-                        }));
-                      }
-                    }}
-                    itemData={{
-                      title: formData.title,
-                      brand: formData.brand,
-                      model: formData.ebayAspects?.['Model']?.[0] || formData.ebayAspects?.['MPN']?.[0],
-                      upc: formData.ebayAspects?.['UPC']?.[0],
-                      condition: formData.selectedCondition || 'Used',
-                      category: formData.ebayCategory,
-                      categoryId: formData.ebayCategoryId
-                    }}
-                    currentPrice={formData.price}
-                    onApplyPrice={(newPrice) => setFormData(prev => ({ 
-                      ...prev, 
-                      price: newPrice,
-                      ebayPrice: prev.ebayPrice ? prev.ebayPrice : newPrice
-                    }))}
-                  />
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">$</span>
@@ -2602,7 +2702,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/ebay.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/ebay.png" alt="" className="w-5 h-5" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">eBay Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Full category hierarchy, item specifics, business policies & selling options</p>
@@ -2786,18 +2886,25 @@ const CreateMasterListing = ({
                               {isRecommended && <span className="text-[9px] text-slate-400 font-normal ml-0.5">(Rec)</span>}
                             </label>
                             {hasValues ? (
-                              <SearchableDropdown
-                                value={currentVal}
-                                onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
-                                options={vals.map(v => {
-                                  const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
-                                  return { id: text, label: text };
-                                })}
-                                placeholder={`Select ${aspectName}...`}
-                                error={hasDropdownError}
-                                allowCustom={true}
-                                size="sm"
-                              />
+                              <>
+                                <SearchableDropdown
+                                  value={currentVal}
+                                  onSelect={(opt) => handleAspectChange(aspectName, opt.label || opt.name || opt.id)}
+                                  options={vals.map(v => {
+                                    const text = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                                    return { id: text, label: text };
+                                  })}
+                                  placeholder={`Select ${aspectName}...`}
+                                  error={hasDropdownError}
+                                  allowCustom={true}
+                                  size="sm"
+                                />
+                                {hasDropdownError && (
+                                  <p className="text-[10px] font-semibold text-rose-500 mt-0.5 animate-pulse">
+                                    Value is not from the Dropdown
+                                  </p>
+                                )}
+                              </>
                             ) : (
                               <input 
                                 type="text"
@@ -3338,7 +3445,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/poshmark.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/poshmark.png" alt="" className="w-5 h-5" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Poshmark Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Live category search, colors, style tags, brand & size dropdowns</p>
@@ -3439,7 +3546,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/mercari.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/mercari.png" alt="" className="w-5 h-5" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Mercari Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Category taxonomy, brand autocomplete, condition & full shipping matrix</p>
@@ -3638,7 +3745,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/etsy.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/etsy.png" alt="" className="w-5 h-5" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Etsy Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Taxonomy category, handmade details, materials, tags & shipping profiles</p>
@@ -3782,7 +3889,7 @@ const CreateMasterListing = ({
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <img src="/amazon.png" className="w-5 h-5 object-contain" alt="" />
+                  <PlatformLogo src="/amazon.png" alt="" className="w-5 h-5" />
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 uppercase">Amazon Platform Configuration</h3>
                     <p className="text-[10px] text-slate-500">Product type, product ID & bullet points</p>
@@ -3851,13 +3958,13 @@ const CreateMasterListing = ({
                   type="button"
                   variant="secondary"
                   size="md"
-                  onClick={() => handlePublishPlatforms([platId])}
+                  onClick={() => handleListOnClick(platId)}
                   loading={isSingleLoading}
                   disabled={publishing}
                   className="border border-slate-200 hover:border-slate-300 text-slate-700 font-bold bg-slate-50 hover:bg-slate-100"
-                  icon={<img src={pConfig.logo} className="w-4 h-4 object-contain" alt="" />}
+                  icon={<PlatformLogo src={pConfig.logo} alt="" className="w-4 h-4" />}
                 >
-                  {isEditMode ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
+                  {platformHasLiveId(platId) ? `Update ${pConfig.name}` : `List on ${pConfig.name}`}
                 </Button>
               );
             })}
@@ -3872,12 +3979,81 @@ const CreateMasterListing = ({
               disabled={publishing}
               icon={<ShoppingBag size={14} />}
             >
-              {isEditMode ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
+              {selectedPlatforms.every(platformHasLiveId) ? 'Update All Platforms' : `List on All (${selectedPlatforms.length})`}
             </Button>
           </div>
 
         </div>
       </div>
+
+      {/* Link Existing Listing Prompt - shown when "List on X" is clicked for a platform the item
+          has never been published to, but it's already live somewhere else. */}
+      {linkPromptPlatform && (() => {
+        const promptConfig = PLATFORMS_CONFIG.find(p => p.id === linkPromptPlatform);
+        const otherLivePlatformNames = PLATFORMS_CONFIG
+          .filter(p => p.id !== linkPromptPlatform && platformHasLiveId(p.id))
+          .map(p => p.name)
+          .join(', ');
+        return (
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"
+            onClick={() => !linkPromptSubmitting && setLinkPromptPlatform(null)}
+          >
+            <div
+              className="relative bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black text-slate-900">Already on {otherLivePlatformNames}?</h2>
+                <button
+                  type="button"
+                  onClick={() => !linkPromptSubmitting && setLinkPromptPlatform(null)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="text-xs font-semibold text-slate-500">
+                This item is already listed on {otherLivePlatformNames}. If it's also already listed on {promptConfig?.name} somewhere, paste that listing's link to attach it here instead of creating a new one.
+              </p>
+              <input
+                type="text"
+                value={linkPromptUrl}
+                onChange={(e) => setLinkPromptUrl(e.target.value)}
+                placeholder={`Paste the existing ${promptConfig?.name} listing URL or ID...`}
+                className="w-full px-3.5 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-400"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                  disabled={linkPromptSubmitting}
+                  onClick={() => {
+                    const plat = linkPromptPlatform;
+                    setLinkPromptPlatform(null);
+                    setLinkPromptUrl('');
+                    handlePublishPlatforms([plat]);
+                  }}
+                >
+                  No, List as New
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="flex-1"
+                  loading={linkPromptSubmitting}
+                  onClick={handleLinkPromptSubmit}
+                >
+                  Link Existing Listing
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

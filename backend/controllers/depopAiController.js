@@ -1,6 +1,5 @@
 const OpenAI = require('openai');
 const sharp = require('sharp');
-const Listing = require('../models/Listing');
 const { DEPOP_TAXONOMY } = require('../constants/depopTaxonomy');
 const { BANNED_HASHTAGS } = require('../constants/bannedWords');
 const {
@@ -437,21 +436,9 @@ Response ONLY as JSON: {
             throw new Error("OpenAI returned an empty or invalid JSON response.");
         }
 
-        // DYNAMIC SKU GENERATION
-        let skuCode = '';
-        let isUnique = false;
-        const productCount = await Listing.countDocuments();
-        let currentNum = productCount + 1;
-        while (!isUnique) {
-            skuCode = `KL${currentNum}D`;
-            const existingListing = await Listing.findOne({ sku: skuCode });
-            if (!existingListing) {
-                isUnique = true;
-            } else {
-                currentNum++;
-            }
-        }
-        finalData.sku = skuCode;
+        // SKU is a manual field now (moved next to Gender in the AI Listing Scanner panel) - the
+        // seller can leave it blank, so Analyze no longer auto-fills one.
+        finalData.sku = finalData.sku || '';
 
         const aiResponseParts = finalData.title_parts || {};
         const standardizedParts = {};

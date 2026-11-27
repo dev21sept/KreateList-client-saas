@@ -1,9 +1,32 @@
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { scrapePoshmarkCloset } = require('../services/externalImportService');
+const { scrapePoshmarkCloset, resolvePoshmarkUsernameFromListing } = require('../services/externalImportService');
 const { publishToPoshmark } = require('../services/backendPublishService');
 const { loginToPoshmark, verify2FA } = require('../services/poshmarkLoginService');
+const { acquireUserSyncLock, releaseUserSyncLock } = require('../services/backgroundSyncService');
+
+/**
+ * A seller's stored poshmarkAccount.username can be stale - some connect flows
+ * saved the raw login email/identifier instead of the real closet handle, so
+ * closet-level calls (which need the real handle, unlike single-listing lookups)
+ * silently return nothing. Self-heal it using one of the seller's own already-
+ * known listing IDs, whose detail response reports the real creator_username.
+ */
+async function resolveRealPoshmarkUsername(userId, poshAccount) {
+  if (!poshAccount?.username || !poshAccount.username.includes('@') || !poshAccount.sessionCookie) {
+    return poshAccount?.username || null;
+  }
+  const sampleListing = await Listing.findOne({ user: userId, poshmarkListingId: { $exists: true, $ne: '' } }).select('poshmarkListingId').lean();
+  if (!sampleListing) return poshAccount.username;
+
+  const realUsername = await resolvePoshmarkUsernameFromListing(sampleListing.poshmarkListingId, poshAccount);
+  if (realUsername && realUsername !== poshAccount.username) {
+    console.log(`[Poshmark Controller] Self-healed username from stale "${poshAccount.username}" to real handle "${realUsername}"`);
+    poshAccount.username = realUsername;
+  }
+  return poshAccount.username;
+}
 
 // @desc    Connect Poshmark credentials manually or via extension (cookies / token)
 // @route   POST /api/poshmark/connect
@@ -165,22 +188,31 @@ exports.poshmarkVerify2FA = async (req, res) => {
 // @route   POST /api/poshmark/import
 // @access  Private
 exports.poshmarkImportCloset = async (req, res) => {
+  // Shares the same per-user lock as the background cron and the manual "Sync Now" button: two of
+  // them scraping/writing this user's Poshmark products at once race the same documents.
+  if (!acquireUserSyncLock(req.user.id)) {
+    return res.status(409).json({
+      success: false,
+      message: 'A Poshmark sync is already running for your account. Please wait for it to finish.'
+    });
+  }
   try {
     const { username } = req.body;
-    
+
     if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Please provide Poshmark username' 
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide Poshmark username'
       });
     }
 
     const cleanUsername = username.trim();
     console.log(`[Poshmark Controller] Starting closet import for: ${cleanUsername}, UserID: ${req.user.id}`);
-    
+
     const user = await User.findById(req.user.id);
     const poshAccount = user?.poshmarkAccount || {};
-    const scrapedListings = await scrapePoshmarkCloset(cleanUsername, poshAccount);
+    const resolvedUsername = await resolveRealPoshmarkUsername(req.user.id, poshAccount) || cleanUsername;
+    const scrapedListings = await scrapePoshmarkCloset(resolvedUsername, poshAccount);
 
     if (user && user.poshmarkAccount && poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {
       user.poshmarkAccount.username = poshAccount.username;
@@ -228,6 +260,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         if (item.thumbnail) {
           existingProduct.thumbnail = item.thumbnail;
         }
+        existingProduct.poshmarkState = item.poshmarkState || existingProduct.poshmarkState;
         existingProduct.updated_at = Date.now();
         await existingProduct.save();
         duplicateCount++;
@@ -247,6 +280,7 @@ exports.poshmarkImportCloset = async (req, res) => {
         thumbnail: item.thumbnail || (item.images && item.images[0]) || '',
         source: 'poshmark',
         status: resolvedStatus,
+        poshmarkState: item.poshmarkState || null,
         poshmarkListingId: item.poshmarkListingId,
         poshmarkUrl: item.poshmarkUrl,
         updated_at: Date.now()
@@ -257,19 +291,37 @@ exports.poshmarkImportCloset = async (req, res) => {
       importCount++;
     }
 
-    // Reconcile any existing Poshmark products not returned or not active in the latest closet scrape
-    if (scrapedListings.length > 0) {
+    // Reconcile: a record whose Poshmark post is not in the closet anymore is removed from Poshmark.
+    // Safety: scrapePoshmarkCloset falls back to an unauthenticated public-page scrape when the
+    // authenticated REST call times out/fails, and that fallback can return a tiny fraction of the
+    // real closet (sometimes 0). Reconciling against a partial read marks genuinely-active items
+    // "removed", which this count check (mirrors backgroundSyncService.js's own guard) prevents.
+    let removedCount = 0;
+    const previouslyActiveCount = await Product.countDocuments({ user: req.user.id, source: 'poshmark', poshmarkState: { $ne: 'removed' } });
+    const scrapeLooksIncomplete = previouslyActiveCount >= 10 && scrapedPoshmarkIds.size < previouslyActiveCount * 0.5;
+    if (scrapeLooksIncomplete) {
+      console.warn(`[Poshmark Controller] Closet scrape for ${cleanUsername} looks incomplete (${scrapedPoshmarkIds.size} items vs ${previouslyActiveCount} previously known active) - skipping removal reconcile this run.`);
+    } else if (scrapedListings.length > 0) {
       const allDbProducts = await Product.find({ user: req.user.id, source: 'poshmark' });
       for (const dbP of allDbProducts) {
         const matched = (dbP.poshmarkListingId && scrapedPoshmarkIds.has(dbP.poshmarkListingId)) ||
                         (dbP.sku && scrapedSkus.has(dbP.sku));
-        if (!matched && (dbP.status === 'live' || dbP.status === 'active')) {
+        if (!matched && dbP.poshmarkState !== 'removed') {
+          dbP.poshmarkState = 'removed';
           dbP.status = 'inactive';
           dbP.updated_at = Date.now();
           await dbP.save();
+          removedCount++;
         }
       }
     }
+
+    // Counts of the real Poshmark states in this closet (for the success message)
+    const stateCounts = scrapedListings.reduce((acc, s) => {
+      const k = s.poshmarkState || 'unknown';
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    }, {});
 
     res.status(200).json({
       success: true,
@@ -278,16 +330,20 @@ exports.poshmarkImportCloset = async (req, res) => {
         totalFound: scrapedListings.length,
         importedCount: importCount,
         skippedDuplicates: duplicateCount,
+        removedCount,
+        stateCounts,
         listings: importedItems
       }
     });
 
   } catch (err) {
     console.error(`[Poshmark Controller] Error importing closet:`, err.message);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to import Poshmark closet: ${err.message}` 
+    res.status(500).json({
+      success: false,
+      message: `Failed to import Poshmark closet: ${err.message}`
     });
+  } finally {
+    releaseUserSyncLock(req.user.id);
   }
 };
 
@@ -477,7 +533,8 @@ exports.poshmarkGetLive = async (req, res) => {
     
     // 1. First return existing synced products from database if available (unless forceRefresh is requested)
     const forceRefresh = req.query.forceRefresh === 'true' || req.query.refresh === 'true';
-    const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark' }).sort({ updated_at: -1, createdAt: -1 });
+    // Records no longer in the Poshmark closet ("removed") are not shown.
+    const dbProducts = await Product.find({ user: req.user.id, source: 'poshmark', poshmarkState: { $ne: 'removed' } }).sort({ updated_at: -1, createdAt: -1 });
     if (dbProducts.length > 0 && !forceRefresh) {
       const mappedListings = dbProducts.map(p => ({
         _id: p._id,
@@ -494,6 +551,8 @@ exports.poshmarkGetLive = async (req, res) => {
         poshmarkListingId: p.poshmarkListingId,
         poshmarkUrl: p.poshmarkUrl,
         quantity: p.quantity || 1,
+        // Real Poshmark state: active | hidden | sold | not_for_sale (null for records synced before this change)
+        poshmarkState: p.poshmarkState || null,
         status: (p.status === 'live' || p.status === 'active') ? 'active' : 'inactive',
         updated_at: p.updated_at || p.updatedAt,
         created_at: p.created_at || p.createdAt
@@ -505,10 +564,43 @@ exports.poshmarkGetLive = async (req, res) => {
       });
     }
 
+    // This scrape-and-write path shares the same Product documents as poshmarkImportCloset and the
+    // background sync worker; without the same lock, a page-load live-fetch racing a manual "Sync Now"
+    // (or the cron) hits the same find-then-create sequence on the same poshmarkListingId and throws an
+    // E11000 duplicate key error. If another sync already holds the lock, just serve whatever's in the
+    // DB already rather than fail - this endpoint is often called passively, not as an explicit action.
+    if (!acquireUserSyncLock(req.user.id)) {
+      return res.status(200).json({
+        success: true,
+        data: dbProducts.map(p => ({
+          _id: p._id,
+          title: p.title,
+          description: p.description,
+          price: p.selling_price || 0,
+          sku: p.sku || '',
+          brand: p.brand || '',
+          size: p.size || '',
+          category: p.category || '',
+          images: p.images || [],
+          thumbnail: p.thumbnail || (p.images && p.images[0]) || '',
+          platform: 'poshmark',
+          poshmarkListingId: p.poshmarkListingId,
+          poshmarkUrl: p.poshmarkUrl,
+          quantity: p.quantity || 1,
+          poshmarkState: p.poshmarkState || null,
+          status: (p.status === 'live' || p.status === 'active') ? 'active' : 'inactive',
+          updated_at: p.updated_at || p.updatedAt,
+          created_at: p.created_at || p.createdAt
+        })),
+        syncInProgress: true
+      });
+    }
+
+    try {
     const poshAccount = user.poshmarkAccount || {};
-    const username = poshAccount.username;
+    const username = await resolveRealPoshmarkUsername(req.user.id, poshAccount) || poshAccount.username;
     console.log(`[Poshmark Controller] Fetching live inventory for Poshmark (${username})`);
-    
+
     const liveListings = await scrapePoshmarkCloset(username, poshAccount);
 
     if (poshAccount.username && user.poshmarkAccount.username !== poshAccount.username) {
@@ -587,6 +679,9 @@ exports.poshmarkGetLive = async (req, res) => {
       success: true,
       data: savedProducts
     });
+    } finally {
+      releaseUserSyncLock(req.user.id);
+    }
   } catch (err) {
     console.error(`[Poshmark Controller] Error getting live inventory:`, err.message);
     res.status(200).json({ success: false, message: err.message, data: [] });

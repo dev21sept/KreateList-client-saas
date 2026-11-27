@@ -1,3 +1,4 @@
+import PlatformLogo from '../components/PlatformLogo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,7 +43,11 @@ import IconButton from '../components/ui/IconButton';
 import { Badge } from '../components/ui/Badge';
 import { resolveEbayCategoryFallback, cleanHtmlDescription } from '../utils/categoryResolver';
 import { EBAY_CONDITIONS } from '../constants/ebayConditions';
+import { GENDER_OPTIONS } from '../constants/genderOptions';
 import PriceRecommendationCard from '../components/pricing/PriceRecommendationCard';
+
+// Books and media conditions do not apply to clothing listings, so they are hidden from the picker.
+const CLOTHING_CONDITIONS = EBAY_CONDITIONS.filter(c => !c.label.includes('(Books)'));
 
 const COUNTRIES_LIST = [
   { id: 'US', label: 'United States' },
@@ -473,6 +478,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
     price: '',
     description: '',
     conditionNote: '',
+    gender: 'Not Required',
     selectedAspects: {},
     sku: '',
     selectedModel: 'gpt-4o-mini',
@@ -574,6 +580,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         const b = initialListing.brand || eData.brand || rawAspects['Brand']?.[0] || '';
         const s = initialListing.size || eData.size || rawAspects['Size']?.[0] || '';
         const c = initialListing.color || eData.color || rawAspects['Color']?.[0] || '';
+        const g = initialListing.gender || eData.gender || '';
         if (b && !rawAspects['Brand']) rawAspects['Brand'] = [b];
         if (s && !rawAspects['Size']) rawAspects['Size'] = [s];
         if (c && !rawAspects['Color']) rawAspects['Color'] = [c];
@@ -588,7 +595,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           categoryId: eData.categoryId || (initialListing.platform === 'ebay' ? initialListing.categoryId : '') || '',
           selectedAspects: { ...prev.selectedAspects, ...rawAspects },
           sku: eData.sku || initialListing.sku || '',
+          gender: g || prev.gender,
           conditionId: eData.conditionId || mapEbayCondition(initialListing.condition),
+          conditionNote: eData.conditionNote || initialListing.conditionNote || prev.conditionNote,
+          fulfillmentPolicyId: eData.fulfillmentPolicyId || initialListing.fulfillmentPolicyId || prev.fulfillmentPolicyId,
+          paymentPolicyId: eData.paymentPolicyId || initialListing.paymentPolicyId || prev.paymentPolicyId,
+          returnPolicyId: eData.returnPolicyId || initialListing.returnPolicyId || prev.returnPolicyId,
+          locationKey: eData.locationKey || initialListing.locationKey || prev.locationKey,
+          packageWeight: (initialListing.packageWeight?.lbs || initialListing.packageWeight?.oz) ? initialListing.packageWeight : prev.packageWeight,
+          packageDimensions: initialListing.packageDimensions?.length ? initialListing.packageDimensions : prev.packageDimensions,
           yourCost: eData.yourCost || prev.yourCost,
           format: eData.format || prev.format,
           quantity: eData.quantity || prev.quantity,
@@ -605,8 +620,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           irregularPackage: eData.irregularPackage !== undefined ? eData.irregularPackage : prev.irregularPackage,
           displayUkSite: eData.displayUkSite !== undefined ? eData.displayUkSite : prev.displayUkSite,
           countryOfOrigin: eData.countryOfOrigin || initialListing.countryOfOrigin || rawAspects['Country/Region of Manufacture']?.[0] || rawAspects['Country of Origin']?.[0] || prev.countryOfOrigin || '',
-          itemLocationZip: eData.itemLocationZip || prev.itemLocationZip,
-          itemLocationCity: eData.itemLocationCity || prev.itemLocationCity,
+          itemLocationZip: eData.itemLocationZip || initialListing.itemLocationZip || prev.itemLocationZip,
+          itemLocationCity: eData.itemLocationCity || initialListing.itemLocationCity || prev.itemLocationCity,
           productDocumentsEnabled: eData.productDocumentsEnabled !== undefined ? eData.productDocumentsEnabled : prev.productDocumentsEnabled,
           productDocType: eData.productDocType || prev.productDocType,
           productDocUrl: eData.productDocUrl || prev.productDocUrl,
@@ -660,11 +675,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               ).categoryId || prev.categoryId),
               selectedAspects: { ...prev.selectedAspects, ...rawAspects },
               sku: eData.sku || raw.sku || prev.sku,
-              fulfillmentPolicyId: eData.fulfillmentPolicyId || prev.fulfillmentPolicyId,
-              paymentPolicyId: eData.paymentPolicyId || prev.paymentPolicyId,
-              returnPolicyId: eData.returnPolicyId || prev.returnPolicyId,
-              locationKey: eData.locationKey || prev.locationKey,
+              gender: eData.gender || raw.gender || prev.gender,
+              fulfillmentPolicyId: eData.fulfillmentPolicyId || raw.fulfillmentPolicyId || prev.fulfillmentPolicyId,
+              paymentPolicyId: eData.paymentPolicyId || raw.paymentPolicyId || prev.paymentPolicyId,
+              returnPolicyId: eData.returnPolicyId || raw.returnPolicyId || prev.returnPolicyId,
+              locationKey: eData.locationKey || raw.locationKey || prev.locationKey,
               conditionId: eData.conditionId || mapEbayCondition(raw.condition) || prev.conditionId,
+              conditionNote: eData.conditionNote || raw.conditionNote || prev.conditionNote,
+              packageWeight: (raw.packageWeight?.lbs || raw.packageWeight?.oz) ? raw.packageWeight : prev.packageWeight,
+              packageDimensions: raw.packageDimensions?.length ? raw.packageDimensions : prev.packageDimensions,
               yourCost: eData.yourCost || prev.yourCost,
               format: eData.format || prev.format,
               quantity: eData.quantity || prev.quantity,
@@ -681,8 +700,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               irregularPackage: eData.irregularPackage !== undefined ? eData.irregularPackage : prev.irregularPackage,
               displayUkSite: eData.displayUkSite !== undefined ? eData.displayUkSite : prev.displayUkSite,
               countryOfOrigin: eData.countryOfOrigin || raw.countryOfOrigin || rawAspects['Country/Region of Manufacture']?.[0] || rawAspects['Country of Origin']?.[0] || prev.countryOfOrigin || '',
-              itemLocationZip: eData.itemLocationZip || prev.itemLocationZip,
-              itemLocationCity: eData.itemLocationCity || prev.itemLocationCity,
+              itemLocationZip: eData.itemLocationZip || raw.itemLocationZip || prev.itemLocationZip,
+              itemLocationCity: eData.itemLocationCity || raw.itemLocationCity || prev.itemLocationCity,
               productDocumentsEnabled: eData.productDocumentsEnabled !== undefined ? eData.productDocumentsEnabled : prev.productDocumentsEnabled,
               productDocType: eData.productDocType || prev.productDocType,
               productDocUrl: eData.productDocUrl || prev.productDocUrl,
@@ -759,6 +778,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         description_template: selectedRuleObj?.description_template || '',
         condition_note: selectedRuleObj?.condition_note || '',
         condition_name: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Pre-owned - Good',
+        gender: formData.gender || 'Not Required',
         model: formData.selectedModel || 'gpt-4o-mini',
         existing_title: formData.title || ''
       });
@@ -791,7 +811,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
           const finalCatId = (result.ebay_category_id && String(result.ebay_category_id) !== '206') ? String(result.ebay_category_id) : (result.category_id && String(result.category_id) !== '206' ? String(result.category_id) : (resolvedEbay.categoryId || prev.categoryId));
           const finalCatName = result.ebay_category_name || resolvedEbay.category || prev.category;
           const finalBrand = brandVal || (formattedAspects['Brand']?.[0]) || '';
-          const finalModel = formattedAspects['Model']?.[0] || formattedAspects['MPN']?.[0] || '';
+          // Only a real model name is sent to pricing; MPN/style codes are not reliable model names.
+          const finalModel = formattedAspects['Model']?.[0] || '';
 
           // Auto-fetch market pricing comps in background immediately upon AI scan
           if (finalTitle && finalTitle.length > 5) {
@@ -914,6 +935,34 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         toast.error(`Please fill in required eBay Item Specifics: ${missingNames}`);
         return;
       }
+
+      // Check for required/recommended aspects with values that do not match the official dropdown
+      const invalidDropdownAspects = aspects.filter(aspect => {
+        const isRequired = aspect.aspectConstraint?.aspectRequired || aspect.aspectConstraint?.aspectUsage === 'REQUIRED';
+        const isRecommended = aspect.aspectConstraint?.aspectUsage === 'RECOMMENDED';
+        if (!isRequired && !isRecommended) return false;
+
+        const taxonomyVals = aspect.aspectValues || aspect.values || [];
+        const name = aspect.localizedAspectName || aspect.aspectConstraint?.aspectName || aspect.name;
+        const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+        const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+        if (vals.length === 0) return false;
+
+        const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name];
+        if (!val || !String(val).trim()) return false;
+
+        const matches = vals.some(v => {
+          const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+          return valText.trim().toLowerCase() === String(val).trim().toLowerCase();
+        });
+        return !matches;
+      });
+
+      if (invalidDropdownAspects.length > 0) {
+        const invalidNames = invalidDropdownAspects.map(a => a.localizedAspectName || a.aspectConstraint?.aspectName || a.name).join(', ');
+        toast.error(`Value is not from the Dropdown for: ${invalidNames}`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -929,6 +978,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
         description: formData.description,
         conditionId: formData.conditionId,
         conditionNote: formData.conditionNote,
+        gender: formData.gender,
         selectedAspects: formData.selectedAspects,
         itemSpecifics: formData.selectedAspects,
         sku: formData.sku,
@@ -1031,7 +1081,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
             <ChevronLeft size={20} />
           </button>
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-            <img src="/ebay.png" className="w-6 h-6 object-contain" alt="eBay" />
+            <PlatformLogo src="/ebay.png" alt="eBay" className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -1066,7 +1116,7 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: Photos & AI Scanner */}
-        <div className="lg:col-span-4 lg:sticky lg:top-4 space-y-4">
+        <div className="lg:col-span-4 space-y-4">
           
           {/* Photo Manager Card */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
@@ -1184,20 +1234,43 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Condition</label>
                   <SearchableDropdown 
-                    value={EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
+                    value={CLOTHING_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, conditionId: opt.id }))}
-                    options={EBAY_CONDITIONS}
+                    options={CLOTHING_CONDITIONS}
                     placeholder="Select condition..."
                   />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">AI Model</label>
-                  <SearchableDropdown 
+                  <SearchableDropdown
                     value={modelOptions.find(m => m.id === formData.selectedModel)?.label}
                     onSelect={(opt) => setFormData(prev => ({ ...prev, selectedModel: opt.id }))}
                     options={modelOptions}
                     placeholder="Select model..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Gender</label>
+                  <select
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.gender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">SKU</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
+                    value={formData.sku}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="Optional"
                   />
                 </div>
               </div>
@@ -1254,8 +1327,8 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
               />
             </div>
 
-            {/* Format, Price, Your Cost, Quantity & SKU */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            {/* Format, Price, Your Cost & Quantity */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Format</label>
                 <select
@@ -1313,32 +1386,46 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Custom SKU</label>
-                <input 
-                  type="text"
-                  className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-slate-800"
-                  value={formData.sku}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                  placeholder="Optional SKU"
-                />
-              </div>
             </div>
 
+            <div className="mt-4">
+              {/* Live eBay Pricing Engine Insights Card */}
+              <PriceRecommendationCard
+                initialData={ebayPricingRecommendation}
+                autoFetch={true}
+                onRecommendationLoaded={(rec) => {
+                  setEbayPricingRecommendation(rec);
+                  if (rec.recommendation?.suggested_price) {
+                    setFormData(p => ({ ...p, price: p.price || rec.recommendation.suggested_price }));
+                  }
+                }}
+                itemData={{
+                  title: formData.title,
+                  brand: formData.brand || formData.selectedAspects['Brand']?.[0],
+                  model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
+                  upc: formData.selectedAspects['UPC']?.[0],
+                  condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
+                  category: formData.category,
+                  categoryId: formData.categoryId
+                }}
+                currentPrice={formData.price}
+                onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}
+              />
+            </div>
             {/* Condition & Condition Note */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">eBay Condition *</label>
                 <SearchableDropdown 
-                  value={EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
+                  value={CLOTHING_CONDITIONS.find(c => c.id === formData.conditionId)?.label}
                   onSelect={(opt) => setFormData(prev => ({ ...prev, conditionId: opt.id }))}
-                  options={EBAY_CONDITIONS}
+                  options={CLOTHING_CONDITIONS}
                   placeholder="Select eBay condition..."
                 />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Condition Description / Note</label>
-                <input 
+                <input
                   type="text"
                   className="w-full px-3 h-10 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
                   value={formData.conditionNote}
@@ -1433,6 +1520,18 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                   const taxonomyVals = aspect.aspectValues || aspect.values || [];
                   const fallbackVals = DEFAULT_ASPECT_OPTIONS[aspectName] || [];
                   const vals = taxonomyVals.length > 0 ? taxonomyVals : fallbackVals;
+                  const hasValues = vals.length > 0;
+
+                  let hasDropdownError = false;
+                  if ((isRequired || isRecommended) && hasValues && currentVal) {
+                    const matchesDropdown = vals.some(v => {
+                      const valText = typeof v === 'object' && v !== null ? (v.localizedValue || v.label || v.value || '') : String(v);
+                      return valText.trim().toLowerCase() === String(currentVal).trim().toLowerCase();
+                    });
+                    if (!matchesDropdown) {
+                      hasDropdownError = true;
+                    }
+                  }
 
                   return (
                     <div key={aspectName} className="space-y-1">
@@ -1448,9 +1547,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                           return { id: text, label: text };
                         })}
                         placeholder={`Select or type ${aspectName}...`}
+                        error={hasDropdownError}
                         allowCustom={true}
                         size="sm"
                       />
+                      {hasDropdownError && (
+                        <p className="text-[10px] font-semibold text-rose-500 animate-pulse">
+                          Value is not from the Dropdown
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -1458,6 +1563,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 DEFAULT_COMMON_ASPECTS.map((name) => {
                   const val = formData.selectedAspects[name]?.[0] || formData.selectedAspects[name] || '';
                   const fallbackVals = DEFAULT_ASPECT_OPTIONS[name] || [];
+                  const hasValues = fallbackVals.length > 0;
+                  let hasDropdownError = false;
+                  if (hasValues && val) {
+                    const matchesDropdown = fallbackVals.some(v => String(v).trim().toLowerCase() === String(val).trim().toLowerCase());
+                    if (!matchesDropdown) {
+                      hasDropdownError = true;
+                    }
+                  }
+
                   return (
                     <div key={name} className="space-y-1">
                       <label className="block text-[11px] font-bold text-slate-700">{name}</label>
@@ -1466,9 +1580,15 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                         onSelect={(opt) => handleAspectChange(name, opt.label || opt.name || opt.id)}
                         options={fallbackVals.map(o => ({ id: o, label: o }))}
                         placeholder={`Select or type ${name}...`}
+                        error={hasDropdownError}
                         allowCustom={true}
                         size="sm"
                       />
+                      {hasDropdownError && (
+                        <p className="text-[10px] font-semibold text-rose-500 animate-pulse">
+                          Value is not from the Dropdown
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -1528,29 +1648,6 @@ const CreateEbayListing = ({ isModal = false, editId: propEditId = null, initial
                 placeholder="Select payment policy..."
               />
             </div>
-
-            {/* Live eBay Pricing Engine Insights Card */}
-            <PriceRecommendationCard
-              initialData={ebayPricingRecommendation}
-              autoFetch={true}
-              onRecommendationLoaded={(rec) => {
-                setEbayPricingRecommendation(rec);
-                if (rec.recommendation?.suggested_price) {
-                  setFormData(p => ({ ...p, price: p.price || rec.recommendation.suggested_price }));
-                }
-              }}
-              itemData={{
-                title: formData.title,
-                brand: formData.brand || formData.selectedAspects['Brand']?.[0],
-                model: formData.selectedAspects['Model']?.[0] || formData.selectedAspects['MPN']?.[0],
-                upc: formData.selectedAspects['UPC']?.[0],
-                condition: EBAY_CONDITIONS.find(c => c.id === formData.conditionId)?.label || 'Used',
-                category: formData.category,
-                categoryId: formData.categoryId
-              }}
-              currentPrice={formData.price}
-              onApplyPrice={(newPrice) => setFormData(prev => ({ ...prev, price: newPrice }))}
-            />
 
             {/* Allow Offers (Best Offer) Toggle */}
             <div className="p-3.5 border border-slate-200 rounded-xl space-y-3 bg-white">

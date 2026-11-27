@@ -58,7 +58,7 @@ const TermsConditions = () => {
                 <ul className="list-disc pl-5 mt-3 space-y-2 text-slate-500 marker:text-slate-300">
                   <li><strong className="font-bold text-slate-700">BASIC Plan ($79/mo):</strong> Includes up to 500 AI Listings per month and support for 1 eBay Account.</li>
                   <li><strong className="font-bold text-slate-700">PRO Plan ($149/mo):</strong> Includes up to 3,000 AI Listings per month.</li>
-                  <li><strong className="font-bold text-slate-700">ENTERPRISE Plan ($299/mo):</strong> Includes up to 10,000 AI Listings per month and support for Unlimited eBay Accounts.</li>
+                  <li><strong className="font-bold text-slate-700">ENTERPRISE Plan ($349/mo):</strong> Includes up to 10,000 AI Listings per month and support for Unlimited eBay Accounts.</li>
                 </ul>
               </li>
 

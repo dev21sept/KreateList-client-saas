@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const ebayService = require('../services/ebayService');
 const User = require('../models/User');
 const Product = require('../models/Product');
@@ -117,9 +117,12 @@ exports.handleDeletionNotification = async (req, res) => {
 exports.getEbayAuthUrl = async (req, res) => {
   try {
     const ruName = process.env.EBAY_RU_NAME;
-    // We pass req.user.id in state for GET direct redirects back to the backend if needed
-    const state = req.query.state || req.user?.id || 'dashboard'; 
     if (!ruName) return res.status(400).json({ error: 'RuName is required' });
+    const state = jwt.sign(
+      { userId: req.user.id, purpose: 'ebay-oauth' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
     
     const url = ebayService.getUserConsentUrl(ruName, state);
     console.log('Generated eBay Auth URL:', url);
@@ -140,10 +143,7 @@ exports.ebayCallback = async (req, res) => {
   const error = req.query.error;
   const error_description = req.query.error_description;
 
-  console.log('--- EBAY CALLBACK RECEIVED ---');
-  console.log('Method:', req.method);
-  console.log('Code:', code);
-  console.log('State:', state);
+  console.log('--- EBAY CALLBACK RECEIVED ---', { method: req.method });
 
   if (error) {
     console.error('eBay Auth Error:', error, error_description);
@@ -174,9 +174,14 @@ exports.ebayCallback = async (req, res) => {
     
     // Find the correct user
     let userId = req.user?.id;
-    // If it's a GET request direct from eBay, state parameter contains the user's ID
-    if (!userId && state && mongoose.Types.ObjectId.isValid(state)) {
-      userId = state;
+    // Direct eBay redirects carry a short-lived signed state so an attacker
+    // cannot connect their marketplace account to another user.
+    if (!userId && state) {
+      const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+      if (decodedState.purpose !== 'ebay-oauth') {
+        throw new Error('Invalid OAuth state.');
+      }
+      userId = decodedState.userId;
     }
 
     if (!userId) {
@@ -253,7 +258,13 @@ exports.ebayCallback = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'eBay Account Connected Successfully!',
-        data: user.ebayAccount
+        data: {
+          connected: user.ebayAccount.connected,
+          username: user.ebayAccount.username,
+          name: user.ebayAccount.name,
+          email: user.ebayAccount.email,
+          tokenExpires: user.ebayAccount.tokenExpires
+        }
       });
     }
 
@@ -273,6 +284,32 @@ exports.ebayCallback = async (req, res) => {
   }
 };
 exports.handleCallback = exports.ebayCallback;
+
+// @desc    Force refresh the current user's eBay access token
+// @route   POST /api/ebay/refresh
+// @access  Private
+exports.refreshEbayToken = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user?.ebayAccount?.refreshToken) {
+      return res.status(400).json({ success: false, message: 'eBay account is not connected.' });
+    }
+
+    const accessToken = await ebayService.refreshUserToken(user.ebayAccount.refreshToken);
+    user.ebayAccount.accessToken = accessToken;
+    user.ebayAccount.tokenExpires = new Date(Date.now() + 7200 * 1000);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'eBay connection refreshed successfully.',
+      data: { connected: true, tokenExpires: user.ebayAccount.tokenExpires }
+    });
+  } catch (error) {
+    console.error('eBay token refresh failed:', error.message);
+    return res.status(502).json({ success: false, message: 'Unable to refresh the eBay connection.' });
+  }
+};
 
 // @desc    Sync Orders from eBay for Logged-In User
 // @route   POST /api/ebay/sync/orders
@@ -349,11 +386,30 @@ exports.syncOrders = async (req, res) => {
         createdDate: o.creationDate,
         paidDate: o.paymentSummary?.payments?.[0]?.paymentDate,
         lineItems,
-        shippingStep: o.fulfillmentStartInstructions?.[0]?.shippingStep
+        shippingStep: o.fulfillmentStartInstructions?.[0]?.shippingStep,
+        // Real figures straight from eBay's own order response, for the Analytics profit table -
+        // pricingSummary.total is what the buyer actually paid (order total); priceSubtotal is the
+        // item price alone, before shipping; deliveryCost is what the buyer paid for shipping;
+        // totalMarketplaceFee is eBay's real final-value/transaction fee for this order (all confirmed
+        // via a live GetOrder call, not estimated).
+        grossAmount: parseFloat(o.pricingSummary?.total?.value) || undefined,
+        itemPriceAmount: parseFloat(o.pricingSummary?.priceSubtotal?.value) || undefined,
+        buyerShippingAmount: parseFloat(o.pricingSummary?.deliveryCost?.value) || undefined,
+        platformFeeAmount: parseFloat(o.totalMarketplaceFee?.value) || undefined
       };
 
       const existingOrder = await Order.findOne({ orderId: o.orderId, user: userId });
       const isNewOrder = !existingOrder;
+
+      // findOneAndUpdate below with a plain object (no $set) replaces the whole document on a match -
+      // explicitly carry over the seller's own manually-entered profit fields so a re-sync never wipes
+      // them. shippingLabelCost is always purely seller-entered (what they actually paid for postage)
+      // and is kept separate from buyerShippingAmount (what the buyer paid, a different real number) -
+      // never auto-filled from one into the other, both are shown as their own column.
+      if (existingOrder) {
+        orderData.shippingLabelCost = existingOrder.shippingLabelCost;
+        orderData.cogsAmount = existingOrder.cogsAmount;
+      }
 
       await Order.findOneAndUpdate(
         { orderId: o.orderId, user: userId },
@@ -622,7 +678,8 @@ async function executeEbayInventorySync(userId) {
                   categoryId: item.categoryId || (existingProduct ? existingProduct.categoryId : ''),
                   images: (item.images && item.images.length > 0) ? item.images : (existingProduct?.images || []),
                   source: 'ebay',
-                  updated_at: Date.now()
+                  updated_at: Date.now(),
+                  listedAt: item.startTime || (existingProduct ? existingProduct.listedAt : undefined)
                 },
                 $setOnInsert: {
                   description: item.title || '',
@@ -635,6 +692,7 @@ async function executeEbayInventorySync(userId) {
             ebayListingId: item.itemId,
             title: item.title,
             images: item.images,
+            listedAt: item.startTime,
             sku: item.sku
           });
           totalSynced++;
@@ -738,6 +796,22 @@ async function executeEbayInventorySync(userId) {
 }
 
 // @desc    Sync Inventory from eBay for Logged-In User
+// After a sync, set each eBay record's real state from eBay's own lists.
+// Records no longer on eBay are marked removed, so they drop out of the eBay tab.
+async function reconcileEbayAfterSync(userId) {
+  const mongoose = require('mongoose');
+  const { reconcileEbayStates } = require('../services/ebayStateSync');
+  const User = require('../models/User');
+  const me = await User.findById(userId).select('ebayAccount').lean();
+  const username = me?.ebayAccount?.username;
+  const linked = username ? await User.find({ 'ebayAccount.username': username }).select('_id').lean() : [];
+  const userIds = linked.length ? linked.map(u => u._id) : [new mongoose.Types.ObjectId(String(userId))];
+  const token = await getValidToken(userId);
+  const result = await reconcileEbayStates(mongoose.connection.db, userIds, token);
+  console.log('[eBay State Sync]', JSON.stringify(result));
+  return result;
+}
+
 // @route   POST /api/ebay/sync/inventory
 // @access  Private
 exports.syncInventory = async (req, res) => {
@@ -765,6 +839,7 @@ exports.syncInventory = async (req, res) => {
         try {
           console.log(`[eBay Background Sync] Starting sync for user ${userId}...`);
           await executeEbayInventorySync(userId);
+          await reconcileEbayAfterSync(userId).catch(e => console.error('[eBay State Sync] failed:', e.message));
           console.log(`[eBay Background Sync] Sync finished for user ${userId}.`);
         } catch (bgErr) {
           console.error(`[eBay Background Sync] Error:`, bgErr.message);
@@ -774,7 +849,9 @@ exports.syncInventory = async (req, res) => {
     }
 
     // If called internally by cron
-    return await executeEbayInventorySync(userId);
+    const syncResult = await executeEbayInventorySync(userId);
+    await reconcileEbayAfterSync(userId).catch(e => console.error('[eBay State Sync] failed:', e.message));
+    return syncResult;
   } catch (err) {
     console.error('[eBay syncInventory] Error:', err.message);
     if (res) {
@@ -1011,12 +1088,15 @@ exports.getCategoryAspects = async (req, res) => {
 // @access  Private
 exports.getSyncedInventory = async (req, res) => {
   try {
-    const products = await Product.find({ 
+    // Only real eBay items: must have an eBay listing ID and must not be marked removed.
+    const products = await Product.find({
       user: req.user.id,
       $or: [
         { source: 'ebay' },
         { source: { $exists: false } }
-      ]
+      ],
+      ebayListingId: { $exists: true, $nin: [null, ''] },
+      ebayState: { $ne: 'removed' }
     }).sort({ updated_at: -1 });
     res.status(200).json({ success: true, count: products.length, data: products });
   } catch (err) {

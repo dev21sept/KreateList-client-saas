@@ -15,10 +15,15 @@ const productSchema = new mongoose.Schema({
   brand: String,
   size: String,
   color: String,
+  gender: String,
   categoryId: String,
   itemSpecifics: mongoose.Schema.Types.Mixed,
   images: [String],
   selling_price: Number,
+  // The real date/time this item went live on the platform (eBay's ListingDetails > StartTime for
+  // now) - distinct from createdAt/updatedAt, which track our own sync activity and get touched on
+  // every resync regardless of whether the listing itself is actually new.
+  listedAt: Date,
   source: {
     type: String,
     default: 'ebay'
@@ -27,6 +32,18 @@ const productSchema = new mongoose.Schema({
     type: String,
     enum: ['draft', 'live', 'active', 'inactive'],
     default: 'draft'
+  },
+  // Real Poshmark state (Poshmark only). "removed" = no longer in the closet; kept out of the lists.
+  poshmarkState: {
+    type: String,
+    enum: ['active', 'hidden', 'sold', 'not_for_sale', 'removed'],
+    default: null
+  },
+  // Real eBay state (eBay only). "removed" = not on eBay any more; hidden from the eBay inventory list.
+  ebayState: {
+    type: String,
+    enum: ['active', 'sold', 'ended', 'removed'],
+    default: null
   },
   ebayListingId: String,
   ebayUrl: String,
@@ -47,5 +64,11 @@ const productSchema = new mongoose.Schema({
     default: Date.now
   }
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+
+productSchema.index({ user: 1, sku: 1 });
+productSchema.index({ user: 1, source: 1, status: 1 });
+productSchema.index({ user: 1, ebayListingId: 1 });
+productSchema.index({ user: 1, poshmarkListingId: 1 });
+productSchema.index({ user: 1, mercariListingId: 1 });
 
 module.exports = mongoose.models.Product || mongoose.model('Product', productSchema);

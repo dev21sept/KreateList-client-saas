@@ -297,7 +297,10 @@ exports.mercariImportCloset = async (req, res) => {
           title: item.title,
           description: item.title,
           selling_price: parseFloat(item.price) || 0,
-          sku: `M-${item.mercariListingId}`,
+          // Mercari's closet-listing API never exposes a seller SKU to read here - stays blank rather
+          // than inventing one; mercariListingId already does the job of uniquely identifying this
+          // item internally, a made-up "M-{id}" SKU added nothing beyond a fake-looking display value.
+          sku: item.sku || '',
           brand: '',
           size: '',
           images: item.images,
@@ -768,7 +771,10 @@ exports.mercariGetLive = async (req, res) => {
           title: item.title,
           description: item.title,
           selling_price: parseFloat(item.price) || 0,
-          sku: `M-${item.mercariListingId}`,
+          // Mercari's closet-listing API never exposes a seller SKU to read here - stays blank rather
+          // than inventing one; mercariListingId already does the job of uniquely identifying this
+          // item internally, a made-up "M-{id}" SKU added nothing beyond a fake-looking display value.
+          sku: item.sku || '',
           brand: '',
           size: '',
           images: item.images,
@@ -1055,7 +1061,7 @@ exports.mercariGetItemDetails = async (req, res) => {
         title: details.title,
         description: details.description,
         selling_price: parseFloat(details.price) || 0,
-        sku: `M-${targetMercariId}`,
+        sku: '',
         brand: details.brand,
         size: details.size,
         category: details.category,

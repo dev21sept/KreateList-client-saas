@@ -38,6 +38,9 @@ const listingSchema = new mongoose.Schema({
     default: 'draft'
   },
   ebayListingId: String,
+  // Background sync to other marketplaces runs only when the user turns it on for this listing.
+  poshmarkAutoSync: { type: Boolean, default: false },
+  depopAutoSync: { type: Boolean, default: false },
   ebayUrl: String,
   errorMessage: String,
   selectedRule: String,
@@ -48,6 +51,8 @@ const listingSchema = new mongoose.Schema({
   paymentPolicyId: String,
   returnPolicyId: String,
   locationKey: String,
+  itemLocationZip: String,
+  itemLocationCity: String,
   itemSpecifics: {
     type: Map,
     of: [String]
@@ -68,6 +73,18 @@ const listingSchema = new mongoose.Schema({
     default: 'ebay'
   },
   poshmarkListingId: String,
+  // Set only on a confirmed "Share to Followers" response from the Poshmark Automation module -
+  // used to pick eligible listings for the next Share run (not shared today) and shown in Activity.
+  poshmarkLastSharedAt: Date,
+  // Visual hash (dHash) of the first photo, cached by the merge scan so each photo is downloaded once.
+  imageHash: String,
+  // Set when a verified merge folds this record into another one (mergedInto). The record is kept,
+  // not deleted, and is hidden from the Master list; unsetting this field restores it.
+  mergedInto: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Listing',
+    default: null
+  },
   poshmarkUrl: String,
   etsyListingId: String,
   etsyUrl: String,
@@ -100,6 +117,7 @@ const listingSchema = new mongoose.Schema({
   shippingPrice: String,
   originalPrice: String,
   color: String,
+  gender: String,
   styleTag: String,
   age: String,
   source: String,
@@ -153,6 +171,8 @@ const listingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Last time the status tracker checked this listing against the marketplaces.
+  statusCheckedAt: Date,
   ebayStatus: {
     type: String,
     enum: ['draft', 'published', 'failed', 'none', 'delisted', 'sold'],
@@ -201,5 +221,15 @@ const listingSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+listingSchema.index({ user: 1, sku: 1 });
+listingSchema.index({ user: 1, status: 1 });
+listingSchema.index({ user: 1, ebayListingId: 1 });
+listingSchema.index({ user: 1, poshmarkListingId: 1 });
+listingSchema.index({ user: 1, mercariListingId: 1 });
+// The main inventory list query filters on exactly these two fields and sorts by createdAt - without
+// this, Mongo falls back to a broader user-only scan plus an in-memory sort, examining roughly twice
+// as many documents as it returns once a user's listing count gets into the thousands.
+listingSchema.index({ user: 1, mergedInto: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Listing || mongoose.model('Listing', listingSchema);
