@@ -129,7 +129,7 @@ async function loginToMercari(username, password, sessionId, userId) {
     sessionState.message = 'Loading Mercari login page...';
 
     // Navigate directly to login page
-    await gotoWithRetry(page, 'https://www.mercari.com/login/', {
+    await gotoWithRetry(page, 'https://www.mercari.com/login/?login_callback=%2F', {
       waitUntil: 'domcontentloaded',
       timeout: 45000
     }, {
