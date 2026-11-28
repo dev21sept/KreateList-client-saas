@@ -52,7 +52,13 @@ async function gotoWithRetry(page, url, gotoOptions, { maxAttempts = 4, label = 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let attemptError = null;
     try {
-      const response = await page.goto(url, gotoOptions);
+      // A plain reload (not a fresh goto) on a retry mirrors what a real user does when they
+      // land on Mercari's block/404 interstitial and hit refresh - it keeps the Cloudflare
+      // challenge cookies the first attempt already picked up, which a brand-new navigation
+      // would otherwise reset, and that's often what lets the next try through.
+      const response = attempt === 1
+        ? await page.goto(url, gotoOptions)
+        : await page.reload(gotoOptions);
       const status = response ? response.status() : 0;
       const title = await page.title().catch(() => '');
       let blocked = !response || status >= 400 || /just a moment/i.test(title);
